@@ -1,0 +1,49 @@
+# Local test of the production image, without Tailscale: builds from source and serves the game on
+# http://127.0.0.1:2567 only (this computer, not the network). Same hardening as compose.yaml.
+# Its own project name keeps it apart from the production stack and its volumes.
+#   docker compose -f compose.local.yaml up -d --build --wait
+#   docker compose -f compose.local.yaml down        (never add -v unless you mean to wipe the data)
+# `npm run verify:container` runs this and checks it from outside and inside.
+name: nebotok-local
+
+services:
+  app:
+    build:
+      context: .
+    image: nebotok:local
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    user: node
+    environment:
+      NODE_ENV: production
+      # Inside the container, so the published port can reach it; the host side is 127.0.0.1 only.
+      HOST: 0.0.0.0
+      PORT: "2567"
+      DATA_DIR: /data
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:${NEBOTOK_LOCAL_PORT:-2567}:2567"
+    volumes:
+      - nebotok-data:/data
+    tmpfs:
+      - /tmp
+    pids_limit: 200
+    mem_limit: 512m
+    cpus: "1.0"
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:2567/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    stop_grace_period: 30s
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  nebotok-data:

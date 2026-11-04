@@ -1,0 +1,24 @@
+# Only what the Dockerfile copies matters, but keep secrets, history and bulky folders out of the
+# build context entirely so they can never end up in an image layer.
+.git
+.github
+**/node_modules
+**/dist
+.proof
+.env
+.env.*
+data
+saves
+deploy
+docs
+**/test
+**/tests
+**/fixtures
+playwright-report
+test-results
+blob-report
+**/*.log
+**/.DS_Store
+compose*.yaml
+Dockerfile
+.dockerignore
