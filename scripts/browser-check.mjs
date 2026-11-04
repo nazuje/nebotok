@@ -5,7 +5,8 @@
 // scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
 // With --url it plays a game that is already running there (the container check) instead.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium, devices, webkit } from '@playwright/test';
@@ -54,16 +55,39 @@ async function screenshot(page, path) {
   }
 }
 
+/**
+ * The page plays only with a session, which the profile screen will provide. Until then the check
+ * signs in as its own profile over the API, as that screen will, and hands the page the token.
+ */
+const CHECK_PROFILE = { name: 'Browser Check', avatar: 'purple' };
+async function checkSession(base) {
+  const call = async (path, body) => {
+    const init = body === undefined ? {} : { method: 'POST', headers: { origin: base, 'content-type': 'application/json' }, body: JSON.stringify(body) };
+    const response = await fetch(`${base}/api${path}`, init);
+    if (!response.ok) throw new Error(`browser-check: ${path} answered ${response.status}`);
+    return response.json();
+  };
+  const profiles = await call('/profiles');
+  const profile = profiles.find((found) => found.name === CHECK_PROFILE.name) ?? (await call('/profiles', CHECK_PROFILE));
+  return (await call('/sessions', { profileId: profile.id })).token;
+}
+const presetSession = (token) => {
+  if (localStorage.getItem('nebotok:session') === null) localStorage.setItem('nebotok:session', JSON.stringify({ token }));
+};
+
 /** Sets the starting language once, so a reload keeps whatever the page chose since. */
 const presetLanguage = (chosen) => {
   if (localStorage.getItem('nebotok:language') === null) localStorage.setItem('nebotok:language', JSON.stringify(chosen));
 };
 
+// A server of our own keeps its database in a temporary folder, removed at the end.
+const dataDir = values.url ? null : mkdtempSync(join(tmpdir(), 'nebotok-browser-check-'));
 const server = values.url
   ? { base: new URL(values.url).origin, external: true }
-  : await startServer({ env: { NODE_ENV: 'production' }, logFile: join(out, 'logs', 'browser-check-server.log') });
+  : await startServer({ env: { NODE_ENV: 'production', DATA_DIR: dataDir }, logFile: join(out, 'logs', 'browser-check-server.log') });
 const allowedHost = new URL(server.base).host;
 const results = [];
+const sessionToken = await checkSession(server.base);
 
 /** Collects every sign of trouble on a page, and refuses any request off the local server. */
 function watch(context, page, problems) {
@@ -127,6 +151,7 @@ async function checkDevice(browser, browserName, device, language) {
   const screenshots = [];
   const context = await browser.newContext({ ...device.descriptor, serviceWorkers: 'allow' });
   await context.addInitScript(presetLanguage, language);
+  await context.addInitScript(presetSession, sessionToken);
   await context.addInitScript(reportCspViolations);
   const page = await context.newPage();
   watch(context, page, problems);
@@ -182,6 +207,7 @@ async function checkNarrow(browser, browserName, language) {
   const problems = [];
   const context = await browser.newContext({ viewport: NARROW, hasTouch: true, isMobile: browserName === 'chromium' });
   await context.addInitScript(presetLanguage, language);
+  await context.addInitScript(presetSession, sessionToken);
   await context.addInitScript(reportCspViolations);
   const page = await context.newPage();
   watch(context, page, problems);
@@ -220,6 +246,7 @@ try {
     if (stopped.code !== 0) serverProblems.push(`server exited with code ${stopped.code}`);
     results.push({ label: 'server', ok: serverProblems.length === 0, problems: serverProblems, screenshots: [] });
     server.saveLog();
+    rmSync(dataDir, { recursive: true, force: true });
   }
 }
 

@@ -64,8 +64,9 @@ front door: only devices on the family's tailnet can reach the game at all.
   same code runs on the server now and in the browser later, for an offline solo mode and for
   prediction. This is the "Minecraft integrated server" model: single player is the same server,
   running locally.
-- **The server** runs on Node 26 with Colyseus 0.18 and decides everything. Saves go to SQLite
-  (better-sqlite3), backed up continuously with Litestream, from Phase 1.
+- **The server** runs on Node 26 with Colyseus 0.18 and decides everything. Profiles and saves go
+  to SQLite through Node's built-in `node:sqlite` (no native add-on to install), backed up
+  continuously with Litestream, from Phase 1.
 - **The game** is built with Vite. Phaser 4 draws the world and the battles; menus, dialogue and the
   inventory are HTML overlays on top, which are easier to make readable, accessible and translated.
 - **Maps** are drawn in Tiled with 16×16 pixel tiles.

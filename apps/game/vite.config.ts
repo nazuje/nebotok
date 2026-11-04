@@ -48,7 +48,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,webmanifest}'],
         navigateFallback: 'index.html',
         // Server endpoints must always reach the network. WebSockets never pass through a service worker.
-        navigateFallbackDenylist: [/^\/healthz/, /^\/matchmake/, /^\/colyseus/],
+        navigateFallbackDenylist: [/^\/healthz/, /^\/matchmake/, /^\/colyseus/, /^\/api\//, /^\/maps\//],
         cleanupOutdatedCaches: true,
       },
       devOptions: { enabled: false },

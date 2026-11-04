@@ -30,6 +30,13 @@ describe('guard: files', () => {
     expect(read('/data/x.json')).toBeNull();
   });
 
+  it('refuses the development data folder', () => {
+    expect(read('.local-data/snapshots/x')).toMatch(/under \.local-data\//);
+    expect(check({ tool_name: 'LS', tool_input: { directory_path: join(ROOT, '.local-data') }, cwd: ROOT })).toMatch(/under \.local-data\//);
+    expect(shell('ls .local-data')).toMatch(/under \.local-data\//);
+    expect(read('docs/local-data.md')).toBeNull();
+  });
+
   it('allows ordinary files', () => {
     expect(read('package.json')).toBeNull();
     expect(read('docs/security.md', 'Create')).toBeNull();

@@ -11,6 +11,8 @@ export const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 const SHELL_TOOLS = new Set(['Bash', 'Execute', 'exec_command', 'shell', 'local_shell']);
 const PATH_KEYS = ['file_path', 'path', 'notebook_path', 'directory_path', 'folder', 'filePath'];
+/** Repo folders with real player data: data/ in the container layout, .local-data/ for development. */
+const PLAYER_DATA_FOLDERS = ['data', '.local-data'];
 const PATCH_HEADER = /^\*\*\* (?:Add|Update|Delete) File: (.+)$|^\*\*\* Move to: (.+)$|^\+\+\+ (?:b\/)?(\S+)/gm;
 
 /** Why a path must not be read or written, or null when it may be. */
@@ -23,8 +25,10 @@ export function pathProblem(path, cwd = ROOT) {
     return `${path} is a database file and may hold player data. Use fixtures, or a database that a test creates in a temporary folder.`;
   }
   const inRepo = relative(ROOT, resolve(cwd, path));
-  if (inRepo === 'data' || inRepo.startsWith(`data${sep}`)) {
-    return `${path} is under data/, which holds runtime world and player data. Use fixtures instead.`;
+  for (const folder of PLAYER_DATA_FOLDERS) {
+    if (inRepo === folder || inRepo.startsWith(`${folder}${sep}`)) {
+      return `${path} is under ${folder}/, which holds runtime world and player data. Use fixtures, or a test's temporary folder.`;
+    }
   }
   return null;
 }

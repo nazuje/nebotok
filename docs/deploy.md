@@ -72,6 +72,26 @@ the Tailscale identity (the game would join the tailnet as a new device and need
 If the Tailscale container is restarted on its own, the game container loses its network, because it
 shares Tailscale's. `docker compose up -d` puts them back together.
 
+## Profiles and PINs
+
+Each child picks or makes a profile in the game, optionally with a four-digit PIN. When a PIN is
+forgotten, or a profile has to go, run on the Mac mini from the clone:
+
+```sh
+scripts/admin.sh list                      # every profile: id, name, avatar, PIN, lock
+scripts/admin.sh reset-pin "Name Here"     # a new random PIN, printed once; signs the profile out
+scripts/admin.sh remove-pin "Name Here"    # no PIN any more
+scripts/admin.sh delete "Name Here"        # the profile and its progress, for good
+```
+
+Names match in any capitals. The script runs `node apps/server/src/admin.ts` inside the running
+game container (`docker compose exec app …`), against the same database. Names and the new PIN
+appear only in your terminal, never in the server's log. A reset or deletion takes effect at the
+child's next join: a game already open keeps playing until it reconnects. On a development computer,
+`node apps/server/src/admin.ts list` works the same against `.local-data/`.
+
+Five wrong PINs in a row lock a profile for a minute; it unlocks by itself, and `reset-pin` unlocks
+it at once.
 ## Backups
 
 Coming in Phase 1, when worlds are saved. The saves will live in the `nebotok_nebotok-data` volume
