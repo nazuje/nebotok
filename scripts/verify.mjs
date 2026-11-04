@@ -2,7 +2,7 @@
 // .proof/<short sha>[-dirty]/ and exits non-zero if anything failed.
 //   npm run verify -- --level N [--container]     (N is 0 to 4; each level includes the ones below)
 //
-// 0  lint, typecheck, unit tests, content:validate, core import boundary, secret scan
+// 0  lint, typecheck, unit tests, content:validate, core import boundary, agent setup, secret scan
 // 1  core property tests and golden replays
 // 2  save migration round-trips over every fixture version
 // 3  server room tests, and a bot run against the real server process
@@ -43,9 +43,10 @@ const vitest = (...projects) => [BIN('vitest'), ['run', ...projects.flatMap((nam
 const STEPS = [
   { level: 0, name: 'lint', run: [BIN('oxlint'), ['--deny-warnings']] },
   { level: 0, name: 'typecheck', run: ['npm', ['run', 'typecheck']] },
-  { level: 0, name: 'unit-tests', run: vitest('core-unit', 'game-unit') },
+  { level: 0, name: 'unit-tests', run: vitest('core-unit', 'game-unit', 'scripts-unit') },
   { level: 0, name: 'content-validate', run: [process.execPath, ['scripts/validate-content.mjs']] },
   { level: 0, name: 'core-boundary', run: [process.execPath, ['scripts/check-core-imports.mjs']] },
+  { level: 0, name: 'agent-setup', run: [process.execPath, ['scripts/check-agent-setup.mjs']] },
   { level: 0, name: 'secrets-history', run: [GITLEAKS, ['detect', '--no-banner', '--redact', '--source', '.', '--report-path', join(proof, 'logs', 'gitleaks-history.json')]] },
   { level: 0, name: 'secrets-worktree', run: [GITLEAKS, ['detect', '--no-banner', '--redact', '--no-git', '--source', '.', '--report-path', join(proof, 'logs', 'gitleaks-worktree.json')]] },
   { level: 1, name: 'property-tests', run: vitest('core-property') },
@@ -59,6 +60,12 @@ const STEPS = [
 ];
 
 const DEFAULT_TIMEOUT_MS = 300_000;
+
+// Warnings are reported but never fail the run. CI has no use for local git hooks.
+const warnings = [];
+if (!process.env.CI && git('config', '--get', 'core.hooksPath').stdout.trim() !== '.githooks') {
+  warnings.push('git hooks are off in this clone, so commits are not scanned for secrets. Run: npm run setup:hooks');
+}
 
 function runStep(step) {
   const [command, args] = step.run;
@@ -125,6 +132,7 @@ const summary = {
   timestamp: new Date(started).toISOString(),
   durationMs: Date.now() - started,
   git: { sha, dirty },
+  warnings,
   node: process.version,
   steps: results,
   screenshots: [...filesIn('screenshots', /\.png$/), ...filesIn(join('container', 'screenshots'), /\.png$/)],
@@ -139,6 +147,7 @@ for (const result of results) {
   console.log(`  [${mark}] L${result.level} ${result.name.padEnd(18)} ${result.skipped ?? `${(result.durationMs / 1000).toFixed(1)}s`}`);
   if (result.exitCode !== 0 && result.log) console.log(`         see ${result.log}`);
 }
+for (const warning of warnings) console.log(`\nverify: warning: ${warning}`);
 console.log(`\nverify level ${level}: ${ok ? 'PASSED' : 'FAILED'} in ${((Date.now() - started) / 1000).toFixed(1)}s, ${summary.screenshots.length} screenshot(s)`);
 console.log(`proof: ${relative(ROOT, summaryPath)}`);
 process.exit(ok ? 0 : 1);

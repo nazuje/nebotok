@@ -22,6 +22,7 @@
     "content:validate": "node scripts/validate-content.mjs",
     "core:boundary": "node scripts/check-core-imports.mjs",
     "golden:update": "node scripts/golden-update.mjs",
+    "setup:hooks": "git config core.hooksPath .githooks",
     "icons": "node scripts/make-icons.mjs",
     "verify": "node scripts/verify.mjs",
     "verify:container": "node scripts/verify.mjs --level 4 --container"

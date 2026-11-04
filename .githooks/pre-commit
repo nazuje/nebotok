@@ -1,0 +1,13 @@
+#!/bin/sh
+# Turned on per clone by `npm run setup:hooks` (git config core.hooksPath .githooks).
+# Scans the staged changes for secrets, then refuses database files, .env files and new files
+# over 1 MiB (scripts/hooks/staged-check.mjs).
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed (brew install gitleaks). Refusing to commit unscanned." >&2
+  exit 1
+fi
+gitleaks git --pre-commit --staged --no-banner --redact --verbose .
+node scripts/hooks/staged-check.mjs
