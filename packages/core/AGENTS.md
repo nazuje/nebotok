@@ -14,7 +14,10 @@ in the browser later.
   must produce. A changed hash means rule behaviour moved. Before running `npm run golden:update`,
   find which rule changed and why, confirm the change was intended, and say so in the commit
   message. A hash that changes from a refactor is a bug. Battle goldens (`fixtures/golden/battle/`)
-  replay against `content/creatures/`, so a content change there moves them too.
+  replay against a frozen copy of the creature content in `fixtures/golden/battle/content/`, not
+  `content/creatures/`, so editing the real creatures never moves them. Change the frozen copy only
+  to exercise new rules, and re-record the goldens with it. The property tests in `test/property`
+  battle on the live `content/creatures/`, so every new creature is still played.
 - **Battles** live in `src/battle/`: `battleStep(state, actions, rng, content)` is a pure step that
   returns the next state and the events the client animates. Bots in `bots.ts` drive the tests, and
   `node scripts/battle-sim.mjs` prints how greedy and random bots fare against each other.
