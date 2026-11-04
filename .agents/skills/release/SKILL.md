@@ -6,7 +6,8 @@ disable-model-invocation: true
 
 # Release
 
-A person asked for this. Agents never push or deploy on their own initiative.
+A person asked for this. Agents push to `main` after their checks pass (`AGENTS.md`), but never
+deploy to the Mac mini on their own initiative.
 
 1. Check the tree: `git status` is clean, `main` is checked out, and `npm run verify -- --level 4`
    plus `npm run verify:container` passed at this commit (`.proof/<sha>/summary.json`, no `-dirty`).

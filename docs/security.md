@@ -109,7 +109,7 @@ package) into adding something harmful, leaking a secret, or publishing.
 | --- | --- |
 | Secrets live only in `.env` on the Mac mini, which git ignores and the agents may not read. | `.gitignore`, `scripts/hooks/guard.mjs` |
 | Before every tool call, a shared hook refuses `.env` files, database files, `data/`, deleting Docker volumes, force-pushing, turning on install scripts and piping downloads into a shell. It catches slips and injected instructions, not a determined attacker. | `scripts/hooks/guard.mjs`, `.claude/settings.json`, `.factory/hooks.json`, `.codex/hooks.json` |
-| Agents commit locally; a person pushes, and only a person runs `scripts/update.sh` on the Mac mini. | `AGENTS.md`, skill `release` |
+| Agents push to `main` only after their checks pass, never force-push, and only a person runs `scripts/update.sh` on the Mac mini. | `AGENTS.md`, skill `release` |
 | Each commit is scanned for secrets, database files, `.env` files and big new files; each push runs the level 0 proof. On once per clone with `npm run setup:hooks`. | `.githooks/` |
 | Third-party agent skills are reviewed copies, pinned to a commit, with every edit recorded. | `.agents/skills/VENDORED.md` |
 | Every change runs the secret scan, lint, tests and the browser proof before it can become an image. | `scripts/verify.mjs`, CI |

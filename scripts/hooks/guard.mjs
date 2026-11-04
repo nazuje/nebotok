@@ -38,7 +38,7 @@ const SHELL_RULES = [
   { pattern: /\bdocker\s+system\s+prune\b/, reason: '`docker system prune` can delete images and volumes the Mac mini needs. Leave it to the owner.' },
   {
     pattern: /\bgit\b[^;&|\n]*\bpush\b[^;&|\n]*(?:\s--force\b|\s-[a-zA-Z]*f[a-zA-Z]*\b|\s\+\S)/,
-    reason: 'force-pushing rewrites published history. Agents never force-push; a person pushes.',
+    reason: 'force-pushing rewrites published history. Agents never force-push; use a plain `git push`.',
   },
   {
     pattern: /ignore[-_]scripts(?:\s*=\s*|\s+)false\b/i,
