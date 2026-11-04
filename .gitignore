@@ -4,6 +4,8 @@ dist/
 .env
 .env.*
 !.env.example
+# Image digests deployed on this machine, kept by scripts/update.sh for rollback.
+/deploy/.digests
 *.sqlite*
 *.db
 # Runtime world data and player saves. Anchored so test fixtures named saves/ stay tracked.
