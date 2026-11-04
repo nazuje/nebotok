@@ -1,12 +1,25 @@
-import type { Language } from '@nebotok/core';
+import type { Language, StringId } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
+import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
+
+export type Screen = ProfileView | 'world';
 
 export type TestSnapshot = {
-  connection: ConnectionStatus;
+  /** Which screen is up: the profile list, the new-player form, the PIN pad, or the world. */
+  screen: Screen;
+  connection: ConnectionStatus | null;
   language: Language;
   protocol: number | null;
   playerCount: number | null;
   scene: string | null;
+  /** The profile this device is signed in as, if any. */
+  profile: { id: number; name: string; avatar: string } | null;
+  profiles: ProfileScreenState['profiles'];
+  /** The message the profile screens show (a string id), if any. */
+  notice: StringId | null;
+  pinFor: ProfileScreenState['pinFor'];
+  pinDigits: number;
+  settingsOpen: boolean;
 };
 
 export type TestHook = { ready: boolean; stateAsText(): string };

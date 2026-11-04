@@ -26,7 +26,8 @@ requests a minute, 10 logins and 5 profile creations; past that the answer is 42
 
 - `ProfileSummary` is `{ id, name, avatar, hasPin, lockedForSeconds }`; it never includes a PIN.
 - `LoginResponse` is `{ token, expiresAt, profile }`. The token is 43 base64url characters. Keep it
-  in `localStorage` under `nebotok:session` as `{ "token": "…" }`; the client reads it from there.
+  in `localStorage` under `nebotok:session` as `{ "token": "…", "profile": { id, name, avatar } }`;
+  the client reads it from there, and uses the profile part only to show who is playing.
 - Every error body is `ApiError`, `{ error, retryAfterSeconds? }`, where `error` is one of
   `PROFILE_ERRORS`. The client shows the string `profile.error.<error>` from `content/strings.json`.
   Anything unexpected (malformed JSON, too big, server fault) answers `unknown` with a fitting status
@@ -140,9 +141,16 @@ leave or their seat expires, every 30 seconds for players who moved, and when it
 starts at their saved tile, or at the map's `player` spawn when there is no save or the saved tile
 is no longer walkable.
 
-## Until the profile screen exists
+## The profile screen
 
-The production client plays only with a token already in `localStorage`; without one it shows
-"Your session ended" (`connection.signedOut`). In development (`npm run dev`) it signs in as a shared
-`Dev Courier` profile, creating it on first use. The browser check signs in as `Browser Check` over
-the API and puts the token in `localStorage` before the page loads.
+The client starts on "Who's playing?" (`apps/game/src/profile-screen.ts`): it lists
+`GET /api/profiles`, signs in with `POST /api/sessions` (the PIN typed on an on-screen number pad),
+or makes a profile with `POST /api/profiles` and then signs in. A reload with a stored token joins
+the world at once. "Switch player" in the settings panel leaves the room, calls
+`DELETE /api/sessions/current` and forgets the token. A refused join (`AUTH_FAILED`), `signedOut` or
+`replaced` forgets the token and shows the list with the reason. Development uses the same screen.
+
+The browser check drives it like a player. Each run makes its own profile with a PIN and, against
+its own server, sends its own `X-Forwarded-For` address (believed only from loopback) so the
+per-address limits stay out of the way; against a container, which does not believe that header,
+the runs are spaced out instead.
