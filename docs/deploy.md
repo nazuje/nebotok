@@ -1,8 +1,11 @@
 # Deploying Nebotok
 
-Nebotok runs on the family Mac mini in three containers (see `compose.yaml`): Tailscale, which gives
-the game its private `https://` address, the game server, and Litestream, which backs the saves up to
-a folder on the Mac. The game's image always comes from this repo's GitHub Actions and is checked
+Nebotok runs on the family Mac mini in two containers (see `compose.yaml`): the game server, and
+Litestream, which backs the saves up to a folder on the Mac. The game is published on the Mac at
+`http://127.0.0.1:8567` only, and the Mac's own Tailscale shares it with the family's tailnet over
+HTTPS on port 8445, next to whatever else the Mac already shares. This is **host mode**, the
+default; **sidecar mode**, where the game is its own Tailscale device, is an option for later (see
+the end of this page). The game's image always comes from this repo's GitHub Actions and is checked
 before it runs. Why it is set up this way: `docs/security.md`.
 
 ## First-time setup
@@ -11,7 +14,8 @@ Before you start:
 
 1. The repository is on GitHub as `nazuje/nebotok` and CI has run once on `main`, so the image
    `ghcr.io/nazuje/nebotok:main` exists (the `image` job in the Actions tab).
-2. On the Mac mini: OrbStack and the GitHub CLI are installed, and `gh auth login` is done.
+2. On the Mac mini: OrbStack, the GitHub CLI and the Tailscale app are installed, `gh auth login`
+   is done, and Tailscale is signed in.
 3. A clone of the repository on the Mac mini (only the scripts and compose files are used there).
 
 Then run the wizard from the clone and follow it:
@@ -20,14 +24,53 @@ Then run the wizard from the clone and follow it:
 scripts/setup-mac-mini.sh
 ```
 
-It walks through Tailscale (MagicDNS, HTTPS, the access policy, a tagged auth key), writes `.env`
-(including the backup folder),
-checks the macOS settings that matter (security updates, firewall, remote access, never sleep,
-restart after power failure, FileVault), makes sure the image is public, starts the game with
-`scripts/update.sh`, and shows how to open it on the iPad. You can stop and re-run it at any time.
+It checks Tailscale on the Mac (MagicDNS and HTTPS certificates on), writes `.env` (only the backup
+folder), checks the macOS settings that matter (security updates, firewall, remote access, never
+sleep, restart after power failure, FileVault), makes sure the image is public, starts the game with
+`scripts/update.sh`, shares it with `scripts/serve.sh`, and shows how to open it on the iPad. You
+can stop and re-run it at any time.
 
-The game is then at `https://nebotok.<your tailnet>.ts.net`. Open it on the iPad, not on the Mac
-mini: it plays sound.
+The game is then at `https://<the Mac mini's name>.<your tailnet>.ts.net:8445`; `scripts/serve.sh
+status` prints the exact address. Open it on the iPad, not on the Mac mini: it plays sound.
+
+## Sharing on the tailnet
+
+```sh
+scripts/serve.sh          # share the game on HTTPS port 8445 (does nothing if it already is)
+scripts/serve.sh status   # is it shared, and at which address? Changes nothing.
+scripts/serve.sh off      # stop sharing it
+```
+
+It runs `tailscale serve --bg --https=8445 http://127.0.0.1:8567` and touches nothing but port
+8445: the other services the Mac shares (on 443, 8443, 8444 or anywhere else) stay exactly as they
+are. If port 8445 already serves something other than the game, it refuses and changes nothing. It
+never turns on Funnel, which would put the game on the public internet. The setting lives in the
+Mac's Tailscale, so it survives restarts and updates. If 8567 is taken on the Mac, set
+`NEBOTOK_PORT` in `.env` to another port, run `scripts/serve.sh off`, `scripts/update.sh` and then
+`scripts/serve.sh`.
+
+## Moving from the hand-started container
+
+Before the compose stack, the game ran as a container started by hand with `docker run`, called
+`nebotok-app`, publishing `127.0.0.1:8567` and keeping its saves in the volume
+`nebotok_nebotok-data`, with the Mac's Tailscale already sharing it on 8445. The first update takes
+it over:
+
+```sh
+scripts/update.sh --dry-run   # checks the image and lists what it would do; changes nothing
+scripts/update.sh
+scripts/serve.sh status       # still shared on 8445, to 127.0.0.1:8567
+```
+
+`scripts/update.sh` verifies the image, writes `.env` (just `NEBOTOK_DIGEST`), creates
+`~/NebotokBackups` if `BACKUP_DIR` is not set, and pulls. Then it stops `nebotok-app` (`docker
+stop`, so the game shuts down cleanly), removes the container (`docker rm`, never with `-v`) and
+starts the stack as compose project `nebotok`. Its volume is the same `nebotok_nebotok-data`, so
+every save carries over. Docker Compose warns once that this volume "already exists but was not
+created by Docker Compose"; that is expected. The game is away for the few seconds until the new
+container is healthy, and the 8445 entry needs no change. It finds the old container by what it
+does, not by its name: any container that uses the stack's data volume and was not started by
+Docker Compose.
 
 ## Update
 
@@ -36,12 +79,16 @@ After a change lands on `main` and CI has finished:
 ```sh
 scripts/update.sh              # the newest build of main
 scripts/update.sh sha-1a2b3c4  # a specific build; the tag is in the CI run's summary
+scripts/update.sh --dry-run    # look up and verify only, and say what would change
 ```
 
 It looks up the image digest, verifies GitHub's signed build record for it, and only then writes the
 digest to `.env`, pulls and restarts. If verification fails it changes nothing. It waits until every
-container is up, and the game and Tailscale report healthy, then records the digest in
-`deploy/.digests`. A restore (below) never needs an update, and an update never touches the saves.
+container is up and the game reports healthy, records the digest in `deploy/.digests`, and prints
+the game's address (`scripts/serve.sh status`). A restore (below) never needs an update, and an
+update never touches the saves. In host mode `.env` needs nothing but the digest it writes;
+`BACKUP_DIR` defaults to `~/NebotokBackups`, which it creates when missing. `--env-file FILE` makes
+it read and write another settings file instead of `.env`, for a test stack.
 
 ## Roll back
 
@@ -61,20 +108,17 @@ scripts/update.sh --digest sha256:...
 Run these from the clone on the Mac mini.
 
 ```sh
-docker compose ps                  # are all three containers up, and the game and Tailscale healthy?
+docker compose ps                  # are both containers up, and the game healthy?
 docker compose logs -f app         # the game server's log (JSON lines); Ctrl-C to stop watching
-docker compose logs --tail 100 ts  # Tailscale's log
 docker compose logs --tail 20 litestream  # the backup's log
 docker compose restart app         # restart the game server
 docker compose stop                # stop the game; `docker compose up -d` starts it again
+scripts/serve.sh status            # is it shared on the tailnet, and where?
+curl -fsS http://127.0.0.1:8567/healthz   # does the game answer on the Mac itself?
 ```
 
-**Never run `docker compose down -v`.** The `-v` deletes the volumes: the game's saved worlds and
-the Tailscale identity (the game would join the tailnet as a new device and need a new auth key).
-`docker compose down` without `-v` is fine.
-
-If the Tailscale container is restarted on its own, the game container loses its network, because it
-shares Tailscale's. `docker compose up -d` puts them back together.
+**Never run `docker compose down -v`.** The `-v` deletes the volumes: the game's saved worlds (and,
+in sidecar mode, the Tailscale identity). `docker compose down` without `-v` is fine.
 
 ## Profiles and PINs
 
@@ -101,7 +145,7 @@ it at once.
 
 The saves live in one SQLite file, `nebotok.db`, in the `nebotok_nebotok-data` volume (mounted at
 `/data` in the game container). Two kinds of backup leave that volume for a folder on the Mac,
-`BACKUP_DIR` in `.env` (the setup wizard asks for it; `~/NebotokBackups` unless you chose another):
+`BACKUP_DIR` in `.env` (the setup wizard asks for it; `~/NebotokBackups` when it is not set):
 
 - **Litestream** (the `litestream` container) copies every change within about a second into
   `BACKUP_DIR/litestream`. It keeps 7 days of history, so you can go back to any moment in that week.
@@ -112,9 +156,9 @@ The saves live in one SQLite file, `nebotok.db`, in the `nebotok_nebotok-data` v
   history is ever damaged.
 
 Only the Litestream container sees the backup folder. It has no network and runs as the same
-unprivileged user as the game. The game itself still sees no host folder. If `BACKUP_DIR` is missing
-or the folder does not exist, the stack refuses to start: Docker will not silently create an empty
-folder in its place.
+unprivileged user as the game. The game itself still sees no host folder. If the backup folder does
+not exist, the stack refuses to start: Docker will not silently create an empty folder in its place.
+`scripts/update.sh` creates only the default `~/NebotokBackups`; a `BACKUP_DIR` you set must exist.
 
 **Time Machine.** Docker volumes live inside OrbStack's virtual machine, which Time Machine does not
 reliably back up. That is why the backups go to a folder in your home folder: Time Machine copies
@@ -130,7 +174,8 @@ docker compose logs --tail 20 litestream  # "snapshot complete", "compaction com
 ls "$BACKUP_DIR"/snapshots                 # nebotok-<date>T<time>Z.db, newest last
 ```
 
-(`$BACKUP_DIR` is set in `.env`; in a fresh terminal type the folder's path instead.)
+(`$BACKUP_DIR` is the backup folder, `~/NebotokBackups` unless `.env` names another; in a fresh
+terminal type the folder's path instead.)
 
 ### Restore
 
@@ -180,6 +225,34 @@ docker compose -f compose.local.yaml up -d --build --wait
 COMPOSE_FILE=compose.local.yaml scripts/restore.sh    # restore.sh against the local stack
 docker compose -f compose.local.yaml down
 ```
+
+## Sidecar mode
+
+Host mode is enough for the family: every device on the tailnet that may reach the Mac mini can
+open the game, and the game needs no Tailscale identity. Sidecar mode gives the game its own
+Tailscale device instead, `tag:nebotok`, in a container next to it (`compose.tailscale.yaml`), with
+its own address `https://nebotok.<your tailnet>.ts.net`. Choose it when the tailnet's policy has to
+treat the game apart from the Mac: for example friends' devices that may reach the game but not the
+Mac mini, or a host that runs no Tailscale of its own (on Fly.io, below). The game then publishes no
+port on the Mac at all.
+
+To switch:
+
+```sh
+scripts/setup-mac-mini.sh --sidecar   # the tailnet policy, a tagged auth key, and .env
+scripts/serve.sh off                  # the Mac's own 8445 entry is no longer needed
+scripts/update.sh                     # starts Tailscale next to the game
+```
+
+The wizard walks through `deploy/tailscale/policy.md` and the auth key, and writes `TS_AUTHKEY`,
+`TS_HOSTNAME` and `COMPOSE_FILE=compose.yaml:compose.tailscale.yaml` to `.env`. Docker Compose reads
+`COMPOSE_FILE` itself, so `scripts/update.sh`, `rollback.sh`, `restore.sh`, `admin.sh` and every
+`docker compose` command then use both files. `docker compose logs --tail 100 ts` shows Tailscale's
+log. If the Tailscale container is restarted on its own, the game container loses its network,
+because it shares Tailscale's; `docker compose up -d` puts them back together.
+
+To go back to host mode: `docker compose down` (no `-v`, so the Tailscale identity stays for next
+time), delete those three lines from `.env`, then `scripts/update.sh` and `scripts/serve.sh`.
 
 ## Moving to Fly.io later
 

@@ -1,8 +1,14 @@
 # Tailscale policy for Nebotok
 
-The game runs on the Mac mini as its own Tailscale device, called `nebotok` and tagged
-`tag:nebotok`. This policy lets family devices open the game and nothing else, and lets the game
-device reach nothing at all.
+**This page is only for sidecar mode** (`compose.tailscale.yaml`, see `docs/deploy.md`,
+"Sidecar mode"). In host mode, the default, the game has no Tailscale device of its own: the Mac
+mini's own Tailscale shares it on HTTPS port 8445 (`scripts/serve.sh`), and whoever your policy
+lets reach the Mac mini on that port can open it. Tailscale's default policy lets every device of
+yours reach every port of the Mac mini.
+
+In sidecar mode the game runs on the Mac mini as its own Tailscale device, called `nebotok` and
+tagged `tag:nebotok`. This policy lets family devices open the game and nothing else, and lets the
+game device reach nothing at all.
 
 ## In plain words
 
