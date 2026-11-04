@@ -195,8 +195,11 @@ What these measures do not stop, in rough order of importance:
     or disk is off or stolen.
 11. **A broken Litestream could write into the backup folder.** It is the one container with a
     writable host folder. A bug or poisoned Litestream release (behind the digest pin and the
-    review of its update) could fill or damage `BACKUP_DIR`, though not the rest of your files. Time
-    Machine's older copies of the folder are the fallback.
+    review of its update) could fill or damage `BACKUP_DIR`, though not the rest of your files. It
+    also reads what the game writes: a compromised game could hand it crafted database files or huge
+    snapshots, to attack Litestream or to fill the Mac's disk. The copy loop takes only plain files
+    named like snapshots, never symbolic links, and keeps 30. Time Machine's older copies of the
+    folder are the fallback.
 
 ## Known advisories
 

@@ -13,10 +13,11 @@ KEEP=30
 
 copy_new() {
   for file in "$SOURCE"/nebotok-*Z.db; do
-    [ -f "$file" ] || continue
+    # The game writes this folder, so it is not trusted: only plain files, never a symbolic link.
+    [ -f "$file" ] && [ ! -L "$file" ] || continue
     name=${file##*/}
     [ -e "$TARGET/$name" ] && continue
-    if cp "$file" "$TARGET/.partial-$name" && mv "$TARGET/.partial-$name" "$TARGET/$name"; then
+    if cp -P "$file" "$TARGET/.partial-$name" && mv "$TARGET/.partial-$name" "$TARGET/$name"; then
       printf '{"level":"INFO","msg":"snapshot copied to the backup folder","file":"%s"}\n' "$name"
     else
       rm -f "$TARGET/.partial-$name"
