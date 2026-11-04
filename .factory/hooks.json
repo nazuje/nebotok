@@ -1,0 +1,14 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "Execute|Read|Create|Edit|ApplyPatch|LS|Grep|Glob",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"$FACTORY_PROJECT_DIR/scripts/hooks/guard.mjs\"",
+          "timeout": 10
+        }
+      ]
+    }
+  ]
+}

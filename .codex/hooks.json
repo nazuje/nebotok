@@ -1,0 +1,18 @@
+{
+  "description": "Nebotok guardrails. The rules and their reasons live in scripts/hooks/guard.mjs.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/scripts/hooks/guard.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking the Nebotok guardrails"
+          }
+        ]
+      }
+    ]
+  }
+}
