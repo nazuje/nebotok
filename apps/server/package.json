@@ -10,8 +10,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@colyseus/core": "0.18.26",
     "@colyseus/schema": "5.0.43",
-    "colyseus": "0.18.10",
+    "@colyseus/ws-transport": "0.18.4",
+    "@nebotok/core": "0.0.0",
     "express": "5.3.0",
     "zod": "4.6.7"
   }

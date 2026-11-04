@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, migrateSave, migrations } from '../../src/index.ts';
 
 const SAVES_DIR = fileURLToPath(new URL('../../fixtures/saves/', import.meta.url));
-const versionDirs = readdirSync(SAVES_DIR).filter((name) => /^v\d+$/.test(name)).sort();
+const versionDirs = readdirSync(SAVES_DIR).filter((name) => /^v\d+$/.test(name)).toSorted();
 const fixtures = versionDirs.flatMap((dir) =>
   readdirSync(join(SAVES_DIR, dir))
     .filter((name) => name.endsWith('.json'))
