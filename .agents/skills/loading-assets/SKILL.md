@@ -333,6 +333,8 @@ All `this.load` methods accept positional arguments or a single config object. T
 **Tilemaps:** `tilemapTiledJSON`, `tilemapCSV`, `tilemapImpact`
 **Other:** `animation`, `pack`, `script`, `scripts`, `plugin`, `scenePlugin`, `sceneFile`
 
+> **Nebotok note (vendored edit):** never use the `script`, `scripts`, `plugin`, `scenePlugin`, `sceneFile` or `css` loaders; they run code or styles, and this game loads only its own bundled code.
+
 ## Events
 
 All events are emitted on the Loader instance (`this.load`).

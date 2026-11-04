@@ -843,7 +843,7 @@ The server may overwrite options in [`defineRoom()`](https://docs.colyseus.io/se
 // (backend)
 const server = defineServer({
   rooms: {
-    my_room: defineRoom(MyRoom, { map: "cs_assault" })
+    my_room: defineRoom(MyRoom, { map: "sky_harbor" })
   }
 })
 ```
@@ -857,11 +857,11 @@ The `options` argument is provided by the client upon room creation:
 // ...
 client.joinOrCreate("my_room", {
     name: "Jake",
-    map: "de_dust2"
+    map: "cloud_meadow"
 })
 ```
 
-On this example, the `map` option is `"cs_assault"` during `onCreate()`, and `"de_dust2"` during `onJoin()`.
+On this example, the `map` option is `"sky_harbor"` during `onCreate()`, and `"cloud_meadow"` during `onJoin()`.
 
 ---
 

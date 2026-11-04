@@ -1316,6 +1316,8 @@ The Godot and Flutter bindings do not expose `at(seq)`, `onSend`, `reckonTimeAt`
 >
 > **Dev tooling:** `import "@colyseus/sdk/debug"` (a side-effect import, JavaScript SDK only) enables the in-page dev panel. The panel shows per-reconciler drift telemetry, profiles, and connection internals. It's a no-op in production builds that skip the import.
 
+> **Nebotok note (vendored edit):** the debug panel is for local development only and must never ship in the game build.
+
 ## Next
 
 → [Lag Compensation](https://docs.colyseus.io/netcode/lag-compensation.md): make the server judge your shots against what you saw.

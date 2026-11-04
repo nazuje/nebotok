@@ -64,6 +64,8 @@ export class MyState extends Schema {
 
     **TypeScript**
 
+> **Nebotok note (vendored edit):** `Room<MyState>` is deprecated in 0.18; follow `colyseus/SKILL.md` for the current room typing.
+
 ```ts {2,5,8,11} filename="src/rooms/MyRoom.ts"
 import { Room } from "colyseus";
 import { MyState, Player } from "./MyState";

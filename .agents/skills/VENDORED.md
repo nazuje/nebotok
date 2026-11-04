@@ -19,10 +19,9 @@ Our own skills: `playtest`, `change-save-format`, `add-content`, `release`.
   `v4-new-features` (`SKILL.md` + `references/REFERENCE.md` each); `tilemaps`, `animations`,
   `scale-and-responsive`, `text-and-bitmaptext` (`SKILL.md` each). The other upstream skills are
   left out as not needed yet.
-- **Review:** every file scanned for shell commands, install or fetch instructions, outside URLs,
-  telemetry, Phaser Editor or paid products, instructions addressed to agents, and Phaser 3 or
-  pre-4 APIs; each hit read in context. The skills are API reference with code samples and no
-  instructions to run anything. Not every line of the long reference files was read.
+- **Review:** Every vendored file was read in full on 2026-11-04; no hidden text, off-topic
+  instructions, install or download commands, or paid-product promotion was found. The skills are
+  API reference with code samples and no instructions to run anything.
 - **Edits:**
   - `loading-assets/SKILL.md`: a note above "URL Resolution" that Nebotok loads assets only from its
     own origin, because the examples use CDN and other-server URLs that the CSP and the proof run refuse.
@@ -30,6 +29,12 @@ Our own skills: `playtest`, `change-save-format`, `add-content`, `release`.
     fonts ship with the game.
   - `cameras/SKILL.md`: fixed the broken link `references/REFERENCE..//SKILL.md` to
     `references/REFERENCE.md`.
+  - `loading-assets/SKILL.md`: a note under the file-type list that the `script`, `scripts`,
+    `plugin`, `scenePlugin`, `sceneFile` and `css` loaders are not used, because they run code or
+    styles and this game loads only its own bundled code.
+  - `v4-new-features/SKILL.md`: the links to `filters-and-postfx.md`, `game-object-components.md`
+    and `tilemaps.md` no longer point at unvendored files. The tilemaps link now points at
+    `../tilemaps/SKILL.md`; the other two are plain text marked "(not vendored)".
 - **Known gaps:** "Related skills" lines and `v4-new-features/references/REFERENCE.md` point to
   upstream skills not vendored here (`sprites-and-images`, `game-setup-and-config`,
   `events-system`, `filters-and-postfx`, `game-object-components`, `v3-to-v4-migration`). They
@@ -43,8 +48,8 @@ Our own skills: `playtest`, `change-save-format`, `add-content`, `release`.
 - **Files:** `SKILL.md`, `references/client-sdk.md`, `references/netcode.md`, `references/room.md`,
   `references/schema.md`, `LICENSE`. Left out: `README.md`, `sources.json`, the sync tool and CI.
   Upstream marks the references "generated, do not edit"; the edits here are ours on purpose.
-- **Review:** `SKILL.md` read in full. The references scanned for the same patterns as Phaser,
-  every hit read in context, and the netcode and schema-codegen sections read in full.
+- **Review:** Every vendored file was read in full on 2026-11-04; no hidden text, off-topic
+  instructions, install or download commands, or paid-product promotion was found.
 - **Edits:**
   - `SKILL.md`, version check: a note that this repo uses the `@colyseus/*` packages rather than the
     `colyseus` meta-package, so examples importing `"colyseus"` map to `"@colyseus/core"`.
@@ -57,3 +62,9 @@ Our own skills: `playtest`, `change-save-format`, `add-content`, `release`.
     playground site and a templated demo list), with a note saying so.
   - `references/client-sdk.md`: a note above "Frontend Schema Generation" to never run
     `schema-codegen` or its `npx`/`npm` commands; the JavaScript SDK needs no generated schemas.
+  - `references/room.md`: the example map names `cs_assault` and `de_dust2` (game-map names from a
+    commercial shooter) replaced with the invented names `sky_harbor` and `cloud_meadow`.
+  - `references/schema.md`: a Nebotok note before the first `Room<MyState>` example, saying the
+    generic is deprecated in 0.18 and to follow `colyseus/SKILL.md`. The code is unchanged.
+  - `references/netcode.md`: a Nebotok note after the `@colyseus/sdk/debug` dev-tooling note, saying
+    the debug panel must never ship in the game build.
