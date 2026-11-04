@@ -1,0 +1,46 @@
+# Dependabot opens update pull requests once a week. Nothing merges on its own: CI must pass and a
+# person reviews each one. The 7-day cooldown matches min-release-age in .npmrc, so a hijacked
+# release has time to be noticed and pulled before it is even proposed here.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The Node base image in the Dockerfile, pinned by digest.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      docker-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The Tailscale sidecar in compose.yaml, pinned by digest.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      compose-minor-and-patch:
+        update-types: [minor, patch]
