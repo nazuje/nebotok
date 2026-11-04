@@ -1,0 +1,3 @@
+# Codex reads this instead of disable-model-invocation: only a person starts a release.
+policy:
+  allow_implicit_invocation: false
