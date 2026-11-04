@@ -1,11 +1,12 @@
 // Checks every file in content/ against its schema in @nebotok/core. Fails on the first bad file
 // with every problem in it, and on any file that has no schema. AGENTS.md files are agent notes,
 // not content. Tileset images (maps/*.png) are not JSON: each must be a PNG that a map uses, and
-// every image a map names must exist. world.json's start map must exist too.
+// every image a map names must exist. world.json's start map must exist too. The creature files must
+// all exist and name only types, weather and moves that the others define.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MAP_FILE, checkContentFile } from '../packages/core/src/index.ts';
+import { MAP_FILE, battleContentProblems, checkContentFile } from '../packages/core/src/index.ts';
 
 const CONTENT_DIR = fileURLToPath(new URL('../content/', import.meta.url));
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -62,6 +63,14 @@ for (const image of images) {
 
 const world = parsed.get('world.json');
 if (world && !parsed.has(`maps/${world.startMap}.tmj`)) fail('world.json', [`startMap "${world.startMap}" has no valid maps/${world.startMap}.tmj`]);
+
+const CREATURE_FILES = { weather: 'creatures/weather.json', moves: 'creatures/moves.json', species: 'creatures/species.json', rules: 'creatures/battle-rules.json' };
+const missingCreatureFiles = Object.values(CREATURE_FILES).filter((file) => !all.includes(file));
+if (missingCreatureFiles.length) fail('creatures/', missingCreatureFiles.map((file) => `content/${file} is missing; battles need it`));
+else if (Object.values(CREATURE_FILES).every((file) => parsed.has(file))) {
+  const problems = battleContentProblems(Object.fromEntries(Object.entries(CREATURE_FILES).map(([key, file]) => [key, parsed.get(file)])));
+  if (problems.length) fail('creatures/', problems);
+}
 
 if (all.length === 0) {
   console.error('FAIL content/ is empty');

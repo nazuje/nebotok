@@ -1,0 +1,76 @@
+{
+  "description": "Battle golden: full teams of six at mixed levels in Bloom weather, random against random, which exercises many forced swaps and misses.",
+  "seed": "nebotok-battle-six",
+  "setup": {
+    "sides": [
+      {
+        "creatures": [
+          {
+            "species": "sun-blob",
+            "level": 15
+          },
+          {
+            "species": "frost-blob",
+            "level": 18
+          },
+          {
+            "species": "bloom-blob",
+            "level": 21
+          },
+          {
+            "species": "gale-blob",
+            "level": 24
+          },
+          {
+            "species": "storm-blob",
+            "level": 27
+          },
+          {
+            "species": "rain-blob",
+            "level": 30
+          }
+        ]
+      },
+      {
+        "creatures": [
+          {
+            "species": "rain-cube",
+            "level": 30
+          },
+          {
+            "species": "sun-cube",
+            "level": 28
+          },
+          {
+            "species": "storm-blob",
+            "level": 26
+          },
+          {
+            "species": "gale-blob",
+            "level": 24
+          },
+          {
+            "species": "bloom-blob",
+            "level": 22
+          },
+          {
+            "species": "frost-blob",
+            "level": 20
+          }
+        ]
+      }
+    ],
+    "weather": "bloom"
+  },
+  "pilots": [
+    {
+      "script": [],
+      "bot": "random"
+    },
+    {
+      "script": [],
+      "bot": "random"
+    }
+  ],
+  "expectedHash": "1d59b0d5cafde8"
+}

@@ -89,11 +89,112 @@ export const AvatarsFile = z
   });
 export type AvatarsFile = z.infer<typeof AvatarsFile>;
 
+/** Ids of creatures, moves and weather types: short lowercase words joined by dashes. */
+export const ContentId = z.string().regex(/^[a-z][a-z0-9-]{0,23}$/, 'ids are short lowercase words, such as "sun-blob"');
+
+function noRepeatedIds(entries: readonly { readonly id: string }[], key: string, ctx: z.RefinementCtx): void {
+  const ids = entries.map((entry) => entry.id);
+  ids.forEach((id, at) => {
+    if (ids.indexOf(id) !== at) ctx.addIssue({ code: 'custom', message: `"${id}" appears twice`, path: [key, at, 'id'] });
+  });
+}
+
+/**
+ * One of the six weather types. A move of this type hits the types in `strongAgainst` harder and
+ * the types in `weakAgainst` softer. While this weather is on the battlefield, moves of the types in
+ * `field.boosts` grow stronger and moves of the types in `field.weakens` grow weaker.
+ */
+export const WeatherType = z.strictObject({
+  id: ContentId,
+  name: LocalizedText,
+  strongAgainst: z.array(ContentId).max(12),
+  weakAgainst: z.array(ContentId).max(12),
+  field: z.strictObject({ boosts: z.array(ContentId).max(12), weakens: z.array(ContentId).max(12) }),
+});
+export type WeatherType = z.infer<typeof WeatherType>;
+
+export const WeatherFile = z
+  .strictObject({ types: z.array(WeatherType).min(1).max(12) })
+  .superRefine(({ types }, ctx) => {
+    noRepeatedIds(types, 'types', ctx);
+    const known = new Set(types.map((type) => type.id));
+    types.forEach((type, at) => {
+      const lists = { strongAgainst: type.strongAgainst, weakAgainst: type.weakAgainst, 'field.boosts': type.field.boosts, 'field.weakens': type.field.weakens };
+      for (const [list, ids] of Object.entries(lists)) {
+        for (const id of ids) {
+          if (!known.has(id)) ctx.addIssue({ code: 'custom', message: `${list} names "${id}", which is not a weather type`, path: ['types', at, ...list.split('.')] });
+        }
+      }
+      for (const id of type.strongAgainst) {
+        if (type.weakAgainst.includes(id)) ctx.addIssue({ code: 'custom', message: `"${type.id}" is both strong and weak against "${id}"`, path: ['types', at] });
+      }
+      for (const id of type.field.boosts) {
+        if (type.field.weakens.includes(id)) ctx.addIssue({ code: 'custom', message: `"${type.id}" weather both boosts and weakens "${id}"`, path: ['types', at, 'field'] });
+      }
+    });
+  });
+export type WeatherFile = z.infer<typeof WeatherFile>;
+
+/** A move with `power` 0 only changes the weather, so it must name the weather it calls. */
+export const Move = z
+  .strictObject({
+    id: ContentId,
+    name: LocalizedText,
+    type: ContentId,
+    power: z.number().int().min(0).max(200),
+    /** The chance to hit, in percent. */
+    accuracy: z.number().int().min(1).max(100),
+    setsWeather: ContentId.optional(),
+  })
+  .refine((move) => move.power > 0 || move.setsWeather !== undefined, 'a move needs power, setsWeather or both');
+export type Move = z.infer<typeof Move>;
+
+export const MovesFile = z.strictObject({ moves: z.array(Move).min(1).max(1_000) }).superRefine(({ moves }, ctx) => noRepeatedIds(moves, 'moves', ctx));
+export type MovesFile = z.infer<typeof MovesFile>;
+
+const BaseStat = z.number().int().min(1).max(255);
+
+export const Species = z
+  .strictObject({
+    id: ContentId,
+    name: LocalizedText,
+    type: ContentId,
+    stats: z.strictObject({ hp: BaseStat, attack: BaseStat, defense: BaseStat, speed: BaseStat }),
+    /** Every creature knows exactly four moves. */
+    moves: z.array(ContentId).length(4),
+  })
+  .refine((species) => new Set(species.moves).size === species.moves.length, 'a creature knows each move once');
+export type Species = z.infer<typeof Species>;
+
+export const SpeciesFile = z.strictObject({ species: z.array(Species).min(1).max(1_000) }).superRefine(({ species }, ctx) => noRepeatedIds(species, 'species', ctx));
+export type SpeciesFile = z.infer<typeof SpeciesFile>;
+
+/** Numbers that tune every battle. Percentages multiply damage; 100 changes nothing. */
+export const BattleRules = z.strictObject({
+  /** After this many turns the battle ends, and the side with more health left wins. */
+  turnLimit: z.number().int().min(10).max(500),
+  /** How many turns weather called by a move lasts, counting the turn it was called. */
+  weatherTurns: z.number().int().min(1).max(20),
+  strongPercent: z.number().int().min(100).max(400),
+  weakPercent: z.number().int().min(10).max(100),
+  boostPercent: z.number().int().min(100).max(300),
+  weakenPercent: z.number().int().min(10).max(100),
+  /** A move of the creature's own type. */
+  sameTypePercent: z.number().int().min(100).max(200),
+  /** Each hit rolls a damage percentage from this up to 100. */
+  minRollPercent: z.number().int().min(50).max(100),
+});
+export type BattleRules = z.infer<typeof BattleRules>;
+
 /** Each file in `content/` and the schema it must match. A file not listed here is an error. */
 export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   'strings.json': StringsFile,
   'world.json': WorldSettings,
   'avatars.json': AvatarsFile,
+  'creatures/weather.json': WeatherFile,
+  'creatures/moves.json': MovesFile,
+  'creatures/species.json': SpeciesFile,
+  'creatures/battle-rules.json': BattleRules,
 };
 
 /** Maps are `content/maps/<id>.tmj`, Tiled's JSON format; see content/AGENTS.md. */

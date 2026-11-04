@@ -1,0 +1,838 @@
+{
+  "description": "Battle golden: two Rain Cubes that only call rain after one tap, so the battle reaches the turn limit and the side with more health left wins.",
+  "seed": "nebotok-battle-turn-limit",
+  "setup": {
+    "sides": [
+      {
+        "creatures": [
+          {
+            "species": "rain-cube",
+            "level": 40
+          }
+        ]
+      },
+      {
+        "creatures": [
+          {
+            "species": "rain-cube",
+            "level": 40
+          }
+        ]
+      }
+    ],
+    "weather": null
+  },
+  "pilots": [
+    {
+      "script": [
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        }
+      ],
+      "bot": "greedy"
+    },
+    {
+      "script": [
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        }
+      ],
+      "bot": "greedy"
+    }
+  ],
+  "expectedHash": "1157f65e19061a"
+}
