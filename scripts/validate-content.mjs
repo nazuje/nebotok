@@ -1,5 +1,6 @@
 // Checks every file in content/ against its schema in @nebotok/core. Fails on the first bad file
-// with every problem in it, and on any file that has no schema.
+// with every problem in it, and on any file that has no schema. AGENTS.md files are agent notes,
+// not content.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,7 @@ import { checkContentFile } from '../packages/core/src/index.ts';
 const CONTENT_DIR = fileURLToPath(new URL('../content/', import.meta.url));
 
 const files = readdirSync(CONTENT_DIR, { recursive: true, withFileTypes: true })
-  .filter((entry) => entry.isFile() && !entry.name.startsWith('.'))
+  .filter((entry) => entry.isFile() && !entry.name.startsWith('.') && entry.name !== 'AGENTS.md')
   .map((entry) => join(entry.parentPath, entry.name).slice(CONTENT_DIR.length))
   .toSorted();
 
