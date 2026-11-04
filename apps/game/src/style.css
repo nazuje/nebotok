@@ -1,0 +1,158 @@
+:root {
+  --sky: #8fd3ff;
+  --ink: #102a43;
+  --panel: rgb(255 255 255 / 0.88);
+  --ok: #2f9e44;
+  --wait: #e8a317;
+  --bad: #d64545;
+  --accent: #2b6cb0;
+  --tap: 48px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--ink);
+  background: var(--sky);
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#world {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+#world canvas {
+  image-rendering: pixelated;
+  display: block;
+}
+
+.hud {
+  position: fixed;
+  inset: 0 0 auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+.title {
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: var(--panel);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 36px;
+}
+
+.hud-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.badge {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.badge-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--wait);
+}
+
+.badge[data-status='connected'] .badge-dot {
+  background: var(--ok);
+}
+
+.badge[data-status='unreachable'] .badge-dot {
+  background: var(--bad);
+}
+
+.language {
+  display: inline-flex;
+  align-items: stretch;
+  min-width: calc(var(--tap) * 2);
+  min-height: var(--tap);
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.language:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.language-option {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: 999px;
+}
+
+.language-option[aria-current='true'] {
+  background: var(--accent);
+  color: white;
+}
+
+.welcome {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(90vw, 32rem);
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--panel);
+  font-size: 1.05rem;
+  text-align: center;
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2b6cb0" />
+    <meta name="description" content="Collect creatures across floating sky islands, together." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Nebotok" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+    <title>Nebotok</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="world" aria-hidden="true"></div>
+    <header class="hud">
+      <h1 class="title" data-text="game.title">Nebotok</h1>
+      <div class="hud-right">
+        <p class="badge" role="status" aria-live="polite" data-status="connecting">
+          <span class="badge-dot" aria-hidden="true"></span>
+          <span class="badge-text"></span>
+        </p>
+        <button class="language" type="button">
+          <span class="language-option" data-language="en">EN</span>
+          <span class="language-option" data-language="sl">SL</span>
+        </button>
+      </div>
+    </header>
+    <p class="welcome" hidden></p>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
