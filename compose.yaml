@@ -3,10 +3,13 @@
 # the world saves and the Tailscale identity.
 #
 # Two containers share one network namespace:
-#   ts   joins the tailnet as tag:nebotok and serves https://<TS_HOSTNAME>.<tailnet>.ts.net,
-#        proxying it to the game on 127.0.0.1:2567. No ports are published on the Mac.
-#   app  the game server, built by our own CI and pinned by digest. It sees no host folders and no
-#        Docker socket, and can write only to its own data volume and /tmp.
+#   ts          joins the tailnet as tag:nebotok and serves https://<TS_HOSTNAME>.<tailnet>.ts.net,
+#               proxying it to the game on 127.0.0.1:2567. No ports are published on the Mac.
+#   app         the game server, built by our own CI and pinned by digest. It sees no host folders
+#               and no Docker socket, and can write only to its own data volume and /tmp.
+# A third has no network at all:
+#   litestream  copies the database from the data volume to BACKUP_DIR on the Mac as it changes,
+#               and the game's nightly snapshots with it. The only container with a host folder.
 name: nebotok
 
 x-logging: &logging
@@ -85,6 +88,31 @@ services:
       start_period: 20s
       retries: 3
     # Colyseus closes every room on SIGTERM before exiting.
+    stop_grace_period: 30s
+
+  litestream:
+    <<: *hardening
+    # litestream/litestream:0.5.17 (the Debian build: its sh runs deploy/litestream/copy-snapshots.sh)
+    image: litestream/litestream:0.5.17@sha256:4b02b9859a6b6b4087d8b8944e15f7e984bd7957cba322bbeee38b0e27b9656a
+    # The game's own uid (node), so it can read and checkpoint the database files the game owns.
+    user: "1000:1000"
+    network_mode: none
+    command: [replicate, -config, /etc/litestream/litestream.yml, -exec, sh /etc/litestream/copy-snapshots.sh]
+    volumes:
+      - nebotok-data:/data
+      - ./deploy/litestream:/etc/litestream:ro
+      # Refuses to start rather than create a new, empty folder when BACKUP_DIR is mistyped.
+      - type: bind
+        source: ${BACKUP_DIR:?set BACKUP_DIR in .env to the backup folder (see .env.example)}
+        target: /backups
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp
+    pids_limit: 100
+    mem_limit: 256m
+    cpus: "0.5"
+    # Litestream makes a last sync of the database on SIGTERM.
     stop_grace_period: 30s
 
 volumes:

@@ -1,12 +1,15 @@
 // Container proof: builds the production image from source with compose.local.yaml, starts it with
 // the same sealing as on the Mac mini, then checks it from outside (Docker's own record of the
-// container) and from inside (what the server process can really do), plays it in Chromium and
-// WebKit, and stops it the way an update does. The data volume is always left in place.
+// containers) and from inside (what the server process can really do), plays it in Chromium and
+// WebKit, proves the backups restore (scripts/lib/backup-check.mjs), and stops it the way an update
+// does. The data volume is always left in place; the backup folder is a temporary one.
 //   node scripts/container-check.mjs [--out <dir>]
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
+import { checkBackups } from './lib/backup-check.mjs';
 import { ROOT } from './lib/server-process.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' } } });
@@ -19,9 +22,13 @@ writeFileSync(COMMAND_LOG, '');
 // compose.local.yaml names its own project (nebotok-local), so nothing here can touch production.
 const COMPOSE = ['compose', '-f', 'compose.local.yaml'];
 const BASE = `http://127.0.0.1:${process.env.NEBOTOK_LOCAL_PORT ?? '2567'}`;
+// Litestream backs the local stack up here, never into the Mac mini's BACKUP_DIR. COMPOSE_FILE
+// points scripts/restore.sh at the local stack too.
+const BACKUPS = mkdtempSync(join(tmpdir(), 'nebotok-local-backups-'));
+const ENV = { ...process.env, COMPOSE_FILE: 'compose.local.yaml', NEBOTOK_LOCAL_BACKUP_DIR: BACKUPS };
 
 function run(command, args, { timeoutMs = 120_000 } = {}) {
-  const result = spawnSync(command, args, { cwd: ROOT, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
+  const result = spawnSync(command, args, { cwd: ROOT, env: ENV, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? '';
   appendFileSync(COMMAND_LOG, `$ ${command} ${args.join(' ')}\n${stdout}${stderr}exit ${result.status ?? result.signal}\n\n`);
@@ -55,6 +62,22 @@ function checkFromOutside(info) {
   check('port published on 127.0.0.1 only', bindings.length > 0 && bindings.every((binding) => binding.HostIp === '127.0.0.1'), bindings.map((binding) => `${binding.HostIp}:${binding.HostPort}`).join(', '));
   check('memory, CPU and process limits set', host.Memory > 0 && host.NanoCpus > 0 && host.PidsLimit > 0, `memory ${host.Memory}, nanoCPUs ${host.NanoCpus}, pids ${host.PidsLimit}`);
   check('healthcheck reports healthy', info.State.Health?.Status === 'healthy', info.State.Health?.Status);
+}
+
+/** What Docker says about the Litestream container: sealed like the game, with no network at all. */
+function checkLitestreamFromOutside(info) {
+  const host = info.HostConfig;
+  check('Litestream runs as the game\'s uid, not root', info.Config.User === '1000:1000', `user ${info.Config.User || '(image default)'}`);
+  check('Litestream: read-only root, every capability dropped, no-new-privileges, not privileged',
+    host.ReadonlyRootfs === true && (host.CapDrop ?? []).includes('ALL') && (host.CapAdd ?? []).length === 0
+      && (host.SecurityOpt ?? []).some((option) => /^no-new-privileges(:true)?$/.test(option)) && host.Privileged === false);
+  check('Litestream has no network', host.NetworkMode === 'none', host.NetworkMode);
+  const mounts = info.Mounts.map((mount) => `${mount.Type}:${mount.Destination}${mount.RW ? '' : ':ro'}`).toSorted();
+  const expected = ['bind:/backups', 'bind:/etc/litestream:ro', 'volume:/data'];
+  check('Litestream sees only the data volume, its read-only config and the backup folder',
+    JSON.stringify(mounts) === JSON.stringify(expected) && info.Mounts.some((mount) => mount.Destination === '/backups' && mount.Source.endsWith(BACKUPS)),
+    mounts.join(', '));
+  check('Litestream has memory, CPU and process limits', host.Memory > 0 && host.NanoCpus > 0 && host.PidsLimit > 0, `memory ${host.Memory}, nanoCPUs ${host.NanoCpus}, pids ${host.PidsLimit}`);
 }
 
 /** What the server's own user can do inside the running container. */
@@ -91,6 +114,17 @@ function logProblems(stdout, stderr) {
   return { parsed, problems };
 }
 
+/** Litestream logs JSON lines with upper-case levels; the snapshot copy loop writes the same shape. */
+function stopLitestream(id) {
+  const stop = compose(['stop', '--timeout', '30', 'litestream'], { timeoutMs: 60_000 });
+  const after = inspect(id);
+  check('Litestream stops cleanly on SIGTERM', stop.code === 0 && after.State.ExitCode === 0, `exit code ${after.State.ExitCode}`);
+  const { stdout, stderr } = docker(['logs', id]);
+  writeFileSync(join(logs, 'container-litestream.log'), `${stdout}${stderr ? `\n[stderr]\n${stderr}` : ''}`);
+  const problems = `${stdout}\n${stderr}`.split('\n').filter((line) => /"level":"(ERROR|WARN)"/.test(line));
+  check('Litestream log has no errors or warnings', problems.length === 0, problems.slice(0, 2).join('; ') || undefined);
+}
+
 function stopAndReadLogs(id) {
   const stop = compose(['stop', '--timeout', '30', 'app'], { timeoutMs: 60_000 });
   const after = inspect(id);
@@ -103,6 +137,7 @@ function stopAndReadLogs(id) {
 }
 
 let id = '';
+let litestream = '';
 let image = null;
 try {
   compose(['down']);
@@ -114,9 +149,11 @@ try {
     const up = compose(['up', '-d', '--wait', '--wait-timeout', '90']);
     check('container starts and turns healthy', up.code === 0, up.code === 0 ? undefined : up.stderr.trim().split('\n').at(-1));
     id = compose(['ps', '-a', '-q', 'app']).stdout.trim();
+    litestream = compose(['ps', '-a', '-q', 'litestream']).stdout.trim();
   }
-  if (id) {
+  if (id && litestream) {
     checkFromOutside(inspect(id));
+    checkLitestreamFromOutside(inspect(litestream));
     checkFromInside();
     const browsers = spawnSync(process.execPath, ['scripts/browser-check.mjs', '--url', BASE, '--out', join(out, 'container')], {
       cwd: ROOT,
@@ -124,12 +161,15 @@ try {
       timeout: 600_000,
     });
     check('Chromium and WebKit play the game served by the container', browsers.status === 0, `exit ${browsers.status}, see ${relative(ROOT, join(out, 'container', 'logs', 'browser-check.json'))}`);
+    checkBackups({ run, docker, exec, check, backups: BACKUPS, litestreamImage: inspect(litestream).Config.Image, restoreScript: join(ROOT, 'scripts', 'restore.sh') });
     stopAndReadLogs(id);
+    stopLitestream(litestream);
   }
 } finally {
-  // Removes the container and its network. Never -v: volumes outlive every check.
+  // Removes the containers and their network. Never -v: volumes outlive every check.
   const down = compose(['down']);
   check('stack removed with its data volume kept', down.code === 0);
+  rmSync(BACKUPS, { recursive: true, force: true });
 }
 
 const ok = checks.length > 0 && checks.every((result) => result.ok);

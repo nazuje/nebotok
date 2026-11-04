@@ -34,7 +34,8 @@ updates:
       docker-minor-and-patch:
         update-types: [minor, patch]
 
-  # The Tailscale sidecar in compose.yaml, pinned by digest.
+  # The Tailscale and Litestream images in compose.yaml, pinned by digest. compose.local.yaml pins
+  # the same Litestream image; scripts/compose.test.mjs fails until it is updated to match.
   - package-ecosystem: docker-compose
     directory: /
     schedule:

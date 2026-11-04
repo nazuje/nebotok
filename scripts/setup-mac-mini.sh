@@ -278,7 +278,7 @@ pause "Press Enter when you can see the key (tskey-auth-...)"
 
 # ── 5 ────────────────────────────────────────────────────────────────────
 stage "Save the settings to .env"
-say "The key and the device name go into .env, a file only your user account can read."
+say "The key, the device name and the backup folder go into .env, a file only your user account can read."
 note "Why: the key never appears on screen, in the shell history or in git (.env is ignored)."
 if [[ ! -f "$ENV_FILE" ]]; then
   (umask 077 && cp .env.example "$ENV_FILE")
@@ -299,6 +299,18 @@ until [[ "$TS_AUTHKEY" == tskey-auth-* && "$TS_AUTHKEY" != *REPLACE_ME* ]]; do
 done
 write_env TS_AUTHKEY "$TS_AUTHKEY"
 unset TS_AUTHKEY
+say "Backups go to a folder on this Mac. In your home folder, Time Machine copies them as well."
+ask BACKUP_DIR "Backup folder (Enter for $HOME/NebotokBackups):" || BACKUP_DIR=""
+[[ -n "$BACKUP_DIR" && "$BACKUP_DIR" != *REPLACE_ME* ]] || BACKUP_DIR="$HOME/NebotokBackups"
+BACKUP_DIR=${BACKUP_DIR/#\~/$HOME}
+until [[ "$BACKUP_DIR" == /* && "$BACKUP_DIR" != *[\'\"\$\`\\]* ]] && mkdir -p "$BACKUP_DIR" 2>/dev/null; do
+  warn "Give a full path that starts with / and has no quotes, e.g. $HOME/NebotokBackups."
+  ask BACKUP_DIR "Backup folder:" || exit 1
+done
+chmod 700 "$BACKUP_DIR"
+write_env BACKUP_DIR "$BACKUP_DIR"
+ok_line "$BACKUP_DIR is there and readable by you only."
+note "Litestream keeps a copy of the saves there seconds behind the game, plus 30 nightly snapshots."
 perms=$(stat -f '%Lp' "$ENV_FILE" 2>/dev/null || stat -c '%a' "$ENV_FILE")
 [[ "$perms" == 600 ]] && ok_line "$ENV_FILE is readable by you only (mode 600)." || bad_line "$ENV_FILE has mode $perms; run: chmod 600 .env"
 note "You can close the Keys page now."
@@ -382,7 +394,7 @@ pause
 
 # ── 11 ───────────────────────────────────────────────────────────────────
 stage "Start the game"
-say "scripts/update.sh checks the newest image's build record, then starts both containers."
+say "scripts/update.sh checks the newest image's build record, then starts the game, Tailscale and the backup."
 note "It refuses to run any image that GitHub Actions in nazuje/nebotok did not build from main."
 if confirm "Run scripts/update.sh now?"; then
   if scripts/update.sh; then

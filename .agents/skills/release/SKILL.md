@@ -20,7 +20,8 @@ deploy to the Mac mini on their own initiative.
 4. Deploy on the Mac mini, in its clone: `scripts/update.sh`. It verifies the image's signed build
    record before anything runs (`docs/deploy.md`). Run it yourself only when your shell is on the
    Mac mini; otherwise give the person the exact command and wait for its output.
-5. Confirm health: the script ends only when both containers are healthy. Then the game's address
+5. Confirm health: the script ends only when the game and Tailscale are healthy and Litestream (the
+   backup) is running. Then the game's address
    on the tailnet answers `/healthz` with `ok: true` and the expected `protocol` and `version`.
    Done when you have seen that answer, or the person has.
 6. Report the commit, the CI run, the deployed digest from `deploy/.digests`, and the `/healthz`

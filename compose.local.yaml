@@ -1,7 +1,8 @@
 # Local test of the production image, without Tailscale: builds from source and serves the game on
 # http://127.0.0.1:2567 only (this computer, not the network). Same hardening as compose.yaml.
-# Its own project name keeps it apart from the production stack and its volumes.
-#   docker compose -f compose.local.yaml up -d --build --wait
+# Its own project name keeps it apart from the production stack and its volumes, and Litestream
+# backs it up to its own folder, NEBOTOK_LOCAL_BACKUP_DIR, never to the Mac mini's BACKUP_DIR.
+#   NEBOTOK_LOCAL_BACKUP_DIR=<an empty folder> docker compose -f compose.local.yaml up -d --build --wait
 #   docker compose -f compose.local.yaml down        (never add -v unless you mean to wipe the data)
 # `npm run verify:container` runs this and checks it from outside and inside.
 name: nebotok-local
@@ -37,6 +38,36 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 3
+    stop_grace_period: 30s
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  litestream:
+    # The same image as compose.yaml; scripts/compose.test.mjs keeps the two pins equal.
+    image: litestream/litestream:0.5.17@sha256:4b02b9859a6b6b4087d8b8944e15f7e984bd7957cba322bbeee38b0e27b9656a
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    user: "1000:1000"
+    network_mode: none
+    command: [replicate, -config, /etc/litestream/litestream.yml, -exec, sh /etc/litestream/copy-snapshots.sh]
+    volumes:
+      - nebotok-data:/data
+      - ./deploy/litestream:/etc/litestream:ro
+      - type: bind
+        source: ${NEBOTOK_LOCAL_BACKUP_DIR:?set NEBOTOK_LOCAL_BACKUP_DIR to a folder for the local test's backups}
+        target: /backups
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp
+    pids_limit: 100
+    mem_limit: 256m
+    cpus: "0.5"
     stop_grace_period: 30s
     restart: "no"
     logging:

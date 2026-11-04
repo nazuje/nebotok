@@ -47,6 +47,9 @@ command -v gh >/dev/null || die "the GitHub CLI (gh) is not installed: brew inst
 docker info >/dev/null 2>&1 || die "Docker is not running. Start OrbStack and try again."
 [[ -f $ENV_FILE ]] || die ".env is missing. Run scripts/setup-mac-mini.sh first."
 [[ $tag =~ ^[A-Za-z0-9_.-]+$ ]] || die "that does not look like an image tag: $tag"
+backups=$(sed -n "s/^BACKUP_DIR=//p" "$ENV_FILE" | tail -n 1 | tr -d "'\"")
+[[ -n $backups && -d $backups ]] ||
+  die "BACKUP_DIR in .env is not an existing folder. Run scripts/setup-mac-mini.sh (stage 5) or see .env.example."
 
 if [[ -z $digest ]]; then
   say "looking up $IMAGE:$tag (without downloading it)"
@@ -81,10 +84,10 @@ trap - EXIT
 
 say "pulling the verified image"
 docker compose pull app
-say "starting (waiting until both containers report healthy)"
+say "starting (waiting until every container is up and the game and Tailscale report healthy)"
 if ! docker compose up -d --wait --wait-timeout 180; then
   docker compose ps
-  docker compose logs --tail 40 app ts || true
+  docker compose logs --tail 40 app ts litestream || true
   if [[ -n $previous && $previous != "$digest" ]]; then
     die "the new image did not turn healthy. To go back to the one before ($previous), run: scripts/rollback.sh"
   fi

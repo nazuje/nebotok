@@ -1,0 +1,16 @@
+# Litestream copies every change to the game's database, within about a second, from the data volume
+# to the backup folder on the Mac (BACKUP_DIR, mounted at /backups). Its history lets
+# scripts/restore.sh go back to any moment in the last 7 days. See docs/deploy.md, "Backups".
+logging:
+  level: info
+  type: json
+
+# A full copy once a day; with it, the history before it is pruned after 7 days.
+snapshot:
+  interval: 24h
+  retention: 168h
+
+dbs:
+  - path: /data/nebotok.db
+    replica:
+      url: file:///backups/litestream

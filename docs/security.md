@@ -13,7 +13,8 @@ Think of the game as a sealed box on a shelf in the house.
   a library run its own setup code, and get weekly suggestions for updates that a person reviews.
 - **The box is sealed.** The game runs inside a container: a locked room on the Mac with no view of
   your files, no administrator rights, and no way to change its own contents. If someone broke the
-  game, they would find themselves in an empty room.
+  game, they would find themselves in an empty room. A second sealed box, with no network at all,
+  copies the saves to one backup folder on the Mac.
 - **There is only one door, and only family has the key.** Nothing about the game is on the open
   internet. Only devices signed in to your family's Tailscale network can open it, and only the
   game's web page. The game itself is not allowed to reach any other device on that network.
@@ -67,10 +68,13 @@ container onto the Mac.
 | Base image pinned by digest, from Docker's official Node image. | `Dockerfile` |
 | Containers run inside OrbStack's Linux virtual machine, not directly on macOS. | OrbStack |
 | The Tailscale sidecar also runs with every capability dropped, read-only, in userspace mode (no network device, no admin rights). Its only host folder is `deploy/tailscale`, read-only. | `compose.yaml` |
+| The Litestream backup container is sealed the same way, as uid 1000 with no network; it alone sees a writable host folder, the backup folder (see "Backups" below). | `compose.yaml` |
 
 `npm run verify:container` proves the seal on every run: it builds the image, starts it, and checks
 from Docker's side (user, read-only root, capabilities, mounts, port, limits) and from inside (uid is
 not 0, writes to `/` and to the code fail, only `/data` and `/tmp` are writable, no Docker socket).
+It checks the Litestream container from Docker's side too: user, read-only root, capabilities, no
+network, exactly its three mounts, limits.
 
 ### 3. Network
 
@@ -85,6 +89,7 @@ other devices.
 | Only admins can assign the tag; the auth key is single-use, tagged, short-lived. | `deploy/tailscale/policy.md` |
 | The game listens on `127.0.0.1` only, inside the shared container network; Tailscale's health endpoint likewise. | `compose.yaml` |
 | Tailscale's own logging to Tailscale's servers is off (`--no-logs-no-support`). | `compose.yaml` |
+| The backup container has no network at all; its replica is a folder, not a cloud service. | `compose.yaml` |
 
 ### 4. GitHub and CI
 
@@ -135,6 +140,19 @@ else, guesses a PIN, or a web page elsewhere tricks a browser into using the gam
 Profiles are for telling children apart, not a security boundary against the family: a four-digit
 PIN is easy to guess for someone who watches, and a profile without one is open to anyone on the
 tailnet. A parent can reset a PIN or delete a profile with `scripts/admin.sh` (`docs/deploy.md`).
+## Backups
+
+The saves are copied out of the game's volume by a separate container, so that backing up does not
+cost the game its seal (details and restore steps in `docs/deploy.md`, "Backups").
+
+| Measure | Where |
+| --- | --- |
+| Litestream, pinned by digest (`litestream/litestream:0.5.17`), replicates the database to `BACKUP_DIR` on the Mac with 7 days of history. Dependabot proposes its updates with the Tailscale image's. | `compose.yaml`, `deploy/litestream/litestream.yml` |
+| The Litestream container has no network (`network_mode: none`), runs as uid 1000 (not root), with a read-only root, every capability dropped, `no-new-privileges` and limits. Its config is mounted read-only. | `compose.yaml` |
+| It is the only container with a host folder, and that folder is only `BACKUP_DIR`. The game still sees no host folder. A missing `BACKUP_DIR` stops the stack instead of creating a new empty folder (`create_host_path: false`). | `compose.yaml` |
+| The game writes nightly snapshots with `VACUUM INTO` into its own volume; Litestream's container copies them to `BACKUP_DIR/snapshots`. Both keep 30. Copies land under a hidden name and are renamed when whole. | `apps/server/src/snapshots.ts`, `deploy/litestream/copy-snapshots.sh` |
+| A restore checks the rebuilt database (full integrity check, a known schema) before swapping it in, and moves, never deletes, what it replaces, so every restore can be undone. | `scripts/restore.sh`, `apps/server/src/check-database.ts` |
+| The local test backs up to its own folder (`NEBOTOK_LOCAL_BACKUP_DIR`), never `BACKUP_DIR`. `npm run verify:container` proves the seal of both containers and a full restore on every run. | `compose.local.yaml`, `scripts/lib/backup-check.mjs` |
 ## Residual risks
 
 What these measures do not stop, in rough order of importance:
@@ -158,19 +176,27 @@ What these measures do not stop, in rough order of importance:
    container. Escaping lands in OrbStack's Linux VM first, but OrbStack shares the Mac's folders with
    that VM so that bind mounts work, so assume an escape could read your files. Keep OrbStack and
    macOS updated.
-6. **Trust in the tools.** Tailscale, OrbStack, Docker's official Node image, GitHub and Sigstore (the
+6. **Trust in the tools.** Tailscale, Litestream, OrbStack, Docker's official Node image, GitHub and Sigstore (the
    signing service behind attestations) are all trusted. Their images and actions are pinned, but a
    compromise at the source before pinning would carry through.
 7. **Pinned helper images age.** Dependabot updates GitHub Actions, the Dockerfile base image and the
-   Tailscale image, but not the binfmt and BuildKit images pinned inside `ci.yml`. Update those by
-   hand now and then.
+   Tailscale and Litestream images in `compose.yaml`, but not the binfmt and BuildKit images pinned
+   inside `ci.yml`. Update those by hand now and then, and `compose.local.yaml`'s Litestream pin
+   with each Litestream update (`scripts/compose.test.mjs` fails until they match).
 8. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the game's device
    name and your tailnet name are visible to anyone who looks. Nothing can connect without being on
    the tailnet.
 9. **Known advisories in build tools.** See below.
 10. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
-    `nebotok_nebotok-data` volume as a plain SQLite file. Anyone who can read the Mac mini's Docker
-    volumes can read them; a four-digit PIN hash can be brute-forced offline in seconds.
+    `nebotok_nebotok-data` volume as a plain SQLite file, and in `BACKUP_DIR` (and so in Time
+    Machine) as Litestream files and snapshots. Anyone who can read the Mac mini's Docker volumes,
+    your home folder or the Time Machine disk can read them; a four-digit PIN hash can be brute-forced
+    offline in seconds. FileVault and an encrypted Time Machine disk protect them when the computer
+    or disk is off or stolen.
+11. **A broken Litestream could write into the backup folder.** It is the one container with a
+    writable host folder. A bug or poisoned Litestream release (behind the digest pin and the
+    review of its update) could fill or damage `BACKUP_DIR`, though not the rest of your files. Time
+    Machine's older copies of the folder are the fallback.
 
 ## Known advisories
 
@@ -227,5 +253,11 @@ Before `npm install <package>`:
   `apps/server/src/migrations/` run in one transaction and set `user_version`
   (`apps/server/src/db.ts`). Outside the container `DATA_DIR` defaults to `.local-data/`, which
   git and the agent guard both ignore; tests use temporary folders.
+- Litestream 0.5.17 (Debian build) runs as root by default, so compose sets `user: "1000:1000"`,
+  the game's `node` uid that owns the database files. It needs write access to the data volume: it
+  keeps its own notes in `/data/.nebotok.db-litestream` and checkpoints the write-ahead log. Its
+  `-exec` child is the snapshot copy loop: Litestream forwards SIGTERM to it, and if the loop exits,
+  Litestream exits and Docker restarts the container. It has no healthcheck; `docker compose ps`
+  shows whether it is running and its log shows each sync.
 - Provenance verification checks the multi-platform index digest; each platform's image is addressed
   by its own digest inside that index, so the chain of hashes covers what is pulled.
