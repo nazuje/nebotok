@@ -30,6 +30,18 @@ describe('save migrations', () => {
     expect(createSave(latest.data)).toEqual(latest);
   });
 
+  it('gives a v1 player no position, so they start at the spawn', () => {
+    const v1 = { v: 1, data: { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z' } };
+    expect(migrateSave(v1).data.position).toBeNull();
+  });
+
+  it('refuses a position off any sensible map', () => {
+    const base = { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z' };
+    expect(() => migrateSave({ v: 2, data: { ...base, position: { map: 'post-island', x: -1, y: 0, facing: 'up' } } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 2, data: { ...base, position: { map: 'Post Island', x: 1, y: 0, facing: 'up' } } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 2, data: { ...base, position: { map: 'post-island', x: 1, y: 0, facing: 'north' } } })).toThrow(SaveError);
+  });
+
   it('refuses a save from a newer game', () => {
     expect(() => migrateSave({ v: SAVE_VERSION + 1, data: {} })).toThrow(SaveError);
   });

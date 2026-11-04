@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "data": {
+    "name": "Čmrljček Šumež",
+    "language": "sl",
+    "createdAt": "2026-05-03T16:45:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 20,
+      "y": 17,
+      "facing": "down"
+    }
+  }
+}
