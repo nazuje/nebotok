@@ -1,0 +1,12 @@
+# gitleaks: the default rules, minus folders that are generated or downloaded rather than written here.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Installed packages, build output and proof runs"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''^\.proof/''',
+  '''^\.git/''',
+]
