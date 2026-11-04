@@ -57,7 +57,7 @@ function runStep(step) {
   const [command, args] = step.run;
   const logPath = join(proof, 'logs', `${step.name}.log`);
   const log = createWriteStream(logPath);
-  const shown = [command.startsWith(ROOT) ? relative(ROOT, command) : command, ...args.map((arg) => (arg.startsWith(ROOT) ? relative(ROOT, arg) || '.' : arg))].join(' ');
+  const shown = [command === process.execPath ? 'node' : command.startsWith(ROOT) ? relative(ROOT, command) : command, ...args.map((arg) => (arg.startsWith(ROOT) ? relative(ROOT, arg) || '.' : arg))].join(' ');
   log.write(`$ ${shown}\n\n`);
   const started = performance.now();
   return new Promise((resolve) => {
