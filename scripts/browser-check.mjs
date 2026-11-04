@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium, devices, webkit } from '@playwright/test';
+import { PROTOCOL_VERSION } from '../packages/core/src/index.ts';
 import { inTurn } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { chromiumLaunchOptions, webkitLaunchOptions } from './lib/launch-options.mjs';
@@ -134,7 +135,7 @@ async function checkDevice(browser, browserName, device, language) {
     const before = await snapshot(page);
     if (before.connection !== 'connected') problems.push(`connection is ${before.connection}, not connected`);
     if (before.language !== language) problems.push(`language is ${before.language}, not ${language}`);
-    if (before.protocol !== 1) problems.push(`protocol is ${before.protocol}`);
+    if (before.protocol !== PROTOCOL_VERSION) problems.push(`protocol is ${before.protocol}`);
     if (!(before.playerCount >= 1)) problems.push(`player count is ${before.playerCount}`);
     if (before.scene !== 'island') problems.push(`scene is ${before.scene}`);
     const badgeBefore = (await page.locator('.badge-text').textContent())?.trim();

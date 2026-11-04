@@ -12,3 +12,26 @@ content follows the `add-content` skill.
 - Use the Slovenian typographic conventions already in `strings.json`: a space before the ellipsis
   (`Povezovanje …`) and lowercase language names (`angleščina`).
 - Names are original. Players' and real children's names never appear here.
+
+## Maps
+
+Maps are Tiled JSON files, `content/maps/<id>.tmj`, checked by `readTiledMap` and
+`playabilityProblems` in `packages/core/src/map.ts`. People edit them in Tiled; `docs/tiled.md`
+is their guide. Keep to these conventions or validation fails:
+
+- **Fixed size, orthogonal, 16 by 16 pixel tiles.** Tile layer format CSV (never Base64 or
+  compressed), so diffs stay readable.
+- **One embedded tileset per map** (Map > Embed Tilesets), whose image is a PNG next to the map,
+  such as `sky-tiles.png`. That PNG is drawn by `scripts/make-tiles.mjs` (`npm run tiles`) and
+  committed; add tiles only at the end of its list, because tile ids are positions in it.
+- **Layers:** a `ground` tile layer (every tile walkable unless marked), a `decor` tile layer for
+  trees, fences and buildings, and an object layer `spawns` with a point named `player`, the
+  place where new players appear. More tile layers are allowed.
+- **Collision is a tile property, not a layer:** a tileset tile with the boolean property
+  `collides` set to true blocks its square on every layer it is placed on. An empty `ground` square
+  is blocked too.
+- **Playable:** the `player` spawn is walkable, and every walkable tile can be reached from it on
+  foot. Fill a pocket nobody can reach with a bush or tree rather than leaving it.
+- `world.json` names the map new players start on (`startMap`) and how fast everyone walks
+  (`walkTilesPerSecond`). `avatars.json` lists the looks a profile can pick, with placeholder
+  colours until real art arrives.

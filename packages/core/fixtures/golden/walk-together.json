@@ -1,0 +1,142 @@
+{
+  "description": "Phase 1 walking golden: three walkers on one map with walls, crossing paths (players never block each other), a hold that runs into a wall, intents replaced mid-step and a refused target.",
+  "seed": "nebotok-phase-1-walk",
+  "commands": [
+    {
+      "op": "map",
+      "rows": [
+        "..........",
+        "..##......",
+        "..##..~~..",
+        "......~~..",
+        ".#........",
+        ".#...####.",
+        ".........."
+      ]
+    },
+    {
+      "op": "spawn",
+      "walker": "red",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "op": "spawn",
+      "walker": "green",
+      "x": 9,
+      "y": 6
+    },
+    {
+      "op": "spawn",
+      "walker": "blue",
+      "x": 5,
+      "y": 3
+    },
+    {
+      "op": "walkTo",
+      "walker": "red",
+      "x": 9,
+      "y": 6
+    },
+    {
+      "op": "walkTo",
+      "walker": "green",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "op": "hold",
+      "walker": "blue",
+      "direction": "up"
+    },
+    {
+      "op": "tick",
+      "ms": 50,
+      "stepMs": 200
+    },
+    {
+      "op": "tick",
+      "ms": 50,
+      "stepMs": 200
+    },
+    {
+      "op": "walkTo",
+      "walker": "green",
+      "x": 2,
+      "y": 1
+    },
+    {
+      "op": "tick",
+      "ms": 120,
+      "stepMs": 200
+    },
+    {
+      "op": "walkTo",
+      "walker": "blue",
+      "x": 2,
+      "y": 0
+    },
+    {
+      "op": "tick",
+      "ms": 50,
+      "stepMs": 200
+    },
+    {
+      "op": "tick",
+      "ms": 400,
+      "stepMs": 200
+    },
+    {
+      "op": "hold",
+      "walker": "blue",
+      "direction": "right"
+    },
+    {
+      "op": "tick",
+      "ms": 1000,
+      "stepMs": 200
+    },
+    {
+      "op": "stop",
+      "walker": "blue"
+    },
+    {
+      "op": "walkTo",
+      "walker": "red",
+      "x": 3,
+      "y": 5
+    },
+    {
+      "op": "tick",
+      "ms": 333,
+      "stepMs": 200
+    },
+    {
+      "op": "walkTo",
+      "walker": "green",
+      "x": 9,
+      "y": 6
+    },
+    {
+      "op": "tick",
+      "ms": 2000,
+      "stepMs": 200
+    },
+    {
+      "op": "hold",
+      "walker": "red",
+      "direction": "left"
+    },
+    {
+      "op": "tick",
+      "ms": 999,
+      "stepMs": 200
+    },
+    {
+      "op": "tick",
+      "ms": 3000,
+      "stepMs": 200
+    }
+  ],
+  "expectedHash": "1d0ca3c2a2f866"
+}
