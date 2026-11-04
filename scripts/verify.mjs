@@ -1,14 +1,16 @@
 // The proof command. Runs every check up to the asked level, writes the evidence to
 // .proof/<short sha>[-dirty]/ and exits non-zero if anything failed.
-//   npm run verify -- --level N     (N is 0 to 4; each level includes the ones below)
+//   npm run verify -- --level N [--container]     (N is 0 to 4; each level includes the ones below)
 //
 // 0  lint, typecheck, unit tests, content:validate, core import boundary, secret scan
 // 1  core property tests and golden replays
 // 2  save migration round-trips over every fixture version
 // 3  server room tests, and a bot run against the real server process
 // 4  game build, then Chromium and WebKit against the real server serving it
+//    --container (level 4 only): also build the production image, run it sealed, check it from
+//    outside and inside, and play it in both browsers (needs Docker)
 import { spawn, spawnSync } from 'node:child_process';
-import { createWriteStream, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createWriteStream, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -19,10 +21,14 @@ const MAX_LEVEL = 4;
 const BIN = (name) => join(ROOT, 'node_modules', '.bin', name);
 const GITLEAKS = process.env.GITLEAKS_BIN ?? 'gitleaks';
 
-const { values } = parseArgs({ options: { level: { type: 'string', default: '0' } } });
+const { values } = parseArgs({ options: { level: { type: 'string', default: '0' }, container: { type: 'boolean', default: false } } });
 const level = Number(values.level);
 if (!Number.isInteger(level) || level < 0 || level > MAX_LEVEL) {
   console.error(`verify: --level must be a whole number from 0 to ${MAX_LEVEL}, got "${values.level}"`);
+  process.exit(2);
+}
+if (values.container && level < MAX_LEVEL) {
+  console.error(`verify: --container needs --level ${MAX_LEVEL}`);
   process.exit(2);
 }
 
@@ -49,6 +55,7 @@ const STEPS = [
   { level: 3, name: 'bot-run', run: [process.execPath, ['scripts/bot-run.mjs', '--out', proof]], timeoutMs: 60_000 },
   { level: 4, name: 'build', run: ['npm', ['run', 'build']] },
   { level: 4, name: 'browser-check', run: [process.execPath, ['scripts/browser-check.mjs', '--out', proof]], needs: 'build', timeoutMs: 600_000 },
+  { level: 4, container: true, name: 'container-check', run: [process.execPath, ['scripts/container-check.mjs', '--out', proof]], timeoutMs: 1_500_000 },
 ];
 
 const DEFAULT_TIMEOUT_MS = 300_000;
@@ -82,7 +89,7 @@ function runStep(step) {
 const started = Date.now();
 const results = [];
 // Steps run one at a time: several start the server or browsers, and the log reads in order.
-await inTurn(STEPS.filter((candidate) => candidate.level <= level), async (step) => {
+await inTurn(STEPS.filter((candidate) => candidate.level <= level && (!candidate.container || values.container)), async (step) => {
   const needed = step.needs && results.find((result) => result.name === step.needs);
   if (needed && needed.exitCode !== 0) {
     results.push({ name: step.name, level: step.level, command: step.run.flat().join(' '), exitCode: null, durationMs: 0, log: null, skipped: `${step.needs} failed` });
@@ -102,16 +109,25 @@ const filesIn = (dir, pattern) => {
   }
 };
 
+const readJson = (path) => {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+};
+
 const ok = results.every((result) => result.exitCode === 0);
 const summary = {
   ok,
   level,
+  container: values.container ? readJson(join(proof, 'logs', 'container-check.json')) : null,
   timestamp: new Date(started).toISOString(),
   durationMs: Date.now() - started,
   git: { sha, dirty },
   node: process.version,
   steps: results,
-  screenshots: filesIn('screenshots', /\.png$/),
+  screenshots: [...filesIn('screenshots', /\.png$/), ...filesIn(join('container', 'screenshots'), /\.png$/)],
   logs: filesIn('logs', /\.(log|json)$/),
 };
 const summaryPath = join(proof, 'summary.json');

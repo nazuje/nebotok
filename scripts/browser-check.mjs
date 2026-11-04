@@ -3,7 +3,8 @@
 // languages. Fails on any console error, page error, failed or outside request, a missing
 // connection, a language toggle that does not change the text, small touch targets, or sideways
 // scrolling at 360px wide.
-//   node scripts/browser-check.mjs [--out <dir>]
+//   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
+// With --url it plays a game that is already running there (the container check) instead.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -12,14 +13,14 @@ import { inTurn } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { chromiumLaunchOptions, webkitLaunchOptions } from './lib/launch-options.mjs';
 
-const { values } = parseArgs({ options: { out: { type: 'string' } } });
+const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
 const out = values.out ?? join(ROOT, '.proof', 'browser-check');
 const shots = join(out, 'screenshots');
 mkdirSync(shots, { recursive: true });
 mkdirSync(join(out, 'logs'), { recursive: true });
 
 const DIST = join(ROOT, 'apps/game/dist');
-if (!existsSync(join(DIST, 'index.html'))) {
+if (!values.url && !existsSync(join(DIST, 'index.html'))) {
   console.error('browser-check: apps/game/dist is missing. Run: npm run build');
   process.exit(1);
 }
@@ -57,8 +58,10 @@ const presetLanguage = (chosen) => {
   if (localStorage.getItem('nebotok:language') === null) localStorage.setItem('nebotok:language', JSON.stringify(chosen));
 };
 
-const server = await startServer({ env: { NODE_ENV: 'production' }, logFile: join(out, 'logs', 'browser-check-server.log') });
-const allowedHost = `127.0.0.1:${server.port}`;
+const server = values.url
+  ? { base: new URL(values.url).origin, external: true }
+  : await startServer({ env: { NODE_ENV: 'production' }, logFile: join(out, 'logs', 'browser-check-server.log') });
+const allowedHost = new URL(server.base).host;
 const results = [];
 
 /** Collects every sign of trouble on a page, and refuses any request off the local server. */
@@ -209,11 +212,14 @@ try {
     }
   });
 } finally {
-  const stopped = await server.stop();
-  const serverProblems = server.problems();
-  if (stopped.code !== 0) serverProblems.push(`server exited with code ${stopped.code}`);
-  results.push({ label: 'server', ok: serverProblems.length === 0, problems: serverProblems, screenshots: [] });
-  server.saveLog();
+  // A server started elsewhere is checked and stopped by whoever started it.
+  if (!server.external) {
+    const stopped = await server.stop();
+    const serverProblems = server.problems();
+    if (stopped.code !== 0) serverProblems.push(`server exited with code ${stopped.code}`);
+    results.push({ label: 'server', ok: serverProblems.length === 0, problems: serverProblems, screenshots: [] });
+    server.saveLog();
+  }
 }
 
 writeFileSync(join(out, 'logs', 'browser-check.json'), `${JSON.stringify(results, null, 2)}\n`);
