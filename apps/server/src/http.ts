@@ -3,8 +3,11 @@ import { join, relative, sep } from 'node:path';
 import { PROTOCOL_VERSION } from '@nebotok/core';
 import express, { type Application, type Response } from 'express';
 import pkg from '../package.json' with { type: 'json' };
+import { mountApi } from './api.ts';
 import type { Config } from './config.ts';
 import type { Log } from './log.ts';
+import type { ProfileStore } from './profiles.ts';
+import { CONTENT_DIR } from './world.ts';
 
 export const SERVER_VERSION: string = pkg.version;
 
@@ -40,12 +43,31 @@ const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-export function mountHttp(app: Application, config: Config, log: Log): void {
+export type HttpServices = { readonly profiles: ProfileStore; readonly now: () => number };
+
+export function mountHttp(app: Application, config: Config, log: Log, services: HttpServices): void {
   app.disable('x-powered-by');
+  // Tailscale Serve, in the same network namespace, is the only proxy; it sets X-Forwarded-Host and
+  // X-Forwarded-For. Only a loopback peer is believed, so nobody else can claim another address.
+  app.set('trust proxy', 'loopback');
   app.get('/healthz', (_request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.json(health());
   });
+  mountApi(app, { profiles: services.profiles, now: services.now, log });
+  // Maps and their tilesets, straight from content/, for the client to draw and predict with.
+  app.use(
+    '/maps',
+    express.static(join(CONTENT_DIR, 'maps'), {
+      index: false,
+      dotfiles: 'deny',
+      setHeaders: (response: Response, filePath: string) => {
+        if (filePath.endsWith('.tmj')) response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.setHeader('Cache-Control', ALWAYS_CHECK);
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+      },
+    }),
+  );
 
   if (!config.production) return;
   if (!existsSync(join(config.gameDist, 'index.html'))) {

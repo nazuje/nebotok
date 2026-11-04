@@ -108,13 +108,33 @@ package) into adding something harmful, leaking a secret, or publishing.
 | Measure | Where |
 | --- | --- |
 | Secrets live only in `.env` on the Mac mini, which git ignores and the agents may not read. | `.gitignore`, `scripts/hooks/guard.mjs` |
-| Before every tool call, a shared hook refuses `.env` files, database files, `data/`, deleting Docker volumes, force-pushing, turning on install scripts and piping downloads into a shell. It catches slips and injected instructions, not a determined attacker. | `scripts/hooks/guard.mjs`, `.claude/settings.json`, `.factory/hooks.json`, `.codex/hooks.json` |
+| Before every tool call, a shared hook refuses `.env` files, database files, `data/` and `.local-data/`, deleting Docker volumes, force-pushing, turning on install scripts and piping downloads into a shell. It catches slips and injected instructions, not a determined attacker. | `scripts/hooks/guard.mjs`, `.claude/settings.json`, `.factory/hooks.json`, `.codex/hooks.json` |
 | Agents push to `main` only after their checks pass, never force-push, and only a person runs `scripts/update.sh` on the Mac mini. | `AGENTS.md`, skill `release` |
 | Each commit is scanned for secrets, database files, `.env` files and big new files; each push runs the level 0 proof. On once per clone with `npm run setup:hooks`. | `.githooks/` |
 | Third-party agent skills are reviewed copies, pinned to a commit, with every edit recorded. | `.agents/skills/VENDORED.md` |
 | Every change runs the secret scan, lint, tests and the browser proof before it can become an image. | `scripts/verify.mjs`, CI |
 | New dependencies follow the checklist below, whoever proposes them. | This page |
 
+## Profiles, PINs and sessions
+
+The risk: someone on the family tailnet (a visiting friend's phone, a sibling) plays as someone
+else, guesses a PIN, or a web page elsewhere tricks a browser into using the game's API.
+
+| Measure | Where |
+| --- | --- |
+| PINs are stored only as scrypt hashes (N=16384, r=8, p=1) with a random 16-byte salt per profile, and compared in constant time. | `apps/server/src/pin.ts` |
+| Five wrong PINs lock a profile for 60 seconds; only one PIN check per profile runs at a time. | `apps/server/src/profiles.ts` |
+| Each client address may make 120 API calls, 10 logins and 5 new profiles a minute. Behind Tailscale Serve the address comes from `X-Forwarded-For`, which is believed only from loopback. | `apps/server/src/api.ts`, `rate-limit.ts`, `http.ts` |
+| Session tokens are 32 random bytes; the database keeps only their SHA-256. A login replaces the profile's previous session; sessions end after 180 days, at logout, or when a PIN is reset. | `apps/server/src/profiles.ts` |
+| The world room refuses a join without a valid session, before any seat is reserved. One profile has one character; a second join takes it over and closes the first. | `apps/server/src/world-room.ts` |
+| API calls that change anything must name this same host in `Origin` and send JSON. The API sends no CORS headers, so other pages cannot read its answers or send it JSON. | `apps/server/src/api.ts` |
+| Request bodies are at most 1 KB and checked by strict zod schemas; errors never include stack traces. Room messages are checked the same way and rate-limited. | `api.ts`, `world-room.ts`, `packages/core/src/profile.ts`, `protocol.ts` |
+| Logs carry profile ids and counts, never names, PINs or tokens. | `apps/server/src/log.ts` callers |
+| The room state other players receive holds only a name, an avatar and a position. | `apps/server/src/world-state.ts` |
+
+Profiles are for telling children apart, not a security boundary against the family: a four-digit
+PIN is easy to guess for someone who watches, and a profile without one is open to anyone on the
+tailnet. A parent can reset a PIN or delete a profile with `scripts/admin.sh` (`docs/deploy.md`).
 ## Residual risks
 
 What these measures do not stop, in rough order of importance:
@@ -148,6 +168,9 @@ What these measures do not stop, in rough order of importance:
    name and your tailnet name are visible to anyone who looks. Nothing can connect without being on
    the tailnet.
 9. **Known advisories in build tools.** See below.
+10. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
+    `nebotok_nebotok-data` volume as a plain SQLite file. Anyone who can read the Mac mini's Docker
+    volumes can read them; a four-digit PIN hash can be brute-forced offline in seconds.
 
 ## Known advisories
 
@@ -197,5 +220,12 @@ Before `npm install <package>`:
   it, so the Mac mini cannot fall back to an unverified tag.
 - `scripts/update.sh` resolves the digest with `docker buildx imagetools inspect`, which reads the
   registry without downloading the image, and verifies before `docker compose pull`.
+- The database is SQLite through Node's built-in `node:sqlite` (`DatabaseSync`), so no native
+  add-on with an install script is needed. On Node 26.13.0 it prints no experimental warning; it
+  bundles SQLite 3.54.0, and `VACUUM INTO` (used for snapshots) works. It opens with WAL,
+  `foreign_keys` on and a 5 second `busy_timeout`; numbered migrations in
+  `apps/server/src/migrations/` run in one transaction and set `user_version`
+  (`apps/server/src/db.ts`). Outside the container `DATA_DIR` defaults to `.local-data/`, which
+  git and the agent guard both ignore; tests use temporary folders.
 - Provenance verification checks the multi-platform index digest; each platform's image is addressed
   by its own digest inside that index, so the chain of hashes covers what is pulled.

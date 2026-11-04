@@ -3,15 +3,16 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import type { Config } from './config.ts';
 import { mountHttp } from './http.ts';
 import { colyseusLogger, type Log } from './log.ts';
-import { worldRoomWithLog } from './world-room.ts';
+import type { Services } from './services.ts';
+import { worldRoom } from './world-room.ts';
 
-export function createGameServer(config: Config, log: Log) {
+export function createGameServer(config: Config, log: Log, services: Services) {
   return defineServer({
     rooms: {
-      world: defineRoom(worldRoomWithLog(log)),
+      world: defineRoom(worldRoom({ log, world: services.world, profiles: services.profiles, progress: services.progress })),
     },
     transport: new WebSocketTransport(),
-    express: (app) => mountHttp(app, config, log),
+    express: (app) => mountHttp(app, config, log, services),
     logger: colyseusLogger(log),
     greet: false,
   });

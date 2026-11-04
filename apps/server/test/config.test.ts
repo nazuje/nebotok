@@ -5,7 +5,9 @@ import { colyseusLogger, createLog } from '../src/log.ts';
 describe('config', () => {
   it('has safe defaults', () => {
     const config = readConfig({});
-    expect(config).toMatchObject({ port: 2567, host: '0.0.0.0', dataDir: undefined, production: false, logLevel: 'info' });
+    expect(config).toMatchObject({ port: 2567, host: '0.0.0.0', production: false, logLevel: 'info' });
+    // Outside the container the database lives in a folder git ignores.
+    expect(config.dataDir).toMatch(/[/\\]\.local-data[/\\]$/);
   });
 
   it('reads the environment', () => {

@@ -38,7 +38,7 @@ window.addEventListener('resize', () => {
   game.scale.resize(next.width, next.height);
 });
 
-connect({
+connect(() => language, {
   status: (status) => {
     connection = status;
     if (status !== 'connecting') settled = true;

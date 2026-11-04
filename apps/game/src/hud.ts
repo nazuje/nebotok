@@ -7,6 +7,8 @@ const STATUS_TEXT: Readonly<Record<ConnectionStatus, StringId>> = {
   connecting: 'connection.connecting',
   connected: 'connection.connected',
   unreachable: 'connection.unreachable',
+  signedOut: 'connection.signedOut',
+  replaced: 'connection.replaced',
 };
 
 function element<T extends Element>(selector: string): T {

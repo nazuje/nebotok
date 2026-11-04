@@ -11,6 +11,8 @@ dist/
 # Runtime world data and player saves. Anchored so test fixtures named saves/ stay tracked.
 /data/
 /saves/
+# The development database (DATA_DIR outside the container).
+/.local-data/
 playwright-report/
 test-results/
 blob-report/

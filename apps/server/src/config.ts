@@ -2,11 +2,13 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 const DEFAULT_GAME_DIST = fileURLToPath(new URL('../../game/dist/', import.meta.url));
+/** Outside the container: a folder in the repository that git ignores. The image sets DATA_DIR=/data. */
+const DEFAULT_DATA_DIR = fileURLToPath(new URL('../../../.local-data/', import.meta.url));
 
 const Env = z.object({
   PORT: z.coerce.number().int().min(0).max(65_535).default(2567),
   HOST: z.string().min(1).default('0.0.0.0'),
-  DATA_DIR: z.string().min(1).optional(),
+  DATA_DIR: z.string().min(1).default(DEFAULT_DATA_DIR),
   GAME_DIST: z.string().min(1).default(DEFAULT_GAME_DIST),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
@@ -15,8 +17,8 @@ const Env = z.object({
 export type Config = {
   readonly port: number;
   readonly host: string;
-  /** Where world data will live. Unused until worlds are saved. */
-  readonly dataDir: string | undefined;
+  /** Where the database (and its nightly snapshots) live. */
+  readonly dataDir: string;
   /** The built game. Served only in production. */
   readonly gameDist: string;
   readonly production: boolean;

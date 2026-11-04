@@ -74,4 +74,21 @@ export {
   type Intent,
   type Walker,
 } from './movement.ts';
+export {
+  MAX_PROFILES,
+  PROFILE_NAME_MAX,
+  PIN_ATTEMPTS,
+  PIN_LOCK_MS,
+  PROFILE_ERRORS,
+  ProfileName,
+  Pin,
+  CreateProfileRequest,
+  LoginRequest,
+  normalizeName,
+  nameKey,
+  type ApiError,
+  LoginResponse,
+  type ProfileError,
+  ProfileSummary,
+} from './profile.ts';
 export { GoldenCommand, GoldenFile, replay, replayHash, type Replay } from './golden.ts';
