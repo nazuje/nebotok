@@ -1,0 +1,10 @@
+{
+  "turnLimit": 100,
+  "weatherTurns": 5,
+  "strongPercent": 200,
+  "weakPercent": 50,
+  "boostPercent": 150,
+  "weakenPercent": 75,
+  "sameTypePercent": 125,
+  "minRollPercent": 85
+}

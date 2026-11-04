@@ -1,0 +1,82 @@
+{
+  "description": "Battle golden: free switches and weather calls by script on both sides, then greedy bots finish, with forced swaps after fainting.",
+  "seed": "nebotok-battle-switches",
+  "setup": {
+    "sides": [
+      {
+        "creatures": [
+          {
+            "species": "sun-blob",
+            "level": 25
+          },
+          {
+            "species": "rain-cube",
+            "level": 25
+          },
+          {
+            "species": "storm-blob",
+            "level": 25
+          }
+        ]
+      },
+      {
+        "creatures": [
+          {
+            "species": "frost-blob",
+            "level": 25
+          },
+          {
+            "species": "gale-blob",
+            "level": 25
+          }
+        ]
+      }
+    ],
+    "weather": null
+  },
+  "pilots": [
+    {
+      "script": [
+        {
+          "kind": "switch",
+          "to": 1
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "switch",
+          "to": 2
+        },
+        {
+          "kind": "move",
+          "slot": 0
+        }
+      ],
+      "bot": "greedy"
+    },
+    {
+      "script": [
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "switch",
+          "to": 1
+        },
+        {
+          "kind": "move",
+          "slot": 2
+        },
+        {
+          "kind": "move",
+          "slot": 3
+        }
+      ],
+      "bot": "greedy"
+    }
+  ],
+  "expectedHash": "076874ac8a12d6"
+}

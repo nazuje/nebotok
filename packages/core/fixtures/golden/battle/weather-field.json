@@ -1,0 +1,90 @@
+{
+  "description": "Battle golden: a battlefield that starts in lasting Storm, replaced by called Sun that runs out while one side switches back and forth, then called Bloom; greedy bots finish.",
+  "seed": "nebotok-battle-weather",
+  "setup": {
+    "sides": [
+      {
+        "creatures": [
+          {
+            "species": "sun-cube",
+            "level": 40
+          },
+          {
+            "species": "rain-cube",
+            "level": 40
+          }
+        ]
+      },
+      {
+        "creatures": [
+          {
+            "species": "bloom-blob",
+            "level": 40
+          },
+          {
+            "species": "gale-blob",
+            "level": 38
+          }
+        ]
+      }
+    ],
+    "weather": "storm"
+  },
+  "pilots": [
+    {
+      "script": [
+        {
+          "kind": "move",
+          "slot": 3
+        },
+        {
+          "kind": "switch",
+          "to": 1
+        },
+        {
+          "kind": "switch",
+          "to": 0
+        },
+        {
+          "kind": "switch",
+          "to": 1
+        },
+        {
+          "kind": "switch",
+          "to": 0
+        }
+      ],
+      "bot": "greedy"
+    },
+    {
+      "script": [
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "slot": 0
+        },
+        {
+          "kind": "move",
+          "slot": 2
+        }
+      ],
+      "bot": "greedy"
+    }
+  ],
+  "expectedHash": "0bbcb2e96cfe6e"
+}

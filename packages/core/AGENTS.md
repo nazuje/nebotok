@@ -13,7 +13,11 @@ in the browser later.
 - **Golden replays** (`fixtures/golden/*.json`) record the hash that a seed and a list of commands
   must produce. A changed hash means rule behaviour moved. Before running `npm run golden:update`,
   find which rule changed and why, confirm the change was intended, and say so in the commit
-  message. A hash that changes from a refactor is a bug.
+  message. A hash that changes from a refactor is a bug. Battle goldens (`fixtures/golden/battle/`)
+  replay against `content/creatures/`, so a content change there moves them too.
+- **Battles** live in `src/battle/`: `battleStep(state, actions, rng, content)` is a pure step that
+  returns the next state and the events the client animates. Bots in `bots.ts` drive the tests, and
+  `node scripts/battle-sim.mjs` prints how greedy and random bots fare against each other.
 - **Saves** live in `src/save.ts`. Changing their shape follows the `change-save-format` skill.
 - **Content schemas** live in `src/content.ts`. Adding a kind of content follows the `add-content`
   skill.

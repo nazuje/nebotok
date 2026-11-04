@@ -1,0 +1,52 @@
+{
+  "description": "Battle golden: three against three with no weather, a greedy bot against a random one, played to the end.",
+  "seed": "nebotok-battle-greedy-random",
+  "setup": {
+    "sides": [
+      {
+        "creatures": [
+          {
+            "species": "sun-blob",
+            "level": 20
+          },
+          {
+            "species": "gale-blob",
+            "level": 22
+          },
+          {
+            "species": "rain-cube",
+            "level": 18
+          }
+        ]
+      },
+      {
+        "creatures": [
+          {
+            "species": "frost-blob",
+            "level": 21
+          },
+          {
+            "species": "storm-blob",
+            "level": 20
+          },
+          {
+            "species": "bloom-blob",
+            "level": 19
+          }
+        ]
+      }
+    ],
+    "weather": null
+  },
+  "pilots": [
+    {
+      "script": [],
+      "bot": "greedy"
+    },
+    {
+      "script": [],
+      "bot": "random"
+    }
+  ],
+  "expectedHash": "0ac785da301ecd"
+}

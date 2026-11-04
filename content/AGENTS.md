@@ -35,3 +35,13 @@ is their guide. Keep to these conventions or validation fails:
 - `world.json` names the map new players start on (`startMap`) and how fast everyone walks
   (`walkTilesPerSecond`). `avatars.json` lists the looks a profile can pick, with placeholder
   colours until real art arrives.
+
+## Creatures and battles
+
+`creatures/` holds what battles read, all placeholders until the kids' creatures arrive:
+`weather.json` (the six weather types, which is strong and weak against which, and what each
+does as battlefield weather), `moves.json`, `species.json` (each knows exactly four moves) and
+`battle-rules.json` (the numbers that tune damage, weather length and the turn limit).
+`content:validate` also checks that every type, weather and move a file names exists. Battle
+golden replays use these files, so a change here moves their hashes: confirm it was intended, then
+run `npm run golden:update`. Placeholder names stay obviously placeholder, such as "Sun Blob".
