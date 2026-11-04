@@ -18,7 +18,7 @@ x-logging: &logging
 x-hardening: &hardening
   read_only: true
   cap_drop: [ALL]
-  security_opt: [no-new-privileges:true]
+  security_opt: ["no-new-privileges:true"]
   restart: unless-stopped
   logging: *logging
 

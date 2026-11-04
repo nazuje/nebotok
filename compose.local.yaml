@@ -13,7 +13,7 @@ services:
     image: nebotok:local
     read_only: true
     cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    security_opt: ["no-new-privileges:true"]
     user: node
     environment:
       NODE_ENV: production
