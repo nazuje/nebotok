@@ -1,0 +1,11 @@
+{
+  "game.title": { "en": "Nebotok", "sl": "Nebotok" },
+  "connection.connecting": { "en": "Connecting…", "sl": "Povezovanje …" },
+  "connection.connected": { "en": "Connected", "sl": "Povezano" },
+  "connection.unreachable": { "en": "Can't reach the server", "sl": "Strežnik ni dosegljiv" },
+  "language.en": { "en": "English", "sl": "angleščina" },
+  "language.sl": { "en": "Slovenian", "sl": "slovenščina" },
+  "language.switch": { "en": "Switch language", "sl": "Zamenjaj jezik" },
+  "welcome.alone": { "en": "Nobody else is on the islands yet.", "sl": "Na otokih še ni nikogar drugega." },
+  "welcome.together": { "en": "Others are already exploring the islands.", "sl": "Drugi že raziskujejo otoke." }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@nebotok/game",
+  "description": "The Nebotok browser client: Phaser for the world, HTML for the interface.",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "0.18.9",
+    "phaser": "4.2.1"
+  }
+}

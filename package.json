@@ -1,0 +1,46 @@
+{
+  "name": "nebotok",
+  "description": "A creature-collecting adventure across floating sky islands, played together as a family.",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=26.0.0 <27"
+  },
+  "workspaces": [
+    "packages/core",
+    "apps/server",
+    "apps/game"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "NODE_ENV=production node apps/server/src/index.ts",
+    "build": "npm run build -w @nebotok/game",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "oxlint --deny-warnings",
+    "content:validate": "node scripts/validate-content.mjs",
+    "core:boundary": "node scripts/check-core-imports.mjs",
+    "golden:update": "node scripts/golden-update.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "verify": "node scripts/verify.mjs"
+  },
+  "volta": {
+    "node": "26.13.0"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "0.18.9",
+    "@colyseus/testing": "0.18.6",
+    "@playwright/test": "1.64.1",
+    "@types/express": "5.0.6",
+    "@types/node": "26.6.6",
+    "fast-check": "4.10.2",
+    "oxlint": "1.91.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.1.0",
+    "workbox-build": "7.4.1",
+    "workbox-window": "7.4.1"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.proof/
+.env
+.env.*
+!.env.example
+*.sqlite*
+*.db
+# Runtime world data and player saves. Anchored so test fixtures named saves/ stay tracked.
+/data/
+/saves/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+.DS_Store
+*.log
