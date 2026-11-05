@@ -58,6 +58,7 @@ async function chooseOnce(page, state, { check, prefix, seen }) {
   await until(page, (s) => s.battle?.panel === 'treats', 'the treat picker');
   if (!seen.treats) {
     seen.treats = true;
+    await drawn(page);
     await check('the treat picker', `${prefix}3-treats`);
   }
   await page.locator('#battle .treat-choice').first().tap();
