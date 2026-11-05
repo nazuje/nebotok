@@ -1,12 +1,12 @@
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
 import { WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
-import { capturedLog, freePort, tempServices, until } from './helpers.ts';
+import { capturedLog, freePort, repeat, tempServices, until } from './helpers.ts';
 
 let temp: ReturnType<typeof tempServices>;
 let colyseus: ColyseusTestServer;
@@ -97,7 +97,7 @@ describe('joining the world', () => {
     expect({ name: shown?.name, avatar: shown?.avatar, x: shown?.x, y: shown?.y, connected: shown?.connected }).toEqual({
       name: 'Blue Courier',
       avatar: 'green',
-      ...spawn(),
+      ...freeTileNear(map(), spawn(), [spawn()]),
       connected: true,
     });
     expect(first.state.map).toBe(map().id);
@@ -106,6 +106,28 @@ describe('joining the world', () => {
     await second.leave();
     await until(() => first.state.playerCount === 1, 'the count to drop to one');
     await first.leave();
+  });
+
+  it('puts new players on free tiles around the spawn, in ring order, and returning ones where they were', async () => {
+    const saved = await profile('Saved Courier');
+    const target = tileAway(1);
+    const first = await join(saved.token);
+    first.send('walk.to', target);
+    await until(() => at(first, first.sessionId, target), 'the walk to finish');
+    await first.leave();
+    await until(() => temp.services.progress.load(saved.id)?.data.position?.x === target.x, 'the save');
+
+    const names = ['Red Courier', 'Blue Courier', 'Green Courier'];
+    // One after another, since where each lands depends on who is already there.
+    const rooms = await repeat(names.length, async (index) => join((await profile(names[index]!)).token));
+    const back = await join(saved.token);
+    await until(() => back.state.players.size === 4, 'all four players');
+    const tiles = [...rooms, back].map((room) => back.state.players.get(room.sessionId)!).map(({ x, y }) => ({ x, y }));
+    const expected: Point[] = [];
+    for (let arrival = 0; arrival < 3; arrival += 1) expected.push(freeTileNear(map(), spawn(), expected));
+    expect(tiles).toEqual([...expected, target]);
+    expect(tiles[0]).toEqual(spawn());
+    expect(new Set(tiles.slice(0, 3).map(({ x, y }) => `${x},${y}`)).size).toBe(3);
   });
 
   it('greets a lone player as alone', async () => {

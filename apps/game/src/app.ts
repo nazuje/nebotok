@@ -264,6 +264,7 @@ installTestHook({
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
       map: scene.mapId,
       players: players(),
+      tags: names.boxes().map(({ name, x, y, width, height }) => ({ name, x: round(x), y: round(y), width: round(width), height: round(height) })),
       controls,
       marker: scene.markerTile,
       predicted: view.predicted(),

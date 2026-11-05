@@ -122,7 +122,7 @@ async function prepareBot() {
   if (made.status !== 201) throw new Error(`browser-check: making the bot answered ${made.status}`);
   const login = await api('/sessions', { body: { profileId: made.data.id }, address });
   if (login.status !== 200) throw new Error(`browser-check: signing the bot in answered ${login.status}`);
-  return { token: login.data.token, ...(await servedMap(server.base, START_MAP)) };
+  return { token: login.data.token, fresh: true, ...(await servedMap(server.base, START_MAP)) };
 }
 
 function tileNear(bot, from, offsets) {
@@ -245,7 +245,13 @@ async function moveAround(page, browserName, bot, language, { expect, shot }) {
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
   try {
-    await until(page, (s) => botIn(s)?.connected === true, 'the page to see the bot');
+    const landed = botIn(await until(page, (s) => botIn(s)?.connected === true, 'the page to see the bot'));
+    // The first run's courier is new and alone, so it stands on the spawn; the bot, new too, must take a tile beside it.
+    if (bot.fresh) {
+      bot.fresh = false;
+      const apart = Math.abs(landed.x - self.x) + Math.abs(landed.y - self.y);
+      expect(apart === 1, `a new player arrived on ${landed.x},${landed.y}, not on a free tile beside the courier at ${self.x},${self.y}`);
+    }
     const seesPage = await poll(() => [...(room.state.players?.values() ?? [])].some((player) => player.name === self.name && player.x === self.x && player.y === self.y), {
       deadline: Date.now() + 5_000,
     });

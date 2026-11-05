@@ -188,6 +188,29 @@ export function reachableFrom(map: WorldMap, from: Point): readonly boolean[] {
   return seen;
 }
 
+/**
+ * Where a new arrival stands: the walkable tile nearest `from` (counted in steps along the grid,
+ * ignoring walls) that is reachable from it and not in `taken`. Each ring of tiles the same
+ * distance away is searched top row first, left before right, so every machine picks the same
+ * tile. `from` itself when it is free, and `from` again when every reachable tile is taken.
+ */
+export function freeTileNear(map: WorldMap, from: Point, taken: readonly Point[]): Point {
+  const held = new Set(taken.map((at) => at.y * map.width + at.x));
+  const reached = reachableFrom(map, from);
+  const free = (at: Point) => inBounds(map, at) && reached[at.y * map.width + at.x] === true && !held.has(at.y * map.width + at.x);
+  if (free(from)) return from;
+  for (let distance = 1; distance < map.width + map.height; distance += 1) {
+    for (let dy = -distance; dy <= distance; dy += 1) {
+      const dx = distance - Math.abs(dy);
+      const left = { x: from.x - dx, y: from.y + dy };
+      if (free(left)) return left;
+      const right = { x: from.x + dx, y: from.y + dy };
+      if (dx !== 0 && free(right)) return right;
+    }
+  }
+  return from;
+}
+
 /** Problems a playable map must not have: a blocked player spawn, or walkable tiles nobody can reach. */
 export function playabilityProblems(map: WorldMap): readonly string[] {
   const spawn = map.spawns[PLAYER_SPAWN];

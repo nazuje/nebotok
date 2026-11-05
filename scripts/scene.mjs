@@ -188,6 +188,10 @@ async function walk(page, to, taps = MAX_TAPS) {
 const standing = (player, tile) => player && !player.moving && player.x === tile.x && player.y === tile.y && player.drawn.x === tile.x && player.drawn.y === tile.y;
 const quietly = (closing) => closing.catch(() => {});
 
+const apart = (a, b) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+/** No name tag on the page covers another. */
+const tagsApart = (state) => state.tags.every((tag, index) => state.tags.every((other, at) => at === index || apart(tag, other)));
+
 /** Whether the page shows everything a `waitFor` step asks for. */
 function shows(state, wanted) {
   const other = (id) => state.players.find((player) => !player.self && player.name === nameOf(id));
@@ -197,7 +201,8 @@ function shows(state, wanted) {
     (!wanted.at || Boolean(settledOn(state, wanted.at))) &&
     (wanted.sees ?? []).every((id) => other(id)?.connected === true) &&
     (wanted.away ?? []).every((id) => other(id)?.connected === false) &&
-    Object.entries(wanted.seesAt ?? {}).every(([id, tile]) => other(id)?.connected === true && standing(other(id), tile))
+    Object.entries(wanted.seesAt ?? {}).every(([id, tile]) => other(id)?.connected === true && standing(other(id), tile)) &&
+    (!wanted.tagsApart || tagsApart(state))
   );
 }
 

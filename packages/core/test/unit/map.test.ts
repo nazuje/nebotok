@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import avatars from '../../../../content/avatars.json' with { type: 'json' };
 import world from '../../../../content/world.json' with { type: 'json' };
-import { PLAYER_SPAWN, checkContentFile, isWalkable, mapFromRows, playabilityProblems, readTiledMap, reachableFrom } from '../../src/index.ts';
+import { PLAYER_SPAWN, checkContentFile, freeTileNear, isWalkable, mapFromRows, playabilityProblems, readTiledMap, reachableFrom } from '../../src/index.ts';
 
 const postIsland: unknown = JSON.parse(readFileSync(new URL('../../../../content/maps/post-island.tmj', import.meta.url), 'utf8'));
 
@@ -118,6 +118,37 @@ describe('map playability', () => {
       ok: false,
       problems: ['(root): 2 walkable tile(s) cannot be reached from the spawn, first at 2,0 2,1'],
     });
+  });
+});
+
+describe('where a new arrival stands', () => {
+  const open = mapFromRows('t', ['.....', '.....', '.....', '.....', '.....'], { x: 2, y: 2 });
+  const spawn = { x: 2, y: 2 };
+
+  it('is the spawn itself while nobody stands there', () => {
+    expect(freeTileNear(open, spawn, [])).toEqual(spawn);
+    expect(freeTileNear(open, spawn, [{ x: 1, y: 2 }])).toEqual(spawn);
+  });
+
+  it('fills the tiles around the spawn one ring at a time, in a fixed order', () => {
+    const taken = [spawn];
+    for (let arrival = 0; arrival < 12; arrival += 1) taken.push(freeTileNear(open, spawn, taken));
+    expect(taken.map(({ x, y }) => `${x},${y}`)).toEqual([
+      '2,2',
+      '2,1', '1,2', '3,2', '2,3',
+      '2,0', '1,1', '3,1', '0,2', '4,2', '1,3', '3,3', '2,4',
+    ]);
+  });
+
+  it('skips blocked tiles and tiles that cannot be reached from the spawn', () => {
+    const walled = mapFromRows('t', ['.#.', '.#.', '.#.'], { x: 0, y: 0 });
+    // 2,0 is as near as 0,2 and comes first in the ring, but the wall cuts it off.
+    expect(freeTileNear(walled, { x: 0, y: 0 }, [{ x: 0, y: 0 }, { x: 0, y: 1 }])).toEqual({ x: 0, y: 2 });
+  });
+
+  it('is the spawn again when every reachable tile is taken', () => {
+    const tiny = mapFromRows('t', ['..#.'], { x: 0, y: 0 });
+    expect(freeTileNear(tiny, { x: 0, y: 0 }, [{ x: 0, y: 0 }, { x: 1, y: 0 }])).toEqual({ x: 0, y: 0 });
   });
 });
 

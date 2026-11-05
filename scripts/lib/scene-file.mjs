@@ -32,6 +32,7 @@ const Until = z
     sees: z.array(Id).min(1).optional(),
     away: z.array(Id).min(1).optional(),
     seesAt: z.record(Id, Tile).optional(),
+    tagsApart: z.literal(true).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 

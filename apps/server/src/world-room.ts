@@ -11,6 +11,7 @@ import {
   WalkToMessage,
   createSave,
   createWalker,
+  freeTileNear,
   inBounds,
   isCompatibleProtocol,
   isWalkable,
@@ -212,18 +213,24 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       return undefined;
     }
 
-    /** The saved position when it is still a walkable tile of this map, else the spawn. */
+    /** The saved position when it is still a walkable tile of this map, else the free tile nearest the spawn. */
     private load(playerId: number): { walker: Walker; canSave: boolean; language: Language } {
       let save: SaveFile | null = null;
       try {
         save = progress.load(playerId);
       } catch (error) {
         log.warn('save unreadable; this player will not be saved', { playerId, error: error instanceof Error ? error.message : String(error) });
-        return { walker: createWalker(spawn), canSave: false, language: 'en' };
+        return { walker: createWalker(this.arrival()), canSave: false, language: 'en' };
       }
       const position = save?.data.position;
       const usable = position && position.map === map.id && isWalkable(map, position);
-      return { walker: usable ? createWalker(position, position.facing) : createWalker(spawn), canSave: true, language: save?.data.language ?? 'en' };
+      return { walker: usable ? createWalker(position, position.facing) : createWalker(this.arrival()), canSave: true, language: save?.data.language ?? 'en' };
+    }
+
+    /** New arrivals spread out around the spawn, so nobody appears on top of someone already there, away players included. */
+    private arrival(): Point {
+      const taken = [...this.seats.values()].filter((seat) => !seat.replaced).map((seat) => seat.walker);
+      return freeTileNear(map, spawn, taken);
     }
 
     private replace(sessionId: string, seat: Seat) {

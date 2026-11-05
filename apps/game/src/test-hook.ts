@@ -2,6 +2,7 @@ import type { Direction, Language, Point, StringId } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
+import type { TagBox } from './names.ts';
 import type { WorldView } from './world-view.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
@@ -33,6 +34,8 @@ export type TestSnapshot = {
   /** The map whose tiles are drawn, if any. */
   map: string | null;
   players: TestPlayer[];
+  /** Other players' name tags as placed on the page, in CSS pixels. */
+  tags: Omit<TagBox, 'id'>[];
   controls: Controls;
   /** The tile the walk marker shows, if any. */
   marker: Point | null;

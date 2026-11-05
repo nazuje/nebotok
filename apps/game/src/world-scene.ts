@@ -14,6 +14,17 @@ const MARKER_DEPTH = PLAYER_DEPTH - 1;
 const MARKER_COLOUR = 0xffffff;
 const REFUSED_COLOUR = 0xd64545;
 const REFUSED_MS = 450;
+/** The ring under your own courier, so you can find yourself among others. */
+const SELF_RING_COLOUR = 0xffffff;
+const SELF_RING_OUTLINE = 0x1b1b2f;
+/** An oval at the courier's feet, one string per pixel row from the tile's row 12: `o` outline, `r` ring. */
+const SELF_RING = [
+  '...oooooooooo...',
+  '.oorrrrrrrrrroo.',
+  'orro........orro',
+  '.oorrrrrrrrrroo.',
+] as const;
+const SELF_RING_TOP = 12;
 const AWAY_ALPHA = 0.5;
 const AWAY_TINT = 0xb8c4d0;
 
@@ -43,6 +54,7 @@ export class WorldScene extends Scene {
   private spawnTile: Point = { x: 0, y: 0 };
   private markBooted: () => void = () => {};
   private marker: GameObjects.Graphics | null = null;
+  private selfRing: GameObjects.Graphics | null = null;
   private markerPulse: Tweens.Tween | null = null;
   private markerTimer: Time.TimerEvent | null = null;
   /** The tile the marker shows, unless it is only a short "can't go there". */
@@ -100,7 +112,9 @@ export class WorldScene extends Scene {
     }
     this.shownPlayers = shown;
     const self = shown.find((player) => player.self);
-    this.follow(self ? this.sprites.get(self.id) : undefined);
+    const selfSprite = self ? this.sprites.get(self.id) : undefined;
+    this.ring(selfSprite);
+    this.follow(selfSprite);
   }
 
   /** Where the centre of a tile is on the page, in CSS pixels. */
@@ -188,6 +202,26 @@ export class WorldScene extends Scene {
     }
     if (player.connected) sprite.setAlpha(1).clearTint();
     else sprite.setAlpha(AWAY_ALPHA).setTint(AWAY_TINT);
+  }
+
+  /** Keeps the ring at your courier's feet, drawn under it but over anyone sharing its tile. */
+  private ring(sprite: GameObjects.Sprite | undefined): void {
+    if (!sprite) {
+      this.selfRing?.setVisible(false);
+      return;
+    }
+    if (!this.selfRing) {
+      const ring = this.add.graphics();
+      SELF_RING.forEach((row, y) => {
+        [...row].forEach((pixel, x) => {
+          if (pixel === '.') return;
+          ring.fillStyle(pixel === 'o' ? SELF_RING_OUTLINE : SELF_RING_COLOUR, pixel === 'o' ? 0.55 : 1);
+          ring.fillRect(x, SELF_RING_TOP + y, 1, 1);
+        });
+      });
+      this.selfRing = ring;
+    }
+    this.selfRing.setVisible(true).setPosition(sprite.x - TILE / 2, sprite.y - TILE / 2).setDepth(sprite.depth - 0.25);
   }
 
   private follow(sprite: GameObjects.Sprite | undefined): void {

@@ -1,0 +1,19 @@
+{
+  "name": "crowded-tile",
+  "about": "Three couriers arrive one after another and spread out around the spawn. Two of them then stand on the same tile while the third watches from nearby: both names stay readable, stacked one above the other, and each of the two finds their own courier by the ring under it.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "ipad-landscape", "language": "sl" },
+    { "id": "mira", "name": "Scena Mira", "avatar": "orange", "browser": "chromium", "device": "iphone-portrait", "language": "en" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "join", "player": "mira", "shot": "arrived" },
+    { "do": "walk", "player": "mira", "to": { "x": 19, "y": 13 } },
+    { "do": "walk", "player": "lan", "to": { "x": 19, "y": 11 } },
+    { "do": "walk", "player": "zarja", "to": { "x": 19, "y": 11 } },
+    { "do": "waitFor", "player": "mira", "until": { "seesAt": { "lan": { "x": 19, "y": 11 }, "zarja": { "x": 19, "y": 11 } }, "tagsApart": true } },
+    { "do": "waitFor", "player": "lan", "until": { "seesAt": { "zarja": { "x": 19, "y": 11 } }, "tagsApart": true }, "shot": "one-tile" }
+  ]
+}
