@@ -11,7 +11,8 @@ working in before you start.
 - `apps/server`: the authoritative Colyseus server, which also serves the built game.
 - `apps/game`: the browser client (Vite, Phaser 4, HTML interface).
 - `content/`: game content as schema-checked JSON in both languages.
-- `scripts/`: the proof (`verify.mjs`), browser check, bot run, deploy scripts and agent hooks.
+- `scripts/`: the proof (`verify.mjs`), browser check, bot run, scenes, deploy scripts and agent
+  hooks.
 - `docs/`: design, phases, `security.md`, `deploy.md`, and the subagent briefs in `docs/agents/`.
 - `.agents/skills/`: skills for all agents, linked into `.claude/skills/`. Third-party ones are
   reviewed copies; `VENDORED.md` lists them and their edits.
@@ -25,6 +26,10 @@ working in before you start.
   once per clone, which turns on the git hooks in `.githooks/`.
 - Develop: `npm run dev` starts the server and Vite on 127.0.0.1 and opens no browser. It prints
   the game's address: port 5173, or a free port when another worktree's dev server holds it.
+- Try a change with several players: `npm run scene -- scripts/scenes/<name>.json` plays a scene
+  against the running `npm run dev` (`--url <base>` for a built server) in headless, muted
+  browsers, and saves each player's screenshots and state in `.proof/scenes/<name>/`.
+  `scripts/scenes/README.md` explains the scene file.
 - Prove: `npm run verify -- --level N` runs every step up to level N into `.proof/<sha>/LN/`
   (`<sha>-dirty` with uncommitted changes). `.proof/<sha>/summary.json` is the summary of the
   highest level that passed at that commit, so a lower run later (the pre-push hook's level 0)

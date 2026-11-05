@@ -2,6 +2,7 @@
 // /colyseus and /healthz to the server. Nothing opens a browser. The game is on 5173 and the server
 // on 2567 when those are free; otherwise (another worktree's dev, say) on free ports, printed below.
 import { spawn } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, freePort } from './lib/server-process.mjs';
 
@@ -31,6 +32,10 @@ const children = [
 });
 
 console.log(`dev: the game is at http://127.0.0.1:${gamePort}/ and the server on port ${serverPort}`);
+// Where `npm run scene` finds this worktree's dev server; gone again when dev stops.
+const DEV_FILE = join(ROOT, '.proof', 'dev.json');
+mkdirSync(join(ROOT, '.proof'), { recursive: true });
+writeFileSync(DEV_FILE, `${JSON.stringify({ game: `http://127.0.0.1:${gamePort}`, serverPort, pid: process.pid }, null, 2)}\n`);
 
 const exited = children.map((child) => new Promise((resolve) => child.once('exit', resolve)));
 let stopping = false;
@@ -43,6 +48,7 @@ const stop = async (code) => {
   }, 5_000);
   await Promise.all(exited);
   clearTimeout(force);
+  rmSync(DEV_FILE, { force: true });
   process.exit(code);
 };
 for (const child of children) child.once('exit', (code) => stop(code ?? 1));

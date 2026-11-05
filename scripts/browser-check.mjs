@@ -13,11 +13,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Client } from '@colyseus/sdk';
-import { chromium, devices, webkit } from '@playwright/test';
-import { PLAYER_SPAWN, PROTOCOL_VERSION, isWalkable, reachableFrom, readTiledMap } from '../packages/core/src/index.ts';
+import { PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
+import {
+  BROWSERS,
+  DEVICES,
+  HOOK,
+  apiCall,
+  enterPin,
+  inWorld,
+  presetLanguage,
+  readState,
+  reportCspViolations,
+  screenshot,
+  selfIn,
+  servedMap,
+  settledOn,
+  signOut,
+  tappable,
+  tilesToScreen,
+  until,
+  watch,
+} from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
-import { chromiumLaunchOptions, webkitLaunchOptions } from './lib/launch-options.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
 const out = values.out ?? join(ROOT, '.proof', 'browser-check');
@@ -34,37 +52,10 @@ if (!values.url && !existsSync(join(DIST, 'index.html'))) {
 const STRINGS = JSON.parse(readFileSync(join(ROOT, 'content/strings.json'), 'utf8'));
 const MIN_TARGET_PX = 48;
 const NARROW = { width: 360, height: 740 };
-const BROWSERS = [
-  { name: 'chromium', type: chromium, options: chromiumLaunchOptions },
-  { name: 'webkit', type: webkit, options: webkitLaunchOptions },
-];
-const DEVICES = [
-  { name: 'iphone-portrait', descriptor: devices['iPhone 17'] },
-  { name: 'ipad-landscape', descriptor: devices['iPad Pro 11 landscape'] },
-];
 const LANGUAGES = ['en', 'sl'];
 const other = (language) => (language === 'en' ? 'sl' : 'en');
 const PIN = '2580';
 const WRONG_PIN = '1111';
-const SHOT = { caret: 'initial' };
-// WebKit screenshots make Playwright inject an inline stylesheet, which the page's CSP rightly refuses.
-// Only that refusal, and only while a screenshot is being taken, is not counted as a page problem.
-const SCREENSHOT_STYLE_NOISE = /^(Refused to apply a stylesheet because|CSP violation: style-src-elem blocked inline at :\d+$)/;
-const shooting = new WeakSet();
-async function screenshot(page, path) {
-  shooting.add(page);
-  try {
-    await page.screenshot({ path, ...SHOT });
-    await page.waitForTimeout(100);
-  } finally {
-    shooting.delete(page);
-  }
-}
-
-/** Sets the starting language once, so a reload keeps whatever the page chose since. */
-const presetLanguage = (chosen) => {
-  if (localStorage.getItem('nebotok:language') === null) localStorage.setItem('nebotok:language', JSON.stringify(chosen));
-};
 
 // A server of our own keeps its database in a temporary folder, removed at the end.
 const dataDir = values.url ? null : mkdtempSync(join(tmpdir(), 'nebotok-browser-check-'));
@@ -93,75 +84,11 @@ async function spaceRuns() {
   lastRunAt = Date.now();
 }
 
-async function api(path, { body, address } = {}) {
-  const headers = { origin: server.base, ...asDevice(address) };
-  if (body !== undefined) headers['content-type'] = 'application/json';
-  const response = await fetch(`${server.base}/api${path}`, { method: body === undefined ? 'GET' : 'POST', headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  return { status: response.status, data: await response.json() };
-}
+const api = (path, { body, address } = {}) => apiCall(server.base, path, { body, headers: asDevice(address) });
 
 /** Invented names of letters only, one per run, with Slovenian letters in the Slovenian runs. */
 const runName = (browserName, deviceName, language) =>
   `${browserName === 'chromium' ? 'Kro' : 'Web'} ${deviceName.startsWith('iphone') ? 'Tel' : 'Tab'} ${language === 'sl' ? 'Čšž' : 'Abc'}`;
-
-/** Collects every sign of trouble on a page, and refuses any request off the local server. */
-function watch(context, page, problems, { expectStatus = () => false } = {}) {
-  page.on('console', (message) => {
-    if (message.type() !== 'error') return;
-    if (shooting.has(page) && SCREENSHOT_STYLE_NOISE.test(message.text())) return;
-    // A refused API call answers 4xx on purpose (a wrong PIN); browsers log every such answer.
-    if (/^Failed to load resource: the server responded with a status of 4\d\d/.test(message.text()) && expectStatus()) return;
-    problems.push(`console error: ${message.text()}`);
-  });
-  page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
-  context.on('requestfailed', (request) => problems.push(`failed request: ${request.url()} (${request.failure()?.errorText})`));
-  context.on('request', (request) => {
-    const url = new URL(request.url());
-    if (['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) && url.host !== allowedHost) {
-      problems.push(`outside request: ${request.url()}`);
-    }
-  });
-  context.on('response', (response) => {
-    if (response.status() >= 400 && !(expectStatus() && new URL(response.url()).pathname === '/api/sessions')) {
-      problems.push(`HTTP ${response.status()}: ${response.url()}`);
-    }
-  });
-  page.on('websocket', (socket) => {
-    if (new URL(socket.url()).host !== allowedHost) problems.push(`outside websocket: ${socket.url()}`);
-    socket.on('socketerror', (error) => problems.push(`websocket error: ${error}`));
-  });
-}
-
-/** Any Content-Security-Policy violation is a bug: the page tried to load or run something it must not. */
-const reportCspViolations = () => {
-  document.addEventListener('securitypolicyviolation', (event) => {
-    console.error(`CSP violation: ${event.violatedDirective} blocked ${event.blockedURI || 'inline'} at ${event.sourceFile}:${event.lineNumber}`);
-  });
-};
-
-// The page's ?test=1 hook (apps/game/src/test-hook.ts), read under the same key it is installed with.
-const HOOK = '__nebotok';
-const readState = (page) => page.evaluate((key) => JSON.parse(window[key].stateAsText()), HOOK);
-
-/** Waits until the page is ready and its state passes `check`, and returns that state. */
-async function until(page, check, what, timeoutMs = 20_000) {
-  let last = null;
-  const ok = await poll(
-    async () => {
-      const ready = await page.evaluate((key) => window[key]?.ready === true, HOOK).catch(() => false);
-      if (!ready) return false;
-      last = await readState(page);
-      return check(last);
-    },
-    { deadline: Date.now() + timeoutMs, intervalMs: 100 },
-  );
-  if (!ok) throw new Error(`timed out waiting for ${what}; last state ${JSON.stringify(last)}`);
-  return last;
-}
-
-const inWorld = (state) => state.screen === 'world' && state.connection === 'connected' && state.protocol !== null;
-
-const enterPin = (page, digits) => inTurn([...digits], (digit) => page.locator(`.pin-key[data-digit="${digit}"]`).tap());
 
 const smallTargets = (page) =>
   page.locator('button, a, [role="button"], input').evaluateAll(
@@ -195,9 +122,7 @@ async function prepareBot() {
   if (made.status !== 201) throw new Error(`browser-check: making the bot answered ${made.status}`);
   const login = await api('/sessions', { body: { profileId: made.data.id }, address });
   if (login.status !== 200) throw new Error(`browser-check: signing the bot in answered ${login.status}`);
-  const read = readTiledMap(START_MAP, await (await fetch(`${server.base}/maps/${START_MAP}.tmj`)).json());
-  if (!read.ok) throw new Error(`browser-check: the served map does not read: ${read.problems.join('; ')}`);
-  return { token: login.data.token, map: read.map, reach: reachableFrom(read.map, read.map.spawns[PLAYER_SPAWN]) };
+  return { token: login.data.token, ...(await servedMap(server.base, START_MAP)) };
 }
 
 function tileNear(bot, from, offsets) {
@@ -220,12 +145,6 @@ const botIn = (state) => state.players.find((player) => player.name === BOT.name
 const standsOn = (player, tile) => player?.x === tile.x && player.y === tile.y && !player.moving && player.drawn.x === tile.x && player.drawn.y === tile.y;
 
 const OFFSETS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-const selfIn = (state) => state.players.find((player) => player.self);
-/** Settled where the server says, drawn there too, with nothing left to do. */
-const settledOn = (state, tile) => {
-  const self = selfIn(state);
-  return self && !self.moving && self.drawn.x === self.x && self.drawn.y === self.y && state.predicted?.intent === 'idle' && !state.predicted.moving && (!tile || (self.x === tile.x && self.y === tile.y));
-};
 
 /** A direction with two free tiles ahead, so a short hold is sure to move. */
 function openDirection(bot, from, not = []) {
@@ -242,14 +161,13 @@ const movedToward = (from, to, direction) => {
 
 /** The reachable tile on screen, clear of the corners, furthest from `from`. */
 async function farTile(page, bot, from) {
-  const { width, height } = page.viewportSize();
   const tiles = bot.reach.flatMap((ok, at) => (ok ? [{ x: at % bot.map.width, y: Math.floor(at / bot.map.width) }] : []));
-  const spots = await page.evaluate(([key, list]) => list.map(({ x, y }) => window[key].tileToScreen(x, y)), [HOOK, tiles]);
+  const spots = await tilesToScreen(page, tiles);
   let best = null;
   tiles.forEach((tile, index) => {
     const spot = spots[index];
     const far = Math.abs(tile.x - from.x) + Math.abs(tile.y - from.y);
-    if (spot && spot.x > 40 && spot.x < width - 40 && spot.y > 100 && spot.y < height - 90 && (!best || far > best.far)) best = { tile, spot, far };
+    if (tappable(page, spot) && (!best || far > best.far)) best = { tile, spot, far };
   });
   return best;
 }
@@ -390,7 +308,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
   await context.addInitScript(presetLanguage, language);
   await context.addInitScript(reportCspViolations);
   const page = await context.newPage();
-  watch(context, page, problems, { expectStatus: () => wrongPinExpected });
+  watch(context, page, problems, { allowedHost, expectStatus: () => wrongPinExpected });
   const shot = async (step) => {
     const path = join(shots, `${label}-${step}.png`);
     await screenshot(page, path);
@@ -433,7 +351,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     expect(state.map === START_MAP, `the map drawn is ${state.map}, not ${START_MAP}`);
     const self = state.players.find((player) => player.self);
     expect(self?.name === name && self.avatar === 'green', `the page's own courier is ${JSON.stringify(self)}`);
-    const selfSpot = self ? await page.evaluate(([key, x, y]) => window[key].tileToScreen(x, y), [HOOK, self.x, self.y]) : null;
+    const [selfSpot] = self ? await tilesToScreen(page, [self]) : [null];
     const viewport = page.viewportSize();
     expect(selfSpot && selfSpot.x > 0 && selfSpot.y > 0 && selfSpot.x < viewport.width && selfSpot.y < viewport.height, `the page's own courier is off screen at ${JSON.stringify(selfSpot)}`);
     expect((await textOf(page, '.badge-text')) === STRINGS['connection.connected'][language], 'the badge does not say connected');
@@ -490,9 +408,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
       expect(after.language === language, 'the language choice did not survive a reload');
     }
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
-    await page.locator('.settings-button').tap();
-    await page.locator('.switch-player').tap();
-    await until(page, (s) => s.screen === 'profiles' && s.profile === null, 'the profile list after signing out');
+    await signOut(page);
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -521,7 +437,7 @@ async function checkNarrow(browser, browserName, language, lockedId) {
   await context.addInitScript(presetLanguage, language);
   await context.addInitScript(reportCspViolations);
   const page = await context.newPage();
-  watch(context, page, problems);
+  watch(context, page, problems, { allowedHost });
   const shot = async (step) => {
     const path = join(shots, `${label}-${step}.png`);
     await screenshot(page, path);
