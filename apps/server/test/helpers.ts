@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readConfig, type Config } from '../src/config.ts';
@@ -14,6 +15,19 @@ export function fakeClock(start = Date.UTC(2026, 4, 1, 9, 0, 0)) {
       at += ms;
     },
   };
+}
+
+/** A port free on 127.0.0.1 right now, so test servers in several worktrees never share one. */
+export function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      const port = typeof address === 'object' && address !== null ? address.port : 0;
+      probe.close(() => resolve(port));
+    });
+  });
 }
 
 /** Real services on a database in a fresh temporary folder, removed by `dispose()`. */

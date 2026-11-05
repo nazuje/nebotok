@@ -1,5 +1,7 @@
 // The proof command. Runs every check up to the asked level, writes the evidence to
-// .proof/<short sha>[-dirty]/ and exits non-zero if anything failed.
+// .proof/<short sha>[-dirty]/L<N>[-container]/ and exits non-zero if anything failed.
+// .proof/<short sha>[-dirty]/summary.json stands for the highest level that passed at that commit,
+// so a lower level run later (the pre-push hook) never replaces a higher level's proof.
 //   npm run verify -- --level N [--container]     (N is 0 to 4; each level includes the ones below)
 //
 // 0  lint, typecheck, unit tests, content:validate, core import boundary, agent setup, secret scan
@@ -15,6 +17,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { inTurn } from './lib/in-turn.mjs';
+import { runName, runSummaries, standingSummary } from './lib/proof.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MAX_LEVEL = 4;
@@ -35,7 +38,9 @@ if (values.container && level < MAX_LEVEL) {
 const git = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
 const sha = git('rev-parse', '--short', 'HEAD').stdout.trim() || 'no-commit';
 const dirty = git('status', '--porcelain').stdout.trim() !== '';
-const proof = join(ROOT, '.proof', `${sha}${dirty ? '-dirty' : ''}`);
+const commitProof = join(ROOT, '.proof', `${sha}${dirty ? '-dirty' : ''}`);
+const run = runName(level, values.container);
+const proof = join(commitProof, run);
 rmSync(proof, { recursive: true, force: true });
 mkdirSync(join(proof, 'logs'), { recursive: true });
 
@@ -128,6 +133,7 @@ const ok = results.every((result) => result.exitCode === 0);
 const summary = {
   ok,
   level,
+  run,
   container: values.container ? readJson(join(proof, 'logs', 'container-check.json')) : null,
   timestamp: new Date(started).toISOString(),
   durationMs: Date.now() - started,
@@ -140,6 +146,9 @@ const summary = {
 };
 const summaryPath = join(proof, 'summary.json');
 writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
+const standing = standingSummary(runSummaries(commitProof), summary);
+const standingPath = join(commitProof, 'summary.json');
+writeFileSync(standingPath, `${JSON.stringify(standing, null, 2)}\n`);
 
 console.log('');
 for (const result of results) {
@@ -150,4 +159,5 @@ for (const result of results) {
 for (const warning of warnings) console.log(`\nverify: warning: ${warning}`);
 console.log(`\nverify level ${level}: ${ok ? 'PASSED' : 'FAILED'} in ${((Date.now() - started) / 1000).toFixed(1)}s, ${summary.screenshots.length} screenshot(s)`);
 console.log(`proof: ${relative(ROOT, summaryPath)}`);
+console.log(`standing: ${relative(ROOT, standingPath)} is the ${standing.run} run${standing.ok ? ', the highest that passed at this commit' : ''}`);
 process.exit(ok ? 0 : 1);

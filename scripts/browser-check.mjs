@@ -367,7 +367,9 @@ async function meetBot(bot, page, self, { expect, shot }) {
     room.reconnection.enabled = false;
     void room.leave(false);
     await until(page, (s) => botIn(s)?.connected === false, 'the page to show the bot away');
-    expect((await page.locator('.name-tag.away', { hasText: BOT.name }).count()) === 1, 'the away bot’s name is not dimmed');
+    // The name tag is restyled on the next drawn frame, which a busy machine can be slow to draw.
+    const dimmed = await poll(async () => (await page.locator('.name-tag.away', { hasText: BOT.name }).count()) === 1, { deadline: Date.now() + 3_000, intervalMs: 50 });
+    expect(dimmed, 'the away bot’s name is not dimmed');
     await shot('6-away');
   } finally {
     if (room.connection?.isOpen) await room.leave().catch(() => {});

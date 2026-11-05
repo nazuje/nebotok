@@ -7,11 +7,12 @@ import { poll, sleep } from './in-turn.mjs';
 
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-export function freePort() {
+/** A port free on 127.0.0.1 right now: `preferred` when nothing holds it, otherwise any. */
+export function freePort(preferred = 0) {
   return new Promise((resolve, reject) => {
     const probe = createServer();
-    probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
+    probe.once('error', (error) => (preferred === 0 ? reject(error) : resolve(freePort())));
+    probe.listen(preferred, '127.0.0.1', () => {
       const { port } = probe.address();
       probe.close(() => resolve(port));
     });

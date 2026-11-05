@@ -16,11 +16,11 @@ You need [Volta](https://volta.sh/), which picks the right Node version (26.13.0
 ```sh
 npm ci                           # install exactly what the lockfile says
 npm run setup:hooks              # once per clone: secret scan before each commit, checks before each push
-npm run dev                      # the game at http://127.0.0.1:5173, nothing opens by itself
+npm run dev                      # the game at http://127.0.0.1:5173 (or the port it prints), nothing opens by itself
 npm run verify -- --level 4      # the full proof: tests, build and headless browsers
 ```
 
-`npm run verify` writes its results and screenshots to `.proof/<commit>/`.
+`npm run verify` writes its results and screenshots to `.proof/<commit>/`, one folder per level.
 
 ## Read more
 

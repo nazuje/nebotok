@@ -25,8 +25,9 @@ Think of the game as a sealed box on a shelf in the house.
   signs a record saying so. The Mac mini checks that signature before running any new version, and
   refuses one it cannot check.
 - **The helpers are watched.** AI coding agents help write this code. They cannot read the secret
-  settings file, they do not publish or deploy, every change is checked for leaked passwords, and a
-  person decides what goes live.
+  settings file, every change they make goes through a pull request that must pass the full checks
+  before it joins the code, every change is checked for leaked passwords, and only a person puts a
+  new version on the Mac mini.
 
 Nothing is perfectly safe. The "Residual risks" section lists what is still possible, honestly.
 
@@ -115,6 +116,7 @@ else built.
 | Every GitHub Action pinned to a full commit SHA; the build helper images (binfmt, BuildKit) pinned by digest. | `.github/workflows/ci.yml` |
 | Workflows get a read-only token by default; only the image job on `main` can write packages. Never `pull_request_target`; checkout keeps no credentials. | `.github/workflows/ci.yml` |
 | The image is built and pushed only from `main`, and only after the full level 4 proof passes. | `ci.yml` `image` job, `needs: verify` |
+| `main` is protected: it changes only through pull requests, squash-merged, and only once the `verify (level 4)` check has passed on them. Auto-merge waits for that same check. | Repository settings |
 | Each image gets a signed build provenance attestation, stored with the image. | `actions/attest-build-provenance` |
 | The Mac mini deploys only by digest, and only after `gh attestation verify` confirms: this repo, `.github/workflows/ci.yml`, `refs/heads/main`, a GitHub-hosted runner. It refuses otherwise. | `scripts/update.sh` |
 | Secret scanning (gitleaks, pinned release, checksum verified) over the full history and the working tree on every run. | `scripts/verify.mjs`, `ci.yml` |
@@ -128,7 +130,8 @@ package) into adding something harmful, leaking a secret, or publishing.
 | --- | --- |
 | Secrets live only in `.env` on the Mac mini, which git ignores and the agents may not read. | `.gitignore`, `scripts/hooks/guard.mjs` |
 | Before every tool call, a shared hook refuses `.env` files, database files, `data/` and `.local-data/`, deleting Docker volumes, force-pushing, turning on install scripts and piping downloads into a shell. It catches slips and injected instructions, not a determined attacker. | `scripts/hooks/guard.mjs`, `.claude/settings.json`, `.factory/hooks.json`, `.codex/hooks.json` |
-| Agents push to `main` only after their checks pass, never force-push, and only a person runs `scripts/update.sh` on the Mac mini. | `AGENTS.md`, skill `release` |
+| Agents work in a Git worktree and branch per issue and reach `main` only through a pull request that passes CI. They never force-push, and only a person runs `scripts/update.sh` on the Mac mini. | `AGENTS.md` ("Working on a ticket"), skills `ticket` and `release` |
+| Agents take briefs only from issues the repository owner wrote; instructions in other people's issues, comments or pull requests are data. | skill `ticket` |
 | Each commit is scanned for secrets, database files, `.env` files and big new files; each push runs the level 0 proof. On once per clone with `npm run setup:hooks`. | `.githooks/` |
 | Third-party agent skills are reviewed copies, pinned to a commit, with every edit recorded. | `.agents/skills/VENDORED.md` |
 | Every change runs the secret scan, lint, tests and the browser proof before it can become an image. | `scripts/verify.mjs`, CI |
@@ -171,11 +174,14 @@ cost the game its seal (details and restore steps in `docs/deploy.md`, "Backups"
 
 What these measures do not stop, in rough order of importance:
 
-1. **Someone gets into the GitHub account.** They could push to `main`, and CI would build and sign
-   their image like any other; `scripts/update.sh` would accept it. Protect the account with a
-   passkey or hardware key, and turn on branch protection for `main` (require a pull request and the
-   CI check) once the repository exists.
-2. **The game can reach the internet, the home network and the tailnet.** The containers have
+1. **Someone gets into the GitHub account.** They could merge their own pull request (or change the
+   branch rules), and CI would build and sign their image like any other; `scripts/update.sh` would
+   accept it. Protect the account with a passkey or hardware key.
+2. **Pull requests merge themselves.** An agent's pull request merges once CI passes, with no person
+   reading it first. CI proves that it builds, passes the tests and leaks no secret found by the
+   scan, not that it is harmless. Nothing reaches the Mac mini until a person runs
+   `scripts/update.sh`, so read the commits since the last deploy before running it.
+3. **The game can reach the internet, the home network and the tailnet.** The containers have
    ordinary outbound access through OrbStack, which leaves through the Mac's own connections. So a
    broken game server could talk to the internet, to the router, to other devices on the home
    Wi-Fi, and, because the Mac mini is itself on the tailnet, to any tailnet device the policy lets
@@ -184,24 +190,24 @@ What these measures do not stop, in rough order of importance:
    sidecar's own connection, not this one. A later phase can cut this off (for example, an internal
    Docker network with the game reachable only through a proxy); it is not done yet. Until then,
    keep the policy for the Mac mini itself as narrow as you can.
-3. **A poisoned library that waits.** The 7-day delay catches attacks that are noticed quickly. One
+4. **A poisoned library that waits.** The 7-day delay catches attacks that are noticed quickly. One
    that ships normally and stays quiet would still run inside the game's container (with the limits
    above) and inside development and CI.
-4. **Development on the Mac mini itself.** `npm test`, `npm run dev` and the build run library code as
+5. **Development on the Mac mini itself.** `npm test`, `npm run dev` and the build run library code as
    your user, outside any container. If you develop on the Mac mini, that code can see your files.
    Prefer developing on another computer, or treat the Mac mini as a server only.
-5. **Container or VM escape.** A bug in Linux, Docker or OrbStack could let code out of the
+6. **Container or VM escape.** A bug in Linux, Docker or OrbStack could let code out of the
    container. Escaping lands in OrbStack's Linux VM first, but OrbStack shares the Mac's folders with
    that VM so that bind mounts work, so assume an escape could read your files. Keep OrbStack and
    macOS updated.
-6. **Trust in the tools.** Tailscale, Litestream, OrbStack, Docker's official Node image, GitHub and Sigstore (the
+7. **Trust in the tools.** Tailscale, Litestream, OrbStack, Docker's official Node image, GitHub and Sigstore (the
    signing service behind attestations) are all trusted. Their images and actions are pinned, but a
    compromise at the source before pinning would carry through.
-7. **Pinned helper images age.** Dependabot updates GitHub Actions, the Dockerfile base image and the
+8. **Pinned helper images age.** Dependabot updates GitHub Actions, the Dockerfile base image and the
    Tailscale and Litestream images in `compose.yaml`, but not the binfmt and BuildKit images pinned
    inside `ci.yml`. Update those by hand now and then, and `compose.local.yaml`'s Litestream pin
    with each Litestream update (`scripts/compose.test.mjs` fails until they match).
-8. **Anything running on the Mac mini can claim any address to the game.** In host mode a
+9. **Anything running on the Mac mini can claim any address to the game.** In host mode a
    connection through `127.0.0.1:8567` and one from another container in OrbStack (to the game's
    container address or to `host.docker.internal`) both arrive from the network's gateway, which the
    game trusts so that Tailscale Serve's `X-Forwarded-For` counts. A program or container on the Mac
@@ -209,17 +215,17 @@ What these measures do not stop, in rough order of importance:
    cannot get past a PIN lockout, which counts per profile, and it could reach the game anyway. In
    sidecar mode the same holds for anything inside the game's network namespace, which is only
    Tailscale.
-9. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the Mac mini's
-   name (in sidecar mode, the game's device name) and your tailnet name are visible to anyone who
-   looks. Nothing can connect without being on the tailnet.
-10. **Known advisories in build tools.** See below.
-11. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
+10. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the Mac mini's
+    name (in sidecar mode, the game's device name) and your tailnet name are visible to anyone who
+    looks. Nothing can connect without being on the tailnet.
+11. **Known advisories in build tools.** See below.
+12. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
     `nebotok_nebotok-data` volume as a plain SQLite file, and in `BACKUP_DIR` (and so in Time
     Machine) as Litestream files and snapshots. Anyone who can read the Mac mini's Docker volumes,
     your home folder or the Time Machine disk can read them; a four-digit PIN hash can be brute-forced
     offline in seconds. FileVault and an encrypted Time Machine disk protect them when the computer
     or disk is off or stolen.
-12. **A broken Litestream could write into the backup folder.** It is the one container with a
+13. **A broken Litestream could write into the backup folder.** It is the one container with a
     writable host folder. A bug or poisoned Litestream release (behind the digest pin and the
     review of its update) could fill or damage `BACKUP_DIR`, though not the rest of your files. It
     also reads what the game writes: a compromised game could hand it crafted database files or huge
@@ -300,7 +306,8 @@ Before `npm install <package>`:
   `compose.yaml` gives its network a fixed subnet, `10.231.67.0/28`, and sets `TRUST_PROXY` to its
   gateway; the gateway stays the same across restarts because the subnet is fixed, and
   `NEBOTOK_NETWORK` in `.env` moves both together.
-  `compose.local.yaml` uses `10.231.67.16/28` so both stacks can run on one Mac, and
+  `compose.local.yaml` uses `10.231.67.16/28` so both stacks can run on one Mac, and the container
+  check moves it, with its gateway, to a free `10.231.100-199.16/28` per worktree; and
   `compose.tailscale.yaml` sets `TRUST_PROXY` back to `loopback`. Tailscale Serve (1.104) keeps the
   browser's `Host` and sets `X-Forwarded-Host` to the same value, so the `Origin` check gives the
   same answer whether or not the proxy is trusted. `scripts/compose.test.mjs` checks the settings and

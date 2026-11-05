@@ -1,4 +1,4 @@
-import { boot, type ColyseusTestServer } from '@colyseus/testing';
+import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
 import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -6,7 +6,7 @@ import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
 import { WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
-import { capturedLog, tempServices, until } from './helpers.ts';
+import { capturedLog, freePort, tempServices, until } from './helpers.ts';
 
 let temp: ReturnType<typeof tempServices>;
 let colyseus: ColyseusTestServer;
@@ -14,7 +14,11 @@ const logged = capturedLog();
 
 beforeAll(async () => {
   temp = tempServices();
-  colyseus = await boot(createGameServer(temp.config, logged.log, temp.services));
+  // Not boot(): given a ready server it ignores the port and always takes 2568, which the room tests
+  // of another worktree may hold.
+  const server = createGameServer(temp.config, logged.log, temp.services);
+  await server.listen(await freePort(), '127.0.0.1');
+  colyseus = new ColyseusTestServer(server);
 });
 afterAll(async () => {
   await colyseus.shutdown();

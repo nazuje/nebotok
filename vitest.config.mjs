@@ -11,7 +11,7 @@ export default defineConfig({
       project('core-saves', ['packages/core/test/saves/**/*.test.ts']),
       project('game-unit', ['apps/game/test/**/*.test.ts']),
       project('scripts-unit', ['scripts/**/*.test.mjs']),
-      // Room tests share one test server port, so their files run one at a time.
+      // Room tests boot a real server and time their walks, so their files run one at a time.
       project('server', ['apps/server/test/**/*.test.ts'], { fileParallelism: false, testTimeout: 20_000, hookTimeout: 20_000 }),
     ],
   },

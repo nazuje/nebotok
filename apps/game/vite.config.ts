@@ -1,13 +1,15 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const SERVER = 'http://localhost:2567';
+// scripts/dev.mjs moves both ports when another dev server already holds them.
+const SERVER = `http://127.0.0.1:${process.env.NEBOTOK_SERVER_PORT ?? '2567'}`;
 
 export default defineConfig({
   server: {
     // Never open a browser: the person running this may have sound on.
     open: false,
-    port: 5173,
+    host: process.env.HOST ?? '127.0.0.1',
+    port: Number(process.env.NEBOTOK_GAME_PORT ?? '5173'),
     strictPort: true,
     proxy: {
       // The client talks to /colyseus in dev; the prefix is stripped so the server sees its own paths.

@@ -220,10 +220,12 @@ npm run verify:container
 ```
 
 builds the image from your working copy with `compose.local.yaml`, runs it sealed like production on
-`http://127.0.0.1:2567` (this computer only), checks the seal of the game and Litestream containers,
-plays it in Chromium and WebKit, proves the backups (a fresh restore from the backup folder alone
+a free port of `127.0.0.1` (this computer only), checks the seal of the game and Litestream
+containers, plays it in Chromium and WebKit, proves the backups (a fresh restore from the backup folder alone
 matches the live saves, the snapshot arrives, and `scripts/restore.sh` works for the newest copy, a
-snapshot and `--undo`), and stops it. It backs up to a temporary folder of its own. To poke at it by
+snapshot and `--undo`), and stops it. It backs up to a temporary folder of its own. Each worktree
+gets its own compose project (`nebotok-local-<id>`), image tag, port and network, so checks in
+several worktrees can run at once; each project keeps its own data volume. To poke at it by
 hand, give it an empty folder for its backups, never your `BACKUP_DIR`:
 
 ```sh

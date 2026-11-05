@@ -2,6 +2,8 @@
 # http://127.0.0.1:2567 only (this computer, not the network). Same hardening as compose.yaml.
 # Its own project name keeps it apart from the production stack and its volumes, and Litestream
 # backs it up to its own folder, NEBOTOK_LOCAL_BACKUP_DIR, never to the Mac mini's BACKUP_DIR.
+# `npm run verify:container` gives each worktree its own project name (COMPOSE_PROJECT_NAME), image
+# tag, port and network through the NEBOTOK_LOCAL_* settings, so several can run at once.
 #   NEBOTOK_LOCAL_BACKUP_DIR=<an empty folder> docker compose -f compose.local.yaml up -d --build --wait
 #   docker compose -f compose.local.yaml down        (never add -v unless you mean to wipe the data)
 # `npm run verify:container` runs this and checks it from outside and inside.
@@ -11,7 +13,7 @@ services:
   app:
     build:
       context: .
-    image: nebotok:local
+    image: ${NEBOTOK_LOCAL_IMAGE:-nebotok:local}
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -24,7 +26,7 @@ services:
       DATA_DIR: /data
       LOG_LEVEL: info
       # As in compose.yaml: the published port reaches the game from this network's gateway.
-      TRUST_PROXY: 10.231.67.17
+      TRUST_PROXY: ${NEBOTOK_LOCAL_NETWORK:-10.231.67}.17
     ports:
       - "127.0.0.1:${NEBOTOK_LOCAL_PORT:-2567}:2567"
     volumes:
@@ -79,12 +81,13 @@ services:
         max-file: "3"
 
 # Next to production's subnet, never overlapping it, so both stacks can run on one Mac.
+# NEBOTOK_LOCAL_NETWORK moves the subnet and the trusted gateway together.
 networks:
   default:
     ipam:
       config:
-        - subnet: 10.231.67.16/28
-          gateway: 10.231.67.17
+        - subnet: ${NEBOTOK_LOCAL_NETWORK:-10.231.67}.16/28
+          gateway: ${NEBOTOK_LOCAL_NETWORK:-10.231.67}.17
 
 volumes:
   nebotok-data:
