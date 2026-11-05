@@ -11,7 +11,7 @@ const config = readConfig(process.env);
 const log = createLog(config.logLevel);
 let services;
 try {
-  services = createServices(config);
+  services = createServices(config, Date.now, log);
 } catch (error) {
   log.error('could not open the world', { error });
   process.exit(1);

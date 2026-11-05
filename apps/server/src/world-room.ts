@@ -29,6 +29,7 @@ import { z } from 'zod';
 import type { Log } from './log.ts';
 import type { ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
+import { createRateLimiter } from './rate-limit.ts';
 import type { WorldContent } from './world.ts';
 import { Player, WorldState } from './world-state.ts';
 
@@ -38,6 +39,8 @@ export const RECONNECT_SECONDS = 180;
 export const TICK_RATE = 20;
 export const SAVE_EVERY_MS = 30_000;
 const MAX_PLAYERS = 16;
+/** Each walk.to runs a path search; more than this a second from one client are dropped. */
+export const WALK_TO_PER_SECOND = 5;
 
 export const JoinOptions = z.object({ protocol: z.number().int(), language: LanguageSchema.optional() });
 
@@ -49,6 +52,7 @@ export type WorldServices = {
   readonly world: WorldContent;
   readonly profiles: ProfileStore;
   readonly progress: ProgressStore;
+  readonly now: () => number;
 };
 
 type Seat = {
@@ -89,7 +93,7 @@ function spawnOf(content: WorldContent): Point {
  * The one shared family world, wired to its services. Colyseus builds rooms itself, so the
  * services ride on the class.
  */
-export function worldRoom({ log, world, profiles, progress }: WorldServices) {
+export function worldRoom({ log, world, profiles, progress, now }: WorldServices) {
   const { map, stepMs } = world;
   const spawn = spawnOf(world);
 
@@ -99,6 +103,7 @@ export function worldRoom({ log, world, profiles, progress }: WorldServices) {
     override state = new WorldState();
     private readonly seats = new Map<string, Seat>();
     private stopListening: () => void = () => {};
+    private readonly walkLimit = createRateLimiter({ limit: WALK_TO_PER_SECOND, windowMs: 1_000, maxKeys: MAX_PLAYERS * 2 });
 
     override messages = {
       [CLIENT_MESSAGES.ping]: validate(z.strictObject({ sentAt: z.number().finite() }), (client: Client, { sentAt }) => {
@@ -117,7 +122,7 @@ export function worldRoom({ log, world, profiles, progress }: WorldServices) {
       this.state.map = map.id;
       this.state.stepMs = stepMs;
       this.setFixedTimestep((context) => this.tick(Math.round(context.dtMs)), TICK_RATE);
-      this.clock.setInterval(() => this.saveChanged(), SAVE_EVERY_MS);
+      this.clock.setInterval(() => this.checkSeats(), SAVE_EVERY_MS);
       this.stopListening = profiles.onSignedOut((playerId) => this.signOut(playerId));
       log.info('room created', { room: this.roomName, roomId: this.roomId });
     }
@@ -173,10 +178,16 @@ export function worldRoom({ log, world, profiles, progress }: WorldServices) {
       log.info('player dropped', { roomId: this.roomId, sessionId: client.sessionId, code });
     }
 
+    // A reconnection does not run onAuth again, so the session is checked here.
     override onReconnect(client: Client) {
       const seat = this.seats.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
       if (seat) seat.reconnection = null;
+      if (seat && !profiles.hasSession(seat.playerId)) {
+        this.close(client.sessionId, seat, CLOSE_CODES.signedOut);
+        log.info('reconnection refused: signed out', { roomId: this.roomId, sessionId: client.sessionId, playerId: seat.playerId });
+        return;
+      }
       if (player) player.connected = true;
       log.info('player reconnected', { roomId: this.roomId, sessionId: client.sessionId });
     }
@@ -235,7 +246,7 @@ export function worldRoom({ log, world, profiles, progress }: WorldServices) {
 
     private walkTo(client: Client, target: Point) {
       const seat = this.seats.get(client.sessionId);
-      if (!seat || !inBounds(map, target)) return;
+      if (!seat || !inBounds(map, target) || !this.walkLimit.take(client.sessionId, now())) return;
       const intent = planWalk(map, seat.walker, target);
       if (intent) seat.walker = withIntent(seat.walker, intent);
       else client.send(SERVER_MESSAGES.walkRefused, { x: target.x, y: target.y });
@@ -265,12 +276,23 @@ export function worldRoom({ log, world, profiles, progress }: WorldServices) {
       player.moving = walker.moving;
     }
 
-    private saveChanged() {
-      for (const seat of this.seats.values()) if (!seat.replaced) this.save(seat);
+    /**
+     * Runs every SAVE_EVERY_MS. scripts/admin.sh resets PINs and deletes profiles from its own process,
+     * which no signedOut event reaches, so each seat's session is looked up again here: a seat without
+     * one is closed (and saved as it leaves), the others are saved.
+     */
+    checkSeats() {
+      for (const [sessionId, seat] of this.seats) {
+        if (seat.replaced || seat.closing) continue;
+        if (profiles.hasSession(seat.playerId)) this.save(seat);
+        else this.close(sessionId, seat, CLOSE_CODES.signedOut);
+      }
     }
 
     private save(seat: Seat) {
       if (!seat.canSave || !seat.dirty) return;
+      // Deleted from another process: there is no profile left to save for.
+      if (!profiles.get(seat.playerId)) return;
       const { x, y, facing } = seat.walker;
       try {
         progress.save(seat.playerId, createSave({ name: seat.name, language: seat.language, createdAt: seat.createdAt, position: { map: map.id, x, y, facing } }));

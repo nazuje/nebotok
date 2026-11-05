@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readConfig, type Config } from '../src/config.ts';
+import { createLog, type Log } from '../src/log.ts';
 import { createServices, type Services } from '../src/services.ts';
 
 /** A clock tests can move forward by hand. */
@@ -16,10 +17,10 @@ export function fakeClock(start = Date.UTC(2026, 4, 1, 9, 0, 0)) {
 }
 
 /** Real services on a database in a fresh temporary folder, removed by `dispose()`. */
-export function tempServices(now?: () => number): { config: Config; services: Services; dispose(): void } {
+export function tempServices(now?: () => number, log: Log = createLog('silent')): { config: Config; services: Services; dispose(): void } {
   const dataDir = mkdtempSync(join(tmpdir(), 'nebotok-test-'));
   const config = readConfig({ NODE_ENV: 'test', DATA_DIR: dataDir });
-  const services = createServices(config, now);
+  const services = createServices(config, now, log);
   return {
     config,
     services,
@@ -28,6 +29,12 @@ export function tempServices(now?: () => number): { config: Config; services: Se
       rmSync(dataDir, { recursive: true, force: true });
     },
   };
+}
+
+/** Log lines as parsed JSON, for tests that check what was logged. */
+export function capturedLog(level: 'debug' | 'info' | 'warn' = 'warn'): { log: Log; lines: Record<string, unknown>[] } {
+  const lines: Record<string, unknown>[] = [];
+  return { log: createLog(level, (line) => lines.push(JSON.parse(line) as Record<string, unknown>)), lines };
 }
 
 /** Runs `step` `times` times, each after the previous one settles (order matters for PIN attempts). */
