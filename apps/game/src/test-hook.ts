@@ -4,9 +4,10 @@ import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { TagBox } from './names.ts';
 import type { WorldView } from './world-view.ts';
+import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
-export type Screen = ProfileView | 'world';
+export type Screen = ProfileView | 'world' | 'pinSetup';
 
 /** A player as the server last told this page, and where the page draws them. */
 export type TestPlayer = {
@@ -24,7 +25,7 @@ export type TestPlayer = {
 };
 
 export type TestSnapshot = {
-  /** Which screen is up: the profile list, the new-player form, the PIN pad, or the world. */
+  /** Which screen is up: the profile list, the new-player form, the PIN pad, the world, or adding a PIN over it. */
   screen: Screen;
   connection: ConnectionStatus | null;
   language: Language;
@@ -51,10 +52,15 @@ export type TestSnapshot = {
   /** The profile this device is signed in as, if any. */
   profile: { id: number; name: string; avatar: string } | null;
   profiles: ProfileScreenState['profiles'];
-  /** The message the profile screens show (a string id), if any. */
+  /** The message the profile screens, or the screen adding a PIN, show (a string id), if any. */
   notice: StringId | null;
   pinFor: ProfileScreenState['pinFor'];
+  /** Digits typed on whichever number pad is up. */
   pinDigits: number;
+  /** Where adding a PIN from the settings has got to, if it is open. */
+  pinStep: PinSetupState['step'];
+  /** Whether the settings offer "Add a PIN". */
+  canAddPin: boolean;
   settingsOpen: boolean;
 };
 

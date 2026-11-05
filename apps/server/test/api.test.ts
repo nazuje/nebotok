@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { PIN_ATTEMPTS, type LoginResponse, type ProfileSummary } from '@nebotok/core';
 import express from 'express';
@@ -113,6 +114,89 @@ describe('profile API', () => {
 
   it('answers an unknown profile with 404', async () => {
     expect(await send('POST', '/api/sessions', { profileId: 99_999 })).toMatchObject({ status: 404, body: { error: 'unknown' } });
+  });
+});
+
+const addPin = (body: unknown, token?: string, headers: Record<string, string> = {}) =>
+  send('PUT', '/api/profiles/current/pin', body, token === undefined ? headers : { authorization: `Bearer ${token}`, ...headers });
+const signIn = async (profileId: number, pin?: string) =>
+  ((await send('POST', '/api/sessions', pin === undefined ? { profileId } : { profileId, pin })).body as LoginResponse).token;
+
+describe('adding a PIN', () => {
+  it('adds a PIN to the signed-in profile, which then needs it to sign in', async () => {
+    const { id } = await create('Test Courier');
+    const token = await signIn(id);
+    const added = await addPin({ pin: '2468' }, token);
+    expect(added).toMatchObject({ status: 200, body: { id, name: 'Test Courier', avatar: 'red', hasPin: true, lockedForSeconds: 0 } });
+    expect(JSON.stringify(added.body)).not.toContain('2468');
+    expect(added.headers.get('cache-control')).toBe('no-store');
+    expect(temp.services.profiles.authenticate(token)).toBe(id);
+    expect((await send('GET', '/api/profiles')).body).toEqual([{ id, name: 'Test Courier', avatar: 'red', hasPin: true, lockedForSeconds: 0 }]);
+    expect(await send('POST', '/api/sessions', { profileId: id })).toMatchObject({ status: 400, body: { error: 'pinInvalid' } });
+    expect((await send('POST', '/api/sessions', { profileId: id, pin: '2468' })).status).toBe(200);
+  });
+
+  it('refuses a profile that already has a PIN with 409', async () => {
+    const { id } = await create('Test Courier', '2468');
+    const token = await signIn(id, '2468');
+    expect(await addPin({ pin: '1357' }, token)).toMatchObject({ status: 409, body: { error: 'hasPin' } });
+    expect((await send('POST', '/api/sessions', { profileId: id, pin: '2468' })).status).toBe(200);
+
+    const open = await create('Open Courier');
+    const openToken = await signIn(open.id);
+    expect((await addPin({ pin: '1357' }, openToken)).status).toBe(200);
+    expect(await addPin({ pin: '2468' }, openToken)).toMatchObject({ status: 409, body: { error: 'hasPin' } });
+  });
+
+  it('refuses no session, a bad body, another origin and a body that is not JSON, and changes nothing', async () => {
+    const { id } = await create('Test Courier');
+    const token = await signIn(id);
+    // Each call from its own address, so the PIN limit stays out of the way.
+    let devices = 0;
+    const from = (headers: Record<string, string> = {}) => {
+      devices += 1;
+      return { 'x-forwarded-for': `198.51.100.${devices}`, ...headers };
+    };
+    expect(await addPin({ pin: '2468' }, undefined, from())).toMatchObject({ status: 401, body: { error: 'signedOut' } });
+    expect(await addPin({ pin: '2468' }, 'not-a-real-token', from())).toMatchObject({ status: 401, body: { error: 'signedOut' } });
+    expect(await addPin({ pin: '2468' }, undefined, from({ authorization: token }))).toMatchObject({ status: 401, body: { error: 'signedOut' } });
+    expect(await addPin({ pin: '12' }, token, from())).toMatchObject({ status: 400, body: { error: 'pinInvalid' } });
+    expect(await addPin({ pin: 2468 }, token, from())).toMatchObject({ status: 400, body: { error: 'pinInvalid' } });
+    expect(await addPin({}, token, from())).toMatchObject({ status: 400, body: { error: 'pinInvalid' } });
+    expect(await addPin({ pin: '2468', profileId: id }, token, from())).toMatchObject({ status: 400, body: { error: 'unknown' } });
+    expect(await addPin('{"pin":', token, from())).toMatchObject({ status: 400, body: { error: 'unknown' } });
+    expect((await addPin({ pin: '2468' }, token, from({ origin: 'https://elsewhere.example' }))).status).toBe(403);
+    expect((await addPin('pin=2468', token, from({ 'content-type': 'application/x-www-form-urlencoded' }))).status).toBe(415);
+    expect(temp.services.profiles.get(id)?.hasPin).toBe(false);
+    expect(temp.services.profiles.authenticate(token)).toBe(id);
+  });
+
+  it(`slows down more than ${API_LIMITS.pins} tries a minute from one address`, async () => {
+    const { id } = await create('Test Courier');
+    const token = await signIn(id);
+    const statuses = await repeat(API_LIMITS.pins, async () => (await addPin({ pin: '12' }, token)).status);
+    expect(statuses).toEqual(Array.from({ length: API_LIMITS.pins }, () => 400));
+    const limited = await addPin({ pin: '2468' }, token);
+    expect(limited).toMatchObject({ status: 429, body: { error: 'busy' } });
+    expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(temp.services.profiles.get(id)?.hasPin).toBe(false);
+    // The limit is per address: another device still gets through.
+    expect((await addPin({ pin: '2468' }, token, { 'x-forwarded-for': '198.51.100.30' })).status).toBe(200);
+  });
+
+  it('ends the profile’s other sessions and keeps this one', async () => {
+    const { id } = await create('Test Courier');
+    const token = await signIn(id);
+    // A login already ends the sessions before it, so a second live one is written here directly.
+    const elsewhere = 'another-device-token';
+    temp.services.db
+      .prepare('INSERT INTO sessions (token_hash, player_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
+      .run(createHash('sha256').update(elsewhere).digest(), id, clock.now() + 60_000, clock.now());
+    expect(temp.services.profiles.authenticate(elsewhere)).toBe(id);
+    expect((await addPin({ pin: '2468' }, token)).status).toBe(200);
+    expect(temp.services.profiles.authenticate(elsewhere)).toBeNull();
+    expect(temp.services.profiles.authenticate(token)).toBe(id);
+    expect(await addPin({ pin: '1357' }, elsewhere)).toMatchObject({ status: 401, body: { error: 'signedOut' } });
   });
 });
 

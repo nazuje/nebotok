@@ -3,11 +3,9 @@ import { createProfile, listProfiles, login, type ApiProblem } from './api.ts';
 import { AVATARS, avatarPortrait } from './avatars.ts';
 import { button, el, icon } from './dom.ts';
 import { lockedNotice, lockedTag } from './lock-wait.ts';
+import { createPinPad } from './pin-pad.ts';
 import { text } from './strings.ts';
 
-export const PIN_LENGTH = 4;
-/** A backspace key: a tag shape pointing left with a cross cut out of it. */
-const DELETE_ICON = 'M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-7-7zM12 10.4 13.4 9 15 10.6 16.6 9 18 10.4 16.4 12 18 13.6 16.6 15 15 13.4 13.4 15 12 13.6 13.6 12z';
 /** A padlock in outline with its shackle open, for profiles that have no PIN yet. */
 const OPEN_LOCK_ICON = 'M7 10V7a5 5 0 0 1 10 0h-2a3 3 0 0 0-6 0v3zM6 10h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM6 12h12v8H6z';
 const LOCK_TICK_MS = 1_000;
@@ -63,9 +61,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   let loadFailed = false;
   let profiles: readonly ProfileSummary[] = [];
   let pinFor: PinFor | null = null;
-  let pin = '';
   let draft = freshDraft();
-  let dots: readonly HTMLElement[] = [];
   let unlockTimer: ReturnType<typeof setTimeout> | undefined;
   // Locks count down on the page clock from when the list (or a refused login) said how long is left.
   let listedAt = 0;
@@ -77,6 +73,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   const t = (id: StringId) => text(id, options.language());
   const unlocksAt = (profile: ProfileSummary) => listedAt + profile.lockedForSeconds * 1_000;
   const noticeText = (id: StringId) => (id === 'profile.error.locked' ? lockedNotice(secondsUntil(lockNoticeUntil), options.language()) : t(id));
+  const pad = createPinPad({ label: t, active: () => visible && view === 'pin', busy: () => busy, entered: (pin) => void entered(pin), back: leavePad });
 
   const go = (next: ProfileView, nextNotice: StringId | null = null) => {
     view = next;
@@ -171,24 +168,12 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     return [el('h2', { className: 'screen-title', text: t('profile.new') }), form, noticeLine(), actions];
   }
 
-  function padKey(digit: string): HTMLButtonElement {
-    const made = button('pin-key', digit, () => void press(digit));
-    made.dataset.digit = digit;
-    return made;
-  }
-
   function buildPad(): Node[] {
     const who = pinFor?.kind === 'enter' ? pinFor.profile : null;
     const parts: Node[] = [];
     if (who) parts.push(el('div', { className: 'pin-who' }, [avatarPortrait(who.avatar), el('span', { className: 'profile-name', text: who.name })]));
     parts.push(el('h2', { className: 'screen-title', text: t(who ? 'profile.pinPrompt' : 'profile.pinChoose') }));
-    dots = Array.from({ length: PIN_LENGTH }, () => el('span', { className: 'pin-dot' }));
-    parts.push(el('div', { className: 'pin-dots', attrs: { 'aria-hidden': 'true' } }, dots), noticeLine());
-    const erase = button('pin-key pin-delete', '', removeDigit);
-    erase.setAttribute('aria-label', t('profile.pinDelete'));
-    erase.append(icon(DELETE_ICON));
-    parts.push(el('div', { className: 'pin-pad' }, [...[...'123456789'].map(padKey), button('pin-key pin-back', t('profile.back'), leavePad), padKey('0'), erase]));
-    showDots();
+    parts.push(pad.dots(), noticeLine(), pad.keys());
     return parts;
   }
 
@@ -225,10 +210,6 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     root.setAttribute('aria-busy', String(busy));
   };
 
-  function showDots() {
-    dots.forEach((dot, at) => dot.classList.toggle('filled', at < pin.length));
-  }
-
   function scheduleUnlock() {
     clearTimeout(unlockTimer);
     const waits = profiles.map((profile) => profile.lockedForSeconds).filter((seconds) => seconds > 0);
@@ -241,7 +222,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
 
   async function refresh(nextNotice: StringId | null) {
     pinFor = null;
-    pin = '';
+    pad.clear();
     go('loading', nextNotice);
     setBusy(true);
     const result = await listProfiles();
@@ -257,46 +238,35 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
 
   function openPad(next: PinFor) {
     pinFor = next;
-    pin = '';
+    pad.clear();
     go('pin');
   }
 
   function leavePad() {
-    if (busy) return;
     const was = pinFor;
     pinFor = null;
-    pin = '';
+    pad.clear();
     if (was?.kind === 'choose') go('newProfile');
     else void refresh(null);
   }
 
-  function removeDigit() {
-    if (busy) return;
-    pin = pin.slice(0, -1);
-    showDots();
-  }
-
-  async function press(digit: string) {
-    if (busy || pin.length >= PIN_LENGTH || !pinFor) return;
-    pin += digit;
-    showDots();
-    if (pin.length < PIN_LENGTH) return;
-    const entered = pin;
+  async function entered(pin: string) {
+    if (!pinFor) return;
     if (pinFor.kind === 'choose') {
-      draft.pin = entered;
+      draft.pin = pin;
       pinFor = null;
-      pin = '';
+      pad.clear();
       go('newProfile');
       return;
     }
-    await signIn(pinFor.profile, entered);
+    await signIn(pinFor.profile, pin);
   }
 
   async function signIn(profile: ProfileSummary, withPin: string | undefined) {
     setBusy(true);
     const result = await login(profile.id, withPin);
     setBusy(false);
-    pin = '';
+    pad.clear();
     if (result.ok) {
       options.signedIn(result.value);
       return;
@@ -342,16 +312,6 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     options.signedIn(signed.value);
   }
 
-  // A laptop can type the PIN too.
-  document.addEventListener('keydown', (event) => {
-    if (!visible || view !== 'pin' || event.altKey || event.ctrlKey || event.metaKey) return;
-    if (/^[0-9]$/.test(event.key)) void press(event.key);
-    else if (event.key === 'Backspace') removeDigit();
-    else if (event.key === 'Escape') leavePad();
-    else return;
-    event.preventDefault();
-  });
-
   return {
     show: (nextNotice) => {
       visible = true;
@@ -369,7 +329,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
       notice,
       profiles: profiles.map(({ id, name, avatar, hasPin, lockedForSeconds }) => ({ id, name, avatar, hasPin, locked: lockedForSeconds > 0 })),
       pinFor: pinFor?.kind ?? null,
-      pinDigits: pin.length,
+      pinDigits: pad.digits(),
       draft: { avatar: draft.avatar, hasPin: draft.pin !== undefined },
     }),
   };

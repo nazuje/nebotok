@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { MAX_PROFILES, PIN_ATTEMPTS, PIN_LOCK_MS, SaveError, createSave } from '@nebotok/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PIN_LOCK_MAX_MS, SESSION_MS } from '../src/profiles.ts';
+import { PIN_LOCK_MAX_MS, SESSION_MS, sessionKey } from '../src/profiles.ts';
 import { capturedLog, fakeClock, repeat, tempServices } from './helpers.ts';
 
 let clock: ReturnType<typeof fakeClock>;
@@ -163,6 +164,47 @@ describe('sessions', () => {
     expect(profiles().logout(issued)).toBe(false);
     expect(profiles().authenticate(issued)).toBeNull();
     expect(told).toEqual([id]);
+  });
+});
+
+describe('adding a PIN', () => {
+  it('sets the PIN, keeps this session, ends the others and tells the room', async () => {
+    const { id } = await created('Open');
+    const issued = await token(id);
+    // A login already ends the sessions before it, so a second live one is written here directly.
+    const elsewhere = 'another-device-token';
+    temp.services.db
+      .prepare('INSERT INTO sessions (token_hash, player_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
+      .run(createHash('sha256').update(elsewhere).digest(), id, clock.now() + SESSION_MS, clock.now());
+    const told: number[] = [];
+    profiles().onSignedOut((playerId) => told.push(playerId));
+    expect(await profiles().addPin(issued, '2468')).toEqual({ ok: true, value: { id, name: 'Open', avatar: 'blue', hasPin: true, lockedForSeconds: 0 } });
+    expect(profiles().authenticate(issued)).toBe(id);
+    expect(profiles().isSessionLive(sessionKey(issued))).toBe(true);
+    expect(profiles().authenticate(elsewhere)).toBeNull();
+    expect(profiles().isSessionLive(sessionKey(elsewhere))).toBe(false);
+    expect(told).toEqual([id]);
+    expect(await profiles().login({ profileId: id })).toEqual({ ok: false, error: 'pinInvalid' });
+    expect((await profiles().login({ profileId: id, pin: '2468' })).ok).toBe(true);
+  });
+
+  it('adds a PIN once, even when asked twice at the same time', async () => {
+    const { id } = await created('Open');
+    const issued = await token(id);
+    const answers = await Promise.all([profiles().addPin(issued, '1111'), profiles().addPin(issued, '2222')]);
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error)).toSorted()).toEqual(['hasPin', 'ok']);
+    const kept = answers[0]?.ok ? '1111' : '2222';
+    expect((await profiles().login({ profileId: id, pin: kept })).ok).toBe(true);
+  });
+
+  it('refuses a profile that has a PIN, and a session that has ended', async () => {
+    const { id } = await created('Closed', '2468');
+    const issued = await token(id, '2468');
+    expect(await profiles().addPin(issued, '1357')).toEqual({ ok: false, error: 'hasPin' });
+    expect((await profiles().login({ profileId: id, pin: '2468' })).ok).toBe(true);
+    expect(await profiles().addPin(issued, '1357')).toEqual({ ok: false, error: 'signedOut' });
+    expect(await profiles().addPin(undefined, '1357')).toEqual({ ok: false, error: 'signedOut' });
+    expect(profiles().isSessionLive('not a key')).toBe(false);
   });
 });
 
