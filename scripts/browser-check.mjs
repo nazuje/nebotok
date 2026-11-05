@@ -3,7 +3,9 @@
 // languages, the way a player would: make a player with a PIN on the number pad, enter the world
 // and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), tap a
 // far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
-// and come straight back, switch player, get the PIN wrong, then right. Fails on any console
+// and come straight back, switch player, get the PIN wrong, then right. At 360px wide it also
+// checks the lock messages (a first and a second lock), the PIN hint and a full profile list.
+// Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
@@ -13,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Client } from '@colyseus/sdk';
-import { PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
+import { MAX_PROFILES, PIN_LOCK_MS, PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
@@ -107,6 +109,9 @@ const sideways = (page) =>
   });
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
+
+/** A lock message as the page words it for a wait of `timeId` (a `profile.time.*` string), with `{n}` filled in. */
+const lockText = (id, language, timeId, n) => STRINGS[id][language].replace('{time}', STRINGS[timeId][language].replace('{n}', String(n)));
 
 // A bot of our own (a plain SDK client) walks past each page's courier, so the check can see that
 // another player is drawn, named, walks smoothly and turns away when it drops.
@@ -424,20 +429,43 @@ async function checkDevice(browser, browserName, device, language, bot) {
   }
 }
 
-/** A profile locked by five wrong PINs, made over the API, so the 360px runs can show the locked state. */
-async function lockedProfile(browserName) {
-  const address = nextAddress();
-  const name = `Zaklep ${browserName === 'chromium' ? 'Kro' : 'Web'}`;
-  const made = await api('/profiles', { body: { name, avatar: 'orange', pin: '1357' }, address });
+const shortName = (browserName) => (browserName === 'chromium' ? 'Kro' : 'Web');
+
+async function pinnedProfile(name) {
+  const made = await api('/profiles', { body: { name, avatar: 'orange', pin: '1357' }, address: nextAddress() });
   if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
-  await inTurn([1, 2, 3, 4, 5], () => api('/sessions', { body: { profileId: made.data.id, pin: '0000' }, address }));
   return made.data.id;
 }
 
-async function checkNarrow(browser, browserName, language, lockedId) {
-  const label = `${browserName}-360px-${language}`;
-  const problems = [];
-  const screenshots = [];
+/** Five wrong PINs in a row, from an address of their own: what locks a profile. */
+function lockOut(profileId) {
+  const address = nextAddress();
+  return inTurn([1, 2, 3, 4, 5], () => api('/sessions', { body: { profileId, pin: '0000' }, address }));
+}
+
+/** A profile locked by five wrong PINs, made over the API, so the 360px runs can show the locked state. */
+async function lockedProfile(browserName) {
+  const id = await pinnedProfile(`Zaklep ${shortName(browserName)}`);
+  await lockOut(id);
+  return id;
+}
+
+/**
+ * A profile locked now, and the step that locks it again once that first lock is over: the second
+ * lock lasts two minutes, which the 360px runs must word as two minutes, not one.
+ */
+async function lockedTwiceLater(browserName) {
+  const id = await pinnedProfile(`Dvakrat ${shortName(browserName)}`);
+  await lockOut(id);
+  const firstOver = Date.now() + PIN_LOCK_MS + 1_000;
+  return async () => {
+    await sleep(Math.max(0, firstOver - Date.now()));
+    await lockOut(id);
+    return id;
+  };
+}
+
+async function narrowPage(browser, browserName, label, language, problems, screenshots) {
   await spaceRuns();
   const context = await browser.newContext({ viewport: NARROW, hasTouch: true, isMobile: browserName === 'chromium', extraHTTPHeaders: asDevice(nextAddress()) });
   await context.addInitScript(presetLanguage, language);
@@ -453,19 +481,49 @@ async function checkNarrow(browser, browserName, language, lockedId) {
     const { scrollWidth, width } = await sideways(page);
     if (scrollWidth > width) problems.push(`${where} scrolls sideways at 360px: content is ${scrollWidth}px in ${width}px`);
   };
+  return { context, page, shot, noSideways };
+}
+
+/** Taps a locked profile and checks its tag and the message both say the wait `timeId` words. */
+async function checkLockShown(page, { id, language, timeId, n, what, problems }) {
+  const card = page.locator(`.profile-card[data-profile-id="${id}"]`);
+  const tagSays = (await card.locator('.tag.locked').textContent())?.trim();
+  const tagWanted = lockText('profile.locked', language, timeId, n);
+  if (tagSays !== tagWanted) problems.push(`${what}: the card says "${tagSays}", not "${tagWanted}"`);
+  await card.tap();
+  const wanted = lockText('profile.error.locked', language, timeId, n);
+  const said = await poll(async () => {
+    const shown = await textOf(page, '#profiles .notice');
+    return shown === wanted ? shown : null;
+  }, { deadline: Date.now() + 5_000, intervalMs: 100 });
+  if (said !== wanted) problems.push(`${what}: the message says "${await textOf(page, '#profiles .notice')}", not "${wanted}"`);
+  await page.locator('#profiles .notice').scrollIntoViewIfNeeded();
+}
+
+async function checkNarrow(browser, browserName, language, { lockedId, twiceId }) {
+  const label = `${browserName}-360px-${language}`;
+  const problems = [];
+  const screenshots = [];
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
   try {
     await page.goto(`${server.base}/?test=1`);
     const state = await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await noSideways('the profile list');
+    // The bot has no PIN, so the list shows the gentle PIN hint and the outline lock on its card.
+    if ((await textOf(page, '.pin-nudge')) !== STRINGS['profile.pinNudge'][language]) problems.push('the PIN hint is missing or has the wrong text');
+    if ((await page.locator('.tag.no-pin').count()) === 0) problems.push('no card shows the outline lock of a profile without a PIN');
     await shot('profiles');
     if (lockedId !== null) {
       const locked = state.profiles.find((profile) => profile.id === lockedId);
       if (!locked?.locked) problems.push(`the profile locked by wrong PINs is not shown locked: ${JSON.stringify(locked)}`);
-      await page.locator(`.profile-card[data-profile-id="${lockedId}"]`).tap();
-      await until(page, (s) => s.screen === 'profiles' && s.notice === 'profile.error.locked', 'the locked message');
-      if ((await textOf(page, '#profiles .notice')) !== STRINGS['profile.error.locked'][language]) problems.push('the locked message has the wrong text');
-      await page.locator('#profiles .notice').scrollIntoViewIfNeeded();
+      await checkLockShown(page, { id: lockedId, language, timeId: 'profile.time.minute', n: 1, what: 'the first lock', problems });
       await shot('locked');
+    }
+    if (twiceId !== null) {
+      const twice = state.profiles.find((profile) => profile.id === twiceId);
+      if (!twice?.locked) problems.push(`the profile locked twice is not shown locked: ${JSON.stringify(twice)}`);
+      await checkLockShown(page, { id: twiceId, language, timeId: 'profile.time.minutes.two', n: 2, what: 'the second lock', problems });
+      await shot('locked-twice');
     }
     await page.locator('.new-profile').tap();
     await until(page, (s) => s.screen === 'newProfile', 'the new player form');
@@ -483,6 +541,41 @@ async function checkNarrow(browser, browserName, language, lockedId) {
   results.push({ label, ok: problems.length === 0, problems, screenshots });
 }
 
+/** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
+async function fillProfiles() {
+  const listed = await api('/profiles', { address: nextAddress() });
+  if (listed.status !== 200) throw new Error(`browser-check: listing profiles answered ${listed.status}`);
+  const letters = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].slice(0, Math.max(0, MAX_PROFILES - listed.data.length));
+  await inTurn(letters, async (letter) => {
+    const made = await api('/profiles', { body: { name: `Poln ${letter}`, avatar: 'purple' }, address: nextAddress() });
+    if (made.status !== 201) throw new Error(`browser-check: filling the list answered ${made.status}`);
+  });
+}
+
+/** A full list offers no "New player" and says why on the list itself. */
+async function checkFull(browser, browserName, language) {
+  const label = `${browserName}-360px-${language}`;
+  const problems = [];
+  const screenshots = [];
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    const state = await until(page, (s) => s.screen === 'profiles', 'the full profile list');
+    if (state.profiles.length !== MAX_PROFILES) problems.push(`the full list shows ${state.profiles.length} profiles, not ${MAX_PROFILES}`);
+    if ((await page.locator('.new-profile').count()) !== 0) problems.push('a full list still offers "New player"');
+    if ((await textOf(page, '.list-full')) !== STRINGS['profile.error.full'][language]) problems.push('the full list does not say it is full');
+    for (const target of await smallTargets(page)) problems.push(`the full list: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await noSideways('the full profile list');
+    await page.locator('.list-full').scrollIntoViewIfNeeded();
+    await shot('full');
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+  }
+  results.push({ label: `${label} (full list)`, ok: problems.length === 0, problems, screenshots });
+}
+
 try {
   // One browser and one page at a time, so screenshots and timings are not fighting for the GPU.
   const runs = DEVICES.flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
@@ -490,14 +583,28 @@ try {
   await inTurn(BROWSERS, async ({ name, type, options }) => {
     const browser = await type.launch(options);
     try {
-      await inTurn(runs, ({ device, language }) => checkDevice(browser, name, device, language, bot));
       // A lock lasts a minute and needs five logins at once, which only our own server can spare.
+      // The second lock waits for the first to end, so it starts before the device runs.
+      const relock = LOCAL ? await lockedTwiceLater(name) : null;
+      await inTurn(runs, ({ device, language }) => checkDevice(browser, name, device, language, bot));
       const lockedId = LOCAL ? await lockedProfile(name) : null;
-      await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, lockedId));
+      const twiceId = relock ? await relock() : null;
+      await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, { lockedId, twiceId }));
     } finally {
       await browser.close();
     }
   });
+  // Last of all, since a full list stops every run after it from making a player.
+  if (LOCAL) {
+    await fillProfiles();
+    const [{ name, type, options }] = BROWSERS;
+    const browser = await type.launch(options);
+    try {
+      await inTurn(LANGUAGES, (language) => checkFull(browser, name, language));
+    } finally {
+      await browser.close();
+    }
+  }
 } finally {
   // A server started elsewhere is checked and stopped by whoever started it.
   if (!server.external) {

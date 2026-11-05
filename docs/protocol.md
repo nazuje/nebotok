@@ -165,7 +165,14 @@ the world at once. "Switch player" in the settings panel leaves the room, calls
 `DELETE /api/sessions/current` and forgets the token. A refused join (`AUTH_FAILED`), `signedOut` or
 `replaced` forgets the token and shows the list with the reason. Development uses the same screen.
 
+A locked profile's card and message say how long is left (`lockedForSeconds` or `retryAfterSeconds`),
+rounded up by `apps/game/src/lock-wait.ts` ("a minute", "2 minutes", "about 10 minutes", "an
+hour") and counting down while the list is open. A list of `MAX_PROFILES` hides "New player" and
+says it is full. Profiles without a PIN show an outline lock, and the list a short hint to use one.
+
 The browser check drives it like a player. Each run makes its own profile with a PIN and, against
 its own server, sends its own `X-Forwarded-For` address (believed from loopback) so the
 per-address limits stay out of the way; against a server given by `--url`, which may not believe
-that header, the runs are spaced out instead.
+that header, the runs are spaced out instead. Against its own server it also locks profiles once
+and twice, to see the one-minute and two-minute wordings, and at the end fills the list to
+`MAX_PROFILES` to see the full list.

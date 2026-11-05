@@ -453,6 +453,32 @@ button:active {
   background: var(--bad);
 }
 
+.tag.no-pin {
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.tag svg,
+.pin-nudge svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pin-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.pin-nudge svg {
+  flex: none;
+}
+
 .avatar-choices {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
