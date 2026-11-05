@@ -15,6 +15,7 @@ import { createProfileScreen } from './profile-screen.ts';
 import { forgetSession, saveSession, storedSession } from './session.ts';
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
+import { createWalkHint } from './walk-hint.ts';
 import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
 import { feedWorldView } from './world-feed.ts';
 import { WorldScene } from './world-scene.ts';
@@ -42,6 +43,7 @@ const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
 const scene = new WorldScene({ view, frame: (now) => frame(now), labels: (labels) => names.place(inWorld ? labels : []) });
 const hud = createHud(language);
+const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
@@ -63,6 +65,7 @@ function deliver(command: Command) {
   if (!room || !from) return;
   const message = walkMessage(command, from);
   room.send(message.type, message.payload);
+  if (command.kind !== 'stop') hint.walked();
 }
 
 const outbox = createOutbox({
@@ -82,13 +85,17 @@ const input = createInput({
   active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
-  marker: (tile, refused) => scene.setMarker(tile, refused),
+  marker: (tile, refused) => {
+    scene.setMarker(tile, refused);
+    if (refused) hud.toast('walk.blocked');
+  },
 });
 
 function frame(now: number) {
   view.tick(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen(), controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -213,7 +220,10 @@ function enterWorld() {
           roomMap = id;
           void showMap(id);
         },
-        refused: () => scene.setMarker(null),
+        refused: () => {
+          scene.setMarker(null);
+          hud.toast('walk.blocked');
+        },
       });
     },
   });
@@ -279,6 +289,8 @@ installTestHook({
       protocol,
       playerCount,
       welcome: hud.state().welcome,
+      toast: hud.state().toast,
+      hint: hint.shown(),
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
       map: scene.mapId,
       players: players(),

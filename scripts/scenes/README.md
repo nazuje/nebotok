@@ -27,7 +27,7 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 | --- | --- |
 | `{ "do": "join", "player": "lan" }` | Opens the player's page signed in, and waits until their courier stands in the world. |
 | `{ "do": "walk", "player": "lan", "to": { "x": 19, "y": 10 } }` | Taps the on-screen tile nearest the target on foot, waits for the courier to stop, and repeats until it stands there. |
-| `{ "do": "tap", "player": "lan", "tile": { "x": 19, "y": 17 } }` | One tap on a tile that is on screen, without waiting for the walk. |
+| `{ "do": "tap", "player": "lan", "tile": { "x": 19, "y": 17 } }` | One tap on a tile that is on screen, without waiting for the walk. The tile may be one no courier can stand on, to see the refusal. |
 | `{ "do": "hold", "player": "lan", "direction": "right", "ms": 600 }` | Holds an arrow key that long. |
 | `{ "do": "wait", "ms": 1000 }` | Waits. |
 | `{ "do": "waitFor", "player": "lan", "until": { ... }, "ms": 15000 }` | Waits until the player's page shows everything in `until`, and fails after `ms` (15 s when left out). |
@@ -45,6 +45,11 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 - `"unmarked": true`: no walk marker is shown.
 - `"welcome": ["together", "hidden"]`: the welcome line at the bottom says one of these (`"alone"`,
   `"together"`) or is `"hidden"`.
+- `"toast": "blocked"`: the short message at the bottom says the tapped tile cannot be reached
+  (`walk.blocked`), or `"hidden"`: no short message shows.
+- `"hint": "tap"` / `"joystick"`: the first-visit walking hint shows for those controls, or
+  `"hidden"`: it does not. Each scene browser starts with fresh storage, so a player sees it until
+  their first walk.
 
 Any step may add `"shot": "<label>"`: after it, every joined player's screenshot and
 `stateAsText()` are saved as `<step>-<label>-<player>.png` and `.json`. The run ends with each
@@ -54,7 +59,8 @@ Gotchas:
 
 - The page reconnects after a drop only once its room has been up for 5 seconds (the SDK's
   `minUptime`), so `wait` 5000 after the last `join` before a `drop`.
-- Tiles are map coordinates (`content/maps/<id>.tmj`); a tile no courier can stand on is refused.
+- Tiles are map coordinates (`content/maps/<id>.tmj`); a `walk` to a tile no courier can stand on
+  is refused.
 - Test players' positions are saved like anyone's, so a second run starts them where the first
   ended. Begin with a `walk` to put each one where the scene needs them.
 - `npm run dev`'s database is `.local-data/`, so test players stay in its profile list. The game

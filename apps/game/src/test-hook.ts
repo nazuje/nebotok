@@ -32,6 +32,10 @@ export type TestSnapshot = {
   playerCount: number | null;
   /** The welcome line shown at the bottom, if any. */
   welcome: WelcomeMessageKey | null;
+  /** The short message shown at the bottom, such as walk.blocked, if any. */
+  toast: StringId | null;
+  /** The first-visit walking hint, for the controls it shows, if it is up. */
+  hint: Controls | null;
   scene: string | null;
   /** The map whose tiles are drawn, if any. */
   map: string | null;

@@ -14,6 +14,8 @@ const STATUS_TEXT: Readonly<Record<ConnectionStatus, StringId>> = {
 
 /** How long the welcome line stays before it gets out of the way. */
 const WELCOME_MS = 6_000;
+/** How long a short message, such as "You can't get there.", stays. */
+export const TOAST_MS = 2_000;
 
 /**
  * What the welcome line may say, given whether anyone else is in the world now. The server picked
@@ -31,8 +33,10 @@ export type Hud = {
   setWelcome(welcome: Welcome | undefined): void;
   /** Whether anyone else is in the world right now, away players included. */
   setCompany(company: boolean): void;
+  /** A short message at the bottom of the screen for TOAST_MS. */
+  toast(id: StringId): void;
   setLanguage(language: Language): void;
-  state(): { welcome: WelcomeMessageKey | null };
+  state(): { welcome: WelcomeMessageKey | null; toast: StringId | null };
 };
 
 /** The interface is plain HTML over the canvas, so it stays sharp, readable and accessible. */
@@ -41,19 +45,25 @@ export function createHud(language: Language): Hud {
   const badge = element<HTMLElement>('.badge');
   const badgeText = element<HTMLElement>('.badge-text');
   const welcomeText = element<HTMLElement>('.welcome');
+  const toastText = element<HTMLElement>('.toast');
 
   let current = language;
   let status: ConnectionStatus = 'connecting';
   let welcome: WelcomeMessageKey | null = null;
   let company: boolean | null = null;
   let welcomeTimer: ReturnType<typeof setTimeout> | undefined;
+  let toast: StringId | null = null;
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   const render = () => {
     document.documentElement.lang = current;
     title.textContent = text('game.title', current);
     badge.dataset.status = status;
     badgeText.textContent = text(STATUS_TEXT[status], current);
-    welcomeText.hidden = welcome === null;
+    // Both sit in the same spot at the bottom; a toast answers a tap, so it goes in front.
+    toastText.hidden = toast === null;
+    if (toast) toastText.textContent = text(toast, current);
+    welcomeText.hidden = welcome === null || toast !== null;
     if (welcome) welcomeText.textContent = text(welcome, current);
   };
 
@@ -85,10 +95,19 @@ export function createHud(language: Language): Hud {
       welcome = line;
       render();
     },
+    toast: (id) => {
+      toast = id;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast = null;
+        render();
+      }, TOAST_MS);
+      render();
+    },
     setLanguage: (next) => {
       current = next;
       render();
     },
-    state: () => ({ welcome }),
+    state: () => ({ welcome, toast }),
   };
 }

@@ -4,7 +4,7 @@ import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, free
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
-import { WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
+import { STOP_SAVE_GAP_MS, WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
 import { capturedLog, freePort, repeat, tempServices, until } from './helpers.ts';
 
@@ -344,6 +344,24 @@ describe('saving positions', () => {
 
     const again = await join(token);
     expect(at(again, again.sessionId, target)).toBe(true);
+  });
+
+  it(`saves a player whose walk stops, at most once every ${STOP_SAVE_GAP_MS / 1000} s`, async () => {
+    const { id, token } = await profile('Saving Courier');
+    const room = await join(token);
+    const saved = () => temp.services.progress.load(id)?.data.position;
+    const first = tileAway(2);
+    room.send('walk.to', first);
+    await until(() => saved()?.x === first.x && saved()?.y === first.y, 'the save when the walk stops');
+    const stoppedAt = Date.now();
+
+    room.send('walk.to', spawn());
+    await until(() => at(room, room.sessionId, spawn()), 'the walk back');
+    expect(Date.now() - stoppedAt).toBeLessThan(STOP_SAVE_GAP_MS);
+    expect(saved()).toMatchObject(first);
+    await until(() => saved()?.x === spawn().x && saved()?.y === spawn().y, 'the save once the gap has passed', Date.now() + STOP_SAVE_GAP_MS + 2_000);
+    expect(Date.now() - stoppedAt).toBeGreaterThanOrEqual(STOP_SAVE_GAP_MS - 100);
+    expect(room.connection.isOpen).toBe(true);
   });
 
   it('starts at the spawn when the saved tile is no longer walkable', async () => {
