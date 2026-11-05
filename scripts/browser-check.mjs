@@ -5,7 +5,9 @@
 // far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
 // and come straight back, switch player, get the PIN wrong, then right. At 360px wide it also
 // checks the lock messages (a first and a second lock), the PIN hint and a full profile list, and
-// adds a PIN to a profile made without one from the settings, then signs in with it.
+// adds a PIN to a profile made without one from the settings, then signs in with it. Every run then
+// plays the starter choice, a wild battle to befriending and the team screen against the page's own
+// fake server (?fake=new), and at 360px also a battle the whole team loses (?fake=faint).
 // Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
@@ -38,6 +40,7 @@ import {
   until,
   watch,
 } from './lib/game-page.mjs';
+import { fakeUrl, playBattle } from './lib/battle-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { botName, deviceName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
@@ -169,6 +172,27 @@ function openDirection(bot, from, not = []) {
   const found = Object.entries(OFFSETS).find(([name, [dx, dy]]) => !not.includes(name) && free({ x: from.x + dx, y: from.y + dy }) && free({ x: from.x + 2 * dx, y: from.y + 2 * dy }));
   if (!found) throw new Error(`no open direction from ${from.x},${from.y}`);
   return found[0];
+}
+
+const KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+
+/** One short hold of an arrow key, which is sure to take at least one step. */
+async function walkOneStep(page, bot) {
+  const direction = openDirection(bot, selfIn(await readState(page)));
+  await page.keyboard.down(KEYS[direction]);
+  await page.waitForTimeout(250);
+  await page.keyboard.up(KEYS[direction]);
+}
+
+/**
+ * The battle screens against the page's fake server (scripts/lib/battle-check.mjs), for a page
+ * already signed in: each scenario in turn, from a fresh load of its URL.
+ */
+async function battleScreens(page, bot, { scenarios, language, expect, check }) {
+  await inTurn(scenarios, async (scenario) => {
+    await page.goto(fakeUrl(server.base, scenario));
+    await playBattle(page, { scenario, language, strings: STRINGS, expect, check, walk: () => walkOneStep(page, bot) });
+  });
 }
 
 const movedToward = (from, to, direction) => {
@@ -430,6 +454,15 @@ async function checkDevice(browser, browserName, device, language, bot) {
       expect(after.connection === 'connected', `after a reload under the service worker the connection is ${after.connection}`);
       expect(after.language === language, 'the language choice did not survive a reload');
     }
+    await battleScreens(page, bot, {
+      scenarios: ['new'],
+      language,
+      expect,
+      check: async (where, step) => {
+        await targets(where);
+        await shot(step);
+      },
+    });
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
     await signOut(page);
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, screenshots });
@@ -555,7 +588,7 @@ async function checkNarrow(browser, browserName, language, { lockedId, twiceId }
  * A player made without a PIN adds one from the settings: typed twice, wrong the second time once,
  * then confirmed. After switching player, the profile asks for that PIN and signs in with it.
  */
-async function checkAddPin(browser, browserName, language) {
+async function checkAddPin(browser, browserName, language, bot) {
   const label = `${browserName}-360px-${language}`;
   const name = pinlessName(browserName, language, TAG);
   const problems = [];
@@ -625,6 +658,16 @@ async function checkAddPin(browser, browserName, language) {
     state = await until(page, inWorld, 'the world after signing in with the added PIN');
     expect(state.profile?.name === name, 'the added PIN signed in as someone else');
     await shot('add-pin-5-signed-in');
+    await battleScreens(page, bot, {
+      scenarios: ['new', 'faint'],
+      language,
+      expect,
+      check: async (where, step) => {
+        await targets(where);
+        await noSideways(where);
+        await shot(step);
+      },
+    });
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -684,7 +727,7 @@ try {
       const lockedId = LOCAL ? await lockedProfile(name) : null;
       const twiceId = relock ? await relock() : null;
       await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, { lockedId, twiceId }));
-      await inTurn(LANGUAGES, (language) => checkAddPin(browser, name, language));
+      await inTurn(LANGUAGES, (language) => checkAddPin(browser, name, language, bot));
     } finally {
       await browser.close();
     }

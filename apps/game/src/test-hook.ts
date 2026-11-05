@@ -1,4 +1,7 @@
-import type { Direction, Language, Point, StringId, WelcomeMessageKey } from '@nebotok/core';
+import type { BattleOutcome, BattleView, CreatureReward, Direction, Language, Point, ProgressMessage, StringId, WakePoint, WelcomeMessageKey } from '@nebotok/core';
+import type { BattleScreenState, Menu } from './battle-model.ts';
+import type { BattleDrawn } from './battle-scene.ts';
+import type { BattleOverlay } from './battles.ts';
 import type { ConnectionStatus } from './connection.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
@@ -7,7 +10,38 @@ import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
-export type Screen = ProfileView | 'world' | 'pinSetup';
+export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay;
+
+type TestCreature = { species: string; level: number; hp: number; maxHp: number };
+
+/** The battle on screen: the server's view of it, and what the page shows of it right now. */
+export type TestBattle = {
+  id: string;
+  phase: BattleView['phase'];
+  turn: number;
+  /** The weather the field shows now, part way through a turn's playback. */
+  weather: string | null;
+  /** A turn is playing; a tap skips to its end. */
+  playing: boolean;
+  panel: BattleScreenState['panel'];
+  /** A choice was sent and the server has not answered. */
+  waiting: boolean;
+  line: StringId | null;
+  lineText: string | null;
+  menu: Menu;
+  mustSwap: boolean;
+  team: TestCreature[];
+  active: number;
+  opponent: TestCreature | null;
+  /** The species the Phaser field drew last frame, yours then the wild one. */
+  drawn: BattleDrawn | null;
+  outcome: BattleOutcome | null;
+  rewards: readonly CreatureReward[];
+  woke: WakePoint | null;
+  befriended: { species: string; placedIn: 'team' | 'storage' } | null;
+};
+
+export type TestTeamScreen = { selected: number | null };
 
 /** A player as the server last told this page, and where the page draws them. */
 export type TestPlayer = {
@@ -15,6 +49,8 @@ export type TestPlayer = {
   avatar: string;
   self: boolean;
   connected: boolean;
+  /** In a battle, so the world marks them. */
+  inBattle: boolean;
   x: number;
   y: number;
   moving: boolean;
@@ -62,6 +98,14 @@ export type TestSnapshot = {
   /** Whether the settings offer "Add a PIN". */
   canAddPin: boolean;
   settingsOpen: boolean;
+  /** The battle on screen, if any. */
+  battle: TestBattle | null;
+  /** Your creatures, treats and whether you still choose a starter, as the server last sent them. */
+  progress: ProgressMessage | null;
+  /** The team screen, if it is open. */
+  teamScreen: TestTeamScreen | null;
+  /** The starter chosen and not yet confirmed, if any. */
+  starterChosen: string | null;
 };
 
 export type TestHook = {

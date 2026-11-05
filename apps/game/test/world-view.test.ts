@@ -58,6 +58,7 @@ const facts = (x: number, y: number, extra: Partial<PlayerFacts> = {}): PlayerFa
   facing: 'down',
   moving: false,
   connected: true,
+  inBattle: false,
   ...extra,
 });
 

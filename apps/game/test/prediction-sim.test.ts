@@ -23,7 +23,7 @@ type Run = { jumps: number; worst: number };
 
 type Timer = { at: number; order: number; run: () => void };
 
-const facts = (from: Walker): PlayerFacts => ({ name: 'Mia Oblak', avatar: 'green', x: from.x, y: from.y, facing: from.facing, moving: from.moving, connected: true });
+const facts = (from: Walker): PlayerFacts => ({ name: 'Mia Oblak', avatar: 'green', x: from.x, y: from.y, facing: from.facing, moving: from.moving, connected: true, inBattle: false });
 
 function simulate(scenario: Scenario, latencyMs: number, jitterMs: number, seed: number): Run {
   const rng: Rng = createRng(`${scenario}-${latencyMs}-${jitterMs}-${seed}`);
