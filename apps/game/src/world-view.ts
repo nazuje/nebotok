@@ -40,6 +40,8 @@ export type WorldView = {
   reset(): void;
   setSelf(id: string | null): void;
   self(): string | null;
+  /** Drops the prediction, so your courier starts again from the server's tile with nothing to do. */
+  restart(): void;
   setMap(map: WorldMap | null): void;
   setStepMs(stepMs: number): void;
   stepMs(): number;
@@ -94,6 +96,9 @@ export function createWorldView(): WorldView {
       prediction = null;
     },
     self: () => selfId,
+    restart: () => {
+      prediction = null;
+    },
     setMap: (next) => {
       map = next;
       prediction = null;

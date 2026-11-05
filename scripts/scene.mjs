@@ -202,7 +202,8 @@ function shows(state, wanted) {
     (wanted.sees ?? []).every((id) => other(id)?.connected === true) &&
     (wanted.away ?? []).every((id) => other(id)?.connected === false) &&
     Object.entries(wanted.seesAt ?? {}).every(([id, tile]) => other(id)?.connected === true && standing(other(id), tile)) &&
-    (!wanted.tagsApart || tagsApart(state))
+    (!wanted.tagsApart || tagsApart(state)) &&
+    (!wanted.unmarked || state.marker === null)
   );
 }
 

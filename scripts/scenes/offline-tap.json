@@ -1,0 +1,21 @@
+{
+  "name": "offline-tap",
+  "about": "A courier's connection drops and the player taps a tile while it is down. The tap does nothing: no marker, and once the page is back the courier stays where it stood. A tap after that walks as usual.",
+  "players": [
+    { "id": "mira", "name": "Scena Mira", "avatar": "orange", "browser": "chromium", "device": "iphone-portrait", "language": "en" }
+  ],
+  "steps": [
+    { "do": "join", "player": "mira" },
+    { "do": "walk", "player": "mira", "to": { "x": 19, "y": 13 } },
+    { "do": "wait", "ms": 5000 },
+    { "do": "drop", "player": "mira", "ms": 4000 },
+    { "do": "waitFor", "player": "mira", "until": { "connection": "connecting" } },
+    { "do": "tap", "player": "mira", "tile": { "x": 19, "y": 16 } },
+    { "do": "wait", "ms": 300 },
+    { "do": "waitFor", "player": "mira", "until": { "unmarked": true, "at": { "x": 19, "y": 13 } }, "ms": 500, "shot": "tapped-offline" },
+    { "do": "waitFor", "player": "mira", "until": { "connection": "connected" }, "ms": 20000 },
+    { "do": "wait", "ms": 6000 },
+    { "do": "waitFor", "player": "mira", "until": { "connection": "connected", "unmarked": true, "at": { "x": 19, "y": 13 } }, "ms": 1000, "shot": "still-there" },
+    { "do": "walk", "player": "mira", "to": { "x": 19, "y": 16 }, "shot": "walks-again" }
+  ]
+}

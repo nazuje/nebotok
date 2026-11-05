@@ -58,6 +58,7 @@ const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
 
 /** A command reaches the server only when the prediction accepts it too, so the two agree. */
 function deliver(command: Command) {
+  if (connection !== 'connected') return;
   const from = room ? view.command(command) : null;
   if (!room || !from) return;
   const message = walkMessage(command, from);
@@ -78,7 +79,7 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && !settings.isOpen(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => scene.setMarker(tile, refused),
@@ -127,6 +128,18 @@ async function showMap(id: string) {
   }
 }
 
+/**
+ * Whatever the page was doing with your courier is dropped: held keys, anything waiting to be sent,
+ * the prediction and the marker. Done when a drop begins and again when it ends, so a tap from
+ * before or during a drop never sets the courier walking later.
+ */
+function startClean() {
+  input.release();
+  outbox.reset();
+  view.restart();
+  if (scene.mapId !== null) scene.setMarker(null);
+}
+
 function forgetRoom() {
   stopFeed();
   stopFeed = () => {};
@@ -172,11 +185,12 @@ function enterWorld() {
   playerCount = null;
   world = connect(session.token, () => language, {
     status: (status) => {
+      const was = connection;
       connection = status;
       if (status !== 'connecting') settled = true;
       // A drop stands the courier still on the server, so after a reconnect what the outbox last
       // sent no longer holds: the same walk asked again is a new request, not a repeat to swallow.
-      if (status === 'connected') outbox.reset();
+      if (status !== was) startClean();
       hud.setStatus(status);
       if (status === 'signedOut') sessionEnded('connection.signedOut');
       else if (status === 'replaced') sessionEnded('connection.replaced');

@@ -42,6 +42,7 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 - `"sees": ["zarja"]` / `"away": ["zarja"]`: those players are shown connected / dimmed as away.
 - `"seesAt": { "zarja": { "x": 20, "y": 10 } }`: those players are shown standing on those tiles.
 - `"tagsApart": true`: no name tag on the page covers another.
+- `"unmarked": true`: no walk marker is shown.
 
 Any step may add `"shot": "<label>"`: after it, every joined player's screenshot and
 `stateAsText()` are saved as `<step>-<label>-<player>.png` and `.json`. The run ends with each

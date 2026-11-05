@@ -68,6 +68,9 @@ export function connect(token: string, language: () => Language, events: Connect
     }
     room = joined;
     retryMs = FIRST_RETRY_MS;
+    // The SDK keeps what is sent during a drop and sends it all once back, which would set a courier
+    // walking by itself long after the tap. Nothing is kept: a command needs a live connection.
+    joined.reconnection.maxEnqueuedMessages = 0;
     joined.onMessage('welcome', (message: Welcome) => events.welcome(message));
     Callbacks.get(joined).listen('playerCount', (count) => events.players(count));
     joined.onDrop(() => events.status('connecting'));
