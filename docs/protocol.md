@@ -156,6 +156,6 @@ the world at once. "Switch player" in the settings panel leaves the room, calls
 `replaced` forgets the token and shows the list with the reason. Development uses the same screen.
 
 The browser check drives it like a player. Each run makes its own profile with a PIN and, against
-its own server, sends its own `X-Forwarded-For` address (believed only from loopback) so the
-per-address limits stay out of the way; against a container, which does not believe that header,
-the runs are spaced out instead.
+its own server, sends its own `X-Forwarded-For` address (believed from loopback) so the
+per-address limits stay out of the way; against a server given by `--url`, which may not believe
+that header, the runs are spaced out instead.

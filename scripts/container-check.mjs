@@ -9,6 +9,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
+import { API_LIMITS } from '../apps/server/src/api.ts';
 import { checkBackups } from './lib/backup-check.mjs';
 import { ROOT } from './lib/server-process.mjs';
 
@@ -97,6 +98,29 @@ function checkFromInside() {
   check('no Docker socket inside', socket === 'false', `exists: ${socket}`);
 }
 
+/** A login for a profile that does not exist, forwarded for `forwardedFor`; answers the status. */
+function loginAs(forwardedFor) {
+  return fetch(`${BASE}/api/sessions`, {
+    method: 'POST',
+    headers: { origin: BASE, 'content-type': 'application/json', 'x-forwarded-for': forwardedFor },
+    body: JSON.stringify({ profileId: 99_999 }),
+  }).then((response) => response.status, () => 0);
+}
+
+/**
+ * Through the published port, the way the Mac's Tailscale Serve connects: the server believes the
+ * address it forwards, so one device using up its login limit leaves another device's alone.
+ */
+async function checkProxyTrust() {
+  const allowed = await Promise.all(Array.from({ length: API_LIMITS.logins }, () => loginAs('203.0.113.7')));
+  const limited = await loginAs('203.0.113.7');
+  const spoofed = await loginAs('203.0.113.9, 203.0.113.7');
+  const other = await loginAs('203.0.113.8');
+  check('rate limits follow the address forwarded through the published port',
+    allowed.every((status) => status === 404) && limited === 429 && spoofed === 429 && other === 404,
+    `${API_LIMITS.logins} logins ${[...new Set(allowed)]}, then ${limited}; spoofed on the left ${spoofed}; another device ${other}`);
+}
+
 /** Error lines, non-JSON lines and anything on stderr, like the host-run server check. */
 function logProblems(stdout, stderr) {
   const lines = stdout.split('\n').filter((line) => line.trim());
@@ -162,6 +186,7 @@ try {
     });
     check('Chromium and WebKit play the game served by the container', browsers.status === 0, `exit ${browsers.status}, see ${relative(ROOT, join(out, 'container', 'logs', 'browser-check.json'))}`);
     checkBackups({ run, docker, exec, check, backups: BACKUPS, litestreamImage: inspect(litestream).Config.Image, restoreScript: join(ROOT, 'scripts', 'restore.sh') });
+    await checkProxyTrust();
     stopAndReadLogs(id);
     stopLitestream(litestream);
   }

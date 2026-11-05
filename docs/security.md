@@ -91,6 +91,7 @@ In host mode, the default:
 | The game's port is published on the Mac's `127.0.0.1` only (8567), so nothing on the home network or the internet can reach it directly. | `compose.yaml` |
 | The game has no Tailscale identity of its own. The only way in from the tailnet is the Mac's own Tailscale Serve entry on HTTPS port 8445, which terminates HTTPS with a real certificate and forwards to `127.0.0.1:8567`. Who may use it is whoever the tailnet policy lets reach the Mac mini on 8445. | `scripts/serve.sh` |
 | `scripts/serve.sh` changes only port 8445, refuses when 8445 already serves something else, never turns on Funnel (public internet) and fails loudly if it finds Funnel on for 8445. | `scripts/serve.sh` |
+| The game believes forwarded client addresses only from its Docker network's gateway (`TRUST_PROXY`), the address every connection through the published port arrives from. Only the Mac itself and containers in OrbStack can connect from there. | `compose.yaml` |
 | The backup container has no network at all; its replica is a folder, not a cloud service. | `compose.yaml` |
 
 In sidecar mode (optional, `docs/deploy.md`):
@@ -142,7 +143,7 @@ else, guesses a PIN, or a web page elsewhere tricks a browser into using the gam
 | --- | --- |
 | PINs are stored only as scrypt hashes (N=16384, r=8, p=1) with a random 16-byte salt per profile, and compared in constant time. | `apps/server/src/pin.ts` |
 | Five wrong PINs lock a profile for 60 seconds. Each lock in a row lasts twice as long as the one before, up to an hour, until a right PIN; each is logged as a warning with only the profile id. Only one PIN check per profile runs at a time. | `apps/server/src/profiles.ts` |
-| Each client address may make 120 API calls, 10 logins and 5 new profiles a minute. Behind Tailscale Serve the address comes from `X-Forwarded-For`, which is believed only from loopback. That holds in sidecar mode. In host mode requests reach the container through Docker's port forwarding, from OrbStack's gateway address rather than loopback, so `X-Forwarded-For` is ignored and every device shares one set of limits. | `apps/server/src/api.ts`, `rate-limit.ts`, `http.ts` |
+| Each client address may make 120 API calls, 10 logins and 5 new profiles a minute. Behind Tailscale Serve the address is the device's own tailnet address, which Serve puts in `X-Forwarded-For` (replacing any the device sent). The server believes that header, and `X-Forwarded-Host`, only from the one peer named in `TRUST_PROXY`, never from anyone (`true`, `*` and `/0` are refused): loopback in sidecar mode, where Serve shares the game's network namespace, and in host mode the gateway of the stack's Docker network, `10.231.67.1` unless `NEBOTOK_NETWORK` moves it, which is where Docker's port forwarding from the Mac's `127.0.0.1:8567` arrives. From any other peer the header is ignored and the peer's own address counts. | `apps/server/src/config.ts`, `api.ts`, `rate-limit.ts`, `http.ts`, compose files |
 | Session tokens are 32 random bytes; the database keeps only their SHA-256. A login replaces the profile's previous session; sessions end after 180 days, at logout, or when a PIN is reset. | `apps/server/src/profiles.ts` |
 | The world room refuses a join without a valid session, before any seat is reserved. One profile has one character; a second join takes it over and closes the first. A reconnection and the 30-second save round look the session up again, so a PIN reset or deletion with `scripts/admin.sh`, a separate process, ends the seat too. | `apps/server/src/world-room.ts` |
 | API calls that change anything must name this same host in `Origin` and send JSON. Neither the API nor Colyseus's join endpoint (`/matchmake`) sends CORS headers, so other pages cannot read their answers or send them JSON with a token. | `apps/server/src/api.ts`, `matchmake.ts` |
@@ -200,17 +201,25 @@ What these measures do not stop, in rough order of importance:
    Tailscale and Litestream images in `compose.yaml`, but not the binfmt and BuildKit images pinned
    inside `ci.yml`. Update those by hand now and then, and `compose.local.yaml`'s Litestream pin
    with each Litestream update (`scripts/compose.test.mjs` fails until they match).
-8. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the Mac mini's
+8. **Anything running on the Mac mini can claim any address to the game.** In host mode a
+   connection through `127.0.0.1:8567` and one from another container in OrbStack (to the game's
+   container address or to `host.docker.internal`) both arrive from the network's gateway, which the
+   game trusts so that Tailscale Serve's `X-Forwarded-For` counts. A program or container on the Mac
+   can therefore pick a fresh address for each request and slip past the per-address API limits. It
+   cannot get past a PIN lockout, which counts per profile, and it could reach the game anyway. In
+   sidecar mode the same holds for anything inside the game's network namespace, which is only
+   Tailscale.
+9. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the Mac mini's
    name (in sidecar mode, the game's device name) and your tailnet name are visible to anyone who
    looks. Nothing can connect without being on the tailnet.
-9. **Known advisories in build tools.** See below.
-10. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
+10. **Known advisories in build tools.** See below.
+11. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
     `nebotok_nebotok-data` volume as a plain SQLite file, and in `BACKUP_DIR` (and so in Time
     Machine) as Litestream files and snapshots. Anyone who can read the Mac mini's Docker volumes,
     your home folder or the Time Machine disk can read them; a four-digit PIN hash can be brute-forced
     offline in seconds. FileVault and an encrypted Time Machine disk protect them when the computer
     or disk is off or stolen.
-11. **A broken Litestream could write into the backup folder.** It is the one container with a
+12. **A broken Litestream could write into the backup folder.** It is the one container with a
     writable host folder. A bug or poisoned Litestream release (behind the digest pin and the
     review of its update) could fill or damage `BACKUP_DIR`, though not the rest of your files. It
     also reads what the game writes: a compromised game could hand it crafted database files or huge
@@ -285,6 +294,18 @@ Before `npm install <package>`:
   forwarding arrives on the container's network interface; the published side is `127.0.0.1` on the
   Mac. `scripts/compose.test.mjs` checks the published address and, where Docker is available, that
   `compose.yaml` and `compose.yaml` plus `compose.tailscale.yaml` both validate with every seal set.
+- Measured on OrbStack 2.2.4: a request to a published `127.0.0.1` port reaches the container from
+  the gateway of the container's compose network, not from loopback and not from OrbStack's default
+  `bridge` gateway (`192.168.215.1`, which a container started with plain `docker run` sees). So
+  `compose.yaml` gives its network a fixed subnet, `10.231.67.0/28`, and sets `TRUST_PROXY` to its
+  gateway; the gateway stays the same across restarts because the subnet is fixed, and
+  `NEBOTOK_NETWORK` in `.env` moves both together.
+  `compose.local.yaml` uses `10.231.67.16/28` so both stacks can run on one Mac, and
+  `compose.tailscale.yaml` sets `TRUST_PROXY` back to `loopback`. Tailscale Serve (1.104) keeps the
+  browser's `Host` and sets `X-Forwarded-Host` to the same value, so the `Origin` check gives the
+  same answer whether or not the proxy is trusted. `scripts/compose.test.mjs` checks the settings and
+  `npm run verify:container` checks, through the published port, that the limits follow the
+  forwarded address.
 - `scripts/update.sh` removes a container only when it mounts the stack's data volume and was not
   started by Docker Compose (the hand-started game from before the stack), after `docker stop`, and
   never with `-v`.

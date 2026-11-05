@@ -3,6 +3,7 @@ import { PIN_ATTEMPTS, type LoginResponse, type ProfileSummary } from '@nebotok/
 import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { API_LIMITS } from '../src/api.ts';
+import type { Config } from '../src/config.ts';
 import { mountHttp } from '../src/http.ts';
 import { createLog } from '../src/log.ts';
 import { fakeClock, repeat, tempServices } from './helpers.ts';
@@ -12,14 +13,18 @@ let temp: ReturnType<typeof tempServices>;
 let base: string;
 let close: () => void;
 
-beforeAll(async () => {
-  temp = tempServices(clock.now);
+/** The API on its own port, with fresh rate limits, over the shared test database. */
+async function listen(config: Config): Promise<{ base: string; close: () => void }> {
   const app = express();
-  mountHttp(app, temp.config, createLog('silent'), temp.services);
+  mountHttp(app, config, createLog('silent'), temp.services);
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  close = () => server.close();
+  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, close: () => server.close() };
+}
+
+beforeAll(async () => {
+  temp = tempServices(clock.now);
+  ({ base, close } = await listen(temp.config));
 });
 afterAll(() => {
   close();
@@ -33,13 +38,15 @@ beforeEach(() => {
 
 type Sent = { status: number; body: unknown; headers: Headers };
 
-async function send(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Sent> {
-  const init: RequestInit = { method, headers: { origin: base, 'content-type': 'application/json', ...headers } };
+async function sendTo(target: string, method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Sent> {
+  const init: RequestInit = { method, headers: { origin: target, 'content-type': 'application/json', ...headers } };
   if (body !== undefined) init.body = typeof body === 'string' ? body : JSON.stringify(body);
-  const response = await fetch(`${base}${path}`, init);
+  const response = await fetch(`${target}${path}`, init);
   const text = await response.text();
   return { status: response.status, body: text === '' ? null : JSON.parse(text), headers: response.headers };
 }
+
+const send = (method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<Sent> => sendTo(base, method, path, body, headers);
 
 async function create(name: string, pin?: string): Promise<ProfileSummary> {
   const response = await send('POST', '/api/profiles', pin === undefined ? { name, avatar: 'red' } : { name, avatar: 'red', pin });
@@ -143,6 +150,37 @@ describe('API guards', () => {
     const last = await send('POST', '/api/sessions', { profileId: id });
     expect(last).toMatchObject({ status: 429, body: { error: 'busy' } });
     expect(Number(last.headers.get('retry-after'))).toBeGreaterThan(0);
+  });
+});
+
+const NAMES = ['Courier Ana', 'Courier Bor', 'Courier Cene', 'Courier Dora', 'Courier Ema', 'Courier Fran'];
+
+/** Makes a profile through `target`, forwarded for `forwardedFor`; answers the status. */
+async function createAs(target: string, name: string, forwardedFor: string): Promise<number> {
+  return (await sendTo(target, 'POST', '/api/profiles', { name, avatar: 'red' }, { 'x-forwarded-for': forwardedFor })).status;
+}
+
+describe('client address behind a proxy', () => {
+  it('ignores X-Forwarded-For and X-Forwarded-Host from a peer it does not trust', async () => {
+    // Loopback is not trusted here, as the Docker gateway is not in sidecar mode.
+    const untrusted = await listen({ ...temp.config, trustProxy: ['192.0.2.1'] });
+    try {
+      const statuses = await repeat(API_LIMITS.creates + 1, (index) => createAs(untrusted.base, NAMES[index] ?? '', `203.0.113.${index + 1}`));
+      expect(statuses).toEqual([...Array.from({ length: API_LIMITS.creates }, () => 201), 429]);
+      const forwardedHost = await sendTo(untrusted.base, 'POST', '/api/profiles', { name: 'Courier Iva', avatar: 'red' }, { origin: 'https://nebotok.example', 'x-forwarded-host': 'nebotok.example' });
+      expect(forwardedHost.status).toBe(403);
+    } finally {
+      untrusted.close();
+    }
+  });
+
+  it('keys limits by the rightmost address a trusted proxy forwards', async () => {
+    const statuses = await repeat(API_LIMITS.creates, (index) => createAs(base, NAMES[index] ?? '', '198.51.100.7'));
+    expect(statuses).toEqual(Array.from({ length: API_LIMITS.creates }, () => 201));
+    expect(await createAs(base, 'Courier Fran', '198.51.100.7')).toBe(429);
+    // A client's own claim, to the left of what the proxy appended, changes nothing.
+    expect(await createAs(base, 'Courier Fran', '198.51.100.9, 198.51.100.7')).toBe(429);
+    expect(await createAs(base, 'Courier Fran', '198.51.100.8')).toBe(201);
   });
 });
 

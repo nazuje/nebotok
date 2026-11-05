@@ -23,6 +23,8 @@ services:
       PORT: "2567"
       DATA_DIR: /data
       LOG_LEVEL: info
+      # As in compose.yaml: the published port reaches the game from this network's gateway.
+      TRUST_PROXY: 10.231.67.17
     ports:
       - "127.0.0.1:${NEBOTOK_LOCAL_PORT:-2567}:2567"
     volumes:
@@ -75,6 +77,14 @@ services:
       options:
         max-size: 10m
         max-file: "3"
+
+# Next to production's subnet, never overlapping it, so both stacks can run on one Mac.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.231.67.16/28
+          gateway: 10.231.67.17
 
 volumes:
   nebotok-data:

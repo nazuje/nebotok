@@ -90,6 +90,13 @@ update never touches the saves. In host mode `.env` needs nothing but the digest
 `BACKUP_DIR` defaults to `~/NebotokBackups`, which it creates when missing. `--env-file FILE` makes
 it read and write another settings file instead of `.env`, for a test stack.
 
+The stack's Docker network always has the address range `10.231.67.0/28`, so the game knows which
+address Tailscale Serve's requests arrive from (`docs/security.md`, "Profiles, PINs and sessions").
+If an update fails with "Pool overlaps with other one on this address space", another Docker network
+on the Mac already uses that range: set `NEBOTOK_NETWORK` in `.env` to three other numbers, such as
+`10.231.68`, and run `scripts/update.sh` again. A test stack started with `--env-file` next to the
+real one needs its own `NEBOTOK_NETWORK` (and `NEBOTOK_PORT`) in its settings file.
+
 ## Roll back
 
 ```sh
