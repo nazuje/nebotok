@@ -1,12 +1,16 @@
-import { ProfileName, type Language, type LoginResponse, type ProfileSummary, type StringId } from '@nebotok/core';
+import { MAX_PROFILES, PIN_LOCK_MS, ProfileName, type Language, type LoginResponse, type ProfileSummary, type StringId } from '@nebotok/core';
 import { createProfile, listProfiles, login, type ApiProblem } from './api.ts';
 import { AVATARS, avatarPortrait } from './avatars.ts';
 import { button, el, icon } from './dom.ts';
+import { lockedNotice, lockedTag } from './lock-wait.ts';
 import { text } from './strings.ts';
 
 export const PIN_LENGTH = 4;
 /** A backspace key: a tag shape pointing left with a cross cut out of it. */
 const DELETE_ICON = 'M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-7-7zM12 10.4 13.4 9 15 10.6 16.6 9 18 10.4 16.4 12 18 13.6 16.6 15 15 13.4 13.4 15 12 13.6 13.6 12z';
+/** A padlock in outline with its shackle open, for profiles that have no PIN yet. */
+const OPEN_LOCK_ICON = 'M7 10V7a5 5 0 0 1 10 0h-2a3 3 0 0 0-6 0v3zM6 10h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM6 12h12v8H6z';
+const LOCK_TICK_MS = 1_000;
 
 export type ProfileView = 'loading' | 'profiles' | 'newProfile' | 'pin';
 
@@ -40,6 +44,13 @@ type Draft = { avatar: string; name: string; pin: string | undefined };
 
 const freshDraft = (): Draft => ({ avatar: AVATARS[0]?.id ?? 'blue', name: '', pin: undefined });
 
+const secondsUntil = (at: number) => Math.max(0, (at - performance.now()) / 1_000);
+
+function setText(node: HTMLElement, value: string) {
+  // Only a real change, so the alert line is not read out again every second.
+  if (node.textContent !== value) node.textContent = value;
+}
+
 /**
  * "Who's playing?": pick a profile (with its PIN on a number pad), or make a new one. All HTML over
  * the canvas, rebuilt per view; typing and PIN digits update in place so focus and taps are kept.
@@ -56,8 +67,16 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   let draft = freshDraft();
   let dots: readonly HTMLElement[] = [];
   let unlockTimer: ReturnType<typeof setTimeout> | undefined;
+  // Locks count down on the page clock from when the list (or a refused login) said how long is left.
+  let listedAt = 0;
+  let lockNoticeUntil = 0;
+  let lockTicker: ReturnType<typeof setInterval> | undefined;
+  let lockTags: { readonly tag: HTMLElement; readonly profile: ProfileSummary }[] = [];
+  let noticeShown: HTMLElement | null = null;
 
   const t = (id: StringId) => text(id, options.language());
+  const unlocksAt = (profile: ProfileSummary) => listedAt + profile.lockedForSeconds * 1_000;
+  const noticeText = (id: StringId) => (id === 'profile.error.locked' ? lockedNotice(secondsUntil(lockNoticeUntil), options.language()) : t(id));
 
   const go = (next: ProfileView, nextNotice: StringId | null = null) => {
     view = next;
@@ -66,8 +85,9 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   };
 
   const noticeLine = () => {
-    const line = el('p', { className: 'notice', text: notice ? t(notice) : '', attrs: { role: 'alert' } });
+    const line = el('p', { className: 'notice', text: notice ? noticeText(notice) : '', attrs: { role: 'alert' } });
     line.hidden = notice === null;
+    noticeShown = line;
     return line;
   };
 
@@ -77,7 +97,12 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     card.append(avatarPortrait(profile.avatar), el('span', { className: 'profile-name', text: profile.name }));
     const tags: HTMLElement[] = [];
     if (profile.hasPin) tags.push(el('span', { className: 'tag', text: t('profile.hasPin') }));
-    if (profile.lockedForSeconds > 0) tags.push(el('span', { className: 'tag locked', text: t('profile.locked') }));
+    else tags.push(el('span', { className: 'tag no-pin' }, [icon(OPEN_LOCK_ICON)]));
+    if (profile.lockedForSeconds > 0) {
+      const tag = el('span', { className: 'tag locked', text: lockedTag(secondsUntil(unlocksAt(profile)), options.language()) });
+      lockTags.push({ tag, profile });
+      tags.push(tag);
+    }
     if (tags.length > 0) card.append(el('span', { className: 'tags' }, tags));
     return card;
   }
@@ -88,7 +113,9 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     if (loadFailed) return [...parts, button('primary retry', t('profile.retry'), () => void refresh(null))];
     if (profiles.length === 0) parts.push(el('p', { className: 'hint centred', text: t('profile.empty') }));
     else parts.push(el('ul', { className: 'profile-list' }, profiles.map((profile) => el('li', {}, [profileCard(profile)]))));
-    parts.push(button('primary new-profile', t('profile.new'), () => go('newProfile')));
+    if (profiles.some((profile) => !profile.hasPin)) parts.push(el('p', { className: 'hint pin-nudge' }, [icon(OPEN_LOCK_ICON), el('span', { text: t('profile.pinNudge') })]));
+    if (profiles.length >= MAX_PROFILES) parts.push(el('p', { className: 'hint centred list-full', text: t('profile.error.full') }));
+    else parts.push(button('primary new-profile', t('profile.new'), () => go('newProfile')));
     return parts;
   }
 
@@ -169,9 +196,28 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     root.hidden = !visible;
     root.dataset.view = view;
     root.setAttribute('aria-busy', String(busy));
-    if (!visible) return;
-    const parts = view === 'newProfile' ? buildNewProfile() : view === 'pin' ? buildPad() : buildProfiles();
-    root.replaceChildren(el('div', { className: 'screen-body' }, parts));
+    lockTags = [];
+    noticeShown = null;
+    if (visible) {
+      const parts = view === 'newProfile' ? buildNewProfile() : view === 'pin' ? buildPad() : buildProfiles();
+      root.replaceChildren(el('div', { className: 'screen-body' }, parts));
+    }
+    keepLocksTicking();
+  }
+
+  function tickLocks() {
+    const language = options.language();
+    for (const { tag, profile } of lockTags) setText(tag, lockedTag(secondsUntil(unlocksAt(profile)), language));
+    if (noticeShown && notice === 'profile.error.locked') setText(noticeShown, noticeText(notice));
+  }
+
+  function keepLocksTicking() {
+    const needed = visible && (lockTags.length > 0 || (noticeShown !== null && notice === 'profile.error.locked'));
+    if (needed && lockTicker === undefined) lockTicker = setInterval(tickLocks, LOCK_TICK_MS);
+    if (!needed && lockTicker !== undefined) {
+      clearInterval(lockTicker);
+      lockTicker = undefined;
+    }
   }
 
   const setBusy = (next: boolean) => {
@@ -188,7 +234,8 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     const waits = profiles.map((profile) => profile.lockedForSeconds).filter((seconds) => seconds > 0);
     if (waits.length === 0) return;
     unlockTimer = setTimeout(() => {
-      if (visible && view === 'profiles' && !busy) void refresh(notice);
+      const lockOver = notice === 'profile.error.locked' && secondsUntil(lockNoticeUntil) === 0;
+      if (visible && view === 'profiles' && !busy) void refresh(lockOver ? null : notice);
     }, (Math.min(...waits) + 1) * 1_000);
   }
 
@@ -200,7 +247,10 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     const result = await listProfiles();
     setBusy(false);
     loadFailed = !result.ok;
-    if (result.ok) profiles = result.value;
+    if (result.ok) {
+      profiles = result.value;
+      listedAt = performance.now();
+    }
     go('profiles', result.ok ? nextNotice : noticeFor(result.error));
     scheduleUnlock();
   }
@@ -251,13 +301,17 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
       options.signedIn(result.value);
       return;
     }
+    if (result.error === 'locked') lockNoticeUntil = performance.now() + (result.retryAfterSeconds ?? PIN_LOCK_MS / 1_000) * 1_000;
     if (view === 'pin' && RETRY_ON_PAD.has(result.error)) go('pin', noticeFor(result.error));
     else await refresh(noticeFor(result.error));
   }
 
   async function choose(profile: ProfileSummary) {
     if (busy) return;
-    if (profile.lockedForSeconds > 0) go('profiles', 'profile.error.locked');
+    if (profile.lockedForSeconds > 0) {
+      lockNoticeUntil = unlocksAt(profile);
+      go('profiles', 'profile.error.locked');
+    }
     else if (profile.hasPin) openPad({ kind: 'enter', profile });
     else await signIn(profile, undefined);
   }
