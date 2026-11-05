@@ -138,8 +138,9 @@ appear only in your terminal, never in the server's log. A reset or deletion tak
 child's next join: a game already open keeps playing until it reconnects. On a development computer,
 `node apps/server/src/admin.ts list` works the same against `.local-data/`.
 
-Five wrong PINs in a row lock a profile for a minute; it unlocks by itself, and `reset-pin` unlocks
-it at once.
+Five wrong PINs in a row lock a profile for a minute, and each lock after that twice as long, up to
+an hour, until the right PIN. It unlocks by itself, and `reset-pin` unlocks it at once. A reset or a
+delete closes that player's open game within 30 seconds.
 
 ## Backups
 

@@ -1,13 +1,16 @@
 import { MAX_PROFILES, PIN_ATTEMPTS, PIN_LOCK_MS, SaveError, createSave } from '@nebotok/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SESSION_MS } from '../src/profiles.ts';
-import { fakeClock, repeat, tempServices } from './helpers.ts';
+import { PIN_LOCK_MAX_MS, SESSION_MS } from '../src/profiles.ts';
+import { capturedLog, fakeClock, repeat, tempServices } from './helpers.ts';
 
 let clock: ReturnType<typeof fakeClock>;
 let temp: ReturnType<typeof tempServices>;
+let logged: ReturnType<typeof capturedLog>['lines'];
 beforeEach(() => {
   clock = fakeClock();
-  temp = tempServices(clock.now);
+  const captured = capturedLog();
+  logged = captured.lines;
+  temp = tempServices(clock.now, captured.log);
 });
 afterEach(() => temp.dispose());
 
@@ -74,6 +77,28 @@ describe('profiles', () => {
     expect(profiles().list()[0]?.lockedForSeconds).toBe(0);
   });
 
+  it('doubles the lock each time it comes back, up to an hour, until a right PIN', async () => {
+    const { id } = await created('Closed', '2468');
+    const lockOnce = async () => (await repeat(PIN_ATTEMPTS, () => profiles().login({ profileId: id, pin: '0000' }))).at(-1);
+    const locks = await repeat(8, async () => {
+      const locked = await lockOnce();
+      clock.advance((locked?.ok === false ? (locked.retryAfterSeconds ?? 0) : 0) * 1_000);
+      return locked;
+    });
+    const seconds = [60, 120, 240, 480, 960, 1_920, PIN_LOCK_MAX_MS / 1_000, PIN_LOCK_MAX_MS / 1_000];
+    expect(locks).toEqual(seconds.map((retryAfterSeconds) => ({ ok: false, error: 'locked', retryAfterSeconds })));
+    await token(id, '2468');
+    expect(await lockOnce()).toEqual({ ok: false, error: 'locked', retryAfterSeconds: 60 });
+  });
+
+  it('logs each lock as a warning with only the profile id', async () => {
+    const { id } = await created('Closed', '2468');
+    await repeat(PIN_ATTEMPTS, () => profiles().login({ profileId: id, pin: '0000' }));
+    const locks = logged.filter((line) => line['msg'] === 'profile locked');
+    expect(locks).toHaveLength(1);
+    expect(locks[0]).toEqual({ time: expect.any(String), level: 'warn', msg: 'profile locked', profileId: id });
+  });
+
   it('resets the count of wrong PINs after a right one', async () => {
     const { id } = await created('Closed', '2468');
     await repeat(PIN_ATTEMPTS - 1, () => profiles().login({ profileId: id, pin: '0000' }));
@@ -115,6 +140,18 @@ describe('sessions', () => {
     expect(profiles().authenticate(issued)).toBe(id);
     clock.advance(1);
     expect(profiles().authenticate(issued)).toBeNull();
+  });
+
+  it('says whether a profile has a session that has not ended', async () => {
+    const { id } = await created('Open');
+    expect(profiles().hasSession(id)).toBe(false);
+    const issued = await token(id);
+    expect(profiles().hasSession(id)).toBe(true);
+    profiles().logout(issued);
+    expect(profiles().hasSession(id)).toBe(false);
+    await token(id);
+    clock.advance(SESSION_MS);
+    expect(profiles().hasSession(id)).toBe(false);
   });
 
   it('ends a session at logout and tells the room', async () => {

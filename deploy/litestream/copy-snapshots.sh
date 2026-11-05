@@ -17,10 +17,12 @@ copy_new() {
     [ -f "$file" ] && [ ! -L "$file" ] || continue
     name=${file##*/}
     [ -e "$TARGET/$name" ] && continue
-    if cp -P "$file" "$TARGET/.partial-$name" && mv "$TARGET/.partial-$name" "$TARGET/$name"; then
+    partial="$TARGET/.partial-$name"
+    # The game could swap the file for a link after the check above, so the copy is checked again.
+    if cp -P "$file" "$partial" && [ -f "$partial" ] && [ ! -L "$partial" ] && mv "$partial" "$TARGET/$name"; then
       printf '{"level":"INFO","msg":"snapshot copied to the backup folder","file":"%s"}\n' "$name"
     else
-      rm -f "$TARGET/.partial-$name"
+      rm -f "$partial"
       printf '{"level":"ERROR","msg":"could not copy a snapshot to the backup folder","file":"%s"}\n' "$name"
     fi
   done

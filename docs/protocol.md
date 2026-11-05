@@ -35,12 +35,14 @@ requests a minute, 10 logins and 5 profile creations; past that the answer is 42
 - **Names:** 1 to 16 letters (A to Z plus č, š, ž, ć, đ, either case) and single spaces, trimmed.
   Names are unique ignoring case. At most `MAX_PROFILES` (20) profiles.
 - **Avatars:** an `id` from `content/avatars.json`.
-- **PINs:** optional, exactly four digits. Five wrong PINs in a row lock the profile for 60 seconds
-  (`locked`, with `retryAfterSeconds`); a right PIN resets the count. Only one PIN check per profile
-  runs at a time; a second one meanwhile is `busy`.
+- **PINs:** optional, exactly four digits. Five wrong PINs in a row lock the profile (`locked`, with
+  `retryAfterSeconds`): for 60 seconds the first time, and twice as long each time it is locked
+  again (2 minutes, 4 minutes and so on, at most an hour). A right PIN resets both counts. Only one
+  PIN check per profile runs at a time; a second one meanwhile is `busy`.
 - **Sessions** last 180 days. Each login starts a new session and ends the profile's previous one,
   so a token is good on one device at a time. Logout ends the session and closes the profile's seat
-  in the world (close code `signedOut`).
+  in the world (close code `signedOut`). A PIN reset or a deletion with `scripts/admin.sh` closes
+  the seat with the same code, at its next reconnection or within 30 seconds.
 
 ## Maps (HTTP)
 
@@ -56,7 +58,9 @@ const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION, la
 ```
 
 The SDK sends the token as `Authorization: Bearer <token>`. `language` (`en` or `sl`) is optional;
-it is stored in the save. A refused join throws a `ServerError`:
+it is stored in the save. Like `/api`, the join request (`POST /matchmake/…`) gets no CORS headers;
+its body must declare a `Content-Length` (else 411) of at most 1 KB (else 413). A refused join
+throws a `ServerError`:
 
 | `error.code` | Meaning | What the client does |
 | --- | --- | --- |
@@ -90,6 +94,7 @@ profile is in the state.
 
 Every message is checked by a strict zod schema. A message that does not match closes the
 connection with Colyseus's `WITH_ERROR` (4002). More than 30 messages a second also disconnects.
+More than 5 `walk.to` a second are not an error: the extra ones are dropped without an answer.
 
 Client to server:
 

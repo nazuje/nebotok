@@ -3,16 +3,18 @@ import { ErrorCode, type Room } from '@colyseus/sdk';
 import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
-import { createLog } from '../src/log.ts';
+import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
+import { WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
-import { tempServices, until } from './helpers.ts';
+import { capturedLog, tempServices, until } from './helpers.ts';
 
 let temp: ReturnType<typeof tempServices>;
 let colyseus: ColyseusTestServer;
+const logged = capturedLog();
 
 beforeAll(async () => {
   temp = tempServices();
-  colyseus = await boot(createGameServer(temp.config, createLog('silent'), temp.services));
+  colyseus = await boot(createGameServer(temp.config, logged.log, temp.services));
 });
 afterAll(async () => {
   await colyseus.shutdown();
@@ -21,6 +23,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await colyseus.cleanup();
   temp.services.db.exec('DELETE FROM players');
+  logged.lines.length = 0;
 });
 
 const map = () => temp.services.world.map;
@@ -141,6 +144,21 @@ describe('walking', () => {
     expect(at(room, room.sessionId, spawn())).toBe(true);
   });
 
+  it(`drops walk requests beyond ${WALK_TO_PER_SECOND} a second, without disconnecting`, async () => {
+    const room = await join((await profile('Test Courier')).token);
+    let refused = 0;
+    room.onMessage('walk.refused', () => {
+      refused += 1;
+    });
+    const blocked = blockedTile();
+    for (let sent = 0; sent < WALK_TO_PER_SECOND * 2; sent += 1) room.send('walk.to', blocked);
+    // Messages are handled in order, so every refusal has arrived by the time the pong does.
+    room.send('ping', { sentAt: 1 });
+    await room.waitForMessage('pong');
+    expect(refused).toBe(WALK_TO_PER_SECOND);
+    expect(room.connection.isOpen).toBe(true);
+  });
+
   it('disconnects a client that sends a malformed walk', async () => {
     const room = await join((await profile('Test Courier')).token);
     const left = leftWith(room);
@@ -181,6 +199,70 @@ describe('one character per profile', () => {
     const left = leftWith(room);
     temp.services.profiles.logout(token);
     expect(await left).toBe(CLOSE_CODES.signedOut);
+  });
+});
+
+// scripts/admin.sh runs as its own process, so its changes reach the room only through the database.
+const endSessionsElsewhere = (id: number) => temp.services.db.prepare('DELETE FROM sessions WHERE player_id = ?').run(id);
+const deleteElsewhere = (id: number) => temp.services.db.prepare('DELETE FROM players WHERE id = ?').run(id);
+const failedSaves = () => logged.lines.filter((line) => line['msg'] === 'could not save a player');
+const saveRound = (room: Room<unknown, WorldState>) => colyseus.getRoomById<WorldRoom>(room.roomId).checkSeats();
+
+/** Drops a player, applies `change` meanwhile, and reports the code their reconnection ended with. */
+async function reconnectAfter(change: (id: number) => unknown): Promise<number> {
+  const { id, token } = await profile('Test Courier');
+  const watcher = await join((await profile('Watching Courier')).token);
+  const dropper = await join(token);
+  const { reconnectionToken, sessionId } = dropper;
+  await dropper.leave(false);
+  await until(() => watcher.state.players.get(sessionId)?.connected === false, 'the watcher to see the drop');
+  change(id);
+  const closed = await colyseus.sdk.reconnect<WorldState>(reconnectionToken).then(
+    (back) => (back.connection.isOpen ? leftWith(back) : Promise.resolve(-1)),
+    (error: { code?: number }) => error.code ?? -1,
+  );
+  await until(() => !watcher.state.players.has(sessionId), 'the seat to be given up');
+  return closed;
+}
+
+describe('seats follow the database', () => {
+  it('closes a seat that reconnects after its session ended elsewhere', async () => {
+    expect(await reconnectAfter(endSessionsElsewhere)).toBe(CLOSE_CODES.signedOut);
+    expect(failedSaves()).toEqual([]);
+  });
+
+  it('closes a seat that reconnects after its profile was deleted elsewhere, without a failed save', async () => {
+    expect(await reconnectAfter(deleteElsewhere)).toBe(CLOSE_CODES.signedOut);
+    expect(failedSaves()).toEqual([]);
+  });
+
+  it('closes a connected seat at the next save round once its session ended elsewhere', async () => {
+    const { id, token } = await profile('Test Courier');
+    const room = await join(token);
+    const left = leftWith(room);
+    endSessionsElsewhere(id);
+    saveRound(room);
+    expect(await left).toBe(CLOSE_CODES.signedOut);
+  });
+
+  it('closes a connected seat at the next save round once its profile was deleted elsewhere, without a failed save', async () => {
+    const { id, token } = await profile('Test Courier');
+    const watcher = await join((await profile('Watching Courier')).token);
+    const room = await join(token);
+    const left = leftWith(room);
+    deleteElsewhere(id);
+    saveRound(room);
+    expect(await left).toBe(CLOSE_CODES.signedOut);
+    await until(() => !watcher.state.players.has(room.sessionId), 'the seat to be given up');
+    expect(failedSaves()).toEqual([]);
+  });
+
+  it('keeps and saves a seat whose session is still good', async () => {
+    const { id, token } = await profile('Test Courier');
+    const room = await join(token);
+    saveRound(room);
+    await until(() => temp.services.progress.load(id) !== null, 'the save');
+    expect(room.connection.isOpen).toBe(true);
   });
 });
 
@@ -241,6 +323,44 @@ describe('messages', () => {
     const left = leftWith(room);
     room.send('ping', { sentAt: 'soon' });
     expect(await left).toBe(4002);
+  });
+});
+
+const elsewhere = 'https://elsewhere.example';
+const endpoint = () => `http://${colyseus.sdk.settings.hostname}:${colyseus.sdk.settings.port}`;
+const joinUrl = () => `${endpoint()}/matchmake/joinOrCreate/world`;
+
+describe('matchmaking over HTTP', () => {
+  it('sends no CORS headers, so a page elsewhere can neither read a join nor preflight one', async () => {
+    const { token } = await profile('Test Courier');
+    const preflight = await fetch(joinUrl(), { method: 'OPTIONS', headers: { origin: elsewhere, 'access-control-request-method': 'POST' } });
+    const joined = await fetch(joinUrl(), {
+      method: 'POST',
+      headers: { origin: elsewhere, 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ protocol: PROTOCOL_VERSION }),
+    });
+    const api = await fetch(`${endpoint()}/api/profiles`, { headers: { origin: elsewhere } });
+    expect(joined.status).toBe(200);
+    expect(api.status).toBe(200);
+    for (const response of [preflight, joined, api]) {
+      expect(response.headers.get('access-control-allow-origin')).toBeNull();
+      expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+    }
+  });
+
+  it(`refuses a join body over ${MATCHMAKE_BODY_LIMIT} bytes, or of unknown length`, async () => {
+    const body = JSON.stringify({ protocol: PROTOCOL_VERSION, padding: 'x'.repeat(MATCHMAKE_BODY_LIMIT) });
+    const tooBig = await fetch(joinUrl(), { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+    const encoded = new TextEncoder().encode(JSON.stringify({ protocol: PROTOCOL_VERSION }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoded);
+        controller.close();
+      },
+    });
+    const unknownLength = await fetch(joinUrl(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: stream, duplex: 'half' } as RequestInit);
+    expect(tooBig.status).toBe(413);
+    expect(unknownLength.status).toBe(411);
   });
 });
 

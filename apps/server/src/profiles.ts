@@ -12,10 +12,13 @@ import {
   type ProfileError,
   type ProfileSummary,
 } from '@nebotok/core';
+import type { Log } from './log.ts';
 import { hashPin, verifyPin } from './pin.ts';
 
 /** How long a login lasts on a device before the player picks their profile again. */
 export const SESSION_MS = 180 * 24 * 60 * 60 * 1_000;
+/** The longest a PIN lock lasts: each lock in a row doubles PIN_LOCK_MS up to this. */
+export const PIN_LOCK_MAX_MS = 60 * 60 * 1_000;
 const TOKEN_BYTES = 32;
 const MAX_TOKEN_LENGTH = 100;
 
@@ -27,6 +30,7 @@ type Row = {
   pin_salt: Uint8Array | null;
   failed_pins: number;
   locked_until: number;
+  lock_count: number;
   created_at: number;
 };
 
@@ -42,6 +46,8 @@ export type ProfileStore = {
   login(request: LoginRequest): Promise<Result<LoginResponse>>;
   /** The player a session token belongs to, or null when it is unknown or expired. */
   authenticate(token: unknown): number | null;
+  /** Whether the player has a session that has not ended. The database is the truth: admin.ts runs as its own process. */
+  hasSession(playerId: number): boolean;
   /** Ends the session; true when there was one. */
   logout(token: unknown): boolean;
   /** Sets a new random PIN, ends every session of the profile and returns the PIN to tell its owner. */
@@ -70,7 +76,12 @@ function isUniqueViolation(error: unknown): boolean {
   return error instanceof Error && /UNIQUE constraint failed/.test(error.message);
 }
 
-export function createProfileStore({ db, now, avatars }: { db: DatabaseSync; now: () => number; avatars: ReadonlySet<string> }): ProfileStore {
+/** PIN_LOCK_MS for the first lock in a row, doubling with each one after, up to PIN_LOCK_MAX_MS. */
+function lockMs(earlierLocks: number): number {
+  return Math.min(PIN_LOCK_MS * 2 ** earlierLocks, PIN_LOCK_MAX_MS);
+}
+
+export function createProfileStore({ db, now, avatars, log }: { db: DatabaseSync; now: () => number; avatars: ReadonlySet<string>; log: Log }): ProfileStore {
   const events = new EventEmitter<{ signedOut: [number] }>();
   const verifying = new Set<number>();
   const sql = {
@@ -79,13 +90,14 @@ export function createProfileStore({ db, now, avatars }: { db: DatabaseSync; now
     byKey: db.prepare('SELECT * FROM players WHERE name_key = ?'),
     count: db.prepare('SELECT count(*) AS n FROM players'),
     insert: db.prepare('INSERT INTO players (name, name_key, avatar, pin_hash, pin_salt, created_at) VALUES (?, ?, ?, ?, ?, ?)'),
-    setFailures: db.prepare('UPDATE players SET failed_pins = ?, locked_until = ? WHERE id = ?'),
-    setPin: db.prepare('UPDATE players SET pin_hash = ?, pin_salt = ?, failed_pins = 0, locked_until = 0 WHERE id = ?'),
+    setFailures: db.prepare('UPDATE players SET failed_pins = ?, locked_until = ?, lock_count = ? WHERE id = ?'),
+    setPin: db.prepare('UPDATE players SET pin_hash = ?, pin_salt = ?, failed_pins = 0, locked_until = 0, lock_count = 0 WHERE id = ?'),
     remove: db.prepare('DELETE FROM players WHERE id = ?'),
     endSessions: db.prepare('DELETE FROM sessions WHERE player_id = ? OR expires_at <= ?'),
     endSessionsOf: db.prepare('DELETE FROM sessions WHERE player_id = ?'),
     startSession: db.prepare('INSERT INTO sessions (token_hash, player_id, expires_at, created_at) VALUES (?, ?, ?, ?)'),
     session: db.prepare('SELECT player_id FROM sessions WHERE token_hash = ? AND expires_at > ?'),
+    hasSession: db.prepare('SELECT 1 FROM sessions WHERE player_id = ? AND expires_at > ? LIMIT 1'),
     endSession: db.prepare('DELETE FROM sessions WHERE token_hash = ? RETURNING player_id'),
   };
   const row = (id: number) => sql.byId.get(id) as Row | undefined;
@@ -108,7 +120,7 @@ export function createProfileStore({ db, now, avatars }: { db: DatabaseSync; now
     return { token, expiresAt };
   }
 
-  /** Checks the PIN and counts failures. Several wrong PINs in a row lock the profile for a while. */
+  /** Checks the PIN and counts failures. Several wrong PINs in a row lock the profile, longer each time. */
   async function checkPin(found: Row, pin: string | undefined): Promise<Result<Row>> {
     if (found.pin_hash === null || found.pin_salt === null) return { ok: true, value: found };
     if (pin === undefined) return fail('pinInvalid');
@@ -124,16 +136,18 @@ export function createProfileStore({ db, now, avatars }: { db: DatabaseSync; now
     const current = row(found.id);
     if (!current) return fail('unknown');
     if (right) {
-      sql.setFailures.run(0, 0, current.id);
+      sql.setFailures.run(0, 0, 0, current.id);
       return { ok: true, value: current };
     }
     const failures = current.failed_pins + 1;
     if (failures < PIN_ATTEMPTS) {
-      sql.setFailures.run(failures, current.locked_until, current.id);
+      sql.setFailures.run(failures, current.locked_until, current.lock_count, current.id);
       return fail('pinWrong');
     }
-    sql.setFailures.run(0, now() + PIN_LOCK_MS, current.id);
-    return fail('locked', Math.ceil(PIN_LOCK_MS / 1_000));
+    const lockedFor = lockMs(current.lock_count);
+    sql.setFailures.run(0, now() + lockedFor, current.lock_count + 1, current.id);
+    log.warn('profile locked', { profileId: current.id });
+    return fail('locked', Math.ceil(lockedFor / 1_000));
   }
 
   return {
@@ -181,6 +195,8 @@ export function createProfileStore({ db, now, avatars }: { db: DatabaseSync; now
       const found = sql.session.get(tokenHash(token), now()) as { player_id: number } | undefined;
       return found?.player_id ?? null;
     },
+
+    hasSession: (playerId) => sql.hasSession.get(playerId, now()) !== undefined,
 
     logout(token) {
       if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return false;
