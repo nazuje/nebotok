@@ -71,7 +71,9 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
 - **Tiles.** The map's tileset is drawn from its list in `content/art/tilesets/`, each tile's
   first frame. A tile with animations plays its first one forever, every copy on the map in step
   (tall grass sways this way). Players who ask their device for reduced motion see only the first
-  frame.
+  frame. A tile is only a picture: where wild creatures appear is the map's `encounters` layer, and
+  where players rest is its `shrines` layer (`docs/tiled.md`), so paint tall grass and shrine tiles
+  over those.
 - **Couriers.** The frames are `<facing>-<pose>` for the facings `down`, `up` and `right` (left is
   right mirrored) and the poses `stand`, `step-a` and `step-b`; the 14 rows above the feet stay the
   same in every pose. The animations `walk-down`, `walk-up` and `walk-right` play
@@ -111,7 +113,8 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
 
 ## How to add a sprite
 
-A worked example: a placeholder treat, `items/sun-berry`, and a rain-coloured recolour of it.
+A worked example: a berry, `items/sun-berry`, and a rain-coloured recolour of it. (The treats in
+`items.json` are drawn the same way: `items/plain-treat` and one recolour per weather type.)
 
 1. **Write the file**, `content/art/items/sun-berry.json`. Items are 16×16, outlined, lit from the
    top left:
