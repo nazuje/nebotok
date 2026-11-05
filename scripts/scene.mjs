@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
+import { PROTOCOL_VERSION, inBounds, isWalkable } from '../packages/core/src/index.ts';
 import { BROWSERS, DEVICES, apiCall, inWorld, readState, reportCspViolations, screenshot, selfIn, servedMap, settledOn, signOut, tappable, tilesToScreen, until, watch } from './lib/game-page.mjs';
 import { inTurn, sleep } from './lib/in-turn.mjs';
 import { parseScene } from './lib/scene-file.mjs';
@@ -143,6 +143,10 @@ const checkTile = (tile) => {
   if (!isWalkable(world.map, tile) || !world.reach[tile.y * world.map.width + tile.x]) throw new Error(`no courier can stand on tile ${tile.x},${tile.y}`);
 };
 
+const checkOnMap = (tile) => {
+  if (!inBounds(world.map, tile)) throw new Error(`tile ${tile.x},${tile.y} is off the map`);
+};
+
 /** Steps on foot from every tile to `to`, Infinity where it cannot be reached. */
 function stepsTo(to) {
   const { map } = world;
@@ -188,6 +192,10 @@ async function walk(page, to, taps = MAX_TAPS) {
 const standing = (player, tile) => player && !player.moving && player.x === tile.x && player.y === tile.y && player.drawn.x === tile.x && player.drawn.y === tile.y;
 const quietly = (closing) => closing.catch(() => {});
 
+const apart = (a, b) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+/** No name tag on the page covers another. */
+const tagsApart = (state) => state.tags.every((tag, index) => state.tags.every((other, at) => at === index || apart(tag, other)));
+
 /** Whether the page shows everything a `waitFor` step asks for. */
 function shows(state, wanted) {
   const other = (id) => state.players.find((player) => !player.self && player.name === nameOf(id));
@@ -197,7 +205,12 @@ function shows(state, wanted) {
     (!wanted.at || Boolean(settledOn(state, wanted.at))) &&
     (wanted.sees ?? []).every((id) => other(id)?.connected === true) &&
     (wanted.away ?? []).every((id) => other(id)?.connected === false) &&
-    Object.entries(wanted.seesAt ?? {}).every(([id, tile]) => other(id)?.connected === true && standing(other(id), tile))
+    Object.entries(wanted.seesAt ?? {}).every(([id, tile]) => other(id)?.connected === true && standing(other(id), tile)) &&
+    (!wanted.tagsApart || tagsApart(state)) &&
+    (!wanted.unmarked || state.marker === null) &&
+    (!wanted.welcome || wanted.welcome.includes(state.welcome === null ? 'hidden' : state.welcome.replace('welcome.', ''))) &&
+    (!wanted.toast || wanted.toast === (state.toast === null ? 'hidden' : state.toast.replace('walk.', ''))) &&
+    (!wanted.hint || wanted.hint === (state.hint ?? 'hidden'))
   );
 }
 
@@ -210,7 +223,7 @@ const STEPS = {
     return walk(pageOf(entry.player), entry.to);
   },
   tap: async (entry) => {
-    checkTile(entry.tile);
+    checkOnMap(entry.tile);
     const page = pageOf(entry.player);
     const [spot] = await tilesToScreen(page, [entry.tile]);
     if (!tappable(page, spot)) throw new Error(`tile ${entry.tile.x},${entry.tile.y} is not on ${entry.player}'s screen; "walk" there instead`);

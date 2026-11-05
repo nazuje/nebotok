@@ -56,7 +56,12 @@ export function createSettings(
     render();
   };
 
-  toggle.addEventListener('click', () => setOpen(!open));
+  toggle.addEventListener('click', (event) => {
+    setOpen(!open);
+    // A click by mouse or touch leaves no focus behind, so Space pressed later does not toggle the
+    // panel again. A keyboard press (detail 0) keeps its focus.
+    if (event.detail > 0) toggle.blur();
+  });
   languageButton.addEventListener('click', () => actions.onLanguage());
   controlsButton.addEventListener('click', () => actions.onControls());
   switchButton.addEventListener('click', () => {

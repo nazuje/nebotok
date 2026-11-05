@@ -11,6 +11,7 @@ import {
   WalkToMessage,
   createSave,
   createWalker,
+  freeTileNear,
   inBounds,
   isCompatibleProtocol,
   isWalkable,
@@ -38,6 +39,8 @@ const WORLD: WorldInfo = { name: 'sky' };
 export const RECONNECT_SECONDS = 180;
 export const TICK_RATE = 20;
 export const SAVE_EVERY_MS = 30_000;
+/** A walker that comes to a stop is saved too, but one seat at most this often, so a crash loses little. */
+export const STOP_SAVE_GAP_MS = 5_000;
 const MAX_PLAYERS = 16;
 /** Each walk.to runs a path search; more than this a second from one client are dropped. */
 export const WALK_TO_PER_SECOND = 5;
@@ -64,6 +67,10 @@ type Seat = {
   readonly canSave: boolean;
   walker: Walker;
   dirty: boolean;
+  /** When this seat was last saved, by the room's clock. */
+  savedAt: number;
+  /** Set when its walker stopped; saved once STOP_SAVE_GAP_MS has passed since the last save. */
+  stopped: boolean;
   /** Set when the same profile joined again elsewhere; this seat then ends without saving. */
   replaced: boolean;
   /** Set when the server itself closes this seat (take-over, sign-out): no reconnection is offered. */
@@ -144,6 +151,8 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
         canSave: start.canSave,
         walker: start.walker,
         dirty: true,
+        savedAt: Number.NEGATIVE_INFINITY,
+        stopped: false,
         replaced: false,
         closing: false,
         reconnection: null,
@@ -212,18 +221,24 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       return undefined;
     }
 
-    /** The saved position when it is still a walkable tile of this map, else the spawn. */
+    /** The saved position when it is still a walkable tile of this map, else the free tile nearest the spawn. */
     private load(playerId: number): { walker: Walker; canSave: boolean; language: Language } {
       let save: SaveFile | null = null;
       try {
         save = progress.load(playerId);
       } catch (error) {
         log.warn('save unreadable; this player will not be saved', { playerId, error: error instanceof Error ? error.message : String(error) });
-        return { walker: createWalker(spawn), canSave: false, language: 'en' };
+        return { walker: createWalker(this.arrival()), canSave: false, language: 'en' };
       }
       const position = save?.data.position;
       const usable = position && position.map === map.id && isWalkable(map, position);
-      return { walker: usable ? createWalker(position, position.facing) : createWalker(spawn), canSave: true, language: save?.data.language ?? 'en' };
+      return { walker: usable ? createWalker(position, position.facing) : createWalker(this.arrival()), canSave: true, language: save?.data.language ?? 'en' };
+    }
+
+    /** New arrivals spread out around the spawn, so nobody appears on top of someone already there, away players included. */
+    private arrival(): Point {
+      const taken = [...this.seats.values()].filter((seat) => !seat.replaced).map((seat) => seat.walker);
+      return freeTileNear(map, spawn, taken);
     }
 
     private replace(sessionId: string, seat: Seat) {
@@ -260,11 +275,17 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
     }
 
     private tick(dtMs: number) {
+      const at = now();
       for (const [sessionId, seat] of this.seats) {
         const before = seat.walker;
         const after = stepWalker(map, before, dtMs, stepMs);
         seat.walker = after;
         if (after.x !== before.x || after.y !== before.y || after.facing !== before.facing) seat.dirty = true;
+        if (before.moving && !after.moving) seat.stopped = true;
+        if (seat.stopped && !seat.replaced && !seat.closing && at - seat.savedAt >= STOP_SAVE_GAP_MS) {
+          seat.stopped = false;
+          this.save(seat);
+        }
         this.show(sessionId, after);
       }
     }
@@ -299,6 +320,7 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       try {
         progress.save(seat.playerId, createSave({ name: seat.name, language: seat.language, createdAt: seat.createdAt, position: { map: map.id, x, y, facing } }));
         seat.dirty = false;
+        seat.savedAt = now();
       } catch (error) {
         log.warn('could not save a player', { playerId: seat.playerId, error: error instanceof Error ? error.message : String(error) });
       }
