@@ -13,21 +13,34 @@
     <title>Nebotok</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body>
+  <body data-screen="profiles">
     <div id="world" aria-hidden="true"></div>
+    <section id="profiles" class="screen" hidden></section>
     <header class="hud">
-      <h1 class="title" data-text="game.title">Nebotok</h1>
-      <div class="hud-right">
+      <div class="hud-left">
+        <h1 class="title" data-text="game.title">Nebotok</h1>
         <p class="badge" role="status" aria-live="polite" data-status="connecting">
           <span class="badge-dot" aria-hidden="true"></span>
           <span class="badge-text"></span>
         </p>
-        <button class="language" type="button">
-          <span class="language-option" data-language="en">EN</span>
-          <span class="language-option" data-language="sl">SL</span>
-        </button>
       </div>
+      <button class="settings-button" type="button" aria-expanded="false" aria-controls="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path
+            fill-rule="evenodd"
+            d="M19.78 10.13 22.4 10.52 22.4 13.48 19.78 13.87 18.82 16.18 20.4 18.3 18.3 20.4 16.18 18.82 13.87 19.78 13.48 22.4 10.52 22.4 10.13 19.78 7.82 18.82 5.7 20.4 3.6 18.3 5.18 16.18 4.22 13.87 1.6 13.48 1.6 10.52 4.22 10.13 5.18 7.82 3.6 5.7 5.7 3.6 7.82 5.18 10.13 4.22 10.52 1.6 13.48 1.6 13.87 4.22 16.18 5.18 18.3 3.6 20.4 5.7 18.82 7.82zM15.5 12a3.5 3.5 0 1 0 -7 0a3.5 3.5 0 1 0 7 0z"
+          />
+        </svg>
+      </button>
     </header>
+    <div id="settings" class="settings" role="group" hidden>
+      <p class="settings-language"></p>
+      <button class="language" type="button">
+        <span class="language-option" data-language="en">EN</span>
+        <span class="language-option" data-language="sl">SL</span>
+      </button>
+      <button class="switch-player secondary" type="button" hidden></button>
+    </div>
     <p class="welcome" hidden></p>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,55 +1,41 @@
-import { LoginResponse, ProfileSummary } from '@nebotok/core';
+import type { LoginResponse } from '@nebotok/core';
 import { z } from 'zod';
 
 const STORAGE_KEY = 'nebotok:session';
-const StoredSession = z.object({ token: z.string().min(1).max(100) });
+
+/** The token, plus enough of the profile to show who is playing before the world answers. */
+const StoredSession = z.object({
+  token: z.string().min(1).max(100),
+  profile: z.object({ id: z.number().int().min(1), name: z.string().min(1).max(16), avatar: z.string().min(1).max(20) }).optional(),
+});
+export type StoredSession = z.infer<typeof StoredSession>;
 
 /** In dev, Vite proxies /colyseus to the server and strips the prefix. */
 export const SERVER_BASE = import.meta.env.DEV ? '/colyseus' : '';
 
-/** The session token this device logged in with, if any. The profile screen will write it. */
-export function storedToken(): string | null {
+/** The session this device last signed in with, if any. */
+export function storedSession(): StoredSession | null {
   try {
     const parsed = StoredSession.safeParse(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'));
-    return parsed.success ? parsed.data.token : null;
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
 }
 
-export function saveToken(token: string): void {
+export function saveSession({ token, profile }: LoginResponse): void {
+  const stored: StoredSession = { token, profile: { id: profile.id, name: profile.name, avatar: profile.avatar } };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch {
     // Private browsing can refuse storage; the session then lasts until the page closes.
   }
 }
 
-export function forgetToken(): void {
+export function forgetSession(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Nothing stored, nothing to forget.
   }
-}
-
-const DEV_PROFILE = { name: 'Dev Courier', avatar: 'blue' } as const;
-
-async function api(path: string, body?: unknown): Promise<unknown> {
-  const init: RequestInit = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-  const response = await fetch(`${SERVER_BASE}/api${path}`, init);
-  if (!response.ok) throw new Error(`${path} answered ${response.status}`);
-  return response.json();
-}
-
-/**
- * Development only, until the profile screen exists: signs this browser in as a shared dev profile,
- * creating it on first use. Production builds leave this out.
- */
-export async function devSignIn(): Promise<string> {
-  const profiles = z.array(ProfileSummary).parse(await api('/profiles'));
-  const profile = profiles.find((found) => found.name === DEV_PROFILE.name) ?? ProfileSummary.parse(await api('/profiles', DEV_PROFILE));
-  const { token } = LoginResponse.parse(await api('/sessions', { profileId: profile.id }));
-  saveToken(token);
-  return token;
 }
