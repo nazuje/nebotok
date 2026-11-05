@@ -1,5 +1,8 @@
 import type { Direction, Language, Point, StringId } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
+import type { Controls } from './controls-choice.ts';
+import type { Input } from './input.ts';
+import type { WorldView } from './world-view.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
 export type Screen = ProfileView | 'world';
@@ -30,6 +33,12 @@ export type TestSnapshot = {
   /** The map whose tiles are drawn, if any. */
   map: string | null;
   players: TestPlayer[];
+  controls: Controls;
+  /** The tile the walk marker shows, if any. */
+  marker: Point | null;
+  /** Your own courier as this page predicts it, before the server confirms. */
+  predicted: ReturnType<WorldView['predicted']>;
+  input: ReturnType<Input['state']>;
   /** The profile this device is signed in as, if any. */
   profile: { id: number; name: string; avatar: string } | null;
   profiles: ProfileScreenState['profiles'];

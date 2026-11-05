@@ -1,5 +1,5 @@
 import { PLAYER_SPAWN, type Point } from '@nebotok/core';
-import { Loader, Scale, Scene, Scenes, Tilemaps, type GameObjects } from 'phaser';
+import { Loader, Scale, Scene, Scenes, Tilemaps, type GameObjects, type Time, type Tweens } from 'phaser';
 import { courierTexture, frameName, walkAnimation } from './couriers.ts';
 import type { LoadedMap } from './map-loader.ts';
 import type { ShownPlayer, WorldView } from './world-view.ts';
@@ -10,6 +10,10 @@ const SKY = '#8fd3ff';
 /** How much of the gap to its courier the camera closes each frame. */
 const FOLLOW_LERP = 0.15;
 const PLAYER_DEPTH = 100;
+const MARKER_DEPTH = PLAYER_DEPTH - 1;
+const MARKER_COLOUR = 0xffffff;
+const REFUSED_COLOUR = 0xd64545;
+const REFUSED_MS = 450;
 const AWAY_ALPHA = 0.5;
 const AWAY_TINT = 0xb8c4d0;
 
@@ -18,6 +22,8 @@ export type NameLabel = { readonly id: string; readonly name: string; readonly a
 
 export type WorldSceneOptions = {
   readonly view: WorldView;
+  /** Called at the start of every frame, before anything is drawn. */
+  frame(now: number): void;
   /** Called after every frame is drawn, with where the other players' names go. */
   labels(labels: readonly NameLabel[]): void;
 };
@@ -36,6 +42,11 @@ export class WorldScene extends Scene {
   private currentMap: Tilemaps.Tilemap | null = null;
   private spawnTile: Point = { x: 0, y: 0 };
   private markBooted: () => void = () => {};
+  private marker: GameObjects.Graphics | null = null;
+  private markerPulse: Tweens.Tween | null = null;
+  private markerTimer: Time.TimerEvent | null = null;
+  /** The tile the marker shows, unless it is only a short "can't go there". */
+  markerTile: Point | null = null;
 
   constructor(options: WorldSceneOptions) {
     super(WORLD_SCENE);
@@ -73,8 +84,10 @@ export class WorldScene extends Scene {
   }
 
   override update(): void {
+    const now = performance.now();
+    this.options.frame(now);
     const view = this.options.view;
-    const shown = this.mapId === null ? [] : view.shown(performance.now());
+    const shown = this.mapId === null ? [] : view.shown(now);
     const seen = new Set<string>();
     for (const player of shown) {
       seen.add(player.id);
@@ -93,6 +106,45 @@ export class WorldScene extends Scene {
   /** Where the centre of a tile is on the page, in CSS pixels. */
   tileToScreen(x: number, y: number): Point {
     return this.toScreen(x * TILE + TILE / 2, y * TILE + TILE / 2);
+  }
+
+  /** The map tile under a spot on the page, or null off the map. */
+  screenToTile(x: number, y: number): Point | null {
+    if (!this.currentMap) return null;
+    const view = this.cameras.main.worldView;
+    const canvas = this.game.canvas.getBoundingClientRect();
+    const scale = canvas.width / this.scale.width;
+    const tile = { x: Math.floor((view.x + (x - canvas.left) / scale) / TILE), y: Math.floor((view.y + (y - canvas.top) / scale) / TILE) };
+    if (tile.x < 0 || tile.y < 0 || tile.x >= this.currentMap.width || tile.y >= this.currentMap.height) return null;
+    return tile;
+  }
+
+  /**
+   * Marks the tile your courier is walking to, or, when `refused`, flashes a cross on a tile it
+   * cannot reach. Null takes the marker away.
+   */
+  setMarker(tile: Point | null, refused = false): void {
+    this.markerTimer?.remove();
+    this.markerTimer = null;
+    this.markerPulse?.remove();
+    this.markerPulse = null;
+    this.markerTile = refused ? this.markerTile : tile;
+    const marker = (this.marker ??= this.add.graphics().setDepth(MARKER_DEPTH));
+    marker.clear().setAlpha(1);
+    if (!tile) return;
+    marker.setPosition(tile.x * TILE, tile.y * TILE);
+    // Whole-pixel rectangles rather than lines, so the marker stays as crisp as the tiles.
+    if (refused) {
+      marker.fillStyle(REFUSED_COLOUR, 1);
+      for (let at = 4; at < TILE - 4; at += 1) marker.fillRect(at, at, 2, 1).fillRect(TILE - 2 - at, at, 2, 1);
+      this.markerTimer = this.time.delayedCall(REFUSED_MS, () => this.setMarker(this.markerTile));
+      return;
+    }
+    // Four corner brackets: clear on grass, paths and floors alike, and they leave the tile visible.
+    marker.fillStyle(MARKER_COLOUR, 1);
+    for (const [x, y] of [[0, 0], [TILE - 5, 0], [0, TILE - 2], [TILE - 5, TILE - 2]] as const) marker.fillRect(x, y, 5, 2);
+    for (const [x, y] of [[0, 0], [TILE - 2, 0], [0, TILE - 5], [TILE - 2, TILE - 5]] as const) marker.fillRect(x, y, 2, 5);
+    if (!reducedMotion()) this.markerPulse = this.tweens.add({ targets: marker, alpha: 0.45, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   private toScreen(worldX: number, worldY: number): Point {

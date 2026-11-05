@@ -24,7 +24,9 @@ changing Phaser code, and use Phaser 4 APIs only.
 - **World drawing.** `src/world-feed.ts` copies the room's state into the view model
   (`src/world-view.ts`), which `src/world-scene.ts` reads every frame. Others are drawn
   `OTHERS_DELAY_MS` in the past along their `src/track.ts` so each step is smooth; prediction of
-  your own courier belongs in the view model, not the scene. Names over couriers are HTML
-  (`src/names.ts`).
+  your own courier lives in the view model too (`src/self-walker.ts`), not the scene. Names over
+  couriers are HTML (`src/names.ts`).
+- **Input** (`src/input.ts`) sends every movement command through `src/outbox.ts`, which keeps
+  a page under the server's message limits however fast it is tapped or mashed.
 - Unit tests for pure helpers go in `test/` (`npx vitest run --project game-unit`); anything that
   needs a page is the browser check at verify level 4.

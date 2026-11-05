@@ -1,0 +1,180 @@
+import { samePoint, type Direction, type Point } from '@nebotok/core';
+import type { Controls } from './controls-choice.ts';
+import type { Outbox } from './outbox.ts';
+
+/** How far the thumb moves from where it landed before the joystick picks a direction, in CSS px. */
+export const JOYSTICK_DEAD_ZONE = 14;
+/** How far the knob can travel from the centre of the joystick, in CSS px. */
+export const JOYSTICK_REACH = 44;
+
+const KEYS: Readonly<Record<string, Direction>> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  KeyW: 'up',
+  KeyS: 'down',
+  KeyA: 'left',
+  KeyD: 'right',
+};
+
+/** The direction a thumb points from where it landed, by the longer axis, or null near the middle. */
+export function joystickDirection(dx: number, dy: number, deadZone = JOYSTICK_DEAD_ZONE): Direction | null {
+  if (Math.hypot(dx, dy) < deadZone) return null;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
+}
+
+export type InputDeps = {
+  /** The element over the world that receives touches and clicks. */
+  surface: HTMLElement;
+  joystick: { base: HTMLElement; knob: HTMLElement };
+  outbox: Outbox;
+  controls(): Controls;
+  /** False while a menu is open or nobody is in the world: input then does nothing. */
+  active(): boolean;
+  screenToTile(x: number, y: number): Point | null;
+  canReach(tile: Point): boolean;
+  marker(tile: Point | null, refused?: boolean): void;
+};
+
+export type Input = {
+  /** Runs once a frame: a finger held down keeps walking toward the tile under it. */
+  frame(): void;
+  /** Lets go of everything, as when the world is left. */
+  release(): void;
+  state(): { joystick: Direction | 'centre' | null; keys: Direction[] };
+};
+
+type Held = { id: number; x: number; y: number };
+
+/**
+ * Touch, mouse and keyboard. A tap walks to the tile under it, and a finger held down keeps
+ * walking toward whatever tile is under it as the world scrolls. With the joystick chosen, a thumb
+ * landing on the left half steers in four directions instead. Arrows and WASD always work. Every
+ * command goes through the outbox, so mashing cannot flood the server.
+ */
+export function createInput(deps: InputDeps): Input {
+  const { surface, joystick, outbox } = deps;
+  let tap: Held | null = null;
+  let tapTarget: Point | null = null;
+  let stick: (Held & { originX: number; originY: number; direction: Direction | null }) | null = null;
+  const keys: Direction[] = [];
+
+  function walkToward(x: number, y: number, first: boolean) {
+    const tile = deps.screenToTile(x, y);
+    if (!tile || (tapTarget && samePoint(tile, tapTarget))) return;
+    if (!deps.canReach(tile)) {
+      if (first) deps.marker(tile, true);
+      return;
+    }
+    tapTarget = tile;
+    deps.marker(tile);
+    outbox.send({ kind: 'to', target: tile });
+  }
+
+  function steer() {
+    const direction = keys.at(-1) ?? stick?.direction ?? null;
+    if (direction) deps.marker(null);
+    outbox.send(direction ? { kind: 'hold', direction } : { kind: 'stop' });
+  }
+
+  function showStick() {
+    if (!stick) {
+      joystick.base.hidden = true;
+      return;
+    }
+    const dx = stick.x - stick.originX;
+    const dy = stick.y - stick.originY;
+    const length = Math.hypot(dx, dy);
+    const scale = length > JOYSTICK_REACH ? JOYSTICK_REACH / length : 1;
+    joystick.base.hidden = false;
+    joystick.base.style.transform = `translate(${stick.originX}px, ${stick.originY}px) translate(-50%, -50%)`;
+    joystick.knob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
+    joystick.base.dataset.direction = stick.direction ?? 'centre';
+  }
+
+  surface.addEventListener('pointerdown', (event) => {
+    if (!deps.active() || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    const held = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    if (deps.controls() === 'joystick' && !stick && event.clientX < window.innerWidth / 2) {
+      stick = { ...held, originX: held.x, originY: held.y, direction: null };
+      showStick();
+    } else if (!tap) {
+      // A second finger while one is already walking is ignored, so a resting palm does nothing.
+      tap = held;
+      tapTarget = null;
+      walkToward(held.x, held.y, true);
+    } else {
+      return;
+    }
+    surface.setPointerCapture?.(event.pointerId);
+  });
+
+  surface.addEventListener('pointermove', (event) => {
+    if (tap?.id === event.pointerId) {
+      tap.x = event.clientX;
+      tap.y = event.clientY;
+    }
+    if (stick?.id === event.pointerId) {
+      stick.x = event.clientX;
+      stick.y = event.clientY;
+      const direction = joystickDirection(stick.x - stick.originX, stick.y - stick.originY);
+      if (direction !== stick.direction) {
+        stick.direction = direction;
+        steer();
+      }
+      showStick();
+    }
+  });
+
+  const letGo = (event: PointerEvent) => {
+    if (tap?.id === event.pointerId) tap = null;
+    if (stick?.id === event.pointerId) {
+      const steering = stick.direction !== null;
+      stick = null;
+      showStick();
+      if (steering) steer();
+    }
+  };
+  surface.addEventListener('pointerup', letGo);
+  surface.addEventListener('pointercancel', letGo);
+  surface.addEventListener('lostpointercapture', letGo);
+
+  window.addEventListener('keydown', (event) => {
+    const direction = KEYS[event.code];
+    if (!direction || event.altKey || event.ctrlKey || event.metaKey || !deps.active()) return;
+    event.preventDefault();
+    if (event.repeat || keys.includes(direction)) return;
+    keys.push(direction);
+    steer();
+  });
+  window.addEventListener('keyup', (event) => {
+    const direction = KEYS[event.code];
+    const at = direction ? keys.indexOf(direction) : -1;
+    if (at === -1) return;
+    keys.splice(at, 1);
+    steer();
+  });
+
+  const release = () => {
+    const steering = keys.length > 0 || stick?.direction != null;
+    tap = null;
+    tapTarget = null;
+    stick = null;
+    keys.length = 0;
+    showStick();
+    if (steering) outbox.send({ kind: 'stop' });
+  };
+  // A key let go while another window has focus never reports its keyup.
+  window.addEventListener('blur', release);
+
+  return {
+    frame: () => {
+      if (tap && deps.active()) walkToward(tap.x, tap.y, false);
+    },
+    release,
+    state: () => ({ joystick: stick ? (stick.direction ?? 'centre') : null, keys: [...keys] }),
+  };
+}
