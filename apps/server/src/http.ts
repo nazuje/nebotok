@@ -47,9 +47,10 @@ export type HttpServices = { readonly profiles: ProfileStore; readonly now: () =
 
 export function mountHttp(app: Application, config: Config, log: Log, services: HttpServices): void {
   app.disable('x-powered-by');
-  // Tailscale Serve, in the same network namespace, is the only proxy; it sets X-Forwarded-Host and
-  // X-Forwarded-For. Only a loopback peer is believed, so nobody else can claim another address.
-  app.set('trust proxy', 'loopback');
+  // Tailscale Serve is the only proxy; it sets X-Forwarded-Host and X-Forwarded-For. Only the peer it
+  // arrives from is believed (TRUST_PROXY: loopback in sidecar mode, the Docker network's gateway in
+  // host mode), so nobody else can claim another address.
+  app.set('trust proxy', config.trustProxy);
   app.get('/healthz', (_request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.json(health());

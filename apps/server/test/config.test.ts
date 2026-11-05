@@ -19,6 +19,19 @@ describe('config', () => {
     expect(() => readConfig({ PORT: 'eighty' })).toThrow(/PORT/);
     expect(() => readConfig({ PORT: '70000' })).toThrow(/PORT/);
   });
+
+  it('trusts only a loopback proxy by default, and exactly the peers TRUST_PROXY names', () => {
+    expect(readConfig({}).trustProxy).toEqual(['loopback']);
+    expect(readConfig({ TRUST_PROXY: '10.231.67.1' }).trustProxy).toEqual(['10.231.67.1']);
+    expect(readConfig({ TRUST_PROXY: 'loopback, 10.0.0.0/8,fd00::/8' }).trustProxy).toEqual(['loopback', '10.0.0.0/8', 'fd00::/8']);
+  });
+
+  it.each(['true', '*', 'false', '1', '', 'loopback,', 'uniquelocal', '0.0.0.0/0', '::/0', '10.0.0.0/33', '10.0.0.0/8/1', 'proxy.example', '10.0.0.0/255.0.0.0'])(
+    'refuses TRUST_PROXY=%j, which would believe anyone or cannot be read',
+    (value) => {
+      expect(() => readConfig({ TRUST_PROXY: value })).toThrow(/TRUST_PROXY/);
+    },
+  );
 });
 
 describe('log', () => {

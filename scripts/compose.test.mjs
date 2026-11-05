@@ -8,16 +8,22 @@ import { ROOT } from './lib/server-process.mjs';
 const read = (file) => readFileSync(join(ROOT, file), 'utf8');
 const images = (text) => [...text.matchAll(/^\s*image:\s*(\S+)\s*$/gm)].map((match) => match[1]);
 const litestream = (text) => images(text).filter((image) => image.startsWith('litestream/'));
-/** The text of one top-level service, from its key to the next service or the volumes. */
-const service = (text, name) => text.slice(text.indexOf(`\n  ${name}:\n`) + 1).split(/\n {2}(?=\w[\w-]*:\n)|\nvolumes:/)[0];
+/** The text of one top-level service, from its key to the next service, the networks or the volumes. */
+const service = (text, name) => text.slice(text.indexOf(`\n  ${name}:\n`) + 1).split(/\n {2}(?=\w[\w-]*:\n)|\n(?:networks|volumes):/)[0];
+/** An IPv4 CIDR range as its first and last address, as numbers. */
+function range(cidr) {
+  const [address, bits] = cidr.split('/');
+  const start = address.split('.').reduce((total, octet) => total * 256 + Number(octet), 0);
+  return [start, start + 2 ** (32 - Number(bits)) - 1];
+}
 const COMPOSE_FILES = ['compose.yaml', 'compose.tailscale.yaml', 'compose.local.yaml'];
 
 const hasDocker = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' }).status === 0;
 /** `docker compose config` as JSON, isolated from any real .env with an empty env file. */
-function composeConfig(files) {
+function composeConfig(files, settings = {}) {
   const envFile = join(mkdtempSync(join(tmpdir(), 'nebotok-compose-test-')), 'empty');
   writeFileSync(envFile, '');
-  const env = { PATH: process.env.PATH, HOME: process.env.HOME, NEBOTOK_DIGEST: `sha256:${'0'.repeat(64)}`, TS_AUTHKEY: 'tskey-auth-test' };
+  const env = { PATH: process.env.PATH, HOME: process.env.HOME, NEBOTOK_DIGEST: `sha256:${'0'.repeat(64)}`, TS_AUTHKEY: 'tskey-auth-test', NEBOTOK_LOCAL_BACKUP_DIR: tmpdir(), ...settings };
   const result = spawnSync('docker', ['compose', '--env-file', envFile, ...files.flatMap((file) => ['-f', file]), 'config', '--format', 'json'], { cwd: ROOT, env, encoding: 'utf8' });
   expect(result.stderr.replace(/.*level=warning.*\n?/g, '')).toBe('');
   expect(result.status).toBe(0);
@@ -63,6 +69,35 @@ describe('compose files', () => {
     expect(app).toContain('ports: !reset []');
   });
 
+  it('never let the game believe forwarded addresses from just anyone', () => {
+    for (const file of COMPOSE_FILES) {
+      for (const [, value] of read(file).matchAll(/TRUST_PROXY:\s*(.*)/g)) expect(value.trim()).not.toMatch(/^["']?(true|\*|\d+)["']?$|\/0\b/);
+    }
+  });
+
+  it.skipIf(!hasDocker)('trust in host mode exactly the gateway Docker forwards the published port from', () => {
+    const subnets = ['compose.yaml', 'compose.local.yaml'].map((file) => {
+      const { services, networks } = composeConfig([file]);
+      const [ipam, ...more] = networks.default.ipam.config;
+      expect(more).toEqual([]);
+      expect(services.app.environment.TRUST_PROXY).toBe(ipam.gateway);
+      expect(Object.keys(services.app.networks ?? { default: null })).toEqual(['default']);
+      const [first, last] = range(ipam.subnet);
+      const [gateway] = range(`${ipam.gateway}/32`);
+      expect(gateway > first && gateway < last).toBe(true);
+      return [first, last];
+    });
+    // Both stacks may run on one Mac, and Docker refuses overlapping networks.
+    const [[productionFirst, productionLast], [localFirst, localLast]] = subnets;
+    expect(localLast < productionFirst || localFirst > productionLast).toBe(true);
+  });
+
+  it.skipIf(!hasDocker)('move the network and the trusted gateway together with NEBOTOK_NETWORK', () => {
+    const { services, networks } = composeConfig(['compose.yaml'], { NEBOTOK_NETWORK: '10.231.68' });
+    expect(networks.default.ipam.config).toEqual([{ subnet: '10.231.68.0/28', gateway: '10.231.68.1' }]);
+    expect(services.app.environment.TRUST_PROXY).toBe('10.231.68.1');
+  });
+
   it.skipIf(!hasDocker)('validate in host mode with every seal on the game', () => {
     const { services } = composeConfig(['compose.yaml']);
     expect(Object.keys(services).toSorted()).toEqual(['app', 'litestream']);
@@ -80,6 +115,7 @@ describe('compose files', () => {
     expect(services.app.network_mode).toBe('service:ts');
     expect(services.app.ports ?? []).toEqual([]);
     expect(services.app.environment.HOST).toBe('127.0.0.1');
+    expect(services.app.environment.TRUST_PROXY).toBe('loopback');
     expect(services.ts).toMatchObject({ read_only: true, cap_drop: ['ALL'], security_opt: ['no-new-privileges:true'] });
   });
 });

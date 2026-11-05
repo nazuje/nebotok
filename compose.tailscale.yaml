@@ -64,6 +64,8 @@ services:
     environment:
       # Only Tailscale Serve, inside the same namespace, needs to reach the game.
       HOST: 127.0.0.1
+      # Tailscale Serve connects from loopback here; the network's gateway is not a proxy.
+      TRUST_PROXY: loopback
 
 volumes:
   tailscale-state:

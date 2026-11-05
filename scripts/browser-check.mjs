@@ -73,8 +73,8 @@ const results = [];
 
 // Every run plays as its own device. Our own server believes X-Forwarded-For from loopback (as it
 // does from Tailscale Serve), so each run gets its own address and the per-address API limits
-// (5 new profiles and 10 logins a minute) never throttle a check that makes many players. A
-// container does not believe the header, so there the runs are spaced out instead.
+// (5 new profiles and 10 logins a minute) never throttle a check that makes many players. A server
+// given by --url may not believe the header, so there the runs are spaced out instead.
 const LOCAL = !values.url;
 const RUN_SPACING_MS = LOCAL ? 0 : 25_000;
 let addresses = 0;

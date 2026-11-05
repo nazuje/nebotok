@@ -38,6 +38,9 @@ services:
       PORT: "2567"
       DATA_DIR: /data
       LOG_LEVEL: info
+      # Docker's port forwarding, and so the Mac's Tailscale Serve, reaches the game from this
+      # network's gateway. X-Forwarded-For is believed from that peer only.
+      TRUST_PROXY: ${NEBOTOK_NETWORK:-10.231.67}.1
     ports:
       - "127.0.0.1:${NEBOTOK_PORT:-8567}:2567"
     volumes:
@@ -81,6 +84,15 @@ services:
     cpus: "0.5"
     # Litestream makes a last sync of the database on SIGTERM.
     stop_grace_period: 30s
+
+# A fixed subnet, so the gateway TRUST_PROXY names is known. NEBOTOK_NETWORK moves both together, for
+# a second stack on the same Mac; compose.local.yaml uses the range just after the default one.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${NEBOTOK_NETWORK:-10.231.67}.0/28
+          gateway: ${NEBOTOK_NETWORK:-10.231.67}.1
 
 volumes:
   nebotok-data:
