@@ -120,11 +120,12 @@ function walkFrom(map: WorldMap, walker: Walker, target: Point, from: Point, lim
  * equally short, so each planning from its own tile would often walk a different one. Instead, when
  * `from` lies just ahead on the walker's own intent, the walker carries on to it and then does what
  * the command asks from there; when it has already passed `from` on the planned route, it joins
- * that route. Otherwise, or without `from`, the command starts from the walker's own tile. Every
- * step is the walker's own intent or a path the map allows, so `from` can never move it further.
+ * that route. Otherwise, or without `from` or with a `from` the map blocks, the command starts from
+ * the walker's own tile. Every step is the walker's own intent or a path the map allows, so `from`
+ * can never move it further. A walk command costs at most two path searches.
  */
 export function planCommand(map: WorldMap, walker: Walker, command: WalkCommand, from?: Point, limit: number = PATH_SEARCH_LIMIT): Intent | null {
-  if (command.kind === 'to') return from ? walkFrom(map, walker, command.target, from, limit) : planWalk(map, walker, command.target, limit);
+  if (command.kind === 'to') return from && isWalkable(map, from) ? walkFrom(map, walker, command.target, from, limit) : planWalk(map, walker, command.target, limit);
   const lead = from ? leadTo(map, walker, from) : null;
   return pathThen(lead ?? [], command.kind === 'hold' ? command.direction : undefined);
 }

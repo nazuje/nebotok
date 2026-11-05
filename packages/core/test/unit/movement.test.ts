@@ -108,6 +108,14 @@ describe('a command planned from another tile', () => {
     expect(after).toMatchObject({ x: 1, y: 2, facing: 'down', intent: { kind: 'hold', direction: 'down' } });
   });
 
+  it('plans from where it stands when the map blocks the tile the command names', () => {
+    const walker = walking([{ x: 2, y: 1 }], { x: 1, y: 1 });
+    const target = { x: 3, y: 2 };
+    for (const from of [{ x: 4, y: 0 }, { x: 0, y: 2 }, { x: 9, y: 9 }, { x: -1, y: 1 }]) {
+      expect(planCommand(map, walker, { kind: 'to', target }, from)).toEqual(planWalk(map, walker, target));
+    }
+  });
+
   it('looks no further ahead than CATCH_UP_STEPS', () => {
     const holding = withIntent(createWalker({ x: 0, y: 0 }), { kind: 'hold', direction: 'right' });
     expect(upcomingSteps(open, holding, 9)).toHaveLength(5);

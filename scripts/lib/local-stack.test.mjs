@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cidrRange, localStack, pickNetwork } from './local-stack.mjs';
+import { cidrRange, livePorts, localStack, pickNetwork } from './local-stack.mjs';
 
 describe('pickNetwork', () => {
   it('starts where it is told and skips subnets already in use', () => {
@@ -33,5 +33,28 @@ describe('localStack', () => {
     expect(one.image).toBe(`nebotok:local-${one.project.slice('nebotok-local-'.length)}`);
     expect(two.project).not.toBe(one.project);
     expect(one).toMatchObject({ network: '10.231.150', port: '41000' });
+  });
+
+  it('refuses the live game\'s port, 8567 or NEBOTOK_PORT', async () => {
+    const network = { NEBOTOK_LOCAL_NETWORK: '10.231.150' };
+    await expect(localStack('/work/one', { ...network, NEBOTOK_LOCAL_PORT: '8567' })).rejects.toThrow(/NEBOTOK_LOCAL_PORT 8567/);
+    await expect(localStack('/work/one', { ...network, NEBOTOK_LOCAL_PORT: '9100', NEBOTOK_PORT: '9100' })).rejects.toThrow(/NEBOTOK_LOCAL_PORT 9100/);
+    await expect(localStack('/work/one', { ...network, NEBOTOK_LOCAL_PORT: '8567x' })).rejects.toThrow(/NEBOTOK_LOCAL_PORT/);
+    await expect(localStack('/work/one', { ...network, NEBOTOK_LOCAL_PORT: '9100', NEBOTOK_PORT: '9200' })).resolves.toMatchObject({ port: '9100' });
+  });
+
+  it('takes only a network from 10.231.100 to 10.231.199', async () => {
+    const port = { NEBOTOK_LOCAL_PORT: '41000' };
+    const refused = ['10.231.67', '10.231.99', '10.231.200', '10.231.1000', '10.231.150.0', '192.168.150', '10.231.1x0'];
+    await Promise.all(refused.map((network) => expect(localStack('/work/one', { ...port, NEBOTOK_LOCAL_NETWORK: network })).rejects.toThrow(/NEBOTOK_LOCAL_NETWORK/)));
+    await expect(localStack('/work/one', { ...port, NEBOTOK_LOCAL_NETWORK: '10.231.100' })).resolves.toMatchObject({ network: '10.231.100' });
+    await expect(localStack('/work/one', { ...port, NEBOTOK_LOCAL_NETWORK: '10.231.199' })).resolves.toMatchObject({ network: '10.231.199' });
+  });
+});
+
+describe('livePorts', () => {
+  it('is 8567, and NEBOTOK_PORT when it is set', () => {
+    expect(livePorts({})).toEqual([8567]);
+    expect(livePorts({ NEBOTOK_PORT: '9100' })).toEqual([8567, 9100]);
   });
 });

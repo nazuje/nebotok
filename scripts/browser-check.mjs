@@ -33,14 +33,25 @@ import {
   settledOn,
   signOut,
   tappable,
+  testBase,
   tilesToScreen,
   until,
   watch,
 } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
+import { botName, deviceName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
+let given = null;
+if (values.url) {
+  try {
+    given = testBase(values.url);
+  } catch (error) {
+    console.error(`browser-check: ${error.message}`);
+    process.exit(1);
+  }
+}
 const out = values.out ?? join(ROOT, '.proof', 'browser-check');
 const shots = join(out, 'screenshots');
 mkdirSync(shots, { recursive: true });
@@ -62,8 +73,8 @@ const WRONG_PIN = '1111';
 
 // A server of our own keeps its database in a temporary folder, removed at the end.
 const dataDir = values.url ? null : mkdtempSync(join(tmpdir(), 'nebotok-browser-check-'));
-const server = values.url
-  ? { base: new URL(values.url).origin, external: true }
+const server = given
+  ? { base: given, external: true }
   : await startServer({ env: { NODE_ENV: 'production', DATA_DIR: dataDir }, logFile: join(out, 'logs', 'browser-check-server.log') });
 const allowedHost = new URL(server.base).host;
 const results = [];
@@ -89,9 +100,9 @@ async function spaceRuns() {
 
 const api = (path, { body, address } = {}) => apiCall(server.base, path, { body, headers: asDevice(address) });
 
-/** Invented names of letters only, one per run, with Slovenian letters in the Slovenian runs. */
-const runName = (browserName, deviceName, language) =>
-  `${browserName === 'chromium' ? 'Kro' : 'Web'} ${deviceName.startsWith('iphone') ? 'Tel' : 'Tab'} ${language === 'sl' ? 'Čšž' : 'Abc'}`;
+// Invented names of letters only, with Slovenian letters in the Slovenian runs. A server given by
+// --url keeps the players of earlier checks, so this check's names carry a tag of its own.
+const TAG = runTag();
 
 const smallTargets = (page) =>
   page.locator('button, a, [role="button"], input').evaluateAll(
@@ -116,7 +127,7 @@ const lockText = (id, language, timeId, n) => STRINGS[id][language].replace('{ti
 
 // A bot of our own (a plain SDK client) walks past each page's courier, so the check can see that
 // another player is drawn, named, walks smoothly and turns away when it drops.
-const BOT = { name: 'Bot Oblak', avatar: 'red' };
+const BOT = { name: botName(TAG), avatar: 'red' };
 const START_MAP = JSON.parse(readFileSync(join(ROOT, 'content/world.json'), 'utf8')).startMap;
 // Offsets from the page's courier: where the bot starts, then where it walks to, in view of it.
 const FAR = [[-4, 0], [4, 0], [0, -4], [0, 4], [-3, -2], [3, 2]];
@@ -308,7 +319,7 @@ async function meetBot(bot, page, self, { expect, shot }) {
 
 async function checkDevice(browser, browserName, device, language, bot) {
   const label = `${browserName}-${device.name}-${language}`;
-  const name = runName(browserName, device.name, language);
+  const name = deviceName(browserName, device.name, language, TAG);
   const problems = [];
   const screenshots = [];
   const expect = (ok, message) => {
@@ -430,8 +441,6 @@ async function checkDevice(browser, browserName, device, language, bot) {
   }
 }
 
-const shortName = (browserName) => (browserName === 'chromium' ? 'Kro' : 'Web');
-
 async function pinnedProfile(name) {
   const made = await api('/profiles', { body: { name, avatar: 'orange', pin: '1357' }, address: nextAddress() });
   if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
@@ -446,7 +455,7 @@ function lockOut(profileId) {
 
 /** A profile locked by five wrong PINs, made over the API, so the 360px runs can show the locked state. */
 async function lockedProfile(browserName) {
-  const id = await pinnedProfile(`Zaklep ${shortName(browserName)}`);
+  const id = await pinnedProfile(lockedName('Zaklep', browserName, TAG));
   await lockOut(id);
   return id;
 }
@@ -456,7 +465,7 @@ async function lockedProfile(browserName) {
  * lock lasts two minutes, which the 360px runs must word as two minutes, not one.
  */
 async function lockedTwiceLater(browserName) {
-  const id = await pinnedProfile(`Dvakrat ${shortName(browserName)}`);
+  const id = await pinnedProfile(lockedName('Dvakrat', browserName, TAG));
   await lockOut(id);
   const firstOver = Date.now() + PIN_LOCK_MS + 1_000;
   return async () => {
@@ -548,7 +557,7 @@ async function checkNarrow(browser, browserName, language, { lockedId, twiceId }
  */
 async function checkAddPin(browser, browserName, language) {
   const label = `${browserName}-360px-${language}`;
-  const name = `Dodaj ${shortName(browserName)} ${language === 'sl' ? 'Čšž' : 'Abc'}`;
+  const name = pinlessName(browserName, language, TAG);
   const problems = [];
   const screenshots = [];
   const expect = (ok, message) => {
@@ -660,10 +669,11 @@ async function checkFull(browser, browserName, language) {
   results.push({ label: `${label} (full list)`, ok: problems.length === 0, problems, screenshots });
 }
 
+let bot = null;
 try {
   // One browser and one page at a time, so screenshots and timings are not fighting for the GPU.
   const runs = DEVICES.flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
-  const bot = await prepareBot();
+  bot = await prepareBot();
   await inTurn(BROWSERS, async ({ name, type, options }) => {
     const browser = await type.launch(options);
     try {
@@ -691,6 +701,11 @@ try {
     }
   }
 } finally {
+  // The pages sign their own players out; the bot signs out here.
+  if (bot) {
+    const ended = await apiCall(server.base, '/sessions/current', { method: 'DELETE', headers: { authorization: `Bearer ${bot.token}` } });
+    if (ended.status !== 204) results.push({ label: 'bot sign-out', ok: false, problems: [`signing the bot out answered ${ended.status}`], screenshots: [] });
+  }
   // A server started elsewhere is checked and stopped by whoever started it.
   if (!server.external) {
     const stopped = await server.stop();
