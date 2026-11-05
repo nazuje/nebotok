@@ -1,7 +1,8 @@
-import type { Direction, Language, Point, StringId } from '@nebotok/core';
+import type { Direction, Language, Point, StringId, WelcomeMessageKey } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
+import type { TagBox } from './names.ts';
 import type { WorldView } from './world-view.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
@@ -29,10 +30,18 @@ export type TestSnapshot = {
   language: Language;
   protocol: number | null;
   playerCount: number | null;
+  /** The welcome line shown at the bottom, if any. */
+  welcome: WelcomeMessageKey | null;
+  /** The short message shown at the bottom, such as walk.blocked, if any. */
+  toast: StringId | null;
+  /** The first-visit walking hint, for the controls it shows, if it is up. */
+  hint: Controls | null;
   scene: string | null;
   /** The map whose tiles are drawn, if any. */
   map: string | null;
   players: TestPlayer[];
+  /** Other players' name tags as placed on the page, in CSS pixels. */
+  tags: Omit<TagBox, 'id'>[];
   controls: Controls;
   /** The tile the walk marker shows, if any. */
   marker: Point | null;

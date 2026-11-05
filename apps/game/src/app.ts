@@ -15,6 +15,7 @@ import { createProfileScreen } from './profile-screen.ts';
 import { forgetSession, saveSession, storedSession } from './session.ts';
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
+import { createWalkHint } from './walk-hint.ts';
 import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
 import { feedWorldView } from './world-feed.ts';
 import { WorldScene } from './world-scene.ts';
@@ -42,6 +43,7 @@ const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
 const scene = new WorldScene({ view, frame: (now) => frame(now), labels: (labels) => names.place(inWorld ? labels : []) });
 const hud = createHud(language);
+const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
@@ -58,10 +60,12 @@ const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
 
 /** A command reaches the server only when the prediction accepts it too, so the two agree. */
 function deliver(command: Command) {
+  if (connection !== 'connected') return;
   const from = room ? view.command(command) : null;
   if (!room || !from) return;
   const message = walkMessage(command, from);
   room.send(message.type, message.payload);
+  if (command.kind !== 'stop') hint.walked();
 }
 
 const outbox = createOutbox({
@@ -78,15 +82,20 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && !settings.isOpen(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
-  marker: (tile, refused) => scene.setMarker(tile, refused),
+  marker: (tile, refused) => {
+    scene.setMarker(tile, refused);
+    if (refused) hud.toast('walk.blocked');
+  },
 });
 
 function frame(now: number) {
   view.tick(now);
   input.frame();
+  if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen(), controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -125,6 +134,18 @@ async function showMap(id: string) {
     // join asks for the map again.
     mapFailed = true;
   }
+}
+
+/**
+ * Whatever the page was doing with your courier is dropped: held keys, anything waiting to be sent,
+ * the prediction and the marker. Done when a drop begins and again when it ends, so a tap from
+ * before or during a drop never sets the courier walking later.
+ */
+function startClean() {
+  input.release();
+  outbox.reset();
+  view.restart();
+  if (scene.mapId !== null) scene.setMarker(null);
 }
 
 function forgetRoom() {
@@ -172,17 +193,20 @@ function enterWorld() {
   playerCount = null;
   world = connect(session.token, () => language, {
     status: (status) => {
+      const was = connection;
       connection = status;
       if (status !== 'connecting') settled = true;
       // A drop stands the courier still on the server, so after a reconnect what the outbox last
       // sent no longer holds: the same walk asked again is a new request, not a repeat to swallow.
-      if (status === 'connected') outbox.reset();
+      if (status !== was) startClean();
       hud.setStatus(status);
       if (status === 'signedOut') sessionEnded('connection.signedOut');
       else if (status === 'replaced') sessionEnded('profile.takenOver');
     },
     welcome: (welcome) => {
       protocol = welcome.protocol;
+      // The count the line was chosen by, so the next frame does not judge it by an older room's.
+      playerCount = welcome.playerCount;
       hud.setWelcome(welcome);
     },
     players: (count) => {
@@ -196,7 +220,10 @@ function enterWorld() {
           roomMap = id;
           void showMap(id);
         },
-        refused: () => scene.setMarker(null),
+        refused: () => {
+          scene.setMarker(null);
+          hud.toast('walk.blocked');
+        },
       });
     },
   });
@@ -261,9 +288,13 @@ installTestHook({
       language,
       protocol,
       playerCount,
+      welcome: hud.state().welcome,
+      toast: hud.state().toast,
+      hint: hint.shown(),
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
       map: scene.mapId,
       players: players(),
+      tags: names.boxes().map(({ name, x, y, width, height }) => ({ name, x: round(x), y: round(y), width: round(width), height: round(height) })),
       controls,
       marker: scene.markerTile,
       predicted: view.predicted(),

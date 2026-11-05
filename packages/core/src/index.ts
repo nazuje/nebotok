@@ -58,6 +58,7 @@ export {
   isWalkable,
   mapFromRows,
   reachableFrom,
+  freeTileNear,
   playabilityProblems,
   type MapResult,
   type WorldMap,

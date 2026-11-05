@@ -32,6 +32,11 @@ const Until = z
     sees: z.array(Id).min(1).optional(),
     away: z.array(Id).min(1).optional(),
     seesAt: z.record(Id, Tile).optional(),
+    tagsApart: z.literal(true).optional(),
+    unmarked: z.literal(true).optional(),
+    welcome: z.array(z.enum(['alone', 'together', 'hidden'])).min(1).optional(),
+    toast: z.enum(['blocked', 'hidden']).optional(),
+    hint: z.enum(['tap', 'joystick', 'hidden']).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 

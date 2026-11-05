@@ -1,0 +1,15 @@
+{
+  "name": "welcome-company",
+  "about": "A courier arrives alone and is told nobody else is here. A friend joins a moment later, and the first courier's welcome line changes at once to say others are exploring, or goes away; it never says they are alone while someone stands beside them.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "tine", "name": "Scena Tine", "avatar": "blue", "browser": "chromium", "device": "iphone-portrait", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "waitFor", "player": "lan", "until": { "welcome": ["alone"] }, "ms": 2000, "shot": "alone" },
+    { "do": "join", "player": "tine" },
+    { "do": "waitFor", "player": "lan", "until": { "sees": ["tine"], "welcome": ["together", "hidden"] }, "ms": 1000, "shot": "friend-came" },
+    { "do": "waitFor", "player": "tine", "until": { "welcome": ["together"] }, "ms": 2000 }
+  ]
+}

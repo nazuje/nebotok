@@ -1,0 +1,32 @@
+{
+  "name": "first-walk",
+  "about": "A new device shows the wordless walking hint until the first walk, never again after a reload, and a tap on a wall shows a cross and a short message.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "zarja", "name": "Scena Zarja", "browser": "webkit", "device": "ipad-landscape", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "waitFor", "player": "lan", "until": { "hint": "tap" } },
+    { "do": "waitFor", "player": "zarja", "until": { "hint": "tap" }, "shot": "hint" },
+    { "do": "walk", "player": "lan", "to": { "x": 18, "y": 12 } },
+    { "do": "walk", "player": "zarja", "to": { "x": 21, "y": 12 } },
+    { "do": "walk", "player": "lan", "to": { "x": 19, "y": 11 } },
+    { "do": "walk", "player": "zarja", "to": { "x": 20, "y": 11 } },
+    { "do": "waitFor", "player": "lan", "until": { "hint": "hidden" } },
+    { "do": "waitFor", "player": "zarja", "until": { "hint": "hidden" } },
+    { "do": "reload", "player": "lan" },
+    { "do": "reload", "player": "zarja" },
+    { "do": "wait", "ms": 1000 },
+    { "do": "waitFor", "player": "lan", "until": { "hint": "hidden", "settled": true } },
+    { "do": "waitFor", "player": "zarja", "until": { "hint": "hidden", "settled": true }, "shot": "reloaded" },
+    { "do": "tap", "player": "lan", "tile": { "x": 17, "y": 9 } },
+    { "do": "tap", "player": "zarja", "tile": { "x": 22, "y": 9 } },
+    { "do": "waitFor", "player": "lan", "until": { "toast": "blocked", "at": { "x": 19, "y": 11 } } },
+    { "do": "waitFor", "player": "zarja", "until": { "toast": "blocked", "at": { "x": 20, "y": 11 } }, "shot": "wall" },
+    { "do": "wait", "ms": 2500 },
+    { "do": "waitFor", "player": "lan", "until": { "toast": "hidden", "unmarked": true } },
+    { "do": "waitFor", "player": "zarja", "until": { "toast": "hidden", "unmarked": true }, "shot": "gone" }
+  ]
+}

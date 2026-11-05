@@ -1,12 +1,12 @@
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
-import { WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
+import { STOP_SAVE_GAP_MS, WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
-import { capturedLog, freePort, tempServices, until } from './helpers.ts';
+import { capturedLog, freePort, repeat, tempServices, until } from './helpers.ts';
 
 let temp: ReturnType<typeof tempServices>;
 let colyseus: ColyseusTestServer;
@@ -97,7 +97,7 @@ describe('joining the world', () => {
     expect({ name: shown?.name, avatar: shown?.avatar, x: shown?.x, y: shown?.y, connected: shown?.connected }).toEqual({
       name: 'Blue Courier',
       avatar: 'green',
-      ...spawn(),
+      ...freeTileNear(map(), spawn(), [spawn()]),
       connected: true,
     });
     expect(first.state.map).toBe(map().id);
@@ -106,6 +106,28 @@ describe('joining the world', () => {
     await second.leave();
     await until(() => first.state.playerCount === 1, 'the count to drop to one');
     await first.leave();
+  });
+
+  it('puts new players on free tiles around the spawn, in ring order, and returning ones where they were', async () => {
+    const saved = await profile('Saved Courier');
+    const target = tileAway(1);
+    const first = await join(saved.token);
+    first.send('walk.to', target);
+    await until(() => at(first, first.sessionId, target), 'the walk to finish');
+    await first.leave();
+    await until(() => temp.services.progress.load(saved.id)?.data.position?.x === target.x, 'the save');
+
+    const names = ['Red Courier', 'Blue Courier', 'Green Courier'];
+    // One after another, since where each lands depends on who is already there.
+    const rooms = await repeat(names.length, async (index) => join((await profile(names[index]!)).token));
+    const back = await join(saved.token);
+    await until(() => back.state.players.size === 4, 'all four players');
+    const tiles = [...rooms, back].map((room) => back.state.players.get(room.sessionId)!).map(({ x, y }) => ({ x, y }));
+    const expected: Point[] = [];
+    for (let arrival = 0; arrival < 3; arrival += 1) expected.push(freeTileNear(map(), spawn(), expected));
+    expect(tiles).toEqual([...expected, target]);
+    expect(tiles[0]).toEqual(spawn());
+    expect(new Set(tiles.slice(0, 3).map(({ x, y }) => `${x},${y}`)).size).toBe(3);
   });
 
   it('greets a lone player as alone', async () => {
@@ -322,6 +344,24 @@ describe('saving positions', () => {
 
     const again = await join(token);
     expect(at(again, again.sessionId, target)).toBe(true);
+  });
+
+  it(`saves a player whose walk stops, at most once every ${STOP_SAVE_GAP_MS / 1000} s`, async () => {
+    const { id, token } = await profile('Saving Courier');
+    const room = await join(token);
+    const saved = () => temp.services.progress.load(id)?.data.position;
+    const first = tileAway(2);
+    room.send('walk.to', first);
+    await until(() => saved()?.x === first.x && saved()?.y === first.y, 'the save when the walk stops');
+    const stoppedAt = Date.now();
+
+    room.send('walk.to', spawn());
+    await until(() => at(room, room.sessionId, spawn()), 'the walk back');
+    expect(Date.now() - stoppedAt).toBeLessThan(STOP_SAVE_GAP_MS);
+    expect(saved()).toMatchObject(first);
+    await until(() => saved()?.x === spawn().x && saved()?.y === spawn().y, 'the save once the gap has passed', Date.now() + STOP_SAVE_GAP_MS + 2_000);
+    expect(Date.now() - stoppedAt).toBeGreaterThanOrEqual(STOP_SAVE_GAP_MS - 100);
+    expect(room.connection.isOpen).toBe(true);
   });
 
   it('starts at the spawn when the saved tile is no longer walkable', async () => {
