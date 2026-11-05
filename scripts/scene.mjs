@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
-import { BROWSERS, DEVICES, apiCall, inWorld, readState, reportCspViolations, screenshot, selfIn, servedMap, settledOn, signOut, tappable, tilesToScreen, until, watch } from './lib/game-page.mjs';
+import { BROWSERS, DEVICES, apiCall, inWorld, readState, reportCspViolations, screenshot, selfIn, servedMap, settledOn, signOut, tappable, testBase, tilesToScreen, until, watch } from './lib/game-page.mjs';
 import { inTurn, sleep } from './lib/in-turn.mjs';
 import { parseScene } from './lib/scene-file.mjs';
 import { ROOT } from './lib/server-process.mjs';
@@ -37,7 +37,12 @@ if (!read.ok) fail(`${relative(ROOT, sceneFile)} is not a scene:\n${read.problem
 const scene = read.scene;
 
 if (!values.url && !existsSync(DEV_FILE)) fail('no `npm run dev` is running in this worktree (.proof/dev.json is missing). Start it, or pass --url.');
-const base = new URL(values.url ?? JSON.parse(readFileSync(DEV_FILE, 'utf8')).game).origin;
+let base;
+try {
+  base = testBase(values.url ?? JSON.parse(readFileSync(DEV_FILE, 'utf8')).game);
+} catch (error) {
+  fail(error.message);
+}
 const allowedHost = new URL(base).host;
 
 const health = (url) =>

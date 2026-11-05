@@ -5,6 +5,22 @@ import { chromium, devices, webkit } from '@playwright/test';
 import { PLAYER_SPAWN, readTiledMap, reachableFrom } from '../../packages/core/src/index.ts';
 import { inTurn, poll } from './in-turn.mjs';
 import { chromiumLaunchOptions, webkitLaunchOptions } from './launch-options.mjs';
+import { livePorts } from './local-stack.mjs';
+
+const THIS_COMPUTER = new Set(['127.0.0.1', 'localhost']);
+
+/**
+ * The origin of `url`, when it is a game the test tools may play: one on this computer and not on
+ * the live game's port. Throws otherwise, so a scene or a browser check never makes players in the
+ * family's world.
+ */
+export function testBase(url, env = process.env) {
+  const parsed = new URL(url);
+  if (!THIS_COMPUTER.has(parsed.hostname)) throw new Error(`${parsed.origin} is not on this computer; test tools play only 127.0.0.1 or localhost`);
+  const port = Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
+  if (livePorts(env).includes(port)) throw new Error(`${parsed.origin} is the live game's port; play npm run dev or the container check's own stack instead`);
+  return parsed.origin;
+}
 
 export const BROWSERS = [
   { name: 'chromium', type: chromium, options: chromiumLaunchOptions },

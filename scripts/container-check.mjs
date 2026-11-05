@@ -2,7 +2,8 @@
 // the same sealing as on the Mac mini, then checks it from outside (Docker's own record of the
 // containers) and from inside (what the server process can really do), plays it in Chromium and
 // WebKit, proves the backups restore (scripts/lib/backup-check.mjs), and stops it the way an update
-// does. The data volume is always left in place; the backup folder is a temporary one. Each
+// does. The data volume is always left in place, with only earlier runs' test players deleted from
+// it; the backup folder is a temporary one. Each
 // worktree runs its own stack (scripts/lib/local-stack.mjs), so checks in several worktrees can run
 // at once.
 //   node scripts/container-check.mjs [--out <dir>]
@@ -15,6 +16,7 @@ import { API_LIMITS } from '../apps/server/src/api.ts';
 import { checkBackups } from './lib/backup-check.mjs';
 import { localStack } from './lib/local-stack.mjs';
 import { ROOT } from './lib/server-process.mjs';
+import { isTestPlayer } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' } } });
 const out = values.out ?? join(ROOT, '.proof', 'container-check');
@@ -134,6 +136,21 @@ async function checkProxyTrust() {
     `${API_LIMITS.logins} logins ${[...new Set(allowed)]}, then ${limited}; spoofed on the left ${spoofed}; another device ${other}`);
 }
 
+/**
+ * Deletes the players earlier browser checks left in this stack's data volume, with the admin tool
+ * inside this stack's own container, so the volume keeps its data but never fills the profile limit.
+ */
+async function removeEarlierTestPlayers() {
+  const listed = await fetch(`${BASE}/api/profiles`, { headers: { 'x-forwarded-for': '203.0.113.20' } }).then((response) => response.json(), () => null);
+  if (!Array.isArray(listed)) {
+    check('earlier test players removed', false, 'the profile list did not load');
+    return;
+  }
+  const earlier = listed.filter((profile) => isTestPlayer(profile.name));
+  const kept = earlier.filter((profile) => exec('node', 'apps/server/src/admin.ts', 'delete', profile.name).code !== 0);
+  check('earlier test players removed', kept.length === 0, `${earlier.length - kept.length} of ${earlier.length} deleted, ${listed.length - earlier.length} other profile(s)`);
+}
+
 /** Error lines, non-JSON lines and anything on stderr, like the host-run server check. */
 function logProblems(stdout, stderr) {
   const lines = stdout.split('\n').filter((line) => line.trim());
@@ -192,6 +209,7 @@ try {
     checkFromOutside(inspect(id));
     checkLitestreamFromOutside(inspect(litestream));
     checkFromInside();
+    await removeEarlierTestPlayers();
     const browsers = spawnSync(process.execPath, ['scripts/browser-check.mjs', '--url', BASE, '--out', join(out, 'container')], {
       cwd: ROOT,
       stdio: ['ignore', 'inherit', 'inherit'],

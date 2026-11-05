@@ -225,8 +225,23 @@ containers, plays it in Chromium and WebKit, proves the backups (a fresh restore
 matches the live saves, the snapshot arrives, and `scripts/restore.sh` works for the newest copy, a
 snapshot and `--undo`), and stops it. It backs up to a temporary folder of its own. Each worktree
 gets its own compose project (`nebotok-local-<id>`), image tag, port and network, so checks in
-several worktrees can run at once; each project keeps its own data volume. To poke at it by
-hand, give it an empty folder for its backups, never your `BACKUP_DIR`:
+several worktrees can run at once; each project keeps its own data volume. Each run first deletes
+the test players earlier runs left in that volume, so it can be run again and again.
+
+A worktree's volume, `nebotok-local-<id>_nebotok-data`, stays behind after the worktree is
+removed. It holds only test players. To list them, and remove one whose worktree is gone:
+
+```sh
+docker volume ls --filter name=nebotok-local-     # every local test volume, never the game's own
+docker volume rm nebotok-local-<id>_nebotok-data  # one of them, copied from that list
+```
+
+Remove only names that start with `nebotok-local-`. The family's saves are in
+`nebotok_nebotok-data`, which must never be removed. Docker refuses to remove a volume a container
+still uses; a worktree whose volume you removed simply starts its next check with an empty one.
+
+To poke at the local stack by hand, give it an empty folder for its backups, never your
+`BACKUP_DIR`:
 
 ```sh
 mkdir -p /tmp/nebotok-local-backups
