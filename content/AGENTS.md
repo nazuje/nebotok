@@ -22,8 +22,9 @@ is their guide. Keep to these conventions or validation fails:
 - **Fixed size, orthogonal, 16 by 16 pixel tiles.** Tile layer format CSV (never Base64 or
   compressed), so diffs stay readable.
 - **One embedded tileset per map** (Map > Embed Tilesets), whose image is a PNG next to the map,
-  such as `sky-tiles.png`. That PNG is drawn by `scripts/make-tiles.mjs` (`npm run tiles`) and
-  committed; add tiles only at the end of its list, because tile ids are positions in it.
+  such as `sky-tiles.png`. Its tiles are listed in `art/tilesets/sky-tiles.json`, and
+  `npm run tiles` draws the PNG from them for Tiled; it is committed and must stay up to date. Add
+  tiles only at the end of that list, because tile ids are positions in it.
 - **Layers:** a `ground` tile layer (every tile walkable unless marked), a `decor` tile layer for
   trees, fences and buildings, and an object layer `spawns` with a point named `player`, the
   place where new players appear. More tile layers are allowed.
@@ -33,8 +34,15 @@ is their guide. Keep to these conventions or validation fails:
 - **Playable:** the `player` spawn is walkable, and every walkable tile can be reached from it on
   foot. Fill a pocket nobody can reach with a bush or tree rather than leaving it.
 - `world.json` names the map new players start on (`startMap`) and how fast everyone walks
-  (`walkTilesPerSecond`). `avatars.json` lists the looks a profile can pick, with placeholder
-  colours until real art arrives.
+  (`walkTilesPerSecond`). `avatars.json` lists the looks a profile can pick; each one's courier
+  is the sprite `art/couriers/<id>.json`.
+
+## Art
+
+`art/` holds every sprite as JSON, one character per pixel, and `art/png/` the real art that
+replaces them. `docs/art.md` is the format and style guide. `content:validate` fails while any
+avatar, species, weather type, item or map lacks the sprite it needs; `npm run art:sheet` draws
+them all onto `.proof/art/sheet.png` to look at.
 
 ## Creatures and battles
 

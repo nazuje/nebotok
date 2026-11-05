@@ -1,10 +1,10 @@
 {
   "avatars": [
-    { "id": "blue", "name": { "en": "Blue cap", "sl": "Modra kapa" }, "color": "#3a7bd5" },
-    { "id": "green", "name": { "en": "Green cap", "sl": "Zelena kapa" }, "color": "#3e9a4a" },
-    { "id": "red", "name": { "en": "Red cap", "sl": "Rdeča kapa" }, "color": "#d0574a" },
-    { "id": "yellow", "name": { "en": "Yellow cap", "sl": "Rumena kapa" }, "color": "#e8b923" },
-    { "id": "purple", "name": { "en": "Purple cap", "sl": "Vijolična kapa" }, "color": "#8a5ad0" },
-    { "id": "orange", "name": { "en": "Orange cap", "sl": "Oranžna kapa" }, "color": "#e8823a" }
+    { "id": "blue", "name": { "en": "Blue cap", "sl": "Modra kapa" } },
+    { "id": "green", "name": { "en": "Green cap", "sl": "Zelena kapa" } },
+    { "id": "red", "name": { "en": "Red cap", "sl": "Rdeča kapa" } },
+    { "id": "yellow", "name": { "en": "Yellow cap", "sl": "Rumena kapa" } },
+    { "id": "purple", "name": { "en": "Purple cap", "sl": "Vijolična kapa" } },
+    { "id": "orange", "name": { "en": "Orange cap", "sl": "Oranžna kapa" } }
   ]
 }

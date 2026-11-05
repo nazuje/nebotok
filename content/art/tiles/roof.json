@@ -1,0 +1,28 @@
+{
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "t": "#d0574a",
+    "u": "#a8443a"
+  },
+  "frames": {
+    "still": [
+      "utttttttuttttttt",
+      "utttttttuttttttt",
+      "utttttttuttttttt",
+      "uuuuuuuuuuuuuuuu",
+      "ttttutttttttuttt",
+      "ttttutttttttuttt",
+      "ttttutttttttuttt",
+      "uuuuuuuuuuuuuuuu",
+      "utttttttuttttttt",
+      "utttttttuttttttt",
+      "utttttttuttttttt",
+      "uuuuuuuuuuuuuuuu",
+      "ttttutttttttuttt",
+      "ttttutttttttuttt",
+      "ttttutttttttuttt",
+      "uuuuuuuuuuuuuuuu"
+    ]
+  }
+}

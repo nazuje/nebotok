@@ -9,7 +9,8 @@ export type LoadedMap = {
   readonly raw: unknown;
   readonly tileLayers: readonly string[];
   readonly tilesetName: string;
-  readonly tilesetUrl: string;
+  /** The tileset's art, `content/art/tilesets/<name>.json`, named after its image. */
+  readonly tilesetArt: string;
 };
 
 const loading = new Map<string, Promise<LoadedMap>>();
@@ -29,7 +30,7 @@ async function fetchMap(id: string): Promise<LoadedMap> {
     raw,
     tileLayers: tiled.layers.flatMap((layer) => (layer.type === 'tilelayer' ? [layer.name] : [])),
     tilesetName: tileset.name,
-    tilesetUrl: `${SERVER_BASE}/maps/${tileset.image}`,
+    tilesetArt: tileset.image.replace(/\.png$/, ''),
   };
 }
 

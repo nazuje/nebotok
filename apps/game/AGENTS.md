@@ -26,6 +26,9 @@ changing Phaser code, and use Phaser 4 APIs only.
   `OTHERS_DELAY_MS` in the past along their `src/track.ts` so each step is smooth; prediction of
   your own courier lives in the view model too (`src/self-walker.ts`), not the scene. Names over
   couriers are HTML (`src/names.ts`).
+- **Art** comes from `content/art/`, bundled by `src/sprites.ts`, which makes each sprite a
+  Phaser texture with its frames and animations; `src/tileset-art.ts` draws and animates map
+  tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`).
 - **Input** (`src/input.ts`) sends every movement command through `src/outbox.ts`, which keeps
   a page under the server's message limits however fast it is tapped or mashed.
 - Unit tests for pure helpers go in `test/` (`npx vitest run --project game-unit`); anything that

@@ -35,6 +35,8 @@ Properties.
 
 ## New tiles
 
-The tile pictures are drawn by `scripts/make-tiles.mjs` until real art arrives. Add new tiles at the
-end of its list, run `npm run tiles`, then in Tiled use Tileset > Refresh to see them. Never reorder
-the list: the map stores tiles by their position in it.
+Each tile is a sprite in `content/art/tiles/`, and `content/art/tilesets/sky-tiles.json` lists them
+in order; `docs/art.md` explains how to draw one. Add new tiles at the end of that list, run
+`npm run tiles` to redraw `sky-tiles.png`, then in Tiled use Tileset > Refresh to see them. Never
+reorder the list: the map stores tiles by their position in it. The game draws its tiles from
+`content/art/` itself, so it animates tiles such as tall grass that the PNG shows still.
