@@ -374,6 +374,10 @@ async function checkDevice(browser, browserName, device, language, bot) {
       expect(after.connection === 'connected', `after a reload under the service worker the connection is ${after.connection}`);
       expect(after.language === language, 'the language choice did not survive a reload');
     }
+    // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
+    await page.locator('.settings-button').tap();
+    await page.locator('.switch-player').tap();
+    await until(page, (s) => s.screen === 'profiles' && s.profile === null, 'the profile list after signing out');
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
