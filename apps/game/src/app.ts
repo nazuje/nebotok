@@ -179,7 +179,7 @@ function enterWorld() {
       if (status === 'connected') outbox.reset();
       hud.setStatus(status);
       if (status === 'signedOut') sessionEnded('connection.signedOut');
-      else if (status === 'replaced') sessionEnded('connection.replaced');
+      else if (status === 'replaced') sessionEnded('profile.takenOver');
     },
     welcome: (welcome) => {
       protocol = welcome.protocol;
