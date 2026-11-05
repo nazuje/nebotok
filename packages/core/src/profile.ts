@@ -40,6 +40,10 @@ export type CreateProfileRequest = z.infer<typeof CreateProfileRequest>;
 export const LoginRequest = z.strictObject({ profileId: ProfileId, pin: Pin.optional() });
 export type LoginRequest = z.infer<typeof LoginRequest>;
 
+/** PUT /api/profiles/current/pin: a PIN for the signed-in profile, which has none yet. */
+export const AddPinRequest = z.strictObject({ pin: Pin });
+export type AddPinRequest = z.infer<typeof AddPinRequest>;
+
 /** One entry of GET /api/profiles: what the profile picker shows. */
 export const ProfileSummary = z.object({
   id: ProfileId,
@@ -56,6 +60,6 @@ export const LoginResponse = z.object({ token: z.string().min(1).max(100), expir
 export type LoginResponse = Readonly<z.infer<typeof LoginResponse>>;
 
 /** Every error the profile API answers with. The client shows `profile.error.<code>`. */
-export const PROFILE_ERRORS = ['nameInvalid', 'nameTaken', 'pinInvalid', 'pinWrong', 'locked', 'full', 'busy', 'unknown'] as const;
+export const PROFILE_ERRORS = ['nameInvalid', 'nameTaken', 'pinInvalid', 'pinWrong', 'locked', 'full', 'busy', 'signedOut', 'hasPin', 'unknown'] as const;
 export type ProfileError = (typeof PROFILE_ERRORS)[number];
 export type ApiError = { readonly error: ProfileError; readonly retryAfterSeconds?: number };

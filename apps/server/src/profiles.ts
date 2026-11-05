@@ -48,17 +48,27 @@ export type ProfileStore = {
   authenticate(token: unknown): number | null;
   /** Whether the player has a session that has not ended. The database is the truth: admin.ts runs as its own process. */
   hasSession(playerId: number): boolean;
+  /** Whether the session with this `sessionKey` has not ended. */
+  isSessionLive(key: string): boolean;
   /** Ends the session; true when there was one. */
   logout(token: unknown): boolean;
   /** Sets a new random PIN, ends every session of the profile and returns the PIN to tell its owner. */
   resetPin(id: number): Promise<string>;
   removePin(id: number): void;
+  /**
+   * Gives the profile signed in with `token` the PIN, only while it has none, and ends its other
+   * sessions, so another device holding the profile has to type the PIN. This session goes on.
+   */
+  addPin(token: unknown, pin: string): Promise<Result<ProfileSummary>>;
   remove(id: number): void;
-  /** Called when a player's sessions end here (logout, PIN reset, deletion), so the room can let them go. */
+  /** Called when some of a player's sessions end here (logout, PIN reset or added, deletion), so the room can let them go. */
   onSignedOut(listener: (playerId: number) => void): () => void;
 };
 
 const tokenHash = (token: string) => createHash('sha256').update(token, 'utf8').digest();
+
+/** Names a session without its token, so a seat can ask later whether the session it joined with still holds. */
+export const sessionKey = (token: string): string => tokenHash(token).toString('hex');
 
 const fail = (error: ProfileError, retryAfterSeconds?: number): Result<never> =>
   retryAfterSeconds === undefined ? { ok: false, error } : { ok: false, error, retryAfterSeconds };
@@ -95,6 +105,7 @@ export function createProfileStore({ db, now, avatars, log }: { db: DatabaseSync
     remove: db.prepare('DELETE FROM players WHERE id = ?'),
     endSessions: db.prepare('DELETE FROM sessions WHERE player_id = ? OR expires_at <= ?'),
     endSessionsOf: db.prepare('DELETE FROM sessions WHERE player_id = ?'),
+    endOtherSessions: db.prepare('DELETE FROM sessions WHERE player_id = ? AND token_hash != ?'),
     startSession: db.prepare('INSERT INTO sessions (token_hash, player_id, expires_at, created_at) VALUES (?, ?, ?, ?)'),
     session: db.prepare('SELECT player_id FROM sessions WHERE token_hash = ? AND expires_at > ?'),
     hasSession: db.prepare('SELECT 1 FROM sessions WHERE player_id = ? AND expires_at > ? LIMIT 1'),
@@ -103,20 +114,35 @@ export function createProfileStore({ db, now, avatars, log }: { db: DatabaseSync
   const row = (id: number) => sql.byId.get(id) as Row | undefined;
   const signedOut = (playerId: number) => events.emit('signedOut', playerId);
 
+  function inTransaction<T>(run: () => T): T {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = run();
+      db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /** The live session a token names, by the hash the database keeps. */
+  function liveSession(token: unknown): { playerId: number; hash: Buffer } | null {
+    if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return null;
+    const hash = tokenHash(token);
+    const found = sql.session.get(hash, now()) as { player_id: number } | undefined;
+    return found ? { playerId: found.player_id, hash } : null;
+  }
+
   /** One active session per profile: a new login replaces the old one, and expired sessions go too. */
   function startSession(playerId: number): { token: string; expiresAt: number } {
     const token = randomBytes(TOKEN_BYTES).toString('base64url');
     const at = now();
     const expiresAt = at + SESSION_MS;
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    inTransaction(() => {
       sql.endSessions.run(playerId, at);
       sql.startSession.run(tokenHash(token), playerId, expiresAt, at);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
     return { token, expiresAt };
   }
 
@@ -190,13 +216,10 @@ export function createProfileStore({ db, now, avatars, log }: { db: DatabaseSync
       return { ok: true, value: { token, expiresAt: new Date(expiresAt).toISOString(), profile: summaryOf(checked.value, now()) } };
     },
 
-    authenticate(token) {
-      if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return null;
-      const found = sql.session.get(tokenHash(token), now()) as { player_id: number } | undefined;
-      return found?.player_id ?? null;
-    },
+    authenticate: (token) => liveSession(token)?.playerId ?? null,
 
     hasSession: (playerId) => sql.hasSession.get(playerId, now()) !== undefined,
+    isSessionLive: (key) => /^[0-9a-f]{64}$/.test(key) && sql.session.get(Buffer.from(key, 'hex'), now()) !== undefined,
 
     logout(token) {
       if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return false;
@@ -215,6 +238,27 @@ export function createProfileStore({ db, now, avatars, log }: { db: DatabaseSync
     },
     removePin(id) {
       sql.setPin.run(null, null, id);
+    },
+    async addPin(token, pin) {
+      const session = liveSession(token);
+      if (!session) return fail('signedOut');
+      const found = row(session.playerId);
+      if (!found) return fail('signedOut');
+      if (found.pin_hash !== null) return fail('hasPin');
+      const secret = await hashPin(pin);
+      // Checked again inside the write: while the PIN was hashed, the session may have ended or
+      // another request may have set a PIN first.
+      const added = inTransaction((): Result<Row> => {
+        const current = row(session.playerId);
+        if (!current || sql.session.get(session.hash, now()) === undefined) return fail('signedOut');
+        if (current.pin_hash !== null) return fail('hasPin');
+        sql.setPin.run(secret.hash, secret.salt, current.id);
+        sql.endOtherSessions.run(current.id, session.hash);
+        return { ok: true, value: { ...current, pin_hash: secret.hash, pin_salt: secret.salt } };
+      });
+      if (!added.ok) return added;
+      signedOut(added.value.id);
+      return { ok: true, value: summaryOf(added.value, now()) };
     },
     remove(id) {
       sql.remove.run(id);

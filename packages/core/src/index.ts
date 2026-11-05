@@ -90,6 +90,7 @@ export {
   Pin,
   CreateProfileRequest,
   LoginRequest,
+  AddPinRequest,
   normalizeName,
   nameKey,
   type ApiError,

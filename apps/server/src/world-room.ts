@@ -28,7 +28,7 @@ import {
 } from '@nebotok/core';
 import { z } from 'zod';
 import type { Log } from './log.ts';
-import type { ProfileStore } from './profiles.ts';
+import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
 import { createRateLimiter } from './rate-limit.ts';
 import type { WorldContent } from './world.ts';
@@ -48,7 +48,7 @@ export const WALK_TO_PER_SECOND = 5;
 export const JoinOptions = z.object({ protocol: z.number().int(), language: LanguageSchema.optional() });
 
 /** What onAuth hands to onJoin as `client.auth`. */
-export type SeatAuth = { readonly playerId: number; readonly language: Language | undefined };
+export type SeatAuth = { readonly playerId: number; readonly language: Language | undefined; readonly session: string };
 
 export type WorldServices = {
   readonly log: Log;
@@ -60,6 +60,8 @@ export type WorldServices = {
 
 type Seat = {
   readonly playerId: number;
+  /** The `sessionKey` of the session this seat joined with. */
+  readonly session: string;
   readonly name: string;
   readonly createdAt: string;
   readonly language: Language;
@@ -86,8 +88,8 @@ export function authorizeJoin(profiles: ProfileStore, token: unknown, options: u
   if (!parsed.success) throw new ServerError(ErrorCode.MATCHMAKE_INVALID_CRITERIA, 'join options need a protocol number');
   if (!isCompatibleProtocol(parsed.data.protocol)) throw new ServerError(ErrorCode.MATCHMAKE_INVALID_CRITERIA, `protocol ${parsed.data.protocol} is not supported`);
   const playerId = profiles.authenticate(token);
-  if (playerId === null) throw new ServerError(ErrorCode.AUTH_FAILED, 'not signed in');
-  return { playerId, language: parsed.data.language };
+  if (playerId === null || typeof token !== 'string') throw new ServerError(ErrorCode.AUTH_FAILED, 'not signed in');
+  return { playerId, language: parsed.data.language, session: sessionKey(token) };
 }
 
 function spawnOf(content: WorldContent): Point {
@@ -145,6 +147,7 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
 
       const seat: Seat = {
         playerId: profile.id,
+        session: auth.session,
         name: profile.name,
         createdAt: new Date(profile.createdAt).toISOString(),
         language: auth.language ?? start.language,
@@ -247,9 +250,10 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       this.close(sessionId, seat, CLOSE_CODES.replaced);
     }
 
+    /** Some of the player's sessions ended: their seat goes unless it joined with one that still holds, as after adding a PIN. */
     private signOut(playerId: number) {
       const found = this.activeSeatOf(playerId);
-      if (found) this.close(found.sessionId, found.seat, CLOSE_CODES.signedOut);
+      if (found && !profiles.isSessionLive(found.seat.session)) this.close(found.sessionId, found.seat, CLOSE_CODES.signedOut);
     }
 
     /** Ends a seat from the server side, whether its client is connected or waiting to reconnect. */
