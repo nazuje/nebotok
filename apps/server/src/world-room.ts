@@ -14,14 +14,14 @@ import {
   inBounds,
   isCompatibleProtocol,
   isWalkable,
-  planWalk,
+  planCommand,
   stepWalker,
   welcome,
   withIntent,
-  type Intent,
   type Language,
   type Point,
   type SaveFile,
+  type WalkCommand,
   type Walker,
   type WorldInfo,
 } from '@nebotok/core';
@@ -109,9 +109,9 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       [CLIENT_MESSAGES.ping]: validate(z.strictObject({ sentAt: z.number().finite() }), (client: Client, { sentAt }) => {
         client.send(SERVER_MESSAGES.pong, { sentAt });
       }),
-      [CLIENT_MESSAGES.walkTo]: validate(WalkToMessage, (client: Client, target) => this.walkTo(client, target)),
-      [CLIENT_MESSAGES.walkHold]: validate(WalkHoldMessage, (client: Client, { direction }) => this.setIntent(client, { kind: 'hold', direction })),
-      [CLIENT_MESSAGES.walkStop]: validate(WalkStopMessage, (client: Client) => this.setIntent(client, IDLE)),
+      [CLIENT_MESSAGES.walkTo]: validate(WalkToMessage, (client: Client, { x, y, from }) => this.walkTo(client, { x, y }, from)),
+      [CLIENT_MESSAGES.walkHold]: validate(WalkHoldMessage, (client: Client, { direction, from }) => this.command(client, { kind: 'hold', direction }, from)),
+      [CLIENT_MESSAGES.walkStop]: validate(WalkStopMessage, (client: Client, { from }) => this.command(client, { kind: 'stop' }, from)),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -244,17 +244,19 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       else this.clients.get(sessionId)?.leave(code);
     }
 
-    private walkTo(client: Client, target: Point) {
+    private walkTo(client: Client, target: Point, from: Point | undefined) {
       const seat = this.seats.get(client.sessionId);
       if (!seat || !inBounds(map, target) || !this.walkLimit.take(client.sessionId, now())) return;
-      const intent = planWalk(map, seat.walker, target);
-      if (intent) seat.walker = withIntent(seat.walker, intent);
-      else client.send(SERVER_MESSAGES.walkRefused, { x: target.x, y: target.y });
+      if (!this.command(client, { kind: 'to', target }, from)) client.send(SERVER_MESSAGES.walkRefused, { x: target.x, y: target.y });
     }
 
-    private setIntent(client: Client, intent: Intent) {
+    /** `from` is only a hint: planCommand never lets it move the walker anywhere its own intent or the map would not. */
+    private command(client: Client, command: WalkCommand, from: Point | undefined): boolean {
       const seat = this.seats.get(client.sessionId);
-      if (seat) seat.walker = withIntent(seat.walker, intent);
+      if (!seat) return false;
+      const intent = planCommand(map, seat.walker, command, from);
+      if (intent) seat.walker = withIntent(seat.walker, intent);
+      return intent !== null;
     }
 
     private tick(dtMs: number) {

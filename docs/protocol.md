@@ -3,7 +3,7 @@
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`), so client and server import the same zod schemas and constants. A change the
-client relies on bumps `PROTOCOL_VERSION` (now **2**).
+client relies on bumps `PROTOCOL_VERSION` (now **3**).
 
 Everything is same-origin: the page, the API, the maps and the WebSocket all come from the server
 that served the page. In development Vite proxies `/colyseus/*` to the server and strips the prefix,
@@ -101,12 +101,22 @@ Client to server:
 | Type | Payload | Effect |
 | --- | --- | --- |
 | `ping` | `{ sentAt: number }` | Answered with `pong`, same payload |
-| `walk.to` | `{ x, y }`, integers 0 to 1023 | Walk along the shortest path (core `findPath`) to that tile. A tile off the map is ignored. |
-| `walk.hold` | `{ direction }` | Walk that way tile after tile until `walk.stop` or another intent. At a blocked tile the player turns to face it and waits. |
-| `walk.stop` | `{}` | Finish the current step and stand still |
+| `walk.to` | `{ x, y, from? }`, integers 0 to 1023 | Walk along the shortest path (core `findPath`) to that tile. A tile off the map is ignored. |
+| `walk.hold` | `{ direction, from? }` | Walk that way tile after tile until `walk.stop` or another intent. At a blocked tile the player turns to face it and waits. |
+| `walk.stop` | `{ from? }` | Finish the current step and stand still |
 
 A new intent replaces the old one. A step that has started always finishes, so the player ends on a
 whole tile.
+
+`from` is `{ x, y }`, the tile the client planned the command from: the tile its prediction had
+claimed, or the next one when that step was nearly over. The server runs the same rule, core
+`planCommand`: when `from` is one of the next `CATCH_UP_STEPS` (2) tiles of the player's current
+intent, the player carries on to it and the command starts there; a walk whose route from `from`
+the player has already stepped onto is joined where it stands; otherwise, or without `from`, the
+command starts from the player's own tile. `from` never moves a player anywhere its own intent or
+a path on the map would not, so a wrong one only costs the client a correction. Without it, a client
+and server planning from tiles a step apart often pick different, equally short routes, and the
+client's courier would have to jump back to the server's.
 
 Server to client:
 
@@ -122,7 +132,7 @@ The server runs core's `stepWalker` 20 times a second (`setFixedTimestep`, 50 ms
 player. Movement is tile by tile in four directions; players never block each other, only map
 tiles do (see `docs/tiled.md`). When a step starts the player claims the next tile, so `x, y` change
 at the start of a step and `moving` is true until it ends. A client can predict its own walk with
-the same core functions (`createWalker`, `withIntent`, `planWalk`, `stepWalker`) and `stepMs`, and
+the same core functions (`createWalker`, `withIntent`, `planCommand`, `stepWalker`) and `stepMs`, and
 treat the server state as the truth whenever they differ.
 
 ## Leaving, dropping and coming back

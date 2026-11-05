@@ -7,6 +7,7 @@ import {
   findPath,
   isWalkable,
   mapFromRows,
+  planCommand,
   planWalk,
   reachableFrom,
   samePoint,
@@ -14,6 +15,7 @@ import {
   withIntent,
   type Intent,
   type Point,
+  type WalkCommand,
   type Walker,
   type WorldMap,
 } from '../../src/index.ts';
@@ -146,6 +148,41 @@ describe('movement properties', () => {
         const steps = planned.kind === 'path' ? planned.steps.length : 0;
         const done = stepWalker(map, withIntent(walker, planned), (steps + 1) * STEP, STEP);
         expect({ x: done.x, y: done.y, moving: done.moving }).toEqual({ ...to, moving: false });
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
+
+const tile = fc.record({ x: fc.nat({ max: 13 }), y: fc.nat({ max: 13 }) });
+const walkCommand = fc.oneof(
+  tile.map((target): WalkCommand => ({ kind: 'to', target })),
+  fc.constantFrom(...DIRECTIONS).map((direction): WalkCommand => ({ kind: 'hold', direction })),
+  fc.constant<WalkCommand>({ kind: 'stop' }),
+);
+const plannedCommands = fc.array(fc.record({ command: walkCommand, from: fc.option(tile, { nil: undefined }), ms: fc.nat({ max: 600 }) }), { maxLength: 30 });
+
+describe('commands planned from a tile the client names', () => {
+  it('never move the walker onto a blocked tile or faster than it walks, whatever tile is named', () => {
+    fc.assert(
+      fc.property(scene, plannedCommands, ({ map, from: start }, script) => {
+        script.reduce((walker, { command, from, ms }) => {
+          const next = planCommand(map, walker, command, from);
+          const after = stepWalker(map, next ? withIntent(walker, next) : walker, ms, STEP);
+          expect(isWalkable(map, after)).toBe(true);
+          expect(Math.abs(after.x - walker.x) + Math.abs(after.y - walker.y)).toBeLessThanOrEqual(Math.floor(ms / STEP) + 1);
+          return after;
+        }, createWalker(start));
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('refuse exactly the walk targets that cannot be reached', () => {
+    fc.assert(
+      fc.property(scene, tile, ({ map, from, to }, named) => {
+        const walker = createWalker(from);
+        expect(planCommand(map, walker, { kind: 'to', target: to }, named) !== null).toBe(planWalk(map, walker, to) !== null);
       }),
       { numRuns: 300 },
     );

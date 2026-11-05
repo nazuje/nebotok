@@ -47,8 +47,8 @@ export type WorldView = {
   remove(id: string): void;
   /** Moves the prediction on to `now` and lines it up with the server. Called once a frame. */
   tick(now: number): void;
-  /** Applies a command to your own courier at once; false when a walk target cannot be reached. */
-  command(command: Command): boolean;
+  /** Applies a command to your own courier at once. The tile it was planned from, for the server; null when a walk target cannot be reached. */
+  command(command: Command): Point | null;
   /** Whether a walk to this tile would be accepted from where your courier is now. */
   canReach(target: Point): boolean;
   /** The server refused a walk: stop predicting it. */
@@ -74,7 +74,7 @@ export function createWorldView(): WorldView {
   let tickedAt: number | null = null;
 
   type Motion = Pick<ShownPlayer, 'at' | 'facing' | 'walking'>;
-  const predictedMotion = (predicted: Prediction): Motion => ({ at: drawnAt(predicted, stepMs), facing: predicted.walker.facing, walking: predicted.walker.moving });
+  const predictedMotion = (predicted: Prediction, now: number): Motion => ({ at: drawnAt(predicted, stepMs, now), facing: predicted.walker.facing, walking: predicted.walker.moving });
   const trackedMotion = (track: Track, facts: PlayerFacts, now: number): Motion => {
     const sample = sampleTrack(track, now - OTHERS_DELAY_MS, stepMs);
     return { at: { x: sample.x, y: sample.y }, facing: sample.facing, walking: sample.walking && facts.connected };
@@ -119,24 +119,24 @@ export function createWorldView(): WorldView {
       tickedAt = now;
       if (!facts || !map) return;
       const server = serverSelf(facts);
-      prediction = reconcile(advance(prediction ?? startPrediction(server), map, dt, stepMs), map, server, now);
+      prediction = reconcile(advance(prediction ?? startPrediction(server), map, dt, stepMs), map, server, stepMs, now);
     },
     command: (command) => {
-      if (!prediction || !map) return false;
-      const next = applyCommand(prediction, map, command);
-      if (next) prediction = next;
-      return next !== null;
+      if (!prediction || !map) return null;
+      const next = applyCommand(prediction, map, command, stepMs);
+      if (next) prediction = next.prediction;
+      return next?.from ?? null;
     },
     canReach: (target) => prediction !== null && map !== null && canReach(prediction, map, target),
     refused: () => {
-      if (map && prediction) prediction = applyCommand(prediction, map, { kind: 'stop' });
+      if (map && prediction) prediction = applyCommand(prediction, map, { kind: 'stop' }, stepMs)?.prediction ?? prediction;
     },
     predicted: () =>
       prediction && { tile: { x: prediction.walker.x, y: prediction.walker.y }, intent: prediction.walker.intent.kind, moving: prediction.walker.moving },
     shown: (now) =>
       [...players].map(([id, { facts, track }]) => {
         const self = id === selfId;
-        const motion = self && prediction ? predictedMotion(prediction) : trackedMotion(track, facts, now);
+        const motion = self && prediction ? predictedMotion(prediction, now) : trackedMotion(track, facts, now);
         const { at, facing, walking } = motion;
         return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
       }),

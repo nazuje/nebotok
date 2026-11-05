@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IDLE, createWalker, mapFromRows, planWalk, positionOf, stepDurationMs, stepWalker, withIntent } from '../../src/index.ts';
+import { CATCH_UP_STEPS, IDLE, createWalker, mapFromRows, planCommand, planWalk, positionOf, stepDurationMs, stepWalker, upcomingSteps, withIntent } from '../../src/index.ts';
 
 const map = mapFromRows('room', ['....#', '.....', '##...']);
 const STEP = 200;
@@ -65,5 +65,52 @@ describe('walking', () => {
     expect(() => stepWalker(map, walker, -1, STEP)).toThrow(RangeError);
     expect(() => stepWalker(map, walker, 1.5, STEP)).toThrow(RangeError);
     expect(() => stepWalker(map, walker, 10, 0)).toThrow(RangeError);
+  });
+});
+
+const open = mapFromRows('open', ['......', '......', '......', '......']);
+const walking = (steps: { x: number; y: number }[], at = { x: 0, y: 0 }) => withIntent(createWalker(at), { kind: 'path', steps });
+
+describe('a command planned from another tile', () => {
+  it('plans from the walker itself when told nothing, or told its own tile', () => {
+    const walker = createWalker({ x: 0, y: 0 });
+    const target = { x: 3, y: 2 };
+    expect(planCommand(open, walker, { kind: 'to', target })).toEqual(planWalk(open, walker, target));
+    expect(planCommand(open, walker, { kind: 'to', target }, { x: 0, y: 0 })).toEqual(planWalk(open, walker, target));
+  });
+
+  it('carries on along its own walk to the tile the command was planned from, then follows that plan', () => {
+    const walker = walking([{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }]);
+    const fromAhead = planWalk(open, createWalker({ x: 2, y: 0 }), { x: 2, y: 3 });
+    const intent = planCommand(open, walker, { kind: 'to', target: { x: 2, y: 3 } }, { x: 2, y: 0 });
+    expect(intent).toEqual({ kind: 'path', steps: [{ x: 1, y: 0 }, { x: 2, y: 0 }, ...(fromAhead?.kind === 'path' ? fromAhead.steps : [])] });
+  });
+
+  it('joins the planned route when it has already stepped onto it', () => {
+    const walker = createWalker({ x: 1, y: 0 });
+    const planned = planWalk(open, createWalker({ x: 0, y: 0 }), { x: 4, y: 0 });
+    expect(planCommand(open, walker, { kind: 'to', target: { x: 4, y: 0 } }, { x: 0, y: 0 })).toEqual({ kind: 'path', steps: planned?.kind === 'path' ? planned.steps.slice(1) : [] });
+  });
+
+  it('ignores a tile it is not about to reach and plans from where it stands', () => {
+    const walker = walking([{ x: 1, y: 0 }]);
+    expect(planCommand(open, walker, { kind: 'to', target: { x: 5, y: 3 } }, { x: 4, y: 3 })).toEqual(planWalk(open, walker, { x: 5, y: 3 }));
+    expect(planCommand(open, walker, { kind: 'stop' }, { x: 4, y: 3 })).toEqual(IDLE);
+    expect(planCommand(open, walker, { kind: 'hold', direction: 'down' }, { x: 4, y: 3 })).toEqual({ kind: 'hold', direction: 'down' });
+  });
+
+  it('stops or turns on the tile the command was planned from', () => {
+    const holding = withIntent(createWalker({ x: 0, y: 0 }), { kind: 'hold', direction: 'right' });
+    expect(planCommand(open, holding, { kind: 'stop' }, { x: 2, y: 0 })).toEqual({ kind: 'path', steps: [{ x: 1, y: 0 }, { x: 2, y: 0 }] });
+    const turn = planCommand(open, holding, { kind: 'hold', direction: 'down' }, { x: 1, y: 0 });
+    expect(turn).toEqual({ kind: 'path', steps: [{ x: 1, y: 0 }], thenHold: 'down' });
+    const after = stepWalker(open, withIntent(holding, turn!), 3 * STEP - 1, STEP);
+    expect(after).toMatchObject({ x: 1, y: 2, facing: 'down', intent: { kind: 'hold', direction: 'down' } });
+  });
+
+  it('looks no further ahead than CATCH_UP_STEPS', () => {
+    const holding = withIntent(createWalker({ x: 0, y: 0 }), { kind: 'hold', direction: 'right' });
+    expect(upcomingSteps(open, holding, 9)).toHaveLength(5);
+    expect(planCommand(open, holding, { kind: 'stop' }, { x: CATCH_UP_STEPS + 1, y: 0 })).toEqual(IDLE);
   });
 });

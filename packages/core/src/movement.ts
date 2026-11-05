@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { DirectionSchema, directionBetween, stepFrom, type Direction, type Point } from './grid.ts';
+import { DirectionSchema, directionBetween, samePoint, stepFrom, type Direction, type Point } from './grid.ts';
 import { isWalkable, type WorldMap } from './map.ts';
 import { findPath, PATH_SEARCH_LIMIT } from './path.ts';
 
-/** What a walker is trying to do. A new intent replaces the old one. */
+/** What a walker is trying to do. A new intent replaces the old one. A path with `thenHold` keeps walking that way after its last step. */
 export type Intent =
   | { readonly kind: 'idle' }
   | { readonly kind: 'hold'; readonly direction: Direction }
-  | { readonly kind: 'path'; readonly steps: readonly Point[] };
+  | { readonly kind: 'path'; readonly steps: readonly Point[]; readonly thenHold?: Direction };
 
 export const IDLE: Intent = { kind: 'idle' };
 
@@ -55,6 +55,80 @@ export function planWalk(map: WorldMap, walker: Walker, target: Point, limit: nu
   return steps.length === 0 ? IDLE : { kind: 'path', steps };
 }
 
+function pathThen(steps: readonly Point[], thenHold?: Direction): Intent {
+  if (steps.length === 0) return thenHold ? { kind: 'hold', direction: thenHold } : IDLE;
+  return thenHold ? { kind: 'path', steps, thenHold } : { kind: 'path', steps };
+}
+
+/** What a player can ask their character to do, in the shape of the three walk messages. */
+export type WalkCommand = { readonly kind: 'to'; readonly target: Point } | { readonly kind: 'hold'; readonly direction: Direction } | { readonly kind: 'stop' };
+
+/**
+ * How many more steps of its current intent a walker may take to reach the tile a command was
+ * planned from. A predicting client is ahead of the server by about the time a message takes, and
+ * the server's fixed tick moves that by up to a tick either way, so the two can be a step or two apart.
+ */
+export const CATCH_UP_STEPS = 2;
+
+/** The next tiles, at most `count`, that the walker's intent will step onto, in order. */
+export function upcomingSteps(map: WorldMap, walker: Walker, count: number): Point[] {
+  const tiles: Point[] = [];
+  const { intent } = walker;
+  if (intent.kind === 'path') tiles.push(...intent.steps.slice(0, count));
+  const direction = intent.kind === 'hold' ? intent.direction : intent.kind === 'path' ? intent.thenHold : undefined;
+  if (direction === undefined || (intent.kind === 'path' && intent.steps.length > count)) return tiles;
+  let here: Point = tiles.at(-1) ?? walker;
+  while (tiles.length < count) {
+    const next = stepFrom(here, direction);
+    if (!isWalkable(map, next)) break;
+    tiles.push(next);
+    here = next;
+  }
+  return tiles;
+}
+
+/** The steps that carry the walker on along its own intent to `from`: none when it is there, null when `from` is not that close ahead. */
+function leadTo(map: WorldMap, walker: Walker, from: Point): Point[] | null {
+  if (samePoint(walker, from)) return [];
+  const next = upcomingSteps(map, walker, CATCH_UP_STEPS);
+  const at = next.findIndex((tile) => samePoint(tile, from));
+  return at === -1 ? null : next.slice(0, at + 1);
+}
+
+const apart = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/** The walk to `target` for a command planned from `from`; see planCommand. */
+function walkFrom(map: WorldMap, walker: Walker, target: Point, from: Point, limit: number): Intent | null {
+  const lead = leadTo(map, walker, from);
+  if (lead) {
+    const route = findPath(map, from, target, limit);
+    return route && pathThen([...lead, ...route]);
+  }
+  // Already past `from`: join the route where the walker stands on it.
+  if (apart(walker, from) <= CATCH_UP_STEPS) {
+    const route = findPath(map, from, target, limit) ?? [];
+    const at = route.findIndex((tile) => samePoint(tile, walker));
+    if (at !== -1) return pathThen(route.slice(at + 1));
+  }
+  return planWalk(map, walker, target, limit);
+}
+
+/**
+ * The intent for a walk command that a client planned from the tile `from`, or null when a walk
+ * target cannot be reached. A predicting client acts on a command at once and the server a message
+ * later, from a tile a step or so behind or ahead on the same route. On open ground many routes are
+ * equally short, so each planning from its own tile would often walk a different one. Instead, when
+ * `from` lies just ahead on the walker's own intent, the walker carries on to it and then does what
+ * the command asks from there; when it has already passed `from` on the planned route, it joins
+ * that route. Otherwise, or without `from`, the command starts from the walker's own tile. Every
+ * step is the walker's own intent or a path the map allows, so `from` can never move it further.
+ */
+export function planCommand(map: WorldMap, walker: Walker, command: WalkCommand, from?: Point, limit: number = PATH_SEARCH_LIMIT): Intent | null {
+  if (command.kind === 'to') return from ? walkFrom(map, walker, command.target, from, limit) : planWalk(map, walker, command.target, limit);
+  const lead = from ? leadTo(map, walker, from) : null;
+  return pathThen(lead ?? [], command.kind === 'hold' ? command.direction : undefined);
+}
+
 /** Starts the next step the intent asks for, or settles the walker when there is none. */
 function startStep(map: WorldMap, walker: Walker): Walker {
   const { intent } = walker;
@@ -67,7 +141,7 @@ function startStep(map: WorldMap, walker: Walker): Walker {
     const [next, ...rest] = intent.steps;
     const direction = next ? directionBetween(walker, next) : null;
     if (!next || !direction || !isWalkable(map, next)) return { ...walker, moving: false, elapsedMs: 0, intent: IDLE };
-    return { ...walker, ...next, facing: direction, moving: true, elapsedMs: 0, intent: rest.length > 0 ? { kind: 'path', steps: rest } : IDLE };
+    return { ...walker, ...next, facing: direction, moving: true, elapsedMs: 0, intent: pathThen(rest, intent.thenHold) };
   }
   return { ...walker, moving: false, elapsedMs: 0 };
 }

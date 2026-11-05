@@ -9,6 +9,7 @@ export {
   WalkToMessage,
   WalkHoldMessage,
   WalkStopMessage,
+  walkMessage,
   welcome,
   isCompatibleProtocol,
   type Welcome,
@@ -69,10 +70,14 @@ export {
   stepDurationMs,
   withIntent,
   planWalk,
+  planCommand,
+  upcomingSteps,
+  CATCH_UP_STEPS,
   stepWalker,
   positionOf,
   type Intent,
   type Walker,
+  type WalkCommand,
 } from './movement.ts';
 export {
   MAX_PROFILES,
