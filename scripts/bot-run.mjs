@@ -5,7 +5,9 @@
 //   3. one bot drops mid-walk and the SDK reconnects it to its own seat;
 //   4. all four walk to the same tile and all arrive, since players never block each other;
 //   5. they spread out, every view must agree, and the server is stopped with SIGTERM while they
-//      are still connected; a fresh server on the same folder must start each bot where it stood.
+//      are still connected; a fresh server on the same folder must start each bot where it stood;
+//   6. two bots choose a starter, step about in the tall grass until a wild creature appears, and
+//      play their battles to the end at the same time, never refused a request.
 //   node scripts/bot-run.mjs [--out <dir>]
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -66,8 +68,14 @@ async function joinWorld(base, profile, token) {
   const client = new Client(base);
   client.auth.token = token;
   const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION });
-  const bot = { profile, room, welcomes: [], drops: 0, reconnects: 0, refusals: 0, count: null };
+  const bot = { profile, room, welcomes: [], progress: [], battles: { started: [], turns: [], results: [], refused: [] }, drops: 0, reconnects: 0, refusals: 0, count: null };
   room.onMessage('welcome', (message) => bot.welcomes.push(message));
+  room.onMessage('progress', (message) => bot.progress.push(message));
+  room.onMessage('battle.started', (message) => bot.battles.started.push(message));
+  room.onMessage('battle.turn', (message) => bot.battles.turns.push(message));
+  room.onMessage('battle.result', (message) => bot.battles.results.push(message));
+  room.onMessage('refused', (message) => bot.battles.refused.push(message));
+  room.onMessage('storage', () => {});
   room.onMessage('walk.refused', () => {
     bot.refusals += 1;
   });
@@ -124,6 +132,48 @@ async function wander(bot, tiles, endsAt, intents) {
   return wander(bot, tiles, endsAt, intents);
 }
 
+// Battle requests are limited per client, so bots pace theirs.
+const REQUEST_GAP_MS = 250;
+const STARTERS = ['sun-blob', 'rain-blob', 'bloom-blob'];
+
+/** The bot's request for this view: leave a beaten wild creature, send out a fresh one, or attack. */
+function battleChoice(battle) {
+  if (battle.phase === 'befriend') return ['battle.run', {}];
+  if (battle.mustSwap) return ['battle.switch', { index: battle.team.creatures.findIndex((creature, index) => index !== battle.team.active && creature.hp > 0) }];
+  return ['battle.move', { slot: 0 }];
+}
+
+/** Steps back and forth between two tall-grass tiles until a wild creature appears. */
+async function pace(bot, tiles, steps = 0) {
+  if (bot.battles.started.length > 0) return bot.battles.started[0].battle;
+  if (steps > 200) throw new Error(`${bot.profile.name} met no wild creature in 200 steps`);
+  const tile = tiles[steps % 2];
+  bot.room.send('walk.to', tile);
+  await until(() => standsOn(bot, tile) || bot.battles.started.length > 0, `${bot.profile.name} to step in the grass`);
+  return pace(bot, tiles, steps + 1);
+}
+
+/** Answers each battle view until the battle is over. */
+async function playBattle(bot, battle, turns = 0) {
+  if (battle.phase === 'over') return;
+  if (turns > 80) throw new Error(`${bot.profile.name}'s battle did not end`);
+  await sleep(REQUEST_GAP_MS);
+  const seen = bot.battles.turns.length;
+  bot.room.send(...battleChoice(battle));
+  await until(() => bot.battles.turns.length > seen, `${bot.profile.name}'s battle turn`);
+  return playBattle(bot, bot.battles.turns.at(-1).battle, turns + 1);
+}
+
+/** Chooses a starter, paces in the tall grass until a wild creature appears, and plays the battle out. */
+async function battleInGrass(bot, area, index) {
+  bot.room.send('starter.choose', { species: STARTERS[index % STARTERS.length] });
+  await until(() => bot.progress.at(-1)?.needsStarter === false, `${bot.profile.name} to get a starter`);
+  await playBattle(bot, await pace(bot, [{ x: area.x, y: area.y }, { x: area.x + 1, y: area.y }]));
+  await until(() => bot.battles.results.length === 1 && mine(bot)?.inBattle === false, `${bot.profile.name}'s battle result`);
+  expect(bot.battles.refused.length === 0, `${bot.profile.name} had battle requests refused: ${JSON.stringify(bot.battles.refused)}`);
+  return bot.battles.results[0].outcome;
+}
+
 async function dropMidWalk(bot, tiles) {
   bot.room.reconnection.minUptime = 0;
   const sessionBefore = bot.room.sessionId;
@@ -141,6 +191,7 @@ const servers = [];
 const EVENTS = ['player joined', 'player dropped', 'player reconnected', 'player left'];
 const eventCounts = (server) => Object.fromEntries(EVENTS.map((event) => [event, server.lines.filter((line) => line.msg === event).length]));
 const intents = { to: 0, hold: 0 };
+const battles = [];
 let tally = null;
 
 try {
@@ -207,6 +258,12 @@ try {
     expect(now.x === was.x && now.y === was.y && now.facing === was.facing, `${bot.profile.name} came back at ${now.x},${now.y} ${now.facing}, not ${was.x},${was.y} ${was.facing}`);
   }
   step('after a restart every bot started where it stood');
+
+  const fighters = back.slice(0, 2);
+  const meadow = map.encounterAreas[0];
+  const outcomes = await Promise.all(fighters.map((bot, index) => battleInGrass(bot, meadow, index)));
+  battles.push(...outcomes.map((outcome) => outcome.reason));
+  step(`two bots chose a starter, met wild creatures in the grass at once and finished their battles: ${battles.join(', ')}`);
   await Promise.all(back.map((bot) => bot.room.leave()));
   await until(() => second.lines.filter((line) => line.msg === 'player left').length === back.length, 'the restarted server to log every leave');
 } catch (error) {
@@ -227,6 +284,7 @@ const summary = {
   ok: failures.length === 0,
   bots: PROFILES.length,
   intents,
+  battles,
   sampledPositions: tally?.samples ?? 0,
   blockedPositions: tally?.blocked ?? 0,
   positionsChecked: Object.keys(positions).length,

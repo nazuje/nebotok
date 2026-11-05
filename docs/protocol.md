@@ -187,7 +187,7 @@ shows `refused.<reason>` from `content/strings.json`.
 
 | Type | Payload | When |
 | --- | --- | --- |
-| `progress` | `ProgressMessage`: `{ team, inventory, lastShrine, seen, befriended, needsStarter }` | After `welcome`, and after anything that changes them |
+| `progress` | `ProgressMessage`: `{ team, inventory, lastShrine, seen, befriended, needsStarter }` | After `welcome` and each reconnection, and after anything that changes them |
 | `storage` | `StorageMessage`: `{ shrine, storage }` | On reaching a shrine, and after each `storage.swap` |
 | `battle.started` | `BattleUpdate`: `{ battle, events }` | A wild creature appeared; `events` are the start events (who is sent out, the weather) |
 | `battle.turn` | `BattleUpdate` | After each step: a turn, a swap, or a treat or run in the befriend phase |
@@ -216,7 +216,8 @@ and `ended`.
 2. **Turns.** In phase `choose` the player sends `battle.move`, `battle.switch`, `battle.treat` or
    `battle.run`; the server picks the wild creature's action with a core bot, runs `battleStep`
    and sends `battle.turn`. In phase `swap` the player answers `mustSwap` with `battle.switch`.
-   Turns have no time limit.
+   A turn has no time limit, but a battle with no request from its player for 2 minutes ends as a
+   run, connected or not.
 3. **Treats.** `canTreat` turns true once the wild creature is worn down to
    `windowPercent` of its health (`content/creatures/befriending.json`), and stays true after it
    faints: then the battle waits in phase `befriend` for a treat or `battle.run`. Each offer rolls
@@ -235,8 +236,13 @@ and `ended`.
 6. **Shrines.** Stepping onto a shrine's tile or one next to it (`shrineAt`) heals the team
    (`healTeam`), makes it `lastShrine`, and sends `progress` and `storage`.
 
-A battle lives only in the server's memory. While its player is disconnected it waits; when the
-seat expires or the server stops, it ends like a run, and the team keeps its health.
+A battle lives only in the server's memory. While its player is disconnected it waits, up to the
+2 minutes above; when the seat expires, another device takes the profile over, or the server stops,
+it ends like a run (a win, if the wild creature had already fainted), and the team keeps its health.
+Each battle draws from its own RNG, seeded from the server's randomness when it starts.
+
+The battle, starter, team and storage requests together are limited to 5 a second per client;
+past that the server drops them without an answer and without closing the connection.
 
 ## Movement rules
 
