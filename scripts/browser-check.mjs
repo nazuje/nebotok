@@ -1,7 +1,8 @@
 // Level 4 browser check: starts the real production server serving apps/game/dist, then plays the
 // page in headless Chromium and WebKit on an iPhone (portrait) and an iPad (landscape) in both
-// languages, the way a player would: make a player with a PIN on the number pad, enter the world,
-// reload and come straight back, switch player, get the PIN wrong, then right. Fails on any console
+// languages, the way a player would: make a player with a PIN on the number pad, enter the world
+// and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), reload
+// and come straight back, switch player, get the PIN wrong, then right. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
@@ -10,8 +11,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { Client } from '@colyseus/sdk';
 import { chromium, devices, webkit } from '@playwright/test';
-import { PROTOCOL_VERSION } from '../packages/core/src/index.ts';
+import { PLAYER_SPAWN, PROTOCOL_VERSION, isWalkable, reachableFrom, readTiledMap } from '../packages/core/src/index.ts';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { chromiumLaunchOptions, webkitLaunchOptions } from './lib/launch-options.mjs';
@@ -178,7 +180,89 @@ const sideways = (page) =>
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 
-async function checkDevice(browser, browserName, device, language) {
+// A bot of our own (a plain SDK client) walks past each page's courier, so the check can see that
+// another player is drawn, named, walks smoothly and turns away when it drops.
+const BOT = { name: 'Bot Oblak', avatar: 'red' };
+const START_MAP = JSON.parse(readFileSync(join(ROOT, 'content/world.json'), 'utf8')).startMap;
+// Offsets from the page's courier: where the bot starts, then where it walks to, in view of it.
+const FAR = [[-4, 0], [4, 0], [0, -4], [0, 4], [-3, -2], [3, 2]];
+const NEAR = [[3, 0], [-3, 0], [0, 3], [0, -3], [2, 1], [-2, -1]];
+
+async function prepareBot() {
+  const address = nextAddress();
+  const made = await api('/profiles', { body: BOT, address });
+  if (made.status !== 201) throw new Error(`browser-check: making the bot answered ${made.status}`);
+  const login = await api('/sessions', { body: { profileId: made.data.id }, address });
+  if (login.status !== 200) throw new Error(`browser-check: signing the bot in answered ${login.status}`);
+  const read = readTiledMap(START_MAP, await (await fetch(`${server.base}/maps/${START_MAP}.tmj`)).json());
+  if (!read.ok) throw new Error(`browser-check: the served map does not read: ${read.problems.join('; ')}`);
+  return { token: login.data.token, map: read.map, reach: reachableFrom(read.map, read.map.spawns[PLAYER_SPAWN]) };
+}
+
+function tileNear(bot, from, offsets) {
+  for (const [dx, dy] of offsets) {
+    const tile = { x: from.x + dx, y: from.y + dy };
+    if (isWalkable(bot.map, tile) && bot.reach[tile.y * bot.map.width + tile.x]) return tile;
+  }
+  throw new Error(`no free tile near ${from.x},${from.y}`);
+}
+
+async function joinBot(bot) {
+  const client = new Client(server.base);
+  client.auth.token = bot.token;
+  const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION, language: 'en' });
+  room.onMessage('welcome', () => {});
+  return room;
+}
+
+const botIn = (state) => state.players.find((player) => player.name === BOT.name);
+const standsOn = (player, tile) => player?.x === tile.x && player.y === tile.y && !player.moving && player.drawn.x === tile.x && player.drawn.y === tile.y;
+
+/** The bot joins, walks past the page's courier while the page is sampled, then drops. */
+async function meetBot(bot, page, self, { expect, shot }) {
+  const room = await joinBot(bot);
+  try {
+    await until(page, (s) => botIn(s)?.connected === true, 'the page to see the bot');
+    const seesPage = await poll(() => [...(room.state.players?.values() ?? [])].some((player) => player.name === self.name && player.x === self.x && player.y === self.y), {
+      deadline: Date.now() + 5_000,
+    });
+    expect(seesPage, 'the bot does not see the page’s courier where the page says it stands');
+
+    const start = tileNear(bot, self, FAR);
+    room.send('walk.to', start);
+    await until(page, (s) => standsOn(botIn(s), start), 'the bot at its starting tile', 15_000);
+    const goal = tileNear(bot, self, NEAR);
+    room.send('walk.to', goal);
+    const seen = [];
+    const arrived = await poll(
+      async () => {
+        const seenBot = botIn(await readState(page));
+        if (seenBot) seen.push(seenBot);
+        return standsOn(seenBot, goal);
+      },
+      { deadline: Date.now() + 15_000, intervalMs: 30 },
+    );
+    expect(arrived, `the page never drew the bot standing on ${goal.x},${goal.y}; last ${JSON.stringify(seen.at(-1))}`);
+    expect(seen.some((seenBot) => seenBot.walking), 'the page never drew the bot walking');
+    expect(seen.some((seenBot) => !Number.isInteger(seenBot.drawn.x) || !Number.isInteger(seenBot.drawn.y)), 'the page never drew the bot between two tiles');
+
+    const spot = await page.evaluate(([key, x, y]) => window[key].tileToScreen(x, y), [HOOK, goal.x, goal.y]);
+    const tag = await page.locator('.name-tag', { hasText: BOT.name }).boundingBox();
+    const above = tag && spot ? spot.y - (tag.y + tag.height) : null;
+    expect(tag && spot && Math.abs(tag.x + tag.width / 2 - spot.x) < 4 && above > 0 && above < 80, `the bot’s name is not just above it: name ${JSON.stringify(tag)}, tile centre ${JSON.stringify(spot)}`);
+    await shot('5-others');
+
+    room.reconnection.enabled = false;
+    void room.leave(false);
+    await until(page, (s) => botIn(s)?.connected === false, 'the page to show the bot away');
+    expect((await page.locator('.name-tag.away', { hasText: BOT.name }).count()) === 1, 'the away bot’s name is not dimmed');
+    await shot('6-away');
+  } finally {
+    if (room.connection?.isOpen) await room.leave().catch(() => {});
+  }
+}
+
+async function checkDevice(browser, browserName, device, language, bot) {
   const label = `${browserName}-${device.name}-${language}`;
   const name = runName(browserName, device.name, language);
   const problems = [];
@@ -231,10 +315,17 @@ async function checkDevice(browser, browserName, device, language) {
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
     expect(state.playerCount >= 1, `player count is ${state.playerCount}`);
     expect(state.protocol === PROTOCOL_VERSION, `protocol is ${state.protocol}`);
-    expect(state.scene === 'island', `scene is ${state.scene}`);
+    expect(state.scene === 'world', `scene is ${state.scene}`);
+    expect(state.map === START_MAP, `the map drawn is ${state.map}, not ${START_MAP}`);
+    const self = state.players.find((player) => player.self);
+    expect(self?.name === name && self.avatar === 'green', `the page's own courier is ${JSON.stringify(self)}`);
+    const selfSpot = self ? await page.evaluate(([key, x, y]) => window[key].tileToScreen(x, y), [HOOK, self.x, self.y]) : null;
+    const viewport = page.viewportSize();
+    expect(selfSpot && selfSpot.x > 0 && selfSpot.y > 0 && selfSpot.x < viewport.width && selfSpot.y < viewport.height, `the page's own courier is off screen at ${JSON.stringify(selfSpot)}`);
     expect((await textOf(page, '.badge-text')) === STRINGS['connection.connected'][language], 'the badge does not say connected');
     await targets('world');
     await shot('4-world');
+    if (self) await meetBot(bot, page, self, { expect, shot });
 
     await page.reload();
     state = await until(page, inWorld, 'the world straight after a reload');
@@ -244,7 +335,7 @@ async function checkDevice(browser, browserName, device, language) {
     await until(page, (s) => s.settingsOpen, 'the settings panel');
     expect((await textOf(page, '.switch-player')) === STRINGS['profile.switch'][language], 'the switch player button has the wrong text');
     await targets('settings');
-    await shot('5-settings');
+    await shot('7-settings');
     await page.locator('.language').tap();
     await until(page, (s) => s.language === other(language), 'the other language');
     expect((await textOf(page, '.switch-player')) === STRINGS['profile.switch'][other(language)], 'the language toggle did not change the settings text');
@@ -266,7 +357,7 @@ async function checkDevice(browser, browserName, device, language) {
     wrongPinExpected = false;
     expect((await textOf(page, '#profiles .notice')) === STRINGS['profile.error.pinWrong'][language], 'the wrong PIN message has the wrong text');
     await targets('enter a PIN');
-    await shot('6-pin-wrong');
+    await shot('8-pin-wrong');
     await enterPin(page, PIN);
     state = await until(page, inWorld, 'the world after the right PIN');
     expect(state.profile?.name === name, 'the right PIN signed in as someone else');
@@ -283,6 +374,10 @@ async function checkDevice(browser, browserName, device, language) {
       expect(after.connection === 'connected', `after a reload under the service worker the connection is ${after.connection}`);
       expect(after.language === language, 'the language choice did not survive a reload');
     }
+    // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
+    await page.locator('.settings-button').tap();
+    await page.locator('.switch-player').tap();
+    await until(page, (s) => s.screen === 'profiles' && s.profile === null, 'the profile list after signing out');
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -354,10 +449,11 @@ async function checkNarrow(browser, browserName, language, lockedId) {
 try {
   // One browser and one page at a time, so screenshots and timings are not fighting for the GPU.
   const runs = DEVICES.flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
+  const bot = await prepareBot();
   await inTurn(BROWSERS, async ({ name, type, options }) => {
     const browser = await type.launch(options);
     try {
-      await inTurn(runs, ({ device, language }) => checkDevice(browser, name, device, language));
+      await inTurn(runs, ({ device, language }) => checkDevice(browser, name, device, language, bot));
       // A lock lasts a minute and needs five logins at once, which only our own server can spare.
       const lockedId = LOCAL ? await lockedProfile(name) : null;
       await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, lockedId));

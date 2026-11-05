@@ -66,6 +66,39 @@ svg path {
   display: block;
 }
 
+#names {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+body:not([data-screen='world']) #names {
+  display: none;
+}
+
+.name-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: 10rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(16 42 67 / 0.72);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  will-change: transform;
+}
+
+.name-tag.away {
+  opacity: 0.6;
+}
+
 /* Top bar */
 
 .hud {

@@ -1,16 +1,24 @@
-import type { Language, LoginResponse, StringId } from '@nebotok/core';
+import { WorldSettings, type Language, type LoginResponse, type StringId } from '@nebotok/core';
 import { AUTO, Game, Scale } from 'phaser';
+import worldSettings from '../../../content/world.json';
 import { logout } from './api.ts';
 import { connect, type ConnectionStatus, type WorldConnection } from './connection.ts';
 import { element } from './dom.ts';
 import { createHud } from './hud.ts';
-import { ISLAND_SCENE, IslandScene } from './island-scene.ts';
 import { initialLanguage, otherLanguage, saveLanguage } from './language.ts';
+import { loadMap } from './map-loader.ts';
+import { createNameTags } from './names.ts';
 import { createProfileScreen } from './profile-screen.ts';
 import { forgetSession, saveSession, storedSession } from './session.ts';
 import { createSettings } from './settings.ts';
-import { installTestHook, type Screen } from './test-hook.ts';
+import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
+import { feedWorldView } from './world-feed.ts';
+import { WorldScene } from './world-scene.ts';
+import { createWorldView } from './world-view.ts';
 import { integerView } from './zoom.ts';
+
+/** Shown behind the profile screens, before the server has said which map the player is on. */
+const START_MAP = WorldSettings.parse(worldSettings).startMap;
 
 let language: Language = initialLanguage();
 let session = storedSession();
@@ -20,7 +28,13 @@ let connection: ConnectionStatus | null = null;
 let settled = false;
 let protocol: number | null = null;
 let playerCount: number | null = null;
+let roomMap: string | null = null;
+let mapFailed = false;
+let stopFeed: () => void = () => {};
 
+const view = createWorldView();
+const names = createNameTags(element<HTMLElement>('#names'));
+const scene = new WorldScene({ view, labels: (labels) => names.place(inWorld ? labels : []) });
 const hud = createHud(language);
 const settings = createSettings(language, {
   onLanguage: () => setLanguage(otherLanguage(language)),
@@ -49,10 +63,31 @@ function setInWorld(next: boolean) {
   settings.setSignedIn(next);
 }
 
+async function showMap(id: string) {
+  try {
+    const map = await loadMap(id);
+    await scene.booted;
+    await scene.showMap(map);
+    mapFailed = false;
+  } catch {
+    // The badge or the profile screen already says when the server cannot be reached; the next
+    // join asks for the map again.
+    mapFailed = true;
+  }
+}
+
+function forgetRoom() {
+  stopFeed();
+  stopFeed = () => {};
+  view.reset();
+  roomMap = null;
+}
+
 async function leaveWorld() {
   const leaving = world;
   world = null;
   connection = null;
+  forgetRoom();
   await leaving?.leave();
 }
 
@@ -95,7 +130,15 @@ function enterWorld() {
     players: (count) => {
       playerCount = count;
     },
-    room: () => {},
+    room: (room) => {
+      forgetRoom();
+      stopFeed = feedWorldView(room, view, {
+        map: (id) => {
+          roomMap = id;
+          void showMap(id);
+        },
+      });
+    },
   });
 }
 
@@ -108,7 +151,7 @@ async function switchPlayer() {
   showProfiles(null);
 }
 
-const view = integerView(window.innerWidth, window.innerHeight);
+const initialView = integerView(window.innerWidth, window.innerHeight);
 const game = new Game({
   type: AUTO,
   parent: 'world',
@@ -117,8 +160,8 @@ const game = new Game({
   banner: false,
   // Nothing may ever play sound unasked, and there is no sound yet.
   audio: { noAudio: true },
-  scale: { mode: Scale.NONE, width: view.width, height: view.height, zoom: view.zoom },
-  scene: [IslandScene],
+  scale: { mode: Scale.NONE, width: initialView.width, height: initialView.height, zoom: initialView.zoom },
+  scene: [scene],
 });
 
 window.addEventListener('resize', () => {
@@ -127,15 +170,30 @@ window.addEventListener('resize', () => {
   game.scale.resize(next.width, next.height);
 });
 
+void showMap(START_MAP);
 // A device that signed in before goes straight back into the world.
 if (session) enterWorld();
 else showProfiles(null);
 
 const screen = (): Screen => (inWorld ? 'world' : profiles.state().view);
-const drawn = () => game.scene.getScene<IslandScene>(ISLAND_SCENE)?.drawn === true;
+const round = (value: number) => Math.round(value * 100) / 100;
+const players = (): TestPlayer[] =>
+  view.shown(performance.now()).map((player) => ({
+    name: player.name,
+    avatar: player.avatar,
+    self: player.self,
+    connected: player.connected,
+    x: player.tile.x,
+    y: player.tile.y,
+    moving: player.moving,
+    facing: player.facing,
+    drawn: { x: round(player.at.x), y: round(player.at.y) },
+    walking: player.walking,
+  }));
+const worldDrawn = () => roomMap !== null && scene.mapId === roomMap && view.shown(performance.now()).some((player) => player.self);
 
-installTestHook(
-  () => {
+installTestHook({
+  snapshot: () => {
     const shown = profiles.state();
     return {
       screen: screen(),
@@ -144,6 +202,8 @@ installTestHook(
       protocol,
       playerCount,
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
+      map: scene.mapId,
+      players: players(),
       profile: session?.profile ?? null,
       profiles: shown.profiles,
       notice: inWorld ? null : shown.notice,
@@ -152,10 +212,10 @@ installTestHook(
       settingsOpen: settings.isOpen(),
     };
   },
-  () => {
-    if (!drawn()) return false;
-    if (inWorld) return settled && (connection !== 'connected' || protocol !== null);
+  isReady: () => {
+    if (inWorld) return settled && (connection !== 'connected' || (protocol !== null && (worldDrawn() || mapFailed)));
     const shown = profiles.state();
-    return shown.view !== 'loading' && !shown.busy;
+    return shown.view !== 'loading' && !shown.busy && (scene.mapId !== null || mapFailed);
   },
-);
+  tileToScreen: (x, y) => (scene.mapId === null ? null : scene.tileToScreen(x, y)),
+});

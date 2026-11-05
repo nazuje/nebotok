@@ -7,9 +7,20 @@ export type PixelArt = { readonly rows: readonly string[]; readonly palette: Rea
 
 const OUTLINE = 0x1b1b2f;
 
-export const COURIER: PixelArt = {
-  palette: { k: OUTLINE, y: 0xf2c14e, s: 0xf4c7a1, b: 0x3a7bd5, r: 0x8b5a2b, m: 0xc98b4f, d: 0x4a3426 },
-  rows: [
+/** `y` is the cap, which each avatar recolours. */
+const COURIER_PALETTE: Readonly<Record<string, number>> = { k: OUTLINE, y: 0xf2c14e, s: 0xf4c7a1, b: 0x3a7bd5, r: 0x8b5a2b, m: 0xc98b4f, d: 0x4a3426 };
+
+/** The facings the courier is drawn in. Facing left is facing right, mirrored. */
+export const COURIER_FACINGS = ['down', 'up', 'right'] as const;
+export type CourierFacing = (typeof COURIER_FACINGS)[number];
+export const COURIER_POSES = ['stand', 'stepA', 'stepB'] as const;
+export type CourierPose = (typeof COURIER_POSES)[number];
+/** One walk cycle covers two steps: a foot forward, standing, the other foot, standing. */
+export const WALK_CYCLE: readonly CourierPose[] = ['stepA', 'stand', 'stepB', 'stand'];
+
+/** Everything above the feet, 14 rows. */
+const BODIES: Readonly<Record<CourierFacing, readonly string[]>> = {
+  down: [
     '................',
     '.....kkkkkk.....',
     '....kyyyyyyk....',
@@ -24,117 +35,65 @@ export const COURIER: PixelArt = {
     '...ksbbbbrbsk...',
     '....kbbbbbmk....',
     '....kbbkkbbk....',
-    '....kddk.kddk...',
-    '.....kk...kk....',
+  ],
+  up: [
+    '................',
+    '.....kkkkkk.....',
+    '....kyyyyyyk....',
+    '...kyyyyyyyyk...',
+    '...kkkkkkkkkk...',
+    '....kddddddk....',
+    '....kddddddk....',
+    '....kddddddk....',
+    '.....kbbbbk.....',
+    '....kbmmmmbk....',
+    '...kbbmmmmbbk...',
+    '...ksbmmmmbsk...',
+    '....kbbbbbbk....',
+    '....kbbkkbbk....',
+  ],
+  right: [
+    '................',
+    '.....kkkkkk.....',
+    '....kyyyyyyk....',
+    '....kyyyyyyyk...',
+    '....kkkkkkkkkkk.',
+    '....kddsssssk...',
+    '....kdssskssk...',
+    '....kdsssssk....',
+    '.....kbbbbk.....',
+    '....kmbbbbbk....',
+    '...kmmbbbbbk....',
+    '...kmmbbbsbk....',
+    '....kbbbbbbk....',
+    '....kbbkkbbk....',
   ],
 };
 
-const GRASS = { g: 0x5bbf5b, l: 0x7ad66f, n: 0x3e9a4a };
-
-export const TILES: Readonly<Record<string, PixelArt>> = {
-  grass: {
-    palette: GRASS,
-    rows: [
-      'gggggggggggggggg',
-      'gggggglggggggggg',
-      'gggggnlngggggggg',
-      'gggggggggggggggg',
-      'gggggggggggglggg',
-      'gglgggggggggnlng',
-      'gnlngggggggggggg',
-      'gggggggggggggggg',
-      'gggggggggggggggg',
-      'ggggggggglgggggg',
-      'gggggggggnlngggg',
-      'gggggggggggggggg',
-      'ggglgggggggggggg',
-      'ggnlnggggggggglg',
-      'ggggggggggggggng',
-      'gggggggggggggggg',
-    ],
-  },
-  flowers: {
-    palette: { ...GRASS, p: 0xff7eb6, w: 0xfff3b0, o: 0xf59f00 },
-    rows: [
-      'gggggggggggggggg',
-      'gggpgggggggggggg',
-      'ggpwpgggggglgggg',
-      'gggpgggggggnlngg',
-      'gggngggggggggggg',
-      'gggggggggogggggg',
-      'ggggggggowoggggg',
-      'gglggggggogggggg',
-      'gnlngggggngggggg',
-      'gggggggggggggggg',
-      'gggggggggggggpgg',
-      'ggggopggggggpwpg',
-      'gggowoggggggggpg',
-      'ggggogggggggggng',
-      'ggggnggggggggggg',
-      'gggggggggggggggg',
-    ],
-  },
-  rock: {
-    palette: { a: 0x8a5a3b, b: 0x6b4329, c: 0xa8744f },
-    rows: [
-      'aaaaaaaaaaaaaaaa',
-      'aacaaaaaaaaacaaa',
-      'aaaaaaabaaaaaaaa',
-      'bbbbbbbbbbbbbbbb',
-      'aaaaaaaaaaaaaaaa',
-      'aaaacaaaaaaaaaca',
-      'aaaaaaaaabaaaaaa',
-      'bbbbbbbbbbbbbbbb',
-      'aaaaaaaaaaaaaaaa',
-      'acaaaaaaaaacaaaa',
-      'aaaaabaaaaaaaaaa',
-      'bbbbbbbbbbbbbbbb',
-      'aaaaaaaaaaaaaaaa',
-      'aaaaaaaacaaaaaaa',
-      'aaabaaaaaaaaabaa',
-      'bbbbbbbbbbbbbbbb',
-    ],
-  },
-  cloud: {
-    palette: { w: 0xffffff, s: 0xd9f0ff },
-    rows: [
-      '................',
-      '................',
-      '................',
-      '................',
-      '.....wwww.......',
-      '...wwwwwwww.....',
-      '..wwwwwwwwwwww..',
-      '.wwwwwwwwwwwwww.',
-      'wwwwwwwwwwwwwwww',
-      'wwwwwwwwwwwwwwww',
-      '.ssssssssssssss.',
-      '................',
-      '................',
-      '................',
-      '................',
-      '................',
-    ],
-  },
+/** The bottom two rows, per pose: seen from the front or back, and from the side. */
+const FRONT_FEET: Readonly<Record<CourierPose, readonly [string, string]>> = {
+  stand: ['....kddk.kddk...', '.....kk...kk....'],
+  stepA: ['.....kk..kddk...', '..........kk....'],
+  stepB: ['....kddk..kk....', '.....kk.........'],
+};
+const SIDE_FEET: Readonly<Record<CourierPose, readonly [string, string]>> = {
+  stand: ['.....kdkkdk.....', '.....kk..kk.....'],
+  stepA: ['....kdk..kdk....', '...kk......kk...'],
+  stepB: ['......kddk......', '......kkkk......'],
 };
 
-/**
- * The placeholder island, one letter per tile: g grass, f flowers, r rock underside.
- * The rows narrow at the bottom so it reads as floating.
- */
-export const ISLAND: readonly string[] = [
-  '...gggg...',
-  '.gggggfgg.',
-  'gggfgggggg',
-  'gggggggfgg',
-  'ggfggggggg',
-  '.gggggggg.',
-  '..rrrrrr..',
-  '...rrrr...',
-  '....rr....',
-];
+export function courierFrame(facing: CourierFacing, pose: CourierPose): PixelArt {
+  const feet = facing === 'right' ? SIDE_FEET : FRONT_FEET;
+  return { palette: COURIER_PALETTE, rows: [...BODIES[facing], ...feet[pose]] };
+}
 
-export const ISLAND_TILE_KEYS: Readonly<Record<string, string>> = { g: 'grass', f: 'flowers', r: 'rock' };
+/** The courier facing forward, standing. */
+export const COURIER: PixelArt = courierFrame('down', 'stand');
+
+/** The same art with its cap in another colour. */
+export function withCap(art: PixelArt, colour: number): PixelArt {
+  return { rows: art.rows, palette: { ...art.palette, y: colour } };
+}
 
 export function checkArt(name: string, art: PixelArt, size: number): void {
   if (art.rows.length !== size) throw new Error(`${name} has ${art.rows.length} rows, not ${size}`);

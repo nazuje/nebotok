@@ -1,8 +1,23 @@
-import type { Language, StringId } from '@nebotok/core';
+import type { Direction, Language, Point, StringId } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
 export type Screen = ProfileView | 'world';
+
+/** A player as the server last told this page, and where the page draws them. */
+export type TestPlayer = {
+  name: string;
+  avatar: string;
+  self: boolean;
+  connected: boolean;
+  x: number;
+  y: number;
+  moving: boolean;
+  facing: Direction;
+  /** In tiles, between two tiles while a step is drawn. */
+  drawn: Point;
+  walking: boolean;
+};
 
 export type TestSnapshot = {
   /** Which screen is up: the profile list, the new-player form, the PIN pad, or the world. */
@@ -12,6 +27,9 @@ export type TestSnapshot = {
   protocol: number | null;
   playerCount: number | null;
   scene: string | null;
+  /** The map whose tiles are drawn, if any. */
+  map: string | null;
+  players: TestPlayer[];
   /** The profile this device is signed in as, if any. */
   profile: { id: number; name: string; avatar: string } | null;
   profiles: ProfileScreenState['profiles'];
@@ -22,7 +40,12 @@ export type TestSnapshot = {
   settingsOpen: boolean;
 };
 
-export type TestHook = { ready: boolean; stateAsText(): string };
+export type TestHook = {
+  ready: boolean;
+  stateAsText(): string;
+  /** Where the centre of a map tile is on the page, in CSS pixels, or null before a map is drawn. */
+  tileToScreen(x: number, y: number): Point | null;
+};
 
 declare global {
   interface Window {
@@ -30,14 +53,21 @@ declare global {
   }
 }
 
+export type TestHookSources = {
+  snapshot(): TestSnapshot;
+  isReady(): boolean;
+  tileToScreen(x: number, y: number): Point | null;
+};
+
 /** Only with ?test=1 in the URL: a read-only window for automated checks. */
-export function installTestHook(snapshot: () => TestSnapshot, isReady: () => boolean): void {
+export function installTestHook({ snapshot, isReady, tileToScreen }: TestHookSources): void {
   if (new URLSearchParams(location.search).get('test') !== '1') return;
   const hook: TestHook = {
     get ready() {
       return isReady();
     },
     stateAsText: () => JSON.stringify(snapshot()),
+    tileToScreen: (x, y) => tileToScreen(x, y),
   };
   Object.defineProperty(window, '__nebotok', { value: Object.freeze(hook), configurable: false });
 }
