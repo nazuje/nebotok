@@ -26,7 +26,8 @@
     "icons": "node scripts/make-icons.mjs",
     "tiles": "node scripts/make-tiles.mjs",
     "verify": "node scripts/verify.mjs",
-    "verify:container": "node scripts/verify.mjs --level 4 --container"
+    "verify:container": "node scripts/verify.mjs --level 4 --container",
+    "scene": "node scripts/scene.mjs"
   },
   "volta": {
     "node": "26.13.0"

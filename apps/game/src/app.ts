@@ -174,6 +174,9 @@ function enterWorld() {
     status: (status) => {
       connection = status;
       if (status !== 'connecting') settled = true;
+      // A drop stands the courier still on the server, so after a reconnect what the outbox last
+      // sent no longer holds: the same walk asked again is a new request, not a repeat to swallow.
+      if (status === 'connected') outbox.reset();
       hud.setStatus(status);
       if (status === 'signedOut') sessionEnded('connection.signedOut');
       else if (status === 'replaced') sessionEnded('connection.replaced');

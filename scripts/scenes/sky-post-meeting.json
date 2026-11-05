@@ -1,0 +1,16 @@
+{
+  "name": "sky-post-meeting",
+  "about": "Two couriers meet at the Sky Post: one on a phone in English, one on a tablet in Slovenian, each walking by taps to the tiles in front of the door until they stand side by side and see each other.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "ipad-landscape", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja", "shot": "joined" },
+    { "do": "walk", "player": "lan", "to": { "x": 19, "y": 10 } },
+    { "do": "walk", "player": "zarja", "to": { "x": 20, "y": 10 } },
+    { "do": "waitFor", "player": "lan", "until": { "at": { "x": 19, "y": 10 }, "seesAt": { "zarja": { "x": 20, "y": 10 } } } },
+    { "do": "waitFor", "player": "zarja", "until": { "at": { "x": 20, "y": 10 }, "seesAt": { "lan": { "x": 19, "y": 10 } } }, "shot": "meet" }
+  ]
+}

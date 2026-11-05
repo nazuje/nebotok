@@ -1,0 +1,22 @@
+{
+  "name": "reconnect-mid-walk",
+  "about": "One courier loses the connection in the middle of a walk: a friend sees them turn away, then come back by themselves three seconds later, and they can walk again.",
+  "players": [
+    { "id": "mira", "name": "Scena Mira", "avatar": "orange", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "tine", "name": "Scena Tine", "avatar": "blue", "browser": "webkit", "device": "iphone-portrait", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "mira" },
+    { "do": "join", "player": "tine" },
+    { "do": "walk", "player": "mira", "to": { "x": 19, "y": 12 } },
+    { "do": "walk", "player": "tine", "to": { "x": 21, "y": 13 } },
+    { "do": "wait", "ms": 5000 },
+    { "do": "tap", "player": "mira", "tile": { "x": 19, "y": 17 } },
+    { "do": "wait", "ms": 600 },
+    { "do": "drop", "player": "mira", "ms": 3000 },
+    { "do": "waitFor", "player": "tine", "until": { "away": ["mira"] }, "shot": "dropped" },
+    { "do": "waitFor", "player": "mira", "until": { "connection": "connected", "settled": true }, "ms": 20000 },
+    { "do": "waitFor", "player": "tine", "until": { "sees": ["mira"] }, "shot": "back" },
+    { "do": "walk", "player": "mira", "to": { "x": 19, "y": 17 }, "shot": "walks-again" }
+  ]
+}
