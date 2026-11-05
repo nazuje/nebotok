@@ -1,0 +1,15 @@
+{
+  "shrines": [
+    {
+      "id": "post-shrine",
+      "name": {
+        "en": "Post Shrine",
+        "sl": "Poštno svetišče"
+      }
+    }
+  ],
+  "teamFainted": {
+    "healTeam": true,
+    "itemsKeptPercent": 100
+  }
+}

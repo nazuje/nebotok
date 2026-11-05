@@ -1,3 +1,4 @@
+import { befriendChance, treatLiking } from '../befriend.ts';
 import type { Rng } from '../rng.ts';
 import type { BattleContent } from './content.ts';
 import { battleCreature, damageOf, moveOf } from './damage.ts';
@@ -5,7 +6,9 @@ import {
   ACTION_ORDER,
   BattleError,
   BattleSetup,
+  PLAYER_SIDE,
   SIDES,
+  WILD_SIDE,
   activeCreature,
   creatureId,
   hasFainted,
@@ -20,6 +23,7 @@ import {
   type BattleStepResult,
   type FieldWeather,
   type SideIndex,
+  type WildBattle,
 } from './state.ts';
 
 type DraftSide = { creatures: BattleCreature[]; active: number };
@@ -30,6 +34,7 @@ type Draft = {
   sides: [DraftSide, DraftSide];
   mustSwap: [boolean, boolean];
   outcome: BattleOutcome | null;
+  wild?: WildBattle;
 };
 
 /** Steps work on a copy, so the state passed in never changes. */
@@ -38,18 +43,27 @@ function draftOf(state: BattleState): Draft {
   return { ...state, sides: [side(0), side(1)], mustSwap: [...state.mustSwap] };
 }
 
+function setupCreature(content: BattleContent, side: SideIndex, slot: number, setup: BattleSetup['sides'][number]['creatures'][number]): BattleCreature {
+  const entry = content.species.get(setup.species);
+  if (!entry) throw new BattleError(`unknown species "${setup.species}"`);
+  const creature = battleCreature(creatureId(side, slot), entry, setup.level);
+  for (const move of setup.moves ?? []) if (!content.moves.has(move)) throw new BattleError(`unknown move "${move}"`);
+  return { ...creature, moves: setup.moves ?? creature.moves, hp: Math.min(setup.hp ?? creature.maxHp, creature.maxHp) };
+}
+
+/** Each side starts with its first creature that has health left. */
 export function startBattle(setup: BattleSetup, content: BattleContent): BattleStepResult {
   const parsed = BattleSetup.parse(setup);
   if (parsed.weather !== null && !content.weather.has(parsed.weather)) throw new BattleError(`unknown weather "${parsed.weather}"`);
-  const sides = SIDES.map((side) => ({
-    active: 0,
-    creatures: parsed.sides[side].creatures.map(({ species, level }, slot) => {
-      const entry = content.species.get(species);
-      if (!entry) throw new BattleError(`unknown species "${species}"`);
-      return battleCreature(creatureId(side, slot), entry, level);
-    }),
-  }));
+  const sides = SIDES.map((side): DraftSide => {
+    const creatures = parsed.sides[side].creatures.map((entry, slot) => setupCreature(content, side, slot, entry));
+    const active = creatures.findIndex((creature) => !hasFainted(creature));
+    if (active < 0) throw new BattleError(`side ${side} has no creature that can battle`);
+    return { creatures, active };
+  });
   const [first, second] = sides as [DraftSide, DraftSide];
+  const wildMaxHp = second.creatures[0]?.maxHp ?? 0;
+  const wild: WildBattle | null = parsed.wild ? { treatHp: Math.floor((wildMaxHp * content.befriending.windowPercent) / 100) } : null;
   const state: BattleState = {
     phase: 'choose',
     turn: 0,
@@ -57,29 +71,57 @@ export function startBattle(setup: BattleSetup, content: BattleContent): BattleS
     sides: [first, second],
     mustSwap: [false, false],
     outcome: null,
+    ...(wild ? { wild } : {}),
   };
   const events: BattleEvent[] = SIDES.map((side) => ({ kind: 'switched', side, from: null, to: activeCreature(state, side).id }));
   if (state.weather) events.push({ kind: 'weatherStarted', weather: state.weather.type, turns: null });
   return { state, events };
 }
 
-/** Every action a side may take now, moves first in slot order, then switches in team order. */
+/**
+ * Whether `side` may offer a treat now: only the player in a wild battle, while the wild creature
+ * is up but worn down to `wild.treatHp` or less, or after it fainted (phase `befriend`). Which
+ * treats the player has is the server's business, so `legalActions` never lists treats.
+ */
+export function canOfferTreat(state: BattleState, side: SideIndex): boolean {
+  if (!state.wild || side !== PLAYER_SIDE) return false;
+  if (state.phase === 'befriend') return true;
+  if (state.phase !== 'choose') return false;
+  const wild = activeCreature(state, WILD_SIDE);
+  return !hasFainted(wild) && wild.hp <= state.wild.treatHp;
+}
+
+/**
+ * Every action a side may take now, apart from treats (see `canOfferTreat`): moves first in slot
+ * order, then switches in team order, then `run` for the player in a wild battle.
+ */
 export function legalActions(state: BattleState, side: SideIndex): readonly BattleAction[] {
   if (state.phase === 'over') return [];
+  const canRun = state.wild !== undefined && side === PLAYER_SIDE;
+  if (state.phase === 'befriend') return canRun ? [{ kind: 'run' }] : [];
   const { creatures, active } = state.sides[side];
   const switches = creatures.flatMap((creature, to): BattleAction[] => (to !== active && !hasFainted(creature) ? [{ kind: 'switch', to }] : []));
   if (state.phase === 'swap') return state.mustSwap[side] ? switches : [];
   const moves = activeCreature(state, side).moves.map((_move, slot): BattleAction => ({ kind: 'move', slot }));
-  return [...moves, ...switches];
+  return canRun ? [...moves, ...switches, { kind: 'run' }] : [...moves, ...switches];
 }
 
 function sameAction(a: BattleAction, b: BattleAction): boolean {
-  if (a.kind === 'move') return b.kind === 'move' && a.slot === b.slot;
-  return b.kind === 'switch' && a.to === b.to;
+  switch (a.kind) {
+    case 'move':
+      return b.kind === 'move' && a.slot === b.slot;
+    case 'switch':
+      return b.kind === 'switch' && a.to === b.to;
+    case 'treat':
+      return b.kind === 'treat' && a.item === b.item;
+    case 'run':
+      return b.kind === 'run';
+  }
 }
 
-/** A side with no legal action must pass null; any other side must pick one of its legal actions. */
+/** A side with no legal action must pass null; any other side must pick one of its legal actions, or a treat when it may offer one. */
 export function isLegalAction(state: BattleState, side: SideIndex, action: BattleAction | null): boolean {
+  if (action?.kind === 'treat') return canOfferTreat(state, side);
   const legal = legalActions(state, side);
   return action === null ? legal.length === 0 : legal.some((candidate) => sameAction(candidate, action));
 }
@@ -125,6 +167,37 @@ function useMove(draft: Draft, side: SideIndex, slot: number, rng: Rng, content:
   }
 }
 
+function end(draft: Draft, outcome: BattleOutcome, events: BattleEvent[]): void {
+  draft.phase = 'over';
+  draft.outcome = outcome;
+  draft.mustSwap = [false, false];
+  events.push({ kind: 'ended', winner: outcome.winner, reason: outcome.reason });
+}
+
+/**
+ * Offers a treat to the wild creature: one roll of `befriendChance`. Accepted, the battle ends as
+ * `befriended`. Refused while the creature is up, the turn goes on; refused after it fainted, it
+ * wanders off and the player has won.
+ */
+function offerTreat(draft: Draft, side: SideIndex, itemId: string, rng: Rng, content: BattleContent, events: BattleEvent[]): void {
+  const target = activeOf(draft, opponentOf(side));
+  const item = content.items.get(itemId);
+  if (item?.kind !== 'treat') throw new BattleError(`"${itemId}" is not a treat`);
+  const species = content.species.get(target.species);
+  if (!species) throw new BattleError(`unknown species "${target.species}"`);
+  const chance = befriendChance({ hp: target.hp, maxHp: target.maxHp, level: target.level, liking: treatLiking(item, species) }, content.befriending);
+  const accepted = rng.int(1, 100) <= chance;
+  events.push({ kind: 'treatOffered', side, item: item.id, target: target.id, chance, accepted });
+  if (accepted) end(draft, { winner: side, reason: 'befriended' }, events);
+  else if (draft.phase === 'befriend') end(draft, { winner: side, reason: 'fainted' }, events);
+}
+
+/** Running always works. Before the wild creature is beaten it is a run; after, the player simply leaves the battle they won. */
+function run(draft: Draft, side: SideIndex, events: BattleEvent[]): void {
+  events.push({ kind: 'ran', side });
+  end(draft, draft.phase === 'befriend' ? { winner: side, reason: 'fainted' } : { winner: null, reason: 'ran' }, events);
+}
+
 type Resolver = (draft: Draft, side: SideIndex, action: BattleAction, rng: Rng, content: BattleContent, events: BattleEvent[]) => void;
 
 /** One resolver per action kind; a new kind of action adds its resolver here. */
@@ -135,6 +208,10 @@ const RESOLVERS: Readonly<Record<BattleAction['kind'], Resolver>> = {
   move: (draft, side, action, rng, content, events) => {
     if (action.kind === 'move') useMove(draft, side, action.slot, rng, content, events);
   },
+  treat: (draft, side, action, rng, content, events) => {
+    if (action.kind === 'treat') offerTreat(draft, side, action.item, rng, content, events);
+  },
+  run: (draft, side, _action, _rng, _content, events) => run(draft, side, events),
 };
 
 /** Who acts first: by kind of action, then the faster creature, then a seeded coin toss. */
@@ -159,13 +236,6 @@ function healthLeader(draft: Draft): SideIndex | null {
   return difference > 0 ? 0 : 1;
 }
 
-function end(draft: Draft, outcome: BattleOutcome, events: BattleEvent[]): void {
-  draft.phase = 'over';
-  draft.outcome = outcome;
-  draft.mustSwap = [false, false];
-  events.push({ kind: 'ended', winner: outcome.winner, reason: outcome.reason });
-}
-
 function endTurn(draft: Draft, content: BattleContent, events: BattleEvent[]): void {
   draft.turn += 1;
   const { weather } = draft;
@@ -175,6 +245,11 @@ function endTurn(draft: Draft, content: BattleContent, events: BattleEvent[]): v
     if (turnsLeft === 0) events.push({ kind: 'weatherEnded', weather: weather.type });
   }
   const defeated = SIDES.filter((side) => isDefeated(draft.sides[side]));
+  if (draft.wild && defeated.length === 1 && defeated[0] === WILD_SIDE) {
+    draft.phase = 'befriend';
+    events.push({ kind: 'canBefriend', creature: activeOf(draft, WILD_SIDE).id });
+    return;
+  }
   if (defeated.length > 0) {
     end(draft, { winner: defeated.length === 1 ? opponentOf(defeated[0] as SideIndex) : null, reason: 'fainted' }, events);
     return;
@@ -192,8 +267,9 @@ function endTurn(draft: Draft, content: BattleContent, events: BattleEvent[]): v
 
 /**
  * Advances a battle by one step. In `choose` both sides act and a turn resolves; in `swap` the
- * sides that must swap send out a creature. Throws a BattleError on an illegal action; check
- * `isLegalAction` first. The same state, actions and RNG state always give the same result.
+ * sides that must swap send out a creature; in `befriend` the player offers a treat or runs. Throws
+ * a BattleError on an illegal action; check `isLegalAction` first. The same state, actions and RNG
+ * state always give the same result.
  */
 export function battleStep(state: BattleState, actions: BattleActions, rng: Rng, content: BattleContent): BattleStepResult {
   if (state.phase === 'over') throw new BattleError('the battle is over');
@@ -212,13 +288,20 @@ export function battleStep(state: BattleState, actions: BattleActions, rng: Rng,
     draft.phase = 'choose';
     return { state: draft, events };
   }
+  if (state.phase === 'befriend') {
+    const action = actions[PLAYER_SIDE];
+    if (action) RESOLVERS[action.kind](draft, PLAYER_SIDE, action, rng, content, events);
+    return { state: draft, events };
+  }
   if (!first || !second) throw new BattleError('both sides must act in a turn');
   events.push({ kind: 'turnStarted', turn: draft.turn + 1 });
   const chosen: readonly [BattleAction, BattleAction] = [first, second];
   for (const side of turnOrder(draft, chosen, rng)) {
+    // A run or an accepted treat ends the battle before the other side acts.
+    if (draft.phase === 'over') break;
     const action = chosen[side];
     RESOLVERS[action.kind](draft, side, action, rng, content, events);
   }
-  endTurn(draft, content, events);
+  if (draft.phase !== 'over') endTurn(draft, content, events);
   return { state: draft, events };
 }

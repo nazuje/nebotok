@@ -1,6 +1,6 @@
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
@@ -386,9 +386,28 @@ describe('saving positions', () => {
   it('starts at the spawn when the saved tile is no longer walkable', async () => {
     const { id, token } = await profile('Lost Courier');
     const blocked = blockedTile();
-    temp.services.progress.save(id, createSave({ name: 'Lost Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: { map: map().id, ...blocked, facing: 'up' } }));
+    temp.services.progress.save(id, createSave({ name: 'Lost Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: { map: map().id, ...blocked, facing: 'up' }, ...emptyProgress() }));
     const room = await join(token);
     expect(at(room, room.sessionId, spawn())).toBe(true);
+  });
+
+  it('keeps the team, treats and shrine of a save when it saves the position, and shows no one a battle', async () => {
+    const { id, token } = await profile('Team Courier');
+    const progress = {
+      ...emptyProgress(),
+      team: [{ species: 'rain-blob', level: 6, xp: 12, hp: 20, moves: ['rain-tap', 'gale-tap'], nickname: 'Žabica' }],
+      inventory: [{ item: 'plain-treat', count: 4 }],
+      lastShrine: { map: map().id, shrine: 'post-shrine' },
+      seen: ['rain-blob'],
+      befriended: ['rain-blob'],
+    };
+    temp.services.progress.save(id, createSave({ name: 'Team Courier', language: 'sl', createdAt: '2026-05-01T09:00:00.000Z', position: null, ...progress }));
+    const room = await join(token);
+    expect(room.state.players.get(room.sessionId)?.inBattle).toBe(false);
+    const target = tileAway(2);
+    room.send('walk.to', target);
+    await until(() => temp.services.progress.load(id)?.data.position?.x === target.x, 'the save');
+    expect(temp.services.progress.load(id)?.data).toMatchObject(progress);
   });
 });
 

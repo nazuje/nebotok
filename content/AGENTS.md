@@ -28,6 +28,9 @@ is their guide. Keep to these conventions or validation fails:
 - **Layers:** a `ground` tile layer (every tile walkable unless marked), a `decor` tile layer for
   trees, fences and buildings, and an object layer `spawns` with a point named `player`, the
   place where new players appear. More tile layers are allowed.
+- **Optional object layers:** `encounters`, rectangles of tall grass each named by a zone id in
+  `encounters.json`, and `shrines`, points each named by a shrine id in `shrines.json` on a
+  walkable tile. `content:validate` checks that the names exist.
 - **Collision is a tile property, not a layer:** a tileset tile with the boolean property
   `collides` set to true blocks its square on every layer it is placed on. An empty `ground` square
   is blocked too.
@@ -54,3 +57,20 @@ does as battlefield weather), `moves.json`, `species.json` (each knows exactly f
 golden replays use their own frozen copy in `packages/core/fixtures/golden/battle/content/`, so a
 change here never moves their hashes; the property tests battle on these files instead.
 Placeholder names stay obviously placeholder, such as "Sun Blob".
+
+`creatures/befriending.json` tunes how likely a wild creature is to accept a treat (core
+`befriendChance`): tiredness, a favourite or liked treat and level. A species may name a
+`favouriteTreat`.
+
+## Treats, encounters, shrines and starters
+
+- `items.json`: everything a player carries, by `kind`. Only treats so far; `likedBy` lists the
+  species that love a treat and the weather types whose creatures like it.
+- `encounters.json`: encounter zones. Each has the chance per step in its tall grass, the
+  battlefield weather (or null) and the creatures, with level ranges and weights.
+- `shrines.json`: the shrines maps may place, and `teamFainted`: whether waking heals the team
+  and what share of each item is kept (100: nothing is lost).
+- `starters.json`: the three starters a new player chooses from (one per weather type), their
+  level, and the items every new player gets.
+
+`content:validate` checks that every species, type, weather and item these files name exists.

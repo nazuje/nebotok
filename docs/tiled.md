@@ -17,6 +17,15 @@ explains them in plain steps.
 - **decor**: things on top of the ground, such as trees, bushes, fences and the Sky Post building.
 - **spawns**: an object layer with one point called `player`. That is where a new player appears,
   and where anyone whose saved spot is no longer walkable starts again. Keep it on a path or grass.
+- **encounters** (optional): an object layer of rectangles marking tall grass. Name each rectangle
+  after a zone `id` in `content/encounters.json`; that zone says which wild creatures live there,
+  at which levels and how often they jump out. A rectangle covers every square it touches. Where
+  two overlap, the one higher in the layer's object list wins. Paint the grass itself on `decor` so
+  players can see it.
+- **shrines** (optional): an object layer of points. Name each point after a shrine `id` in
+  `content/shrines.json`, and put it on a walkable square. A player who steps onto that square or
+  one next to it rests there: their team is healed, and that shrine becomes where they wake after
+  their whole team faints.
 
 ## What blocks walking
 
@@ -29,7 +38,8 @@ Properties.
 
 - Keep **Tile Layer Format** on CSV (Map > Map Properties). Base64 is refused.
 - Keep the tileset **embedded** in the map. If Tiled asks to export it as a separate file, say no.
-- Then run `npm run content:validate`. It fails if the spawn is blocked or if some walkable square
+- Then run `npm run content:validate`. It fails if the spawn or a shrine is blocked, if a grass
+  rectangle or shrine names a zone or shrine the content files do not have, or if some walkable square
   cannot be reached from the spawn (a pocket closed in by trees, say). The message names the first
   such squares as `x,y`; fill them with a bush or open a way in.
 

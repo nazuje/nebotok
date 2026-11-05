@@ -1,12 +1,14 @@
 import type { ZodType } from 'zod';
-import { BattleRules, MovesFile, SpeciesFile, WeatherFile, type Move, type Species, type WeatherType } from '../content.ts';
+import { BattleRules, BefriendRules, ItemsFile, MovesFile, SpeciesFile, WeatherFile, type Item, type Move, type Species, type WeatherType } from '../content.ts';
 
-/** The four files in `content/creatures/`, raw or parsed. */
+/** The files a battle reads, raw or parsed: the four in `content/creatures/`, befriending.json and items.json. */
 export type BattleContentFiles = {
   readonly weather: unknown;
   readonly moves: unknown;
   readonly species: unknown;
   readonly rules: unknown;
+  readonly befriending: unknown;
+  readonly items: unknown;
 };
 
 /** Everything a battle reads, looked up by id. */
@@ -15,6 +17,8 @@ export type BattleContent = {
   readonly moves: ReadonlyMap<string, Move>;
   readonly species: ReadonlyMap<string, Species>;
   readonly rules: BattleRules;
+  readonly befriending: BefriendRules;
+  readonly items: ReadonlyMap<string, Item>;
 };
 
 export class BattleContentError extends Error {
@@ -27,8 +31,8 @@ export class BattleContentError extends Error {
   }
 }
 
-/** Links between files: every type, weather and move a file names must exist. */
-function linkProblems({ weather, moves, species }: BattleContent): string[] {
+/** Links between files: every type, weather, move, species and treat a file names must exist. */
+function linkProblems({ weather, moves, species, items }: BattleContent): string[] {
   const problems: string[] = [];
   for (const move of moves.values()) {
     if (!weather.has(move.type)) problems.push(`moves.json "${move.id}": type "${move.type}" is not a weather type`);
@@ -40,6 +44,13 @@ function linkProblems({ weather, moves, species }: BattleContent): string[] {
       if (!moves.has(id)) problems.push(`species.json "${entry.id}": knows "${id}", which is not in moves.json`);
     }
     if (entry.moves.every((id) => (moves.get(id)?.power ?? 0) === 0)) problems.push(`species.json "${entry.id}": knows no move that does damage`);
+    if (entry.favouriteTreat !== undefined && items.get(entry.favouriteTreat)?.kind !== 'treat') {
+      problems.push(`species.json "${entry.id}": favouriteTreat "${entry.favouriteTreat}" is not a treat in items.json`);
+    }
+  }
+  for (const item of items.values()) {
+    for (const id of item.likedBy.species) if (!species.has(id)) problems.push(`items.json "${item.id}": likedBy.species names "${id}", which is not in species.json`);
+    for (const id of item.likedBy.types) if (!weather.has(id)) problems.push(`items.json "${item.id}": likedBy.types names "${id}", which is not a weather type`);
   }
   return problems;
 }
@@ -56,12 +67,16 @@ function analyse(files: BattleContentFiles): { content: BattleContent | null; pr
   const moves = parse('moves.json', MovesFile, files.moves);
   const species = parse('species.json', SpeciesFile, files.species);
   const rules = parse('battle-rules.json', BattleRules, files.rules);
-  if (!weather || !moves || !species || !rules) return { content: null, problems };
+  const befriending = parse('befriending.json', BefriendRules, files.befriending);
+  const items = parse('items.json', ItemsFile, files.items);
+  if (!weather || !moves || !species || !rules || !befriending || !items) return { content: null, problems };
   const content: BattleContent = {
     weather: new Map(weather.types.map((type) => [type.id, type])),
     moves: new Map(moves.moves.map((move) => [move.id, move])),
     species: new Map(species.species.map((entry) => [entry.id, entry])),
     rules,
+    befriending,
+    items: new Map(items.items.map((item) => [item.id, item])),
   };
   const links = linkProblems(content);
   return links.length > 0 ? { content: null, problems: links } : { content, problems };

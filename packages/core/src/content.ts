@@ -184,6 +184,9 @@ export type MovesFile = z.infer<typeof MovesFile>;
 
 const BaseStat = z.number().int().min(1).max(255);
 
+export const MAX_LEVEL = 100;
+export const CreatureLevel = z.number().int().min(1).max(MAX_LEVEL);
+
 export const Species = z
   .strictObject({
     id: ContentId,
@@ -192,6 +195,8 @@ export const Species = z
     stats: z.strictObject({ hp: BaseStat, attack: BaseStat, defense: BaseStat, speed: BaseStat }),
     /** Every creature knows exactly four moves. */
     moves: z.array(ContentId).length(4),
+    /** A treat in items.json this species loves most. See `treatLiking` in befriend.ts. */
+    favouriteTreat: ContentId.optional(),
   })
   .refine((species) => new Set(species.moves).size === species.moves.length, 'a creature knows each move once');
 export type Species = z.infer<typeof Species>;
@@ -216,15 +221,114 @@ export const BattleRules = z.strictObject({
 });
 export type BattleRules = z.infer<typeof BattleRules>;
 
+const Percent = z.number().int().min(0).max(100);
+
+/**
+ * How likely a wild creature is to accept a treat, in whole percent; `befriendChance` in
+ * befriend.ts applies it. The chance starts at `basePercent`, gains up to `tiredPercent` as the
+ * creature loses health (all of it at 0), gains `favouritePercent` or `likedPercent` for a treat it
+ * loves or likes, loses `levelPenaltyPer10Levels` for every 10 levels it has, and is then held
+ * between `minPercent` and `maxPercent`.
+ */
+export const BefriendRules = z
+  .strictObject({
+    basePercent: Percent,
+    tiredPercent: Percent,
+    favouritePercent: Percent,
+    likedPercent: Percent,
+    levelPenaltyPer10Levels: Percent,
+    minPercent: Percent,
+    maxPercent: Percent.min(1),
+    /** In battle, a treat can be offered once the wild creature is at or below this share of its health. */
+    windowPercent: Percent.min(1),
+  })
+  .refine((rules) => rules.minPercent <= rules.maxPercent, 'minPercent must not be above maxPercent')
+  .refine((rules) => rules.likedPercent <= rules.favouritePercent, 'a liked treat must not beat a favourite one');
+export type BefriendRules = z.infer<typeof BefriendRules>;
+
+/**
+ * A treat to offer a wild creature. `likedBy.species` are creatures that love it (as their
+ * favourite), `likedBy.types` are weather types whose creatures like it.
+ */
+export const Treat = z.strictObject({
+  id: ContentId,
+  kind: z.literal('treat'),
+  name: LocalizedText,
+  likedBy: z.strictObject({ species: z.array(ContentId).max(100), types: z.array(ContentId).max(12) }),
+});
+export type Treat = z.infer<typeof Treat>;
+
+/** Everything a player can carry. Only treats so far; later kinds join this union by `kind`. */
+export const Item = z.discriminatedUnion('kind', [Treat]);
+export type Item = z.infer<typeof Item>;
+
+export const ItemsFile = z.strictObject({ items: z.array(Item).min(1).max(1_000) }).superRefine(({ items }, ctx) => noRepeatedIds(items, 'items', ctx));
+export type ItemsFile = z.infer<typeof ItemsFile>;
+
+/** One kind of creature a zone can hold: levels from `minLevel` to `maxLevel`, picked by `weight` against the others. */
+export const EncounterEntry = z
+  .strictObject({ species: ContentId, minLevel: CreatureLevel, maxLevel: CreatureLevel, weight: z.number().int().min(1).max(1_000) })
+  .refine((entry) => entry.minLevel <= entry.maxLevel, 'minLevel must not be above maxLevel');
+export type EncounterEntry = z.infer<typeof EncounterEntry>;
+
+/**
+ * Tall grass where wild creatures live. A map marks where with a rectangle in its `encounters`
+ * object layer, named by the zone's id. Each step onto a tile in the zone starts a battle with
+ * `encounterPercent` chance, under `weather` (null for clear skies).
+ */
+export const EncounterZone = z.strictObject({
+  id: ContentId,
+  encounterPercent: Percent.min(1),
+  weather: ContentId.nullable(),
+  creatures: z.array(EncounterEntry).min(1).max(40),
+});
+export type EncounterZone = z.infer<typeof EncounterZone>;
+
+export const EncountersFile = z.strictObject({ zones: z.array(EncounterZone).min(1).max(200) }).superRefine(({ zones }, ctx) => noRepeatedIds(zones, 'zones', ctx));
+export type EncountersFile = z.infer<typeof EncountersFile>;
+
+/** A shrine. A map places it with a point in its `shrines` object layer, named by the shrine's id. */
+export const Shrine = z.strictObject({ id: ContentId, name: LocalizedText });
+export type Shrine = z.infer<typeof Shrine>;
+
+/**
+ * What happens when a player's whole team faints: they wake at their last shrine (or the map's
+ * player spawn before they have touched one), with the team healed when `healTeam` is set, keeping
+ * `itemsKeptPercent` of each item they carry (rounded down; 100 loses nothing).
+ */
+export const TeamFaintedRules = z.strictObject({ healTeam: z.boolean(), itemsKeptPercent: Percent });
+export type TeamFaintedRules = z.infer<typeof TeamFaintedRules>;
+
+export const ShrinesFile = z
+  .strictObject({ shrines: z.array(Shrine).min(1).max(200), teamFainted: TeamFaintedRules })
+  .superRefine(({ shrines }, ctx) => noRepeatedIds(shrines, 'shrines', ctx));
+export type ShrinesFile = z.infer<typeof ShrinesFile>;
+
+/** What a new player chooses from and starts with: one of `species` at `level`, and `items`. */
+export const StartersFile = z
+  .strictObject({
+    species: z.array(ContentId).length(3),
+    level: CreatureLevel,
+    items: z.array(z.strictObject({ item: ContentId, count: z.number().int().min(1).max(99) })).max(10),
+  })
+  .refine(({ species }) => new Set(species).size === species.length, 'each starter is a different species')
+  .refine(({ items }) => new Set(items.map(({ item }) => item)).size === items.length, 'each starting item appears once');
+export type StartersFile = z.infer<typeof StartersFile>;
+
 /** Each file in `content/` and the schema it must match. A file not listed here is an error. */
 export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   'strings.json': StringsFile,
   'world.json': WorldSettings,
   'avatars.json': AvatarsFile,
+  'items.json': ItemsFile,
+  'encounters.json': EncountersFile,
+  'shrines.json': ShrinesFile,
+  'starters.json': StartersFile,
   'creatures/weather.json': WeatherFile,
   'creatures/moves.json': MovesFile,
   'creatures/species.json': SpeciesFile,
   'creatures/battle-rules.json': BattleRules,
+  'creatures/befriending.json': BefriendRules,
 };
 
 /** Maps are `content/maps/<id>.tmj`, Tiled's JSON format; see content/AGENTS.md. */

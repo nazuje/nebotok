@@ -20,6 +20,18 @@ export {
 export {
   LANGUAGES,
   LanguageSchema,
+  CreatureLevel,
+  BefriendRules,
+  Treat,
+  Item,
+  ItemsFile,
+  EncounterEntry,
+  EncounterZone,
+  EncountersFile,
+  Shrine,
+  ShrinesFile,
+  TeamFaintedRules,
+  StartersFile,
   LocalizedText,
   REQUIRED_STRING_IDS,
   StringsFile,
@@ -39,6 +51,9 @@ export {
 export {
   SAVE_VERSION,
   SAVE_SCHEMAS,
+  STORAGE_LIMIT,
+  NICKNAME_MAX,
+  CreatureInstance,
   SaveData,
   SaveError,
   migrations,
@@ -51,6 +66,8 @@ export { DIRECTIONS, DirectionSchema, stepFrom, directionBetween, samePoint, typ
 export {
   TILE_SIZE,
   PLAYER_SPAWN,
+  ENCOUNTER_LAYER,
+  SHRINE_LAYER,
   MapId,
   TiledMap,
   readTiledMap,
@@ -59,7 +76,11 @@ export {
   mapFromRows,
   reachableFrom,
   freeTileNear,
+  encounterZoneAt,
+  shrineAt,
+  wakePoint,
   playabilityProblems,
+  type EncounterArea,
   type MapResult,
   type WorldMap,
 } from './map.ts';
@@ -153,6 +174,8 @@ export {
   MOVES_PER_CREATURE,
   MAX_LEVEL,
   SIDES,
+  PLAYER_SIDE,
+  WILD_SIDE,
   ACTION_ORDER,
   BattleAction,
   BattleSetup,
@@ -169,6 +192,7 @@ export {
   type BattleState,
   type BattlePhase,
   type BattleOutcome,
+  type WildBattle,
   type BattleEvent,
   type BattleStepResult,
   type FieldWeather,
@@ -176,8 +200,63 @@ export {
   type FieldEffect,
 } from './battle/state.ts';
 export { BattleContentError, battleContentProblems, loadBattleContent, type BattleContent, type BattleContentFiles } from './battle/content.ts';
-export { battleCreature, damageOf, effectivenessOf, fieldEffectOf, type DamageRoll } from './battle/damage.ts';
-export { startBattle, battleStep, legalActions, isLegalAction } from './battle/engine.ts';
-export { greedyPolicy, randomPolicy, BOT_POLICIES, BOT_NAMES, playBattle, type BattlePolicy, type BotName, type PlayedBattle } from './battle/bots.ts';
+export { battleCreature, maxHpAt, damageOf, effectivenessOf, fieldEffectOf, type DamageRoll } from './battle/damage.ts';
+export { startBattle, battleStep, legalActions, isLegalAction, canOfferTreat } from './battle/engine.ts';
+export { greedyPolicy, randomPolicy, befriendPolicy, BOT_POLICIES, BOT_NAMES, playBattle, type BattlePolicy, type BotName, type PlayedBattle } from './battle/bots.ts';
 export { mirroredSetup, simulateBots, type SimulationOptions, type SimulationReport } from './battle/simulate.ts';
 export { BattlePilot, BattleGoldenFile, battleReplay, battleReplayHash, type BattleReplay } from './battle/golden.ts';
+export { befriendChance, treatLiking, type BefriendInput, type TreatLiking } from './befriend.ts';
+export { rollEncounter, type WildEncounter } from './encounter.ts';
+export { encounterProblems, starterProblems, mapLinkProblems } from './content-links.ts';
+export {
+  MAX_ITEM_COUNT,
+  emptyProgress,
+  progressOf,
+  needsStarter,
+  movesAt,
+  maxHpOf,
+  newCreature,
+  markSeen,
+  markBefriended,
+  itemCount,
+  addItems,
+  useItem,
+  chooseStarter,
+  hasRoomForCreature,
+  addCreature,
+  reorderTeam,
+  swapStorage,
+  healTeam,
+  canBattle,
+  wakeAfterFainting,
+  wildBattleSetup,
+  teamAfterBattle,
+  befriendedCreature,
+  type Progress,
+} from './creatures.ts';
+export { xpForWin, xpToNextLevel, gainXp, sentOut, awardXp } from './growth.ts';
+export {
+  BattleMoveMessage,
+  BattleSwitchMessage,
+  BattleTreatMessage,
+  BattleRunMessage,
+  TeamReorderMessage,
+  StorageSwapMessage,
+  StarterChooseMessage,
+  REFUSAL_REASONS,
+  battleView,
+  progressMessage,
+  type BattleCreatureView,
+  type BattleSideView,
+  type BattleView,
+  type BattleUpdate,
+  type BattleViewMessage,
+  type CreatureReward,
+  type WakePoint,
+  type BattleResult,
+  type BefriendResult,
+  type RefusalReason,
+  type Refused,
+  type ProgressMessage,
+  type StorageMessage,
+} from './messages.ts';

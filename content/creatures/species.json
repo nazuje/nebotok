@@ -6,7 +6,7 @@
     { "id": "gale-blob", "name": { "en": "Gale Blob", "sl": "Vetrna kepica" }, "type": "gale", "stats": { "hp": 60, "attack": 65, "defense": 55, "speed": 90 }, "moves": ["gale-tap", "gale-wallop", "gale-call", "frost-tap"] },
     { "id": "storm-blob", "name": { "en": "Storm Blob", "sl": "Nevihtna kepica" }, "type": "storm", "stats": { "hp": 60, "attack": 85, "defense": 50, "speed": 75 }, "moves": ["storm-tap", "storm-wallop", "storm-call", "bloom-tap"] },
     { "id": "rain-blob", "name": { "en": "Rain Blob", "sl": "Deževna kepica" }, "type": "rain", "stats": { "hp": 75, "attack": 65, "defense": 70, "speed": 55 }, "moves": ["rain-tap", "rain-wallop", "rain-call", "gale-tap"] },
-    { "id": "sun-cube", "name": { "en": "Sun Cube", "sl": "Sončna kocka" }, "type": "sun", "stats": { "hp": 90, "attack": 60, "defense": 90, "speed": 30 }, "moves": ["sun-tap", "sun-wallop", "storm-wallop", "sun-call"] },
-    { "id": "rain-cube", "name": { "en": "Rain Cube", "sl": "Deževna kocka" }, "type": "rain", "stats": { "hp": 95, "attack": 55, "defense": 85, "speed": 35 }, "moves": ["rain-tap", "rain-wallop", "gale-wallop", "rain-call"] }
+    { "id": "sun-cube", "name": { "en": "Sun Cube", "sl": "Sončna kocka" }, "type": "sun", "stats": { "hp": 90, "attack": 60, "defense": 90, "speed": 30 }, "moves": ["sun-tap", "sun-wallop", "storm-wallop", "sun-call"], "favouriteTreat": "storm-treat" },
+    { "id": "rain-cube", "name": { "en": "Rain Cube", "sl": "Deževna kocka" }, "type": "rain", "stats": { "hp": 95, "attack": 55, "defense": 85, "speed": 35 }, "moves": ["rain-tap", "rain-wallop", "gale-wallop", "rain-call"], "favouriteTreat": "gale-treat" }
   ]
 }

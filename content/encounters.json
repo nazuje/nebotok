@@ -1,0 +1,66 @@
+{
+  "zones": [
+    {
+      "id": "post-meadow",
+      "encounterPercent": 15,
+      "weather": null,
+      "creatures": [
+        {
+          "species": "sun-blob",
+          "minLevel": 2,
+          "maxLevel": 4,
+          "weight": 30
+        },
+        {
+          "species": "bloom-blob",
+          "minLevel": 2,
+          "maxLevel": 4,
+          "weight": 30
+        },
+        {
+          "species": "gale-blob",
+          "minLevel": 2,
+          "maxLevel": 4,
+          "weight": 25
+        },
+        {
+          "species": "rain-cube",
+          "minLevel": 3,
+          "maxLevel": 5,
+          "weight": 15
+        }
+      ]
+    },
+    {
+      "id": "windy-rise",
+      "encounterPercent": 20,
+      "weather": "gale",
+      "creatures": [
+        {
+          "species": "gale-blob",
+          "minLevel": 5,
+          "maxLevel": 8,
+          "weight": 35
+        },
+        {
+          "species": "storm-blob",
+          "minLevel": 5,
+          "maxLevel": 8,
+          "weight": 30
+        },
+        {
+          "species": "frost-blob",
+          "minLevel": 5,
+          "maxLevel": 8,
+          "weight": 25
+        },
+        {
+          "species": "sun-cube",
+          "minLevel": 6,
+          "maxLevel": 9,
+          "weight": 10
+        }
+      ]
+    }
+  ]
+}

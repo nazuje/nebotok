@@ -1,0 +1,10 @@
+{
+  "basePercent": 10,
+  "tiredPercent": 50,
+  "favouritePercent": 30,
+  "likedPercent": 15,
+  "levelPenaltyPer10Levels": 5,
+  "minPercent": 5,
+  "maxPercent": 95,
+  "windowPercent": 50
+}

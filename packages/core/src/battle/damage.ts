@@ -7,8 +7,13 @@ function statAt(base: number, level: number): number {
   return Math.floor((2 * base * level) / 100) + 5;
 }
 
+/** A creature's full health at a level. */
+export function maxHpAt(species: Species, level: number): number {
+  return Math.floor((2 * species.stats.hp * level) / 100) + level + 10;
+}
+
 export function battleCreature(id: string, species: Species, level: number): BattleCreature {
-  const maxHp = Math.floor((2 * species.stats.hp * level) / 100) + level + 10;
+  const maxHp = maxHpAt(species, level);
   return {
     id,
     species: species.id,

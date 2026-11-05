@@ -11,6 +11,8 @@ import {
   WalkToMessage,
   createSave,
   createWalker,
+  emptyProgress,
+  progressOf,
   freeTileNear,
   inBounds,
   isCompatibleProtocol,
@@ -21,6 +23,7 @@ import {
   withIntent,
   type Language,
   type Point,
+  type Progress,
   type SaveFile,
   type WalkCommand,
   type Walker,
@@ -67,6 +70,8 @@ type Seat = {
   readonly language: Language;
   /** False when the stored save could not be read: what we could not understand is never overwritten. */
   readonly canSave: boolean;
+  /** The creatures, treats and shrine of the save, written back unchanged with every save. */
+  progress: Progress;
   walker: Walker;
   dirty: boolean;
   /** When this seat was last saved, by the room's clock. */
@@ -142,7 +147,9 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       if (!profile) throw new ServerError(ErrorCode.AUTH_FAILED, 'this profile no longer exists');
       const earlier = this.activeSeatOf(auth.playerId);
       // Taking over from another device continues from where that device's character stands.
-      const start = earlier ? { walker: withIntent(earlier.seat.walker, IDLE), canSave: earlier.seat.canSave, language: earlier.seat.language } : this.load(auth.playerId);
+      const start = earlier
+        ? { walker: withIntent(earlier.seat.walker, IDLE), canSave: earlier.seat.canSave, language: earlier.seat.language, progress: earlier.seat.progress }
+        : this.load(auth.playerId);
       if (earlier) this.replace(earlier.sessionId, earlier.seat);
 
       const seat: Seat = {
@@ -152,6 +159,7 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
         createdAt: new Date(profile.createdAt).toISOString(),
         language: auth.language ?? start.language,
         canSave: start.canSave,
+        progress: start.progress,
         walker: start.walker,
         dirty: true,
         savedAt: Number.NEGATIVE_INFINITY,
@@ -225,17 +233,22 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
     }
 
     /** The saved position when it is still a walkable tile of this map, else the free tile nearest the spawn. */
-    private load(playerId: number): { walker: Walker; canSave: boolean; language: Language } {
+    private load(playerId: number): { walker: Walker; canSave: boolean; language: Language; progress: Progress } {
       let save: SaveFile | null = null;
       try {
         save = progress.load(playerId);
       } catch (error) {
         log.warn('save unreadable; this player will not be saved', { playerId, error: error instanceof Error ? error.message : String(error) });
-        return { walker: createWalker(this.arrival()), canSave: false, language: 'en' };
+        return { walker: createWalker(this.arrival()), canSave: false, language: 'en', progress: emptyProgress() };
       }
       const position = save?.data.position;
       const usable = position && position.map === map.id && isWalkable(map, position);
-      return { walker: usable ? createWalker(position, position.facing) : createWalker(this.arrival()), canSave: true, language: save?.data.language ?? 'en' };
+      return {
+        walker: usable ? createWalker(position, position.facing) : createWalker(this.arrival()),
+        canSave: true,
+        language: save?.data.language ?? 'en',
+        progress: save ? progressOf(save.data) : emptyProgress(),
+      };
     }
 
     /** New arrivals spread out around the spawn, so nobody appears on top of someone already there, away players included. */
@@ -322,7 +335,7 @@ export function worldRoom({ log, world, profiles, progress, now }: WorldServices
       if (!profiles.get(seat.playerId)) return;
       const { x, y, facing } = seat.walker;
       try {
-        progress.save(seat.playerId, createSave({ name: seat.name, language: seat.language, createdAt: seat.createdAt, position: { map: map.id, x, y, facing } }));
+        progress.save(seat.playerId, createSave({ name: seat.name, language: seat.language, createdAt: seat.createdAt, position: { map: map.id, x, y, facing }, ...seat.progress }));
         seat.dirty = false;
         seat.savedAt = now();
       } catch (error) {

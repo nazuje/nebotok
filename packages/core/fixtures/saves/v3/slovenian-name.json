@@ -1,0 +1,72 @@
+{
+  "v": 3,
+  "data": {
+    "name": "Čmrljček Šumež",
+    "language": "sl",
+    "createdAt": "2026-05-03T16:45:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 20,
+      "y": 17,
+      "facing": "down"
+    },
+    "team": [
+      {
+        "species": "rain-blob",
+        "level": 6,
+        "xp": 12,
+        "hp": 25,
+        "moves": [
+          "rain-tap",
+          "rain-wallop",
+          "rain-call",
+          "gale-tap"
+        ],
+        "nickname": "Žabica"
+      },
+      {
+        "species": "storm-blob",
+        "level": 4,
+        "xp": 3,
+        "hp": 18,
+        "moves": [
+          "storm-tap",
+          "storm-wallop",
+          "storm-call",
+          "bloom-tap"
+        ],
+        "nickname": "Šiška"
+      }
+    ],
+    "storage": [
+      {
+        "species": "frost-blob",
+        "level": 5,
+        "xp": 0,
+        "hp": 21,
+        "moves": [
+          "frost-tap",
+          "frost-wallop"
+        ],
+        "nickname": "Čopek"
+      }
+    ],
+    "inventory": [
+      {
+        "item": "plain-treat",
+        "count": 5
+      }
+    ],
+    "lastShrine": null,
+    "seen": [
+      "rain-blob",
+      "storm-blob",
+      "frost-blob"
+    ],
+    "befriended": [
+      "rain-blob",
+      "storm-blob",
+      "frost-blob"
+    ]
+  }
+}
