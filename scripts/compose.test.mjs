@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { cidrRange as range } from './lib/local-stack.mjs';
 import { ROOT } from './lib/server-process.mjs';
 
 const read = (file) => readFileSync(join(ROOT, file), 'utf8');
@@ -10,12 +11,6 @@ const images = (text) => [...text.matchAll(/^\s*image:\s*(\S+)\s*$/gm)].map((mat
 const litestream = (text) => images(text).filter((image) => image.startsWith('litestream/'));
 /** The text of one top-level service, from its key to the next service, the networks or the volumes. */
 const service = (text, name) => text.slice(text.indexOf(`\n  ${name}:\n`) + 1).split(/\n {2}(?=\w[\w-]*:\n)|\n(?:networks|volumes):/)[0];
-/** An IPv4 CIDR range as its first and last address, as numbers. */
-function range(cidr) {
-  const [address, bits] = cidr.split('/');
-  const start = address.split('.').reduce((total, octet) => total * 256 + Number(octet), 0);
-  return [start, start + 2 ** (32 - Number(bits)) - 1];
-}
 const COMPOSE_FILES = ['compose.yaml', 'compose.tailscale.yaml', 'compose.local.yaml'];
 
 const hasDocker = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' }).status === 0;
@@ -32,7 +27,7 @@ function composeConfig(files, settings = {}) {
 
 describe('compose files', () => {
   it('pin every third-party image by digest', () => {
-    const thirdParty = COMPOSE_FILES.flatMap((file) => images(read(file))).filter((image) => !image.startsWith('ghcr.io/nazuje/') && image !== 'nebotok:local');
+    const thirdParty = COMPOSE_FILES.flatMap((file) => images(read(file))).filter((image) => !image.startsWith('ghcr.io/nazuje/') && image !== '${NEBOTOK_LOCAL_IMAGE:-nebotok:local}');
     expect(thirdParty.length).toBeGreaterThan(0);
     for (const image of thirdParty) expect(image).toMatch(/^[\w./-]+:[\w.-]+@sha256:[0-9a-f]{64}$/);
   });
@@ -96,6 +91,14 @@ describe('compose files', () => {
     const { services, networks } = composeConfig(['compose.yaml'], { NEBOTOK_NETWORK: '10.231.68' });
     expect(networks.default.ipam.config).toEqual([{ subnet: '10.231.68.0/28', gateway: '10.231.68.1' }]);
     expect(services.app.environment.TRUST_PROXY).toBe('10.231.68.1');
+  });
+
+  it.skipIf(!hasDocker)('move the local test stack apart with the NEBOTOK_LOCAL_* settings, gateway and trust together', () => {
+    const { services, networks } = composeConfig(['compose.local.yaml'], { NEBOTOK_LOCAL_NETWORK: '10.231.142', NEBOTOK_LOCAL_IMAGE: 'nebotok:local-test', NEBOTOK_LOCAL_PORT: '41234' });
+    expect(networks.default.ipam.config).toEqual([{ subnet: '10.231.142.16/28', gateway: '10.231.142.17' }]);
+    expect(services.app.environment.TRUST_PROXY).toBe('10.231.142.17');
+    expect(services.app.image).toBe('nebotok:local-test');
+    expect(services.app.ports).toEqual([expect.objectContaining({ host_ip: '127.0.0.1', published: '41234', target: 2567 })]);
   });
 
   it.skipIf(!hasDocker)('validate in host mode with every seal on the game', () => {

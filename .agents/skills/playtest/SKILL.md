@@ -10,8 +10,8 @@ Proof that the game works as a player meets it, with screenshots you have actual
 1. Run `npm run verify -- --level 4`. It builds, starts the real server, and plays the page in
    Chromium and WebKit on an iPhone in portrait and an iPad in landscape, in English and Slovenian
    (`scripts/browser-check.mjs`). Done when the run exits 0, or each failing step is a finding.
-2. Open every screenshot under `.proof/<sha>/screenshots/` with your file-reading tool, and note in
-   one line what each shows. Done when you can name each file and say whether it looks right: text
+2. Open every screenshot listed in `.proof/<sha>/summary.json` (they are under
+   `.proof/<sha>/L4/screenshots/`) with your file-reading tool, and note in one line what each shows. Done when you can name each file and say whether it looks right: text
    inside its box, no sideways scroll, touch targets at least 48px, Slovenian with no English left.
 3. When the change has behaviour the browser check does not drive (a new control, a new screen, a
    flow across scenes), write a short Playwright script under `.proof/playtest/` (git ignores

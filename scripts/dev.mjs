@@ -1,18 +1,21 @@
 // npm run dev: the server (restarting on change) and the Vite dev server together. Vite proxies
-// /colyseus and /healthz to the server. Nothing opens a browser.
+// /colyseus and /healthz to the server. Nothing opens a browser. The game is on 5173 and the server
+// on 2567 when those are free; otherwise (another worktree's dev, say) on free ports, printed below.
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, freePort } from './lib/server-process.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const serverPort = await freePort(2567);
+const gamePort = await freePort(5173);
+const ports = { NEBOTOK_SERVER_PORT: String(serverPort), NEBOTOK_GAME_PORT: String(gamePort) };
 
 const children = [
-  { name: 'server', command: process.execPath, args: ['--watch', 'src/index.ts'], cwd: join(ROOT, 'apps/server') },
+  { name: 'server', command: process.execPath, args: ['--watch', 'src/index.ts'], cwd: join(ROOT, 'apps/server'), env: { PORT: String(serverPort) } },
   // Through this same node binary: the .bin shim goes via a version manager that does not pass SIGTERM on.
-  { name: 'game', command: process.execPath, args: [join(ROOT, 'node_modules/vite/bin/vite.js')], cwd: join(ROOT, 'apps/game') },
-].map(({ name, command, args, cwd }) => {
+  { name: 'game', command: process.execPath, args: [join(ROOT, 'node_modules/vite/bin/vite.js')], cwd: join(ROOT, 'apps/game'), env: ports },
+].map(({ name, command, args, cwd, env }) => {
   // Local only unless HOST says otherwise: the dev server should not be reachable from the network.
-  const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { HOST: '127.0.0.1', ...process.env } });
+  const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { HOST: '127.0.0.1', ...process.env, ...env } });
   const prefix = (stream, target) => {
     let rest = '';
     stream.setEncoding('utf8');
@@ -26,6 +29,8 @@ const children = [
   prefix(child.stderr, process.stderr);
   return child;
 });
+
+console.log(`dev: the game is at http://127.0.0.1:${gamePort}/ and the server on port ${serverPort}`);
 
 const exited = children.map((child) => new Promise((resolve) => child.once('exit', resolve)));
 let stopping = false;

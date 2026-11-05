@@ -6,7 +6,7 @@ import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
 import { WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
-import { capturedLog, tempServices, until } from './helpers.ts';
+import { capturedLog, freePort, tempServices, until } from './helpers.ts';
 
 let temp: ReturnType<typeof tempServices>;
 let colyseus: ColyseusTestServer;
@@ -14,7 +14,7 @@ const logged = capturedLog();
 
 beforeAll(async () => {
   temp = tempServices();
-  colyseus = await boot(createGameServer(temp.config, logged.log, temp.services));
+  colyseus = await boot(createGameServer(temp.config, logged.log, temp.services), await freePort());
 });
 afterAll(async () => {
   await colyseus.shutdown();

@@ -2,7 +2,9 @@
 // the same sealing as on the Mac mini, then checks it from outside (Docker's own record of the
 // containers) and from inside (what the server process can really do), plays it in Chromium and
 // WebKit, proves the backups restore (scripts/lib/backup-check.mjs), and stops it the way an update
-// does. The data volume is always left in place; the backup folder is a temporary one.
+// does. The data volume is always left in place; the backup folder is a temporary one. Each
+// worktree runs its own stack (scripts/lib/local-stack.mjs), so checks in several worktrees can run
+// at once.
 //   node scripts/container-check.mjs [--out <dir>]
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -11,6 +13,7 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import { API_LIMITS } from '../apps/server/src/api.ts';
 import { checkBackups } from './lib/backup-check.mjs';
+import { localStack } from './lib/local-stack.mjs';
 import { ROOT } from './lib/server-process.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' } } });
@@ -20,13 +23,23 @@ mkdirSync(logs, { recursive: true });
 const COMMAND_LOG = join(logs, 'container-check-commands.log');
 writeFileSync(COMMAND_LOG, '');
 
-// compose.local.yaml names its own project (nebotok-local), so nothing here can touch production.
+// A project of this worktree's own (nebotok-local-<id>), so nothing here can touch production or
+// another worktree's check.
+const STACK = await localStack(ROOT);
 const COMPOSE = ['compose', '-f', 'compose.local.yaml'];
-const BASE = `http://127.0.0.1:${process.env.NEBOTOK_LOCAL_PORT ?? '2567'}`;
-// Litestream backs the local stack up here, never into the Mac mini's BACKUP_DIR. COMPOSE_FILE
-// points scripts/restore.sh at the local stack too.
+const BASE = `http://127.0.0.1:${STACK.port}`;
+// Litestream backs the local stack up here, never into the Mac mini's BACKUP_DIR. COMPOSE_FILE and
+// COMPOSE_PROJECT_NAME point scripts/restore.sh at this local stack too.
 const BACKUPS = mkdtempSync(join(tmpdir(), 'nebotok-local-backups-'));
-const ENV = { ...process.env, COMPOSE_FILE: 'compose.local.yaml', NEBOTOK_LOCAL_BACKUP_DIR: BACKUPS };
+const ENV = {
+  ...process.env,
+  COMPOSE_FILE: 'compose.local.yaml',
+  COMPOSE_PROJECT_NAME: STACK.project,
+  NEBOTOK_LOCAL_IMAGE: STACK.image,
+  NEBOTOK_LOCAL_PORT: STACK.port,
+  NEBOTOK_LOCAL_NETWORK: STACK.network,
+  NEBOTOK_LOCAL_BACKUP_DIR: BACKUPS,
+};
 
 function run(command, args, { timeoutMs = 120_000 } = {}) {
   const result = spawnSync(command, args, { cwd: ROOT, env: ENV, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
@@ -168,8 +181,8 @@ try {
   const build = compose(['build'], { timeoutMs: 900_000 });
   check('image builds from source', build.code === 0, `exit ${build.code}`);
   if (build.code === 0) {
-    const [imageId, size] = docker(['image', 'inspect', 'nebotok:local', '--format', '{{.Id}} {{.Size}}']).stdout.trim().split(' ');
-    image = { tag: 'nebotok:local', id: imageId, sizeBytes: Number(size) };
+    const [imageId, size] = docker(['image', 'inspect', STACK.image, '--format', '{{.Id}} {{.Size}}']).stdout.trim().split(' ');
+    image = { tag: STACK.image, id: imageId, sizeBytes: Number(size) };
     const up = compose(['up', '-d', '--wait', '--wait-timeout', '90']);
     check('container starts and turns healthy', up.code === 0, up.code === 0 ? undefined : up.stderr.trim().split('\n').at(-1));
     id = compose(['ps', '-a', '-q', 'app']).stdout.trim();
@@ -194,11 +207,13 @@ try {
   // Removes the containers and their network. Never -v: volumes outlive every check.
   const down = compose(['down']);
   check('stack removed with its data volume kept', down.code === 0);
+  // Only this worktree's tag; the layers stay in Docker's cache for the next build.
+  if (image) docker(['image', 'rm', STACK.image]);
   rmSync(BACKUPS, { recursive: true, force: true });
 }
 
 const ok = checks.length > 0 && checks.every((result) => result.ok);
-writeFileSync(join(logs, 'container-check.json'), `${JSON.stringify({ ok, base: BASE, image, checks }, null, 2)}\n`);
+writeFileSync(join(logs, 'container-check.json'), `${JSON.stringify({ ok, base: BASE, stack: STACK, image, checks }, null, 2)}\n`);
 const failed = checks.filter((result) => !result.ok).length;
 console.log(failed ? `\ncontainer-check: ${failed} check(s) failed` : `\ncontainer-check: all ${checks.length} checks passed`);
 process.exit(ok ? 0 : 1);
