@@ -40,7 +40,7 @@ import {
 } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
-import { botName, deviceName, lockedName, runTag } from './lib/test-players.mjs';
+import { botName, deviceName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
 let given = null;
@@ -557,7 +557,7 @@ async function checkNarrow(browser, browserName, language, { lockedId, twiceId }
  */
 async function checkAddPin(browser, browserName, language) {
   const label = `${browserName}-360px-${language}`;
-  const name = `Dodaj ${shortName(browserName)} ${language === 'sl' ? 'Čšž' : 'Abc'}`;
+  const name = pinlessName(browserName, language, TAG);
   const problems = [];
   const screenshots = [];
   const expect = (ok, message) => {
