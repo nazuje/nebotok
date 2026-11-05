@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { DirectionSchema } from './grid.ts';
+import { DirectionSchema, type Point } from './grid.ts';
+import type { WalkCommand } from './movement.ts';
 
 /** Bumped whenever a client and server of different versions could misunderstand each other. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type WorldInfo = {
   readonly name: string;
@@ -52,17 +53,28 @@ export const SERVER_MESSAGES = {
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);
+/** The tile the client planned a walk command from: see `planCommand` in movement.ts. */
+const From = z.strictObject({ x: Coordinate, y: Coordinate }).optional();
 
 /** Walk along the shortest path to a tile. */
-export const WalkToMessage = z.strictObject({ x: Coordinate, y: Coordinate });
+export const WalkToMessage = z.strictObject({ x: Coordinate, y: Coordinate, from: From });
 export type WalkToMessage = z.infer<typeof WalkToMessage>;
 
 /** Keep walking one way, tile after tile, until a stop or another intent. */
-export const WalkHoldMessage = z.strictObject({ direction: DirectionSchema });
+export const WalkHoldMessage = z.strictObject({ direction: DirectionSchema, from: From });
 export type WalkHoldMessage = z.infer<typeof WalkHoldMessage>;
 
 /** Finish the current step and stand still. */
-export const WalkStopMessage = z.strictObject({});
+export const WalkStopMessage = z.strictObject({ from: From });
+export type WalkStopMessage = z.infer<typeof WalkStopMessage>;
+
+/** The message that asks the server for a walk command planned from the tile `from`. */
+export function walkMessage(command: WalkCommand, from: Point): { readonly type: string; readonly payload: WalkToMessage | WalkHoldMessage | WalkStopMessage } {
+  const at = { x: from.x, y: from.y };
+  if (command.kind === 'to') return { type: CLIENT_MESSAGES.walkTo, payload: { x: command.target.x, y: command.target.y, from: at } };
+  if (command.kind === 'hold') return { type: CLIENT_MESSAGES.walkHold, payload: { direction: command.direction, from: at } };
+  return { type: CLIENT_MESSAGES.walkStop, payload: { from: at } };
+}
 
 /** Sent back when a walk-to target cannot be reached, so the client can drop its prediction. */
 export type WalkRefused = { readonly x: number; readonly y: number };

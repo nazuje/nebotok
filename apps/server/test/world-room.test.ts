@@ -159,10 +159,28 @@ describe('walking', () => {
     expect(room.connection.isOpen).toBe(true);
   });
 
+  it('takes the tile a walk was planned from only as a hint, never as a place to jump to', async () => {
+    const room = await join((await profile('Test Courier')).token);
+    const start = spawn();
+    const target = tileAway(3);
+    const faraway = tileAway(8);
+    room.send('walk.to', { ...target, from: faraway });
+    await until(() => !at(room, room.sessionId, start), 'the first step');
+    const first = room.state.players.get(room.sessionId)!;
+    expect(Math.abs(first.x - start.x) + Math.abs(first.y - start.y)).toBe(1);
+    await until(() => at(room, room.sessionId, target), 'the walk to finish');
+    room.send('walk.stop', { from: faraway });
+    room.send('walk.hold', { direction: 'up', from: faraway });
+    room.send('walk.stop', { from: target });
+    await until(() => room.state.players.get(room.sessionId)?.moving === false, 'the walker to stand');
+    const stood = room.state.players.get(room.sessionId)!;
+    expect(Math.abs(stood.x - target.x) + Math.abs(stood.y - target.y)).toBeLessThanOrEqual(1);
+  });
+
   it('disconnects a client that sends a malformed walk', async () => {
     const room = await join((await profile('Test Courier')).token);
     const left = leftWith(room);
-    room.send('walk.to', { x: -1, y: 2 });
+    room.send('walk.to', { x: 1, y: 2, from: { x: 1, y: 2.5 } });
     expect(await left).toBe(4002);
   });
 });

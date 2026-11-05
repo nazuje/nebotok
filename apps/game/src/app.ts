@@ -1,4 +1,4 @@
-import { CLIENT_MESSAGES, WorldSettings, samePoint, type Language, type LoginResponse, type StringId } from '@nebotok/core';
+import { WorldSettings, samePoint, walkMessage, type Language, type LoginResponse, type StringId } from '@nebotok/core';
 import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
 import { logout } from './api.ts';
@@ -58,10 +58,10 @@ const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
 
 /** A command reaches the server only when the prediction accepts it too, so the two agree. */
 function deliver(command: Command) {
-  if (!room || !view.command(command)) return;
-  if (command.kind === 'to') room.send(CLIENT_MESSAGES.walkTo, command.target);
-  else if (command.kind === 'hold') room.send(CLIENT_MESSAGES.walkHold, { direction: command.direction });
-  else room.send(CLIENT_MESSAGES.walkStop, {});
+  const from = room ? view.command(command) : null;
+  if (!room || !from) return;
+  const message = walkMessage(command, from);
+  room.send(message.type, message.payload);
 }
 
 const outbox = createOutbox({
