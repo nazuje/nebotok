@@ -1,0 +1,11 @@
+{
+  "items": [
+    { "id": "plain-treat", "kind": "treat", "name": { "en": "Plain Treat", "sl": "Navadna poslastica" }, "likedBy": { "species": [], "types": [] } },
+    { "id": "sun-treat", "kind": "treat", "name": { "en": "Sun Treat", "sl": "Sončna poslastica" }, "likedBy": { "species": [], "types": ["sun"] } },
+    { "id": "gale-treat", "kind": "treat", "name": { "en": "Gale Treat", "sl": "Vetrna poslastica" }, "likedBy": { "species": [], "types": ["gale"] } },
+    { "id": "rain-treat", "kind": "treat", "name": { "en": "Rain Treat", "sl": "Deževna poslastica" }, "likedBy": { "species": [], "types": ["rain"] } },
+    { "id": "frost-treat", "kind": "treat", "name": { "en": "Frost Treat", "sl": "Mrzla poslastica" }, "likedBy": { "species": [], "types": ["frost"] } },
+    { "id": "storm-treat", "kind": "treat", "name": { "en": "Storm Treat", "sl": "Nevihtna poslastica" }, "likedBy": { "species": [], "types": ["storm"] } },
+    { "id": "bloom-treat", "kind": "treat", "name": { "en": "Bloom Treat", "sl": "Cvetna poslastica" }, "likedBy": { "species": [], "types": ["bloom"] } }
+  ]
+}

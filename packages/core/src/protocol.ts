@@ -3,7 +3,7 @@ import { DirectionSchema, type Point } from './grid.ts';
 import type { WalkCommand } from './movement.ts';
 
 /** Bumped whenever a client and server of different versions could misunderstand each other. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export type WorldInfo = {
   readonly name: string;
@@ -37,19 +37,34 @@ export function isCompatibleProtocol(clientProtocol: number): boolean {
   return clientProtocol === PROTOCOL_VERSION;
 }
 
-/** Messages a client sends to the world room, by type. See docs/protocol.md. */
+/** Messages a client sends to the world room, by type. See docs/protocol.md; the payload schemas of the battle and team ones are in messages.ts. */
 export const CLIENT_MESSAGES = {
   ping: 'ping',
   walkTo: 'walk.to',
   walkHold: 'walk.hold',
   walkStop: 'walk.stop',
+  battleMove: 'battle.move',
+  battleSwitch: 'battle.switch',
+  battleTreat: 'battle.treat',
+  battleRun: 'battle.run',
+  teamReorder: 'team.reorder',
+  storageSwap: 'storage.swap',
+  starterChoose: 'starter.choose',
 } as const;
 
-/** Messages the world room sends to a client, by type. */
+/** Messages the world room sends to a client, by type. Each goes only to the player it is about. */
 export const SERVER_MESSAGES = {
   welcome: 'welcome',
   pong: 'pong',
   walkRefused: 'walk.refused',
+  progress: 'progress',
+  storage: 'storage',
+  battleStarted: 'battle.started',
+  battleTurn: 'battle.turn',
+  battleView: 'battle.view',
+  battleResult: 'battle.result',
+  battleBefriend: 'battle.befriend',
+  refused: 'refused',
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);

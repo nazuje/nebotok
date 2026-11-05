@@ -42,6 +42,23 @@ describe('save migrations', () => {
     expect(() => migrateSave({ v: 2, data: { ...base, position: { map: 'post-island', x: 1, y: 0, facing: 'north' } } })).toThrow(SaveError);
   });
 
+  it('gives a v2 player no creatures, so they choose a starter on their next visit', () => {
+    const v2 = { v: 2, data: { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null } };
+    expect(migrateSave(v2).data).toMatchObject({ team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] });
+  });
+
+  it('refuses a team of more than six, a repeated item or move, and an empty move list', () => {
+    const base = { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null, storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] };
+    const creature = { species: 'sun-blob', level: 5, xp: 0, hp: 22, moves: ['sun-tap'] };
+    expect(migrateSave({ v: 3, data: { ...base, team: [creature] } }).data.team).toHaveLength(1);
+    expect(() => migrateSave({ v: 3, data: { ...base, team: Array.from({ length: 7 }, () => creature) } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 3, data: { ...base, team: [{ ...creature, moves: [] }] } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 3, data: { ...base, team: [{ ...creature, moves: ['sun-tap', 'sun-tap'] }] } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 3, data: { ...base, team: [creature], inventory: [{ item: 'plain-treat', count: 1 }, { item: 'plain-treat', count: 2 }] } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 3, data: { ...base, team: [creature], seen: ['sun-blob', 'sun-blob'] } })).toThrow(SaveError);
+    expect(() => migrateSave({ v: 3, data: { ...base, team: [{ ...creature, nickname: '' }] } })).toThrow(SaveError);
+  });
+
   it('refuses a save from a newer game', () => {
     expect(() => migrateSave({ v: SAVE_VERSION + 1, data: {} })).toThrow(SaveError);
   });

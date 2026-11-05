@@ -25,7 +25,14 @@ console.log(changed ? `\n${changed} golden(s) re-recorded. Review the diff befor
 // Battle goldens replay against their own frozen copy of the creature content, not content/creatures/.
 const BATTLE_DIR = join(GOLDEN_DIR, 'battle');
 const readCreatures = (name) => JSON.parse(readFileSync(join(BATTLE_DIR, 'content', `${name}.json`), 'utf8'));
-const battleContent = loadBattleContent({ weather: readCreatures('weather'), moves: readCreatures('moves'), species: readCreatures('species'), rules: readCreatures('battle-rules') });
+const battleContent = loadBattleContent({
+  weather: readCreatures('weather'),
+  moves: readCreatures('moves'),
+  species: readCreatures('species'),
+  rules: readCreatures('battle-rules'),
+  befriending: readCreatures('befriending'),
+  items: readCreatures('items'),
+});
 let battleChanged = 0;
 for (const name of readdirSync(BATTLE_DIR).filter((file) => file.endsWith('.json')).toSorted()) {
   const path = join(BATTLE_DIR, name);

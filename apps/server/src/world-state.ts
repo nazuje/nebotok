@@ -1,7 +1,8 @@
 import { schema, t, type SchemaType } from '@colyseus/schema';
 
 /**
- * What every client sees of a player: only what the world shows. No profile id, PIN or token. `x`
+ * What every client sees of a player: only what the world shows. No profile id, PIN, token, team or
+ * battle. `x`
  * and `y` are the tile the player occupies or is stepping onto (see Walker in packages/core).
  */
 export const Player = schema(
@@ -13,6 +14,8 @@ export const Player = schema(
     facing: t.string().default('down'),
     moving: t.boolean().default(false),
     connected: t.boolean().default(true),
+    /** True while the player is in a battle. Everything about the battle goes only to them, as messages. */
+    inBattle: t.boolean().default(false),
   },
   'Player',
 );

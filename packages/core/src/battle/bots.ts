@@ -1,7 +1,8 @@
+import { treatLiking, type TreatLiking } from '../befriend.ts';
 import type { Rng } from '../rng.ts';
 import type { BattleContent } from './content.ts';
 import { damageOf, moveOf } from './damage.ts';
-import { battleStep, legalActions, startBattle } from './engine.ts';
+import { battleStep, canOfferTreat, legalActions, startBattle } from './engine.ts';
 import {
   BattleError,
   SIDES,
@@ -44,7 +45,11 @@ function firstBest(actions: readonly BattleAction[], score: (action: BattleActio
   return best;
 }
 
-/** Uses the move with the most expected damage, and sends out the creature that hits the opponent hardest. It never switches by choice. */
+/**
+ * Uses the move with the most expected damage, and sends out the creature that hits the opponent
+ * hardest. It never switches by choice, never offers a treat, and runs only from a beaten wild
+ * creature, when that is all it can do.
+ */
 export const greedyPolicy: BattlePolicy = (state, side, _rng, content) => {
   const legal = legalActions(state, side);
   const target = activeCreature(state, opponentOf(side));
@@ -52,18 +57,44 @@ export const greedyPolicy: BattlePolicy = (state, side, _rng, content) => {
   const creatures = state.sides[side].creatures;
   return firstBest(legal, (action) => {
     if (action.kind === 'move') return expectedDamage(content, state, attacker, target, attacker.moves[action.slot] ?? '');
-    // Switching by choice scores 0, so a greedy bot only switches when it must.
-    return state.phase === 'swap' ? bestDamage(content, state, creatures[action.to] ?? attacker, target) : 0;
+    // Switching by choice scores 0, so a greedy bot only switches when it must. Running scores 0 and
+    // comes last, so it is picked only when nothing else is legal.
+    if (action.kind === 'switch' && state.phase === 'swap') return bestDamage(content, state, creatures[action.to] ?? attacker, target);
+    return 0;
   });
 };
 
-/** Any legal action, each equally likely. */
+/** Any legal action, each equally likely. It never offers a treat. */
 export const randomPolicy: BattlePolicy = (state, side, rng) => {
   const legal = legalActions(state, side);
   return legal.length === 0 ? null : rng.pick(legal);
 };
 
-export const BOT_POLICIES = { greedy: greedyPolicy, random: randomPolicy } as const satisfies Readonly<Record<string, BattlePolicy>>;
+const LIKING_RANK: Readonly<Record<TreatLiking, number>> = { favourite: 2, liked: 1, none: 0 };
+
+/** The treat the wild creature likes best, first by id on a tie, as if the player carried every treat. */
+function bestTreat(state: BattleState, side: SideIndex, content: BattleContent): string | null {
+  const species = content.species.get(activeCreature(state, opponentOf(side)).species);
+  if (!species) return null;
+  let best: string | null = null;
+  let bestRank = -1;
+  for (const item of [...content.items.values()].toSorted((a, b) => (a.id < b.id ? -1 : 1))) {
+    const rank = LIKING_RANK[treatLiking(item, species)];
+    if (rank > bestRank) {
+      best = item.id;
+      bestRank = rank;
+    }
+  }
+  return best;
+}
+
+/** Plays like the greedy bot, but offers the best-liked treat whenever it may. Bots that befriend use it. */
+export const befriendPolicy: BattlePolicy = (state, side, rng, content) => {
+  const item = canOfferTreat(state, side) ? bestTreat(state, side, content) : null;
+  return item ? { kind: 'treat', item } : greedyPolicy(state, side, rng, content);
+};
+
+export const BOT_POLICIES = { greedy: greedyPolicy, random: randomPolicy, befriender: befriendPolicy } as const satisfies Readonly<Record<string, BattlePolicy>>;
 export type BotName = keyof typeof BOT_POLICIES;
 export const BOT_NAMES = Object.keys(BOT_POLICIES).toSorted() as BotName[];
 
@@ -82,8 +113,9 @@ export function playBattle(setup: BattleSetup, policies: readonly [BattlePolicy,
   const started = startBattle(setup, content);
   let { state } = started;
   const events: BattleEvent[] = [...started.events];
-  // Each turn is followed by at most one swap step, so this bound is only reached by an engine bug.
-  const maxSteps = content.rules.turnLimit * 2 + 1;
+  // Each turn is followed by at most one swap step, and a wild battle by one befriend step, so this
+  // bound is only reached by an engine bug.
+  const maxSteps = content.rules.turnLimit * 2 + 2;
   let steps = 0;
   while (state.phase !== 'over') {
     if (steps >= maxSteps) throw new BattleError(`battle did not end within ${maxSteps} steps`);

@@ -25,33 +25,54 @@ arrivals and stacked name tags, Litestream backups and nightly snapshots, and ho
 of signed images. A fresh-context playtest (#7) found four bugs and eight suggestions, and all
 of them are fixed or decided.
 
-**Then a creature design day:** each kid designs two creatures, which become the data for Phase 2.
+## Phase 2: The whole game in placeholder slices
 
-## Phase 2: First battles
+Rather than wait for real art and real creatures, Phase 2 builds the game in six thin slices, each
+playable on the live server. Everything a slice adds is data with a schema in `content/`:
+creatures, moves, treats, encounter zones, shrines, quests, dialogue, recipes, islands and sounds.
+The art test and the creature design day after Slice F then swap new data and images in, and no
+rule has to change. Until the art test, the art is pixel grids drawn in code.
+
+### Slice A: First battles
 
 - The battle engine, in `packages/core`. (Built early, with placeholder creatures.)
-- Wild encounters.
+- Wild encounters in tall grass (encounter zones).
 - Treats and befriending.
-- A team of up to 6.
-- Shrines, where you wake after a lost battle.
+- A team of up to 6, storage for 200 more, and a first creature chosen from three starters.
+- Shrines, where you wake with your team healed after the whole team faints.
 - Battle bots and golden replays that prove battles stay fair and repeatable.
 
-## Phase 3: First route
+Built as three tickets: the contract (#37: protocol v4, save v3, the content files and core rules,
+see `docs/protocol.md`), then the server battles (#40) and the battle screens (#41) in parallel.
 
-The first vertical slice: Sky Post delivery quests, characters to talk to in English and Slovenian,
-and foraging and cooking.
+### Slice B: Story, quests, dialogue and inventory
 
-## Phase 4: Art and sound test
+Sky Post delivery quests, characters to talk to in English and Slovenian, and an inventory screen.
 
-Two or three art methods tried on the same creature, one tile set and one portrait. One method is
-picked, and the first island is redrawn in it. The approach to music is chosen.
+### Slice C: Skills
 
-## Phase 5: Better together
+Foraging, fishing, cooking and building, small at first, feeding quests and befriending.
+
+### Slice D: Better together
 
 Trading, duels with the even-match setting, preset phrases and emotes, and home islands that others
 can visit.
 
-## Phase 6 and later: Grow the sky
+### Slice E: Grow the sky
 
-New islands, one at a time. A glider, then an airship. The storm's story chapters. Shared world
-events. More skills. Later, the offline solo mode.
+Three or four islands, gliding between them, and shared storm events everyone on the islands takes
+part in.
+
+### Slice F: Placeholder sound
+
+Placeholder sound effects, and the creatures' and characters' babble in place of voices.
+
+## Phase 3: Art test and creature design day
+
+Two or three art methods tried on the same creature, one tile set and one portrait. One method is
+picked, and the islands are redrawn in it. The approach to music is chosen. Then a creature design
+day: each kid designs two creatures, which replace placeholder creatures as data.
+
+## Phase 4 and later
+
+An airship. The storm's story chapters. More islands and skills. Later, the offline solo mode.

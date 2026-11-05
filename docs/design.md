@@ -70,6 +70,8 @@ front door: only devices on the family's tailnet can reach the game at all.
 - **The game** is built with Vite. Phaser 4 draws the world and the battles; menus, dialogue and the
   inventory are HTML overlays on top, which are easier to make readable, accessible and translated.
 - **Maps** are drawn in Tiled with 16×16 pixel tiles.
+- **Art** comes from pixel grids drawn in code until the art test, so the game is playable from the
+  start and real art replaces images, not rules.
 - **Content is data.** Creatures, moves, items, skills, quests, dialogue and maps are data files
   checked against schemas, so the game grows by adding data, not code.
 - **Saves carry a version**, and every change to their shape comes with a migration, so old saves
@@ -93,7 +95,7 @@ server and the browser. Go would mean writing every rule twice.
 
 ## Deferred on purpose
 
-- The art method: an art test in Phase 4 decides it.
+- The art method: an art test after Slice F of Phase 2 decides it (see [phases.md](phases.md)).
 - Music.
 - Offline solo mode.
 - Free chat.

@@ -1,0 +1,15 @@
+{
+  "v": 3,
+  "data": {
+    "name": "Nova Kurirka",
+    "language": "sl",
+    "createdAt": "2026-05-04T08:00:00.000Z",
+    "position": null,
+    "team": [],
+    "storage": [],
+    "inventory": [],
+    "lastShrine": null,
+    "seen": [],
+    "befriended": []
+  }
+}

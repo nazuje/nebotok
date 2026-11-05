@@ -7,6 +7,8 @@ const FILES = {
   'creatures/moves.json': battleFiles.moves,
   'creatures/species.json': battleFiles.species,
   'creatures/battle-rules.json': battleFiles.rules,
+  'creatures/befriending.json': battleFiles.befriending,
+  'items.json': battleFiles.items,
 } as const;
 
 const goodMove = { id: 'test-poke', name: { en: 'Test Poke', sl: 'Testni dregljaj' }, type: 'sun', power: 30, accuracy: 100 };
@@ -77,6 +79,27 @@ describe('battle content', () => {
     const species = { species: [{ ...goodSpecies, moves: ['sun-tap', 'sun-wallop', 'sun-call', 'moon-tap'] }] };
     expect(battleContentProblems({ ...battleFiles, species })).toEqual(['species.json "test-blob": knows "moon-tap", which is not in moves.json']);
     expect(() => loadBattleContent({ ...battleFiles, species })).toThrow(BattleContentError);
+  });
+
+  it('reports a favourite treat or a treat liking that names nothing real', () => {
+    const species = { species: [{ ...goodSpecies, favouriteTreat: 'moon-treat' }] };
+    expect(battleContentProblems({ ...battleFiles, species })).toEqual(['species.json "test-blob": favouriteTreat "moon-treat" is not a treat in items.json']);
+    const [plain, ...rest] = battleFiles.items.items;
+    const items = { items: [{ ...plain!, likedBy: { species: ['moon-blob'], types: ['lava'] } }, ...rest] };
+    expect(battleContentProblems({ ...battleFiles, items })).toHaveLength(2);
+  });
+
+  it('rejects befriending rules where a liked treat beats a favourite, or the bounds cross', () => {
+    const rules = battleFiles.befriending;
+    expect(checkContentFile('creatures/befriending.json', { ...rules, likedPercent: rules.favouritePercent + 1 }).ok).toBe(false);
+    expect(checkContentFile('creatures/befriending.json', { ...rules, minPercent: 90, maxPercent: 80 }).ok).toBe(false);
+    expect(checkContentFile('creatures/befriending.json', { ...rules, windowPercent: 0 }).ok).toBe(false);
+  });
+
+  it('rejects an item of an unknown kind or with a repeated id', () => {
+    const [plain] = battleFiles.items.items;
+    expect(checkContentFile('items.json', { items: [{ ...plain, kind: 'hat' }] }).ok).toBe(false);
+    expect(checkContentFile('items.json', { items: [plain, plain] }).ok).toBe(false);
   });
 
   it('reports a creature with only weather moves', () => {
