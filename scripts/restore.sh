@@ -57,7 +57,7 @@ esac
 cd "$ROOT"
 command -v docker >/dev/null || die "docker is not installed (OrbStack provides it)."
 docker info >/dev/null 2>&1 || die "Docker is not running. Start OrbStack and try again."
-services=$(docker compose config --services) || die "docker compose could not read the stack (is .env there, with BACKUP_DIR?)"
+services=$(docker compose config --services) || die "docker compose could not read the stack (is .env there, with NEBOTOK_DIGEST? scripts/update.sh writes it)"
 grep -qx litestream <<<"$services" || die "this stack has no litestream service"
 
 # A one-off Litestream container: it has the data volume at /data and the backup folder at /backups.
@@ -84,7 +84,7 @@ fi
 
 say "stopping the game and Litestream"
 docker compose stop app litestream
-# The check below runs in the game's image, which shares the Tailscale container's network.
+# The check below runs in the game's image, which in sidecar mode shares the Tailscale container's network.
 if grep -qx ts <<<"$services"; then docker compose up -d --wait ts; fi
 
 # Before the swap nothing has changed yet, so a failure only has to start the game again.

@@ -26,10 +26,12 @@ report.
 - **npm settings.** `.npmrc` keeps `ignore-scripts=true`, `save-exact`, `engine-strict`,
   `min-release-age=7` and `allow-git=none`. Nothing turns install scripts back on, anywhere
   (scripts, Dockerfile, CI, docs).
-- **Container and compose.** `Dockerfile`, `compose.yaml`, `compose.local.yaml`: non-root user,
-  read-only root, every capability dropped, `no-new-privileges`, limits kept, no published ports in
-  `compose.yaml`, no host folders and no Docker socket mounted into the game, base images pinned by
-  digest.
+- **Container and compose.** `Dockerfile`, `compose.yaml`, `compose.tailscale.yaml`,
+  `compose.local.yaml`: non-root user, read-only root, every capability dropped,
+  `no-new-privileges`, limits kept, the game's port published on `127.0.0.1` only in
+  `compose.yaml` and not at all in sidecar mode, no host folders and no Docker socket mounted into
+  the game, base images pinned by digest. `scripts/serve.sh` touches only HTTPS port 8445 and never
+  turns on Funnel.
 - **CI and deploy.** `.github/`: read-only default token, actions pinned to full SHAs, no
   `pull_request_target`, `persist-credentials: false`, the gitleaks pin and checksum kept, the image
   built only from `main` after verify. `scripts/update.sh` and `rollback.sh` still verify the

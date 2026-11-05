@@ -108,8 +108,8 @@ sessions.
   majors.
 - `ignore-scripts=true` also skips npm lifecycle scripts such as `prepare`, which is why git hooks
   need `npm run setup:hooks`. Verify warns while they are off.
-- Never run `docker compose down -v`: it deletes the saved worlds and the Tailscale identity.
-  `docker compose down` is fine.
+- Never run `docker compose down -v`: it deletes the saved worlds (and, in sidecar mode, the
+  Tailscale identity). `docker compose down` is fine.
 - Headless browsers have no GPU, so WebGL runs on a software fallback (SwiftShader). It is slow and
   can look slightly different; judge layout, not frame rate.
 - TypeScript is run by Node directly, so only erasable syntax works (`erasableSyntaxOnly`): no

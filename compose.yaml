@@ -1,15 +1,16 @@
 # The production stack on the Mac mini. Start and update it with scripts/update.sh, which verifies
 # the image's build attestation before anything runs. Never `docker compose down -v`: that deletes
-# the world saves and the Tailscale identity.
+# the world saves.
 #
-# Two containers share one network namespace:
-#   ts          joins the tailnet as tag:nebotok and serves https://<TS_HOSTNAME>.<tailnet>.ts.net,
-#               proxying it to the game on 127.0.0.1:2567. No ports are published on the Mac.
 #   app         the game server, built by our own CI and pinned by digest. It sees no host folders
-#               and no Docker socket, and can write only to its own data volume and /tmp.
-# A third has no network at all:
-#   litestream  copies the database from the data volume to BACKUP_DIR on the Mac as it changes,
-#               and the game's nightly snapshots with it. The only container with a host folder.
+#               and no Docker socket, and can write only to its own data volume and /tmp. Its port
+#               is published on 127.0.0.1 only, never on the home network; the Mac's own Tailscale
+#               shares it with the tailnet over HTTPS on port 8445 (scripts/serve.sh).
+#   litestream  has no network at all. It copies the database from the data volume to BACKUP_DIR on
+#               the Mac as it changes, and the game's nightly snapshots with it. The only container
+#               with a host folder.
+# Sidecar mode, where the game is its own Tailscale device instead, adds compose.tailscale.yaml on
+# top of this file (docs/deploy.md, "Sidecar mode").
 name: nebotok
 
 x-logging: &logging
@@ -26,54 +27,19 @@ x-hardening: &hardening
   logging: *logging
 
 services:
-  ts:
-    <<: *hardening
-    # tailscale/tailscale:v1.104.4 (stable)
-    image: tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c
-    environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env (see .env.example)}
-      TS_HOSTNAME: ${TS_HOSTNAME:-nebotok}
-      TS_STATE_DIR: /var/lib/tailscale
-      # Userspace networking needs no /dev/net/tun and no NET_ADMIN, so every capability is dropped.
-      TS_USERSPACE: "true"
-      # Use the auth key only for the first login; after that the state volume keeps the identity.
-      TS_AUTH_ONCE: "true"
-      TS_SERVE_CONFIG: /config/serve.json
-      TS_EXTRA_ARGS: --advertise-tags=tag:nebotok
-      TS_TAILSCALED_EXTRA_ARGS: --no-logs-no-support
-      TS_ENABLE_HEALTH_CHECK: "true"
-      TS_LOCAL_ADDR_PORT: 127.0.0.1:9002
-    volumes:
-      - tailscale-state:/var/lib/tailscale
-      # Tailscale watches a directory, not a single file, for serve config changes. Read-only.
-      - ./deploy/tailscale:/config:ro
-    tmpfs:
-      - /tmp
-    pids_limit: 200
-    mem_limit: 256m
-    cpus: "0.5"
-    healthcheck:
-      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:9002/healthz"]
-      interval: 30s
-      timeout: 5s
-      start_period: 30s
-      retries: 3
-
   app:
     <<: *hardening
     image: ghcr.io/nazuje/nebotok@${NEBOTOK_DIGEST:?run scripts/update.sh to set NEBOTOK_DIGEST in .env}
     user: node
-    network_mode: service:ts
-    depends_on:
-      ts:
-        condition: service_healthy
     environment:
       NODE_ENV: production
-      # Only Tailscale Serve, inside the same namespace, needs to reach the game.
-      HOST: 127.0.0.1
+      # Inside the container, so the published port can reach it; the Mac's side is 127.0.0.1 only.
+      HOST: 0.0.0.0
       PORT: "2567"
       DATA_DIR: /data
       LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:${NEBOTOK_PORT:-8567}:2567"
     volumes:
       - nebotok-data:/data
     tmpfs:
@@ -102,8 +68,9 @@ services:
       - nebotok-data:/data
       - ./deploy/litestream:/etc/litestream:ro
       # Refuses to start rather than create a new, empty folder when BACKUP_DIR is mistyped.
+      # scripts/update.sh creates the default folder when BACKUP_DIR is not set.
       - type: bind
-        source: ${BACKUP_DIR:?set BACKUP_DIR in .env to the backup folder (see .env.example)}
+        source: ${BACKUP_DIR:-${HOME}/NebotokBackups}
         target: /backups
         bind:
           create_host_path: false
@@ -116,5 +83,4 @@ services:
     stop_grace_period: 30s
 
 volumes:
-  tailscale-state:
   nebotok-data:

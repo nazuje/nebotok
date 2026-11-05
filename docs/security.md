@@ -16,8 +16,11 @@ Think of the game as a sealed box on a shelf in the house.
   game, they would find themselves in an empty room. A second sealed box, with no network at all,
   copies the saves to one backup folder on the Mac.
 - **There is only one door, and only family has the key.** Nothing about the game is on the open
-  internet. Only devices signed in to your family's Tailscale network can open it, and only the
-  game's web page. The game itself is not allowed to reach any other device on that network.
+  internet or the home Wi-Fi. The game is open only to the Mac mini itself, and the Mac's own
+  Tailscale passes it on, on one port (8445), to devices signed in to your family's Tailscale
+  network. The game has no Tailscale identity of its own, so no rule on that network lets it reach
+  anything. (Its ordinary connection goes out through the Mac; "Residual risks" explains what that
+  still allows.)
 - **Only boxes we built ourselves come in.** GitHub builds the game from this repository's code and
   signs a record saying so. The Mac mini checks that signature before running any new version, and
   refuses one it cannot check.
@@ -67,7 +70,7 @@ container onto the Mac.
 | Limits on memory (512 MB), CPU (1 core) and processes (200). | `compose.yaml` |
 | Base image pinned by digest, from Docker's official Node image. | `Dockerfile` |
 | Containers run inside OrbStack's Linux virtual machine, not directly on macOS. | OrbStack |
-| The Tailscale sidecar also runs with every capability dropped, read-only, in userspace mode (no network device, no admin rights). Its only host folder is `deploy/tailscale`, read-only. | `compose.yaml` |
+| In sidecar mode only, the Tailscale sidecar also runs with every capability dropped, read-only, in userspace mode (no network device, no admin rights). Its only host folder is `deploy/tailscale`, read-only. | `compose.tailscale.yaml` |
 | The Litestream backup container is sealed the same way, as uid 1000 with no network; it alone sees a writable host folder, the backup folder (see "Backups" below). | `compose.yaml` |
 
 `npm run verify:container` proves the seal on every run: it builds the image, starts it, and checks
@@ -81,15 +84,25 @@ network, exactly its three mounts, limits.
 The risk: a stranger on the internet or the home Wi-Fi reaches the game, or a broken game reaches
 other devices.
 
+In host mode, the default:
+
 | Measure | Where |
 | --- | --- |
-| No ports published on the Mac. The only way in is Tailscale, as its own device `tag:nebotok`. | `compose.yaml` |
+| The game's port is published on the Mac's `127.0.0.1` only (8567), so nothing on the home network or the internet can reach it directly. | `compose.yaml` |
+| The game has no Tailscale identity of its own. The only way in from the tailnet is the Mac's own Tailscale Serve entry on HTTPS port 8445, which terminates HTTPS with a real certificate and forwards to `127.0.0.1:8567`. Who may use it is whoever the tailnet policy lets reach the Mac mini on 8445. | `scripts/serve.sh` |
+| `scripts/serve.sh` changes only port 8445, refuses when 8445 already serves something else, never turns on Funnel (public internet) and fails loudly if it finds Funnel on for 8445. | `scripts/serve.sh` |
+| The backup container has no network at all; its replica is a folder, not a cloud service. | `compose.yaml` |
+
+In sidecar mode (optional, `docs/deploy.md`):
+
+| Measure | Where |
+| --- | --- |
+| No ports published on the Mac. The only way in is Tailscale, as its own device `tag:nebotok`. | `compose.tailscale.yaml` |
 | Tailscale Serve terminates HTTPS with a real certificate and forwards to the game on `127.0.0.1`. Funnel (public internet) is off. | `deploy/tailscale/serve.json` |
 | Tailnet policy: members may reach `tag:nebotok` on TCP 443 only, and no rule lets `tag:nebotok` reach anything. Policy tests make Tailscale refuse edits that break this. | `deploy/tailscale/policy.md` |
 | Only admins can assign the tag; the auth key is single-use, tagged, short-lived. | `deploy/tailscale/policy.md` |
-| The game listens on `127.0.0.1` only, inside the shared container network; Tailscale's health endpoint likewise. | `compose.yaml` |
-| Tailscale's own logging to Tailscale's servers is off (`--no-logs-no-support`). | `compose.yaml` |
-| The backup container has no network at all; its replica is a folder, not a cloud service. | `compose.yaml` |
+| The game listens on `127.0.0.1` only, inside the shared container network; Tailscale's health endpoint likewise. | `compose.tailscale.yaml` |
+| Tailscale's own logging to Tailscale's servers is off (`--no-logs-no-support`). | `compose.tailscale.yaml` |
 
 ### 4. GitHub and CI
 
@@ -129,7 +142,7 @@ else, guesses a PIN, or a web page elsewhere tricks a browser into using the gam
 | --- | --- |
 | PINs are stored only as scrypt hashes (N=16384, r=8, p=1) with a random 16-byte salt per profile, and compared in constant time. | `apps/server/src/pin.ts` |
 | Five wrong PINs lock a profile for 60 seconds; only one PIN check per profile runs at a time. | `apps/server/src/profiles.ts` |
-| Each client address may make 120 API calls, 10 logins and 5 new profiles a minute. Behind Tailscale Serve the address comes from `X-Forwarded-For`, which is believed only from loopback. | `apps/server/src/api.ts`, `rate-limit.ts`, `http.ts` |
+| Each client address may make 120 API calls, 10 logins and 5 new profiles a minute. Behind Tailscale Serve the address comes from `X-Forwarded-For`, which is believed only from loopback. That holds in sidecar mode. In host mode requests reach the container through Docker's port forwarding, from OrbStack's gateway address rather than loopback, so `X-Forwarded-For` is ignored and every device shares one set of limits. | `apps/server/src/api.ts`, `rate-limit.ts`, `http.ts` |
 | Session tokens are 32 random bytes; the database keeps only their SHA-256. A login replaces the profile's previous session; sessions end after 180 days, at logout, or when a PIN is reset. | `apps/server/src/profiles.ts` |
 | The world room refuses a join without a valid session, before any seat is reserved. One profile has one character; a second join takes it over and closes the first. | `apps/server/src/world-room.ts` |
 | API calls that change anything must name this same host in `Origin` and send JSON. The API sends no CORS headers, so other pages cannot read its answers or send it JSON. | `apps/server/src/api.ts` |
@@ -161,11 +174,15 @@ What these measures do not stop, in rough order of importance:
    their image like any other; `scripts/update.sh` would accept it. Protect the account with a
    passkey or hardware key, and turn on branch protection for `main` (require a pull request and the
    CI check) once the repository exists.
-2. **The game can reach the internet and the home network.** Tailscale's policy limits the tailnet
-   only. The containers still have ordinary outbound access through OrbStack, so a broken game
-   server could talk to the internet, to the router, or to other devices on the home Wi-Fi. A later
-   phase can cut this off (for example, an internal Docker network with the game reachable only
-   through Tailscale); it is not done yet.
+2. **The game can reach the internet, the home network and the tailnet.** The containers have
+   ordinary outbound access through OrbStack, which leaves through the Mac's own connections. So a
+   broken game server could talk to the internet, to the router, to other devices on the home
+   Wi-Fi, and, because the Mac mini is itself on the tailnet, to any tailnet device the policy lets
+   the Mac mini reach, as if it were the Mac. This holds in both modes: in host mode the game has no
+   Tailscale identity to limit, and in sidecar mode the `tag:nebotok` policy governs only the
+   sidecar's own connection, not this one. A later phase can cut this off (for example, an internal
+   Docker network with the game reachable only through a proxy); it is not done yet. Until then,
+   keep the policy for the Mac mini itself as narrow as you can.
 3. **A poisoned library that waits.** The 7-day delay catches attacks that are noticed quickly. One
    that ships normally and stays quiet would still run inside the game's container (with the limits
    above) and inside development and CI.
@@ -183,9 +200,9 @@ What these measures do not stop, in rough order of importance:
    Tailscale and Litestream images in `compose.yaml`, but not the binfmt and BuildKit images pinned
    inside `ci.yml`. Update those by hand now and then, and `compose.local.yaml`'s Litestream pin
    with each Litestream update (`scripts/compose.test.mjs` fails until they match).
-8. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the game's device
-   name and your tailnet name are visible to anyone who looks. Nothing can connect without being on
-   the tailnet.
+8. **The tailnet name becomes public.** HTTPS certificates are logged publicly, so the Mac mini's
+   name (in sidecar mode, the game's device name) and your tailnet name are visible to anyone who
+   looks. Nothing can connect without being on the tailnet.
 9. **Known advisories in build tools.** See below.
 10. **The database is not encrypted on disk.** Profile names, PIN hashes and saves sit in the
     `nebotok_nebotok-data` volume as a plain SQLite file, and in `BACKUP_DIR` (and so in Time
@@ -264,3 +281,10 @@ Before `npm install <package>`:
   shows whether it is running and its log shows each sync.
 - Provenance verification checks the multi-platform index digest; each platform's image is addressed
   by its own digest inside that index, so the chain of hashes covers what is pulled.
+- In host mode the server listens on `0.0.0.0` inside its container, because Docker's port
+  forwarding arrives on the container's network interface; the published side is `127.0.0.1` on the
+  Mac. `scripts/compose.test.mjs` checks the published address and, where Docker is available, that
+  `compose.yaml` and `compose.yaml` plus `compose.tailscale.yaml` both validate with every seal set.
+- `scripts/update.sh` removes a container only when it mounts the stack's data volume and was not
+  started by Docker Compose (the hand-started game from before the stack), after `docker stop`, and
+  never with `-v`.

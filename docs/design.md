@@ -74,8 +74,9 @@ front door: only devices on the family's tailnet can reach the game at all.
   checked against schemas, so the game grows by adding data, not code.
 - **Saves carry a version**, and every change to their shape comes with a migration, so old saves
   always load.
-- **Deployment:** one Docker image, run with Docker Compose next to a Tailscale sidecar on the
-  family Mac mini, with HTTPS from `tailscale serve`. The game installs as an app (a PWA). CI builds
+- **Deployment:** one Docker image, run with Docker Compose on the family Mac mini and shared on
+  the tailnet by the Mac's own `tailscale serve` over HTTPS (a Tailscale sidecar container is an
+  option for later). The game installs as an app (a PWA). CI builds
   and signs the image, and one command updates the Mac mini. See [deploy.md](deploy.md) and
   [security.md](security.md).
 
