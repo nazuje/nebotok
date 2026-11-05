@@ -1,4 +1,5 @@
-import { DIRECTIONS, type Direction, type Point } from '@nebotok/core';
+import type { Point, WorldMap } from '@nebotok/core';
+import { advance, applyCommand, canReach, drawnAt, isDirection, reconcile, startPrediction, type Command, type Prediction, type ServerSelf } from './self-walker.ts';
 import { extendTrack, sampleTrack, startTrack, type Track } from './track.ts';
 
 /** What the server's state says about one player. */
@@ -24,16 +25,12 @@ export type ShownPlayer = {
   readonly moving: boolean;
   /** Where to draw them, in tiles, and how. */
   readonly at: Point;
-  readonly facing: Direction;
+  readonly facing: ServerSelf['facing'];
   readonly walking: boolean;
 };
 
-/**
- * Others are drawn this far in the past, so there is always a next update to walk towards. The
- * player's own courier needs less, and later gets its own prediction.
- */
+/** Others are drawn this far in the past, so there is always a next update to walk towards. */
 export const OTHERS_DELAY_MS = 100;
-export const SELF_DELAY_MS = 50;
 const DEFAULT_STEP_MS = 200;
 
 type Entry = { facts: PlayerFacts; track: Track };
@@ -43,30 +40,64 @@ export type WorldView = {
   reset(): void;
   setSelf(id: string | null): void;
   self(): string | null;
+  setMap(map: WorldMap | null): void;
   setStepMs(stepMs: number): void;
   stepMs(): number;
   update(id: string, facts: PlayerFacts, now: number): void;
   remove(id: string): void;
+  /** Moves the prediction on to `now` and lines it up with the server. Called once a frame. */
+  tick(now: number): void;
+  /** Applies a command to your own courier at once; false when a walk target cannot be reached. */
+  command(command: Command): boolean;
+  /** Whether a walk to this tile would be accepted from where your courier is now. */
+  canReach(target: Point): boolean;
+  /** The server refused a walk: stop predicting it. */
+  refused(): void;
+  /** Your own courier's predicted tile and plan, once it is known. */
+  predicted(): { tile: Point; intent: 'idle' | 'hold' | 'path'; moving: boolean } | null;
   shown(now: number): ShownPlayer[];
 };
 
-const asDirection = (facing: string): Direction => DIRECTIONS.find((direction) => direction === facing) ?? 'down';
+const asDirection = (facing: string) => (isDirection(facing) ? facing : 'down');
+const serverSelf = (facts: PlayerFacts): ServerSelf => ({ x: facts.x, y: facts.y, facing: asDirection(facts.facing), moving: facts.moving });
 
-/** The client's picture of the world: fed by the server's state, read by the scene every frame. */
+/**
+ * The client's picture of the world: fed by the server's state, read by the scene every frame.
+ * Others follow their tracks a little in the past; your own courier is predicted.
+ */
 export function createWorldView(): WorldView {
   const players = new Map<string, Entry>();
   let selfId: string | null = null;
+  let map: WorldMap | null = null;
   let stepMs = DEFAULT_STEP_MS;
+  let prediction: Prediction | null = null;
+  let tickedAt: number | null = null;
 
-  return {
+  type Motion = Pick<ShownPlayer, 'at' | 'facing' | 'walking'>;
+  const predictedMotion = (predicted: Prediction): Motion => ({ at: drawnAt(predicted, stepMs), facing: predicted.walker.facing, walking: predicted.walker.moving });
+  const trackedMotion = (track: Track, facts: PlayerFacts, now: number): Motion => {
+    const sample = sampleTrack(track, now - OTHERS_DELAY_MS, stepMs);
+    return { at: { x: sample.x, y: sample.y }, facing: sample.facing, walking: sample.walking && facts.connected };
+  };
+
+  const selfFacts = () => (selfId === null ? undefined : players.get(selfId)?.facts);
+
+  const view: WorldView = {
     reset: () => {
       players.clear();
       selfId = null;
+      prediction = null;
+      tickedAt = null;
     },
     setSelf: (id) => {
       selfId = id;
+      prediction = null;
     },
     self: () => selfId,
+    setMap: (next) => {
+      map = next;
+      prediction = null;
+    },
     setStepMs: (next) => {
       if (Number.isInteger(next) && next > 0) stepMs = next;
     },
@@ -80,23 +111,35 @@ export function createWorldView(): WorldView {
     },
     remove: (id) => {
       players.delete(id);
+      if (id === selfId) prediction = null;
     },
+    tick: (now) => {
+      const facts = selfFacts();
+      const dt = tickedAt === null ? 0 : now - tickedAt;
+      tickedAt = now;
+      if (!facts || !map) return;
+      const server = serverSelf(facts);
+      prediction = reconcile(advance(prediction ?? startPrediction(server), map, dt, stepMs), map, server, now);
+    },
+    command: (command) => {
+      if (!prediction || !map) return false;
+      const next = applyCommand(prediction, map, command);
+      if (next) prediction = next;
+      return next !== null;
+    },
+    canReach: (target) => prediction !== null && map !== null && canReach(prediction, map, target),
+    refused: () => {
+      if (map && prediction) prediction = applyCommand(prediction, map, { kind: 'stop' });
+    },
+    predicted: () =>
+      prediction && { tile: { x: prediction.walker.x, y: prediction.walker.y }, intent: prediction.walker.intent.kind, moving: prediction.walker.moving },
     shown: (now) =>
       [...players].map(([id, { facts, track }]) => {
         const self = id === selfId;
-        const sample = sampleTrack(track, now - (self ? SELF_DELAY_MS : OTHERS_DELAY_MS), stepMs);
-        return {
-          id,
-          name: facts.name,
-          avatar: facts.avatar,
-          self,
-          connected: facts.connected,
-          tile: { x: facts.x, y: facts.y },
-          moving: facts.moving,
-          at: { x: sample.x, y: sample.y },
-          facing: sample.facing,
-          walking: sample.walking && facts.connected,
-        };
+        const motion = self && prediction ? predictedMotion(prediction) : trackedMotion(track, facts, now);
+        const { at, facing, walking } = motion;
+        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
       }),
   };
+  return view;
 }

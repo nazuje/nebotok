@@ -1,24 +1,33 @@
 import type { Language } from '@nebotok/core';
+import type { Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
 import { otherLanguage } from './language.ts';
 import { text } from './strings.ts';
 
 export type Settings = {
   setLanguage(language: Language): void;
+  setControls(controls: Controls): void;
   /** "Switch player" only makes sense while someone is playing. */
   setSignedIn(signedIn: boolean): void;
   isOpen(): boolean;
 };
 
 /** A small panel behind the gear in the top corner, away from where the game is played. */
-export function createSettings(language: Language, actions: { onLanguage(): void; onSwitchPlayer(): void }): Settings {
+export function createSettings(
+  language: Language,
+  controls: Controls,
+  actions: { onLanguage(): void; onControls(): void; onSwitchPlayer(): void },
+): Settings {
   const toggle = element<HTMLButtonElement>('.settings-button');
   const panel = element<HTMLElement>('#settings');
   const languageLabel = element<HTMLElement>('.settings-language');
   const languageButton = element<HTMLButtonElement>('.language');
   const switchButton = element<HTMLButtonElement>('.switch-player');
+  const controlsLabel = element<HTMLElement>('.settings-controls');
+  const controlsButton = element<HTMLButtonElement>('.controls');
 
   let current = language;
+  let currentControls = controls;
   let open = false;
   let signedIn = false;
 
@@ -32,6 +41,12 @@ export function createSettings(language: Language, actions: { onLanguage(): void
     for (const option of languageButton.querySelectorAll<HTMLElement>('[data-language]')) {
       option.setAttribute('aria-current', String(option.dataset.language === current));
     }
+    controlsLabel.textContent = text('settings.controls', current);
+    for (const option of controlsButton.querySelectorAll<HTMLElement>('[data-controls]')) {
+      option.textContent = text(option.dataset.controls === 'joystick' ? 'settings.controls.joystick' : 'settings.controls.tap', current);
+      option.setAttribute('aria-current', String(option.dataset.controls === currentControls));
+    }
+    controlsButton.setAttribute('aria-label', `${text('settings.controls', current)}: ${text(`settings.controls.${currentControls}`, current)}`);
     switchButton.textContent = text('profile.switch', current);
     switchButton.hidden = !signedIn;
   };
@@ -43,6 +58,7 @@ export function createSettings(language: Language, actions: { onLanguage(): void
 
   toggle.addEventListener('click', () => setOpen(!open));
   languageButton.addEventListener('click', () => actions.onLanguage());
+  controlsButton.addEventListener('click', () => actions.onControls());
   switchButton.addEventListener('click', () => {
     setOpen(false);
     actions.onSwitchPlayer();
@@ -60,6 +76,10 @@ export function createSettings(language: Language, actions: { onLanguage(): void
   return {
     setLanguage: (next) => {
       current = next;
+      render();
+    },
+    setControls: (next) => {
+      currentControls = next;
       render();
     },
     setSignedIn: (next) => {

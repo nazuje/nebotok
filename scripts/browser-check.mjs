@@ -1,7 +1,8 @@
 // Level 4 browser check: starts the real production server serving apps/game/dist, then plays the
 // page in headless Chromium and WebKit on an iPhone (portrait) and an iPad (landscape) in both
 // languages, the way a player would: make a player with a PIN on the number pad, enter the world
-// and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), reload
+// and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), tap a
+// far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
 // and come straight back, switch player, get the PIN wrong, then right. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
@@ -218,6 +219,110 @@ async function joinBot(bot) {
 const botIn = (state) => state.players.find((player) => player.name === BOT.name);
 const standsOn = (player, tile) => player?.x === tile.x && player.y === tile.y && !player.moving && player.drawn.x === tile.x && player.drawn.y === tile.y;
 
+const OFFSETS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const selfIn = (state) => state.players.find((player) => player.self);
+/** Settled where the server says, drawn there too, with nothing left to do. */
+const settledOn = (state, tile) => {
+  const self = selfIn(state);
+  return self && !self.moving && self.drawn.x === self.x && self.drawn.y === self.y && state.predicted?.intent === 'idle' && !state.predicted.moving && (!tile || (self.x === tile.x && self.y === tile.y));
+};
+
+/** A direction with two free tiles ahead, so a short hold is sure to move. */
+function openDirection(bot, from, not = []) {
+  const free = (tile) => isWalkable(bot.map, tile) && bot.reach[tile.y * bot.map.width + tile.x];
+  const found = Object.entries(OFFSETS).find(([name, [dx, dy]]) => !not.includes(name) && free({ x: from.x + dx, y: from.y + dy }) && free({ x: from.x + 2 * dx, y: from.y + 2 * dy }));
+  if (!found) throw new Error(`no open direction from ${from.x},${from.y}`);
+  return found[0];
+}
+
+const movedToward = (from, to, direction) => {
+  const [dx, dy] = OFFSETS[direction];
+  return (to.x - from.x) * dx + (to.y - from.y) * dy >= 1 && (dx === 0 ? to.x === from.x : to.y === from.y);
+};
+
+/** The reachable tile on screen, clear of the corners, furthest from `from`. */
+async function farTile(page, bot, from) {
+  const { width, height } = page.viewportSize();
+  const tiles = bot.reach.flatMap((ok, at) => (ok ? [{ x: at % bot.map.width, y: Math.floor(at / bot.map.width) }] : []));
+  const spots = await page.evaluate(([key, list]) => list.map(({ x, y }) => window[key].tileToScreen(x, y)), [HOOK, tiles]);
+  let best = null;
+  tiles.forEach((tile, index) => {
+    const spot = spots[index];
+    const far = Math.abs(tile.x - from.x) + Math.abs(tile.y - from.y);
+    if (spot && spot.x > 40 && spot.x < width - 40 && spot.y > 100 && spot.y < height - 90 && (!best || far > best.far)) best = { tile, spot, far };
+  });
+  return best;
+}
+
+/** A thumb on the left half, pushed one way and held. Real touches in Chromium; a mouse in WebKit. */
+async function pushJoystick(page, browserName, direction, holdMs) {
+  const { width, height } = page.viewportSize();
+  const start = { x: Math.round(width * 0.22), y: Math.round(height * 0.62) };
+  const [dx, dy] = OFFSETS[direction];
+  const end = { x: start.x + dx * 50, y: start.y + dy * 50 };
+  let release;
+  if (browserName === 'chromium') {
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [{ x: at.x, y: at.y, id: 1 }] : [] });
+    await touch('touchStart', start);
+    await inTurn([0.3, 0.6, 1], (step) => touch('touchMove', { x: start.x + (end.x - start.x) * step, y: start.y + (end.y - start.y) * step }));
+    release = () => touch('touchEnd');
+  } else {
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 3 });
+    release = () => page.mouse.up();
+  }
+  const during = await readState(page);
+  await page.waitForTimeout(holdMs);
+  return { during, release };
+}
+
+/** Tap a far tile with a real touch, then walk with the keyboard and the joystick. */
+async function moveAround(page, browserName, bot, language, { expect, shot }) {
+  let state = await readState(page);
+  const before = selfIn(state);
+  const far = await farTile(page, bot, before);
+  expect(far && far.far >= 5, `no far tile to tap on screen: ${JSON.stringify(far)}`);
+  if (!far) return;
+  await page.touchscreen.tap(far.spot.x, far.spot.y);
+  state = await until(page, (s) => s.predicted?.intent === 'path' || (s.predicted?.moving ?? false), 'the courier to start walking after a tap', 2_000);
+  expect(state.marker?.x === far.tile.x && state.marker?.y === far.tile.y, `the marker is on ${JSON.stringify(state.marker)}, not the tapped ${far.tile.x},${far.tile.y}`);
+  await page.waitForTimeout(300);
+  await shot('7-tap');
+  state = await until(page, (s) => settledOn(s, far.tile) && s.marker === null, `arrival at the tapped tile ${far.tile.x},${far.tile.y}`, far.far * 400 + 5_000);
+
+  const keySets = [
+    { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' },
+    { up: 'w', down: 's', left: 'a', right: 'd' },
+  ];
+  await inTurn(keySets, async (keys) => {
+    const from = selfIn(state);
+    const direction = openDirection(bot, from);
+    await page.keyboard.down(keys[direction]);
+    await page.waitForTimeout(450);
+    await page.keyboard.up(keys[direction]);
+    state = await until(page, (s) => settledOn(s), `the courier to stop after holding ${keys[direction]}`, 5_000);
+    expect(movedToward(from, selfIn(state), direction), `holding ${keys[direction]} moved the courier from ${from.x},${from.y} to ${selfIn(state).x},${selfIn(state).y}, not ${direction}`);
+  });
+
+  await page.locator('.settings-button').tap();
+  await page.locator('.controls').tap();
+  state = await until(page, (s) => s.controls === 'joystick', 'the joystick to be chosen');
+  expect((await textOf(page, '.controls [aria-current="true"]')) === STRINGS['settings.controls.joystick'][language], 'the controls toggle does not show the joystick chosen');
+  await page.locator('.settings-button').tap();
+  await until(page, (s) => !s.settingsOpen, 'the settings to close');
+  const from = selfIn(state);
+  const direction = openDirection(bot, from);
+  const { during, release } = await pushJoystick(page, browserName, direction, 450);
+  expect(during.input.joystick === direction, `the joystick reads ${during.input.joystick}, not ${direction}`);
+  expect(await page.locator('.joystick').isVisible(), 'the joystick is not shown under the thumb');
+  await shot('8-joystick');
+  await release();
+  state = await until(page, (s) => s.input.joystick === null && settledOn(s), 'the courier to stop when the thumb lifts', 5_000);
+  expect(movedToward(from, selfIn(state), direction), `the joystick moved the courier from ${from.x},${from.y} to ${selfIn(state).x},${selfIn(state).y}, not ${direction}`);
+  expect(!(await page.locator('.joystick').isVisible()), 'the joystick stays after the thumb lifts');
+}
 /** The bot joins, walks past the page's courier while the page is sampled, then drops. */
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
@@ -246,10 +351,17 @@ async function meetBot(bot, page, self, { expect, shot }) {
     expect(seen.some((seenBot) => seenBot.walking), 'the page never drew the bot walking');
     expect(seen.some((seenBot) => !Number.isInteger(seenBot.drawn.x) || !Number.isInteger(seenBot.drawn.y)), 'the page never drew the bot between two tiles');
 
-    const spot = await page.evaluate(([key, x, y]) => window[key].tileToScreen(x, y), [HOOK, goal.x, goal.y]);
-    const tag = await page.locator('.name-tag', { hasText: BOT.name }).boundingBox();
+    // Measured in one go after two frames, so the name has been placed for the bot's final position.
+    const placed = await page.evaluate(async ([key, x, y, name]) => {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const tag = [...document.querySelectorAll('.name-tag')].find((element) => element.textContent === name)?.getBoundingClientRect();
+      const spot = window[key].tileToScreen(x, y);
+      const next = window[key].tileToScreen(x + 1, y);
+      return { tag: tag && { x: tag.x, y: tag.y, width: tag.width, height: tag.height }, spot, tilePx: next && spot ? next.x - spot.x : null };
+    }, [HOOK, goal.x, goal.y, BOT.name]);
+    const { tag, spot, tilePx } = placed;
     const above = tag && spot ? spot.y - (tag.y + tag.height) : null;
-    expect(tag && spot && Math.abs(tag.x + tag.width / 2 - spot.x) < 4 && above > 0 && above < 80, `the bot’s name is not just above it: name ${JSON.stringify(tag)}, tile centre ${JSON.stringify(spot)}`);
+    expect(tag && spot && Math.abs(tag.x + tag.width / 2 - spot.x) < tilePx / 2 && above > 0 && above < tilePx * 2, `the bot’s name is not just above it: ${JSON.stringify(placed)}`);
     await shot('5-others');
 
     room.reconnection.enabled = false;
@@ -326,6 +438,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await targets('world');
     await shot('4-world');
     if (self) await meetBot(bot, page, self, { expect, shot });
+    if (self) await moveAround(page, browserName, bot, language, { expect, shot });
 
     await page.reload();
     state = await until(page, inWorld, 'the world straight after a reload');
@@ -335,7 +448,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await until(page, (s) => s.settingsOpen, 'the settings panel');
     expect((await textOf(page, '.switch-player')) === STRINGS['profile.switch'][language], 'the switch player button has the wrong text');
     await targets('settings');
-    await shot('7-settings');
+    await shot('9-settings');
     await page.locator('.language').tap();
     await until(page, (s) => s.language === other(language), 'the other language');
     expect((await textOf(page, '.switch-player')) === STRINGS['profile.switch'][other(language)], 'the language toggle did not change the settings text');
@@ -357,7 +470,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     wrongPinExpected = false;
     expect((await textOf(page, '#profiles .notice')) === STRINGS['profile.error.pinWrong'][language], 'the wrong PIN message has the wrong text');
     await targets('enter a PIN');
-    await shot('8-pin-wrong');
+    await shot('10-pin-wrong');
     await enterPin(page, PIN);
     state = await until(page, inWorld, 'the world after the right PIN');
     expect(state.profile?.name === name, 'the right PIN signed in as someone else');

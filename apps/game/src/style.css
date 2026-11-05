@@ -66,6 +66,41 @@ svg path {
   display: block;
 }
 
+/* Touches on the world are the game's: no scrolling, pinch zoom or double-tap zoom. */
+#world {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.joystick {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border: 3px solid rgb(255 255 255 / 0.75);
+  border-radius: 50%;
+  background: rgb(16 42 67 / 0.18);
+  pointer-events: none;
+}
+
+.joystick-knob {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: 0 2px 6px rgb(16 42 67 / 0.3);
+}
+
+body:not([data-screen='world']) .joystick {
+  display: none;
+}
+
 #names {
   position: fixed;
   inset: 0;
@@ -215,12 +250,14 @@ body:not([data-screen='world']) .welcome {
   box-shadow: 0 8px 24px rgb(16 42 67 / 0.25);
 }
 
-.settings-language {
+.settings-language,
+.settings-controls {
   margin: 0;
   font-weight: 700;
 }
 
-.language {
+.language,
+.controls {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;

@@ -1,15 +1,19 @@
-import { WorldSettings, type Language, type LoginResponse, type StringId } from '@nebotok/core';
+import { CLIENT_MESSAGES, WorldSettings, samePoint, type Language, type LoginResponse, type StringId } from '@nebotok/core';
 import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
 import { logout } from './api.ts';
-import { connect, type ConnectionStatus, type WorldConnection } from './connection.ts';
+import { connect, type ConnectionStatus, type WorldConnection, type WorldRoom } from './connection.ts';
+import { initialControls, otherControls, saveControls, type Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
 import { createHud } from './hud.ts';
+import { createInput } from './input.ts';
 import { initialLanguage, otherLanguage, saveLanguage } from './language.ts';
 import { loadMap } from './map-loader.ts';
 import { createNameTags } from './names.ts';
+import { createOutbox } from './outbox.ts';
 import { createProfileScreen } from './profile-screen.ts';
 import { forgetSession, saveSession, storedSession } from './session.ts';
+import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
 import { feedWorldView } from './world-feed.ts';
@@ -21,6 +25,8 @@ import { integerView } from './zoom.ts';
 const START_MAP = WorldSettings.parse(worldSettings).startMap;
 
 let language: Language = initialLanguage();
+let controls: Controls = initialControls();
+let room: WorldRoom | null = null;
 let session = storedSession();
 let inWorld = false;
 let world: WorldConnection | null = null;
@@ -34,10 +40,11 @@ let stopFeed: () => void = () => {};
 
 const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
-const scene = new WorldScene({ view, labels: (labels) => names.place(inWorld ? labels : []) });
+const scene = new WorldScene({ view, frame: (now) => frame(now), labels: (labels) => names.place(inWorld ? labels : []) });
 const hud = createHud(language);
-const settings = createSettings(language, {
+const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
+  onControls: () => setControls(otherControls(controls)),
   onSwitchPlayer: () => void switchPlayer(),
 });
 const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
@@ -48,6 +55,49 @@ const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
     enterWorld();
   },
 });
+
+/** A command reaches the server only when the prediction accepts it too, so the two agree. */
+function deliver(command: Command) {
+  if (!room || !view.command(command)) return;
+  if (command.kind === 'to') room.send(CLIENT_MESSAGES.walkTo, command.target);
+  else if (command.kind === 'hold') room.send(CLIENT_MESSAGES.walkHold, { direction: command.direction });
+  else room.send(CLIENT_MESSAGES.walkStop, {});
+}
+
+const outbox = createOutbox({
+  deliver,
+  now: () => performance.now(),
+  later: (run, ms) => {
+    const timer = setTimeout(run, ms);
+    return () => clearTimeout(timer);
+  },
+});
+
+const input = createInput({
+  surface: element<HTMLElement>('#world'),
+  joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
+  outbox,
+  controls: () => controls,
+  active: () => inWorld && room !== null && !settings.isOpen(),
+  screenToTile: (x, y) => scene.screenToTile(x, y),
+  canReach: (tile) => view.canReach(tile),
+  marker: (tile, refused) => scene.setMarker(tile, refused),
+});
+
+function frame(now: number) {
+  view.tick(now);
+  input.frame();
+  const predicted = view.predicted();
+  const marked = scene.markerTile;
+  if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
+}
+
+function setControls(next: Controls) {
+  controls = next;
+  saveControls(next);
+  input.release();
+  settings.setControls(next);
+}
 
 function setLanguage(next: Language) {
   language = next;
@@ -68,6 +118,7 @@ async function showMap(id: string) {
     const map = await loadMap(id);
     await scene.booted;
     await scene.showMap(map);
+    if (id === roomMap) view.setMap(map.world);
     mapFailed = false;
   } catch {
     // The badge or the profile screen already says when the server cannot be reached; the next
@@ -79,7 +130,11 @@ async function showMap(id: string) {
 function forgetRoom() {
   stopFeed();
   stopFeed = () => {};
+  room = null;
+  input.release();
+  outbox.reset();
   view.reset();
+  if (scene.mapId !== null) scene.setMarker(null);
   roomMap = null;
 }
 
@@ -130,13 +185,15 @@ function enterWorld() {
     players: (count) => {
       playerCount = count;
     },
-    room: (room) => {
+    room: (joined) => {
       forgetRoom();
-      stopFeed = feedWorldView(room, view, {
+      room = joined;
+      stopFeed = feedWorldView(joined, view, {
         map: (id) => {
           roomMap = id;
           void showMap(id);
         },
+        refused: () => scene.setMarker(null),
       });
     },
   });
@@ -204,6 +261,10 @@ installTestHook({
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
       map: scene.mapId,
       players: players(),
+      controls,
+      marker: scene.markerTile,
+      predicted: view.predicted(),
+      input: input.state(),
       profile: session?.profile ?? null,
       profiles: shown.profiles,
       notice: inWorld ? null : shown.notice,
