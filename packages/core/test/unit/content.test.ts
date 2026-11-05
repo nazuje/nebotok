@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import strings from '../../../../content/strings.json' with { type: 'json' };
-import { REQUIRED_STRING_IDS, WELCOME_MESSAGE_KEYS, checkContentFile, parseStrings } from '../../src/index.ts';
+import { REFUSAL_REASONS, REQUIRED_STRING_IDS, WELCOME_MESSAGE_KEYS, checkContentFile, parseStrings } from '../../src/index.ts';
 
 describe('content schemas', () => {
   it('accepts the real strings file', () => {
@@ -10,6 +10,11 @@ describe('content schemas', () => {
   it('has a line for every welcome the server can send', () => {
     const parsed = parseStrings(strings);
     for (const key of WELCOME_MESSAGE_KEYS) expect(parsed[key]).toBeDefined();
+  });
+
+  it('has a line for every reason the server can refuse a request', () => {
+    const parsed = parseStrings(strings);
+    for (const reason of REFUSAL_REASONS) expect(parsed[`refused.${reason}`]).toBeDefined();
   });
 
   it('writes Slovenian with its own letters', () => {

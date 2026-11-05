@@ -2,7 +2,24 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import avatars from '../../../../content/avatars.json' with { type: 'json' };
 import world from '../../../../content/world.json' with { type: 'json' };
-import { PLAYER_SPAWN, checkContentFile, freeTileNear, isWalkable, mapFromRows, playabilityProblems, readTiledMap, reachableFrom } from '../../src/index.ts';
+import encounters from '../../../../content/encounters.json' with { type: 'json' };
+import shrines from '../../../../content/shrines.json' with { type: 'json' };
+import {
+  EncountersFile,
+  PLAYER_SPAWN,
+  ShrinesFile,
+  checkContentFile,
+  encounterZoneAt,
+  freeTileNear,
+  isWalkable,
+  mapFromRows,
+  mapLinkProblems,
+  playabilityProblems,
+  readTiledMap,
+  reachableFrom,
+  shrineAt,
+  wakePoint,
+} from '../../src/index.ts';
 
 const postIsland: unknown = JSON.parse(readFileSync(new URL('../../../../content/maps/post-island.tmj', import.meta.url), 'utf8'));
 
@@ -165,5 +182,57 @@ describe('world and avatar content', () => {
       ok: false,
       problems: [`avatars.1.id: avatar "${first.id}" appears twice`],
     });
+  });
+});
+
+function layers(extra: readonly unknown[]) {
+  return { layers: [...tinyMap().layers, ...extra] };
+}
+
+describe('tall grass and shrines', () => {
+  const grass = { type: 'objectgroup', name: 'encounters', objects: [{ id: 2, name: 'post-meadow', x: 16, y: 0, width: 20, height: 16 }] };
+  const shrine = { type: 'objectgroup', name: 'shrines', objects: [{ id: 3, name: 'post-shrine', x: 40, y: 24, point: true }] };
+
+  it('reads tall grass rectangles as every tile they touch, and shrines as points', () => {
+    const result = readTiledMap('tiny', tinyMap(layers([grass, shrine])));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    expect(result.map.encounterAreas).toEqual([{ zone: 'post-meadow', x: 1, y: 0, width: 2, height: 1 }]);
+    expect(result.map.shrines).toEqual({ 'post-shrine': { x: 2, y: 1 } });
+    expect([encounterZoneAt(result.map, { x: 2, y: 0 }), encounterZoneAt(result.map, { x: 0, y: 0 }), encounterZoneAt(result.map, { x: 2, y: 1 })]).toEqual(['post-meadow', null, null]);
+    expect(mapLinkProblems(result.map, EncountersFile.parse(encounters), ShrinesFile.parse(shrines))).toEqual([]);
+  });
+
+  it('touches a shrine from its own tile or the next one, never diagonally', () => {
+    const result = readTiledMap('tiny', tinyMap(layers([shrine])));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    expect(shrineAt(result.map, { x: 2, y: 1 })).toBe('post-shrine');
+    expect(shrineAt(result.map, { x: 1, y: 1 })).toBe('post-shrine');
+    expect(shrineAt(result.map, { x: 1, y: 0 })).toBeNull();
+  });
+
+  it('wakes a player at their last shrine on this map, else at the player spawn', () => {
+    const result = readTiledMap('tiny', tinyMap(layers([shrine])));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    expect(wakePoint(result.map, { map: 'tiny', shrine: 'post-shrine' })).toEqual({ x: 2, y: 1 });
+    expect(wakePoint(result.map, { map: 'other-island', shrine: 'post-shrine' })).toEqual({ x: 0, y: 1 });
+    expect(wakePoint(result.map, null)).toEqual({ x: 0, y: 1 });
+  });
+
+  it('reports grass without a size, a shrine on a blocked tile, and names no content file has', () => {
+    const pointGrass = { ...grass, objects: [{ id: 2, name: 'post-meadow', x: 16, y: 0, point: true }] };
+    expect(readTiledMap('tiny', tinyMap(layers([pointGrass])))).toMatchObject({ ok: false });
+    const blocked = readTiledMap('tiny', tinyMap(layers([{ ...shrine, objects: [{ id: 3, name: 'post-shrine', x: 24, y: 8, point: true }] }])));
+    if (!blocked.ok) throw new Error(blocked.problems.join('\n'));
+    expect(playabilityProblems(blocked.map)).toContain('shrine "post-shrine" at 1,0 is not walkable');
+    const unknown = readTiledMap('tiny', tinyMap(layers([{ ...grass, objects: [{ ...grass.objects[0], name: 'moon-grass' }] }, { ...shrine, objects: [{ ...shrine.objects[0], name: 'moon-shrine' }] }])));
+    if (!unknown.ok) throw new Error(unknown.problems.join('\n'));
+    expect(mapLinkProblems(unknown.map, EncountersFile.parse(encounters), ShrinesFile.parse(shrines))).toEqual([
+      'encounter area "moon-grass" is not a zone in encounters.json',
+      'shrine "moon-shrine" is not in shrines.json',
+    ]);
+  });
+
+  it('gives a map drawn from rows no grass and no shrines', () => {
+    expect(mapFromRows('rows', ['..'])).toMatchObject({ shrines: {}, encounterAreas: [] });
   });
 });

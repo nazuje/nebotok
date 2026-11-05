@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { MAX_PROFILES, PIN_ATTEMPTS, PIN_LOCK_MS, SaveError, createSave } from '@nebotok/core';
+import { MAX_PROFILES, PIN_ATTEMPTS, PIN_LOCK_MS, SAVE_VERSION, SaveError, createSave, emptyProgress } from '@nebotok/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PIN_LOCK_MAX_MS, SESSION_MS, sessionKey } from '../src/profiles.ts';
 import { capturedLog, fakeClock, repeat, tempServices } from './helpers.ts';
@@ -229,7 +229,7 @@ describe('admin actions', () => {
   it('deletes a profile with its sessions and progress', async () => {
     const { id } = await created('Gone');
     const issued = await token(id);
-    temp.services.progress.save(id, createSave({ name: 'Gone', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null }));
+    temp.services.progress.save(id, createSave({ name: 'Gone', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null, ...emptyProgress() }));
     profiles().remove(id);
     expect(profiles().get(id)).toBeUndefined();
     expect(profiles().authenticate(issued)).toBeNull();
@@ -246,7 +246,7 @@ describe('admin actions', () => {
 describe('progress', () => {
   it('round-trips a save through the database', async () => {
     const { id } = await created('Čmrljček Šumež');
-    const save = createSave({ name: 'Čmrljček Šumež', language: 'sl', createdAt: '2026-05-01T09:00:00.000Z', position: { map: 'post-island', x: 12, y: 9, facing: 'left' } });
+    const save = createSave({ name: 'Čmrljček Šumež', language: 'sl', createdAt: '2026-05-01T09:00:00.000Z', position: { map: 'post-island', x: 12, y: 9, facing: 'left' }, ...emptyProgress() });
     expect(temp.services.progress.load(id)).toBeNull();
     temp.services.progress.save(id, save);
     expect(temp.services.progress.load(id)).toEqual(save);
@@ -257,7 +257,7 @@ describe('progress', () => {
     temp.services.db
       .prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, 1, ?, 0)')
       .run(id, JSON.stringify({ name: 'Old Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z' }));
-    expect(temp.services.progress.load(id)).toEqual({ v: 2, data: { name: 'Old Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null } });
+    expect(temp.services.progress.load(id)).toEqual({ v: SAVE_VERSION, data: { name: 'Old Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null, ...emptyProgress() } });
   });
 
   it('refuses a save from a newer game rather than guessing', async () => {

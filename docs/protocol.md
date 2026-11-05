@@ -2,8 +2,8 @@
 
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
-`src/profile.ts`), so client and server import the same zod schemas and constants. A change the
-client relies on bumps `PROTOCOL_VERSION` (now **3**).
+`src/profile.ts`, and `src/messages.ts` for battles and teams), so client and server import the
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **4**).
 
 Everything is same-origin: the page, the API, the maps and the WebSocket all come from the server
 that served the page. In development Vite proxies `/colyseus/*` to the server and strips the prefix,
@@ -91,10 +91,12 @@ Player
   facing             'up' | 'down' | 'left' | 'right'
   moving             boolean
   connected          boolean  false while the player's connection is lost
+  inBattle           boolean  true while the player is in a battle
 ```
 
 The key of `players` is the Colyseus `sessionId`; your own is `room.sessionId`. Nothing else about a
-profile is in the state.
+profile is in the state: no team, treats or battle. Those go only to their player, as messages (see
+"Battles, teams and treats" below).
 
 ## Messages
 
@@ -132,6 +134,110 @@ Server to client:
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
 
+The battle, team and starter messages are in the next section.
+
+## Battles, teams and treats
+
+Since protocol 4. The payload schemas are in `packages/core/src/messages.ts`, the type names in
+`CLIENT_MESSAGES` and `SERVER_MESSAGES`, and the rules they use in core: `rollEncounter`
+(`encounter.ts`), the battle engine (`battle/`), `befriendChance` (`befriend.ts`), the team, treat
+and shrine rules (`creatures.ts`) and experience (`growth.ts`).
+
+### Privacy: battles are messages to one player
+
+Everything about a battle, a team, the treats and storage goes **only to the player it belongs
+to**, as Colyseus messages. Other players see one thing: `inBattle` on that player in the room
+state, so they can draw a "battling" mark and know not to wait for them.
+
+Why messages, not the room state:
+
+- **Privacy.** Colyseus 0.18 can hide state per client (`StateView`), but a single `.view()` field
+  makes the server encode the whole room once per client on every patch, instead of once for
+  everyone, for a family's handful of players walking at 20 ticks a second. Not worth it for data
+  only one player reads.
+- **Order.** The room state sends only the latest value of each field per patch. A turn is a list of
+  events (a hit, a faint, a swap, weather) that the screen animates in order; in the state, two
+  changes within one patch would collapse into the last. A message carries the whole list.
+- **Reconnection.** A message sent while a connection is down can be lost (and the SDK holds at
+  most 10 of the client's own sends while offline), so a client cannot rely on having seen every
+  turn. Each battle message therefore carries the full `BattleView` as well as the events, and
+  after a reconnection the server sends `battle.view` once. The client always draws from the view
+  and uses the events only to animate.
+
+A future duel (Slice D) uses the same messages: each player gets their own view, from their side.
+
+### Client to server
+
+| Type | Payload | When | Effect |
+| --- | --- | --- | --- |
+| `starter.choose` | `{ species }` | `progress.needsStarter` | The starter from `content/starters.json` joins the team, with the starting treats (core `chooseStarter`) |
+| `battle.move` | `{ slot }`, 0 to 3 | In a battle | Use the active creature's move in that slot |
+| `battle.switch` | `{ index }`, 0 to 5 | In a battle | Send out the team creature at that place; also the answer to `mustSwap` |
+| `battle.treat` | `{ itemId }` | `canTreat`, with that treat in the inventory | Offer one; it is used up whether or not it is accepted |
+| `battle.run` | `{}` | `canRun` | Leave the battle |
+| `team.reorder` | `{ order }`, `order[i]` the current place of the creature going to place i | Not in a battle | New team order (core `reorderTeam`); the first creature that can battle goes out first |
+| `storage.swap` | `{ team, storage }`, each a place or null | At a shrine, not in a battle | Swap, store or bring back creatures (core `swapStorage`) |
+
+A message that does not match its schema closes the connection (4002), as with walking. A message
+that matches but is not allowed now (not in a battle, an illegal move, a treat the player has not
+got, `storage.swap` away from a shrine) is answered with `refused`, and nothing changes. The client
+shows `refused.<reason>` from `content/strings.json`.
+
+### Server to client
+
+| Type | Payload | When |
+| --- | --- | --- |
+| `progress` | `ProgressMessage`: `{ team, inventory, lastShrine, seen, befriended, needsStarter }` | After `welcome`, and after anything that changes them |
+| `storage` | `StorageMessage`: `{ shrine, storage }` | On reaching a shrine, and after each `storage.swap` |
+| `battle.started` | `BattleUpdate`: `{ battle, events }` | A wild creature appeared; `events` are the start events (who is sent out, the weather) |
+| `battle.turn` | `BattleUpdate` | After each step: a turn, a swap, or a treat or run in the befriend phase |
+| `battle.view` | `{ battle }` | After a reconnection during a battle |
+| `battle.befriend` | `BefriendResult`: `{ battle, species, placedIn }` | The wild creature accepted a treat; `placedIn` is `team` or `storage` |
+| `battle.result` | `BattleResult`: `{ battle, outcome, rewards, woke }` | The battle is over; `inBattle` turns false |
+| `refused` | `Refused`: `{ request, reason }` | A request from the table above was not done |
+
+`battle` in a `BattleUpdate` is a `BattleView` (core `battleView`): the phase, the turn, the
+weather, the player's team with health and moves, the wild creature with its health but not its
+moves, and `mustSwap`, `canTreat`, `canRun` and `outcome`. The player is always side 0, creatures
+`a1` to `a6` in team order; the wild creature is side 1, `b1`. `events` are core's
+`BattleEvent`s, for the screen to animate in order: `turnStarted`, `switched`, `used`, `missed`,
+`hit` (damage, health left, weather chart effect), `fainted`, `mustSwap`, `weatherStarted`,
+`weatherEnded`, `canBefriend`, `treatOffered` (the chance and whether it was accepted), `ran`
+and `ended`.
+
+### How a wild battle goes
+
+1. **Encounter.** When a step ends on a tile inside an `encounters` rectangle of the map
+   (`encounterZoneAt`) and the team can battle (`canBattle`), the server rolls `rollEncounter`
+   for that zone with its own seeded RNG. On an encounter it stops the player's walk, adds the
+   species to `seen`, sets `inBattle`, starts the battle from `wildBattleSetup` (the whole team in
+   order, with saved health and moves, and the zone's weather) and sends `battle.started`. Walk
+   messages are ignored while `inBattle`.
+2. **Turns.** In phase `choose` the player sends `battle.move`, `battle.switch`, `battle.treat` or
+   `battle.run`; the server picks the wild creature's action with a core bot, runs `battleStep`
+   and sends `battle.turn`. In phase `swap` the player answers `mustSwap` with `battle.switch`.
+   Turns have no time limit.
+3. **Treats.** `canTreat` turns true once the wild creature is worn down to
+   `windowPercent` of its health (`content/creatures/befriending.json`), and stays true after it
+   faints: then the battle waits in phase `befriend` for a treat or `battle.run`. Each offer rolls
+   `befriendChance` once: more likely the more tired the creature, with its favourite treat (or one
+   its weather type likes) and the lower its level. Accepted, the creature joins the team, or storage
+   when the team has 6 (`addCreature`), at full health, and `befriended` gains its species. A
+   refused treat in phase `befriend` ends the battle as a win.
+4. **End.** The server sends the last `battle.turn` (ending in `ended`), then `battle.befriend`
+   if a treat was accepted, then `battle.result` and `progress`. The team keeps the health it ended
+   with (`teamAfterBattle`). A win or a befriending gives `xpForWin` of the wild creature's level to
+   every creature that was sent out and still stands (`awardXp`, `sentOut`); `rewards` lists them.
+5. **Fainting.** When the whole team faints, the player wakes at `wakePoint`: their last shrine,
+   or the map's `player` spawn before they have touched one (spread out with `freeTileNear`). The
+   rules in `content/shrines.json` `teamFainted` apply (`wakeAfterFainting`): the team is healed
+   and nothing is lost. `battle.result.woke` says where.
+6. **Shrines.** Stepping onto a shrine's tile or one next to it (`shrineAt`) heals the team
+   (`healTeam`), makes it `lastShrine`, and sends `progress` and `storage`.
+
+A battle lives only in the server's memory. While its player is disconnected it waits; when the
+seat expires or the server stops, it ends like a run, and the team keeps its health.
+
 ## Movement rules
 
 The server runs core's `stepWalker` 20 times a second (`setFixedTimestep`, 50 ms) for every
@@ -157,8 +263,12 @@ A dropped player stays in the world, standing still with `connected: false`, for
 
 ## Saves
 
-The server saves each player's position (save format v2, `packages/core/src/save.ts`) when they
-leave or their seat expires, every 30 seconds for players who moved, and when it shuts down. A player
+The server saves each player (save format v3, `packages/core/src/save.ts`) when they leave or
+their seat expires, every 30 seconds for players who moved, and when it shuts down. A save holds the
+position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
+an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item id and count),
+`lastShrine`, and the `seen` and `befriended` species. A save from v2 or earlier has no
+creatures, so that player chooses a starter on their next visit. A player
 starts at their saved tile, or at the map's `player` spawn when there is no save or the saved tile
 is no longer walkable.
 

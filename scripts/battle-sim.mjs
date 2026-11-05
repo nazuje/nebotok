@@ -11,8 +11,15 @@ const seeds = Array.from({ length: Number(values.seeds) }, (_seed, at) => at);
 const teamSize = Number(values.team);
 const level = Number(values.level);
 
-const read = (name) => JSON.parse(readFileSync(new URL(`../content/creatures/${name}.json`, import.meta.url), 'utf8'));
-const content = loadBattleContent({ weather: read('weather'), moves: read('moves'), species: read('species'), rules: read('battle-rules') });
+const read = (name) => JSON.parse(readFileSync(new URL(`../content/${name}.json`, import.meta.url), 'utf8'));
+const content = loadBattleContent({
+  weather: read('creatures/weather'),
+  moves: read('creatures/moves'),
+  species: read('creatures/species'),
+  rules: read('creatures/battle-rules'),
+  befriending: read('creatures/befriending'),
+  items: read('items'),
+});
 
 const pct = (count) => `${((100 * count) / seeds.length).toFixed(1)}%`;
 console.log(`${seeds.length} seeds (0 to ${seeds.length - 1}), mirrored teams of ${teamSize} at level ${level}, turn limit ${content.rules.turnLimit}\n`);
