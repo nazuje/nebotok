@@ -4,7 +4,8 @@
 // and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), tap a
 // far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
 // and come straight back, switch player, get the PIN wrong, then right. At 360px wide it also
-// checks the lock messages (a first and a second lock), the PIN hint and a full profile list.
+// checks the lock messages (a first and a second lock), the PIN hint and a full profile list, and
+// adds a PIN to a profile made without one from the settings, then signs in with it.
 // Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
@@ -541,6 +542,89 @@ async function checkNarrow(browser, browserName, language, { lockedId, twiceId }
   results.push({ label, ok: problems.length === 0, problems, screenshots });
 }
 
+/**
+ * A player made without a PIN adds one from the settings: typed twice, wrong the second time once,
+ * then confirmed. After switching player, the profile asks for that PIN and signs in with it.
+ */
+async function checkAddPin(browser, browserName, language) {
+  const label = `${browserName}-360px-${language}`;
+  const name = `Dodaj ${shortName(browserName)} ${language === 'sl' ? 'Čšž' : 'Abc'}`;
+  const problems = [];
+  const screenshots = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
+  const made = await api('/profiles', { body: { name, avatar: 'blue' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
+  const targets = async (where) => {
+    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+  };
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
+    let state = await until(page, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add');
+    expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
+
+    await page.locator('.settings-button').tap();
+    await until(page, (s) => s.settingsOpen, 'the settings panel');
+    expect((await textOf(page, '.add-pin')) === STRINGS['settings.addPin'][language], 'the add a PIN button has the wrong text');
+    await targets('settings with add a PIN');
+    await noSideways('the settings with add a PIN');
+    await shot('add-pin-1-settings');
+    await page.locator('.add-pin').tap();
+    await until(page, (s) => s.screen === 'pinSetup' && s.pinStep === 'choose' && !s.settingsOpen, 'the PIN pad to choose a PIN');
+    expect((await textOf(page, '#pin-setup .screen-title')) === STRINGS['profile.pinChoose'][language], 'the add a PIN pad has the wrong title');
+    await targets('add a PIN');
+    await noSideways('the add a PIN pad');
+    await shot('add-pin-2-choose');
+
+    await enterPin(page, PIN);
+    await until(page, (s) => s.pinStep === 'confirm' && s.pinDigits === 0, 'the pad to ask for the PIN again');
+    expect((await textOf(page, '#pin-setup .screen-title')) === STRINGS['profile.pinAgain'][language], 'the second pad has the wrong title');
+    await enterPin(page, WRONG_PIN);
+    state = await until(page, (s) => s.pinStep === 'choose' && s.notice === 'profile.pinMismatch', 'the PINs-differ message');
+    expect((await textOf(page, '#pin-setup .notice')) === STRINGS['profile.pinMismatch'][language], 'the PINs-differ message has the wrong text');
+    await noSideways('the PINs-differ message');
+    await shot('add-pin-3-mismatch');
+
+    await enterPin(page, PIN);
+    await until(page, (s) => s.pinStep === 'confirm' && s.pinDigits === 0, 'the pad to ask for the PIN again');
+    await enterPin(page, PIN);
+    state = await until(page, (s) => s.pinStep === 'done', 'the PIN to be set');
+    expect(!state.canAddPin, 'the settings still offer to add a PIN');
+    expect((await textOf(page, '.pin-added')) === STRINGS['profile.pinAdded'][language], 'the confirmation has the wrong text');
+    await targets('PIN added');
+    await noSideways('the PIN added confirmation');
+    await shot('add-pin-4-done');
+    await page.locator('.pin-done').tap();
+    state = await until(page, inWorld, 'the world after adding a PIN');
+    expect(state.profile?.name === name, 'adding a PIN ended the session');
+    const listed = await api('/profiles', { address: nextAddress() });
+    expect(listed.data.find((profile) => profile.id === made.data.id)?.hasPin === true, 'the server does not list the profile with a PIN');
+
+    await page.locator('.settings-button').tap();
+    await until(page, (s) => s.settingsOpen, 'the settings panel');
+    expect(!(await page.locator('.add-pin').isVisible()), 'the settings still show add a PIN');
+    await page.locator('.switch-player').tap();
+    state = await until(page, (s) => s.screen === 'profiles' && s.profile === null, 'the profile list after switching player');
+    expect(state.profiles.find((profile) => profile.id === made.data.id)?.hasPin === true, 'the list does not show the new PIN');
+    await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
+    await until(page, (s) => s.screen === 'pin' && s.pinFor === 'enter', 'the PIN pad to sign in');
+    await enterPin(page, PIN);
+    state = await until(page, inWorld, 'the world after signing in with the added PIN');
+    expect(state.profile?.name === name, 'the added PIN signed in as someone else');
+    await shot('add-pin-5-signed-in');
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+  }
+  results.push({ label: `${label} (add a PIN)`, ok: problems.length === 0, problems, screenshots });
+}
+
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
 async function fillProfiles() {
   const listed = await api('/profiles', { address: nextAddress() });
@@ -590,6 +674,7 @@ try {
       const lockedId = LOCAL ? await lockedProfile(name) : null;
       const twiceId = relock ? await relock() : null;
       await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, { lockedId, twiceId }));
+      await inTurn(LANGUAGES, (language) => checkAddPin(browser, name, language));
     } finally {
       await browser.close();
     }

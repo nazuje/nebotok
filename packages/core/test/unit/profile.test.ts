@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CreateProfileRequest, LoginRequest, Pin, ProfileName, REQUIRED_STRING_IDS, PROFILE_ERRORS, nameKey } from '../../src/index.ts';
+import { AddPinRequest, CreateProfileRequest, LoginRequest, Pin, ProfileName, REQUIRED_STRING_IDS, PROFILE_ERRORS, nameKey } from '../../src/index.ts';
 
 describe('profile names', () => {
   it.each([
@@ -33,6 +33,13 @@ describe('profile requests', () => {
     expect(CreateProfileRequest.safeParse({ name: 'Test', avatar: 'blue', admin: true }).success).toBe(false);
     expect(LoginRequest.safeParse({ profileId: 1, token: 'x' }).success).toBe(false);
     expect(LoginRequest.safeParse({ profileId: 0 }).success).toBe(false);
+  });
+
+  it('asks for exactly a PIN when adding one', () => {
+    expect(AddPinRequest.safeParse({ pin: '0420' }).success).toBe(true);
+    expect(AddPinRequest.safeParse({}).success).toBe(false);
+    expect(AddPinRequest.safeParse({ pin: '042' }).success).toBe(false);
+    expect(AddPinRequest.safeParse({ pin: '0420', profileId: 2 }).success).toBe(false);
   });
 
   it('has a string for every error the API can answer with', () => {

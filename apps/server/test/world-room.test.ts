@@ -244,6 +244,25 @@ describe('one character per profile', () => {
     temp.services.profiles.logout(token);
     expect(await left).toBe(CLOSE_CODES.signedOut);
   });
+
+  it('closes a seat held with an older session once a PIN is added from a newer one', async () => {
+    const { id, token: older } = await profile('Test Courier');
+    const room = await join(older);
+    const left = leftWith(room);
+    const newer = await signIn(id);
+    expect((await temp.services.profiles.addPin(newer, '2468')).ok).toBe(true);
+    expect(await left).toBe(CLOSE_CODES.signedOut);
+  });
+
+  it('keeps the seat of the session that added the PIN', async () => {
+    const { token } = await profile('Test Courier');
+    const room = await join(token);
+    expect((await temp.services.profiles.addPin(token, '2468')).ok).toBe(true);
+    saveRound(room);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(room.connection.isOpen).toBe(true);
+    expect(colyseus.getRoomById<WorldRoom>(room.roomId).state.players.has(room.sessionId)).toBe(true);
+  });
 });
 
 // scripts/admin.sh runs as its own process, so its changes reach the room only through the database.

@@ -1,7 +1,7 @@
 import { WorldSettings, samePoint, walkMessage, type Language, type LoginResponse, type StringId } from '@nebotok/core';
 import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
-import { logout } from './api.ts';
+import { addPin, listProfiles, logout } from './api.ts';
 import { connect, type ConnectionStatus, type WorldConnection, type WorldRoom } from './connection.ts';
 import { initialControls, otherControls, saveControls, type Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
@@ -11,8 +11,9 @@ import { initialLanguage, otherLanguage, saveLanguage } from './language.ts';
 import { loadMap } from './map-loader.ts';
 import { createNameTags } from './names.ts';
 import { createOutbox } from './outbox.ts';
+import { createPinSetup } from './pin-setup.ts';
 import { createProfileScreen } from './profile-screen.ts';
-import { forgetSession, saveSession, storedSession } from './session.ts';
+import { forgetSession, saveSession, storedSession, type StoredSession } from './session.ts';
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { createWalkHint } from './walk-hint.ts';
@@ -37,6 +38,8 @@ let protocol: number | null = null;
 let playerCount: number | null = null;
 let roomMap: string | null = null;
 let mapFailed = false;
+/** Whether the signed-in profile is known to have no PIN yet, so the settings offer to add one. */
+let canAddPin = false;
 let stopFeed: () => void = () => {};
 
 const view = createWorldView();
@@ -47,7 +50,28 @@ const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
+  onAddPin: () => {
+    pinSetup.open();
+    showScreen();
+  },
   onSwitchPlayer: () => void switchPlayer(),
+});
+const pinSetup = createPinSetup(element<HTMLElement>('#pin-setup'), {
+  language: () => language,
+  submit: async (pin) => {
+    if (!session) return 'signedOut';
+    const added = await addPin(session.token, pin);
+    if (added.ok) setCanAddPin(false);
+    return added.ok ? null : added.error;
+  },
+  ended: (end) => {
+    showScreen();
+    if (end === 'signedOut') sessionEnded('connection.signedOut');
+    else if (end === 'hasPin') {
+      setCanAddPin(false);
+      hud.toast('profile.error.hasPin');
+    }
+  },
 });
 const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
   language: () => language,
@@ -82,7 +106,7 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => {
@@ -95,7 +119,7 @@ function frame(now: number) {
   view.tick(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen(), controls);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen(), controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -114,11 +138,34 @@ function setLanguage(next: Language) {
   hud.setLanguage(next);
   settings.setLanguage(next);
   profiles.setLanguage(next);
+  pinSetup.setLanguage(next);
+}
+
+function showScreen() {
+  document.body.dataset.screen = !inWorld ? 'profiles' : pinSetup.isOpen() ? 'pinSetup' : 'world';
+}
+
+function setCanAddPin(next: boolean) {
+  canAddPin = next;
+  settings.setCanAddPin(next);
+}
+
+/** The stored session does not say whether the profile has a PIN, so the list is asked. */
+async function learnPin(signedIn: StoredSession) {
+  const id = signedIn.profile?.id;
+  if (id === undefined) return;
+  const listed = await listProfiles();
+  if (!listed.ok || session?.token !== signedIn.token) return;
+  setCanAddPin(listed.value.find((profile) => profile.id === id)?.hasPin === false);
 }
 
 function setInWorld(next: boolean) {
   inWorld = next;
-  document.body.dataset.screen = next ? 'world' : 'profiles';
+  if (!next) {
+    pinSetup.close();
+    setCanAddPin(false);
+  }
+  showScreen();
   settings.setSignedIn(next);
 }
 
@@ -188,6 +235,7 @@ function enterWorld() {
   }
   profiles.hide();
   setInWorld(true);
+  void learnPin(session);
   settled = false;
   protocol = null;
   playerCount = null;
@@ -262,7 +310,7 @@ void showMap(START_MAP);
 if (session) enterWorld();
 else showProfiles(null);
 
-const screen = (): Screen => (inWorld ? 'world' : profiles.state().view);
+const screen = (): Screen => (!inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : 'world');
 const round = (value: number) => Math.round(value * 100) / 100;
 const players = (): TestPlayer[] =>
   view.shown(performance.now()).map((player) => ({
@@ -282,6 +330,7 @@ const worldDrawn = () => roomMap !== null && scene.mapId === roomMap && view.sho
 installTestHook({
   snapshot: () => {
     const shown = profiles.state();
+    const adding = pinSetup.state();
     return {
       screen: screen(),
       connection,
@@ -301,14 +350,16 @@ installTestHook({
       input: input.state(),
       profile: session?.profile ?? null,
       profiles: shown.profiles,
-      notice: inWorld ? null : shown.notice,
+      notice: inWorld ? adding.notice : shown.notice,
       pinFor: shown.pinFor,
-      pinDigits: shown.pinDigits,
+      pinDigits: inWorld ? adding.pinDigits : shown.pinDigits,
+      pinStep: adding.step,
+      canAddPin,
       settingsOpen: settings.isOpen(),
     };
   },
   isReady: () => {
-    if (inWorld) return settled && (connection !== 'connected' || (protocol !== null && (worldDrawn() || mapFailed)));
+    if (inWorld) return settled && !pinSetup.state().busy && (connection !== 'connected' || (protocol !== null && (worldDrawn() || mapFailed)));
     const shown = profiles.state();
     return shown.view !== 'loading' && !shown.busy && (scene.mapId !== null || mapFailed);
   },

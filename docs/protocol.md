@@ -12,16 +12,17 @@ so the client prefixes every path below with `/colyseus` there.
 ## Profiles and sessions (HTTP)
 
 All under `/api`, JSON only, at most 1 KB per body. Responses carry `Cache-Control: no-store` and no
-CORS headers. A POST or DELETE must have an `Origin` header naming this same host (else 403) and a
-POST must be `Content-Type: application/json` (else 415). Each client address may make 120 API
-requests a minute, 10 logins and 5 profile creations; past that the answer is 429 with
-`Retry-After`.
+CORS headers. A POST, PUT or DELETE must have an `Origin` header naming this same host (else 403)
+and a POST or PUT must be `Content-Type: application/json` (else 415). Each client address may make
+120 API requests a minute, 10 logins, 5 profile creations and 5 tries at adding a PIN; past that the
+answer is 429 with `Retry-After`.
 
 | Request | Body | Success | Errors |
 | --- | --- | --- | --- |
 | `GET /api/profiles` | none | 200, `ProfileSummary[]` in creation order | |
 | `POST /api/profiles` | `{ name, avatar, pin? }` | 201, the new `ProfileSummary` | 400 `nameInvalid` / `pinInvalid`, 409 `nameTaken` / `full` |
 | `POST /api/sessions` | `{ profileId, pin? }` | 200, `LoginResponse` | 400 `pinInvalid` (PIN missing or malformed), 401 `pinWrong`, 404 `unknown`, 423 `locked`, 429 `busy` |
+| `PUT /api/profiles/current/pin` | `{ pin }`, `Authorization: Bearer <token>` | 200, the profile's `ProfileSummary` | 400 `pinInvalid` (PIN missing or malformed) / `unknown`, 401 `signedOut`, 409 `hasPin`, 429 `busy` |
 | `DELETE /api/sessions/current` | none, `Authorization: Bearer <token>` | 204, always | |
 
 - `ProfileSummary` is `{ id, name, avatar, hasPin, lockedForSeconds }`; it never includes a PIN.
@@ -43,6 +44,11 @@ requests a minute, 10 logins and 5 profile creations; past that the answer is 42
   so a token is good on one device at a time. Logout ends the session and closes the profile's seat
   in the world (close code `signedOut`). A PIN reset or a deletion with `scripts/admin.sh` closes
   the seat with the same code, at its next reconnection or within 30 seconds.
+- **Adding a PIN:** a profile made without a PIN gets one with `PUT /api/profiles/current/pin`,
+  signed in as that profile (no session, or one that ended, is 401 `signedOut`). It works only
+  while the profile has no PIN (409 `hasPin` otherwise); changing or removing a PIN stays with
+  `scripts/admin.sh`. The session that added it goes on, and every other session of the profile
+  ends, so a seat in the world held with one of those closes with `signedOut` at once.
 
 ## Maps (HTTP)
 
@@ -165,6 +171,11 @@ the world at once. "Switch player" in the settings panel leaves the room, calls
 `DELETE /api/sessions/current` and forgets the token. A refused join (`AUTH_FAILED`), `signedOut` or
 `replaced` forgets the token and shows the list with the reason. Development uses the same screen.
 
+While the profile has no PIN, the settings panel also offers "Add a PIN"
+(`apps/game/src/pin-setup.ts`): the same number pad (`apps/game/src/pin-pad.ts`) asks for the
+PIN twice, then sends it with `PUT /api/profiles/current/pin` and says it is set. The page learns
+whether the profile has a PIN from `GET /api/profiles` when it enters the world.
+
 A locked profile's card and message say how long is left (`lockedForSeconds` or `retryAfterSeconds`),
 rounded up by `apps/game/src/lock-wait.ts` ("a minute", "2 minutes", "about 10 minutes", "an
 hour") and counting down while the list is open. A list of `MAX_PROFILES` hides "New player" and
@@ -175,4 +186,5 @@ its own server, sends its own `X-Forwarded-For` address (believed from loopback)
 per-address limits stay out of the way; against a server given by `--url`, which may not believe
 that header, the runs are spaced out instead. Against its own server it also locks profiles once
 and twice, to see the one-minute and two-minute wordings, and at the end fills the list to
-`MAX_PROFILES` to see the full list.
+`MAX_PROFILES` to see the full list. At 360px wide it also signs in as a profile made without a
+PIN, adds one from the settings, switches player and signs in with it.

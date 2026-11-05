@@ -9,6 +9,8 @@ export type Settings = {
   setControls(controls: Controls): void;
   /** "Switch player" only makes sense while someone is playing. */
   setSignedIn(signedIn: boolean): void;
+  /** "Add a PIN" shows only while the player is known to have none. */
+  setCanAddPin(canAddPin: boolean): void;
   isOpen(): boolean;
 };
 
@@ -16,12 +18,13 @@ export type Settings = {
 export function createSettings(
   language: Language,
   controls: Controls,
-  actions: { onLanguage(): void; onControls(): void; onSwitchPlayer(): void },
+  actions: { onLanguage(): void; onControls(): void; onAddPin(): void; onSwitchPlayer(): void },
 ): Settings {
   const toggle = element<HTMLButtonElement>('.settings-button');
   const panel = element<HTMLElement>('#settings');
   const languageLabel = element<HTMLElement>('.settings-language');
   const languageButton = element<HTMLButtonElement>('.language');
+  const addPinButton = element<HTMLButtonElement>('.add-pin');
   const switchButton = element<HTMLButtonElement>('.switch-player');
   const controlsLabel = element<HTMLElement>('.settings-controls');
   const controlsButton = element<HTMLButtonElement>('.controls');
@@ -30,6 +33,7 @@ export function createSettings(
   let currentControls = controls;
   let open = false;
   let signedIn = false;
+  let canAddPin = false;
 
   const render = () => {
     toggle.setAttribute('aria-expanded', String(open));
@@ -47,6 +51,8 @@ export function createSettings(
       option.setAttribute('aria-current', String(option.dataset.controls === currentControls));
     }
     controlsButton.setAttribute('aria-label', `${text('settings.controls', current)}: ${text(`settings.controls.${currentControls}`, current)}`);
+    addPinButton.textContent = text('settings.addPin', current);
+    addPinButton.hidden = !signedIn || !canAddPin;
     switchButton.textContent = text('profile.switch', current);
     switchButton.hidden = !signedIn;
   };
@@ -64,6 +70,10 @@ export function createSettings(
   });
   languageButton.addEventListener('click', () => actions.onLanguage());
   controlsButton.addEventListener('click', () => actions.onControls());
+  addPinButton.addEventListener('click', () => {
+    setOpen(false);
+    actions.onAddPin();
+  });
   switchButton.addEventListener('click', () => {
     setOpen(false);
     actions.onSwitchPlayer();
@@ -89,6 +99,10 @@ export function createSettings(
     },
     setSignedIn: (next) => {
       signedIn = next;
+      render();
+    },
+    setCanAddPin: (next) => {
+      canAddPin = next;
       render();
     },
     isOpen: () => open,

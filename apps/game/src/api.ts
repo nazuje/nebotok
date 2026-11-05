@@ -48,6 +48,11 @@ export function login(profileId: number, pin: string | undefined): Promise<ApiRe
   return call(LoginResponse, '/sessions', postJson(pin === undefined ? { profileId } : { profileId, pin }));
 }
 
+/** Gives the signed-in profile its first PIN. */
+export function addPin(token: string, pin: string): Promise<ApiResult<ProfileSummary>> {
+  return call(ProfileSummary, '/profiles/current/pin', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ pin }) });
+}
+
 /** Ends the session on the server. Signing out locally goes ahead whatever the answer. */
 export async function logout(token: string): Promise<void> {
   try {
