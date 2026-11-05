@@ -47,6 +47,8 @@ export type WorldView = {
   stepMs(): number;
   update(id: string, facts: PlayerFacts, now: number): void;
   remove(id: string): void;
+  /** How many other players the server has told this page about, away ones included. */
+  others(): number;
   /** Moves the prediction on to `now` and lines it up with the server. Called once a frame. */
   tick(now: number): void;
   /** Applies a command to your own courier at once. The tile it was planned from, for the server; null when a walk target cannot be reached. */
@@ -118,6 +120,7 @@ export function createWorldView(): WorldView {
       players.delete(id);
       if (id === selfId) prediction = null;
     },
+    others: () => players.size - (selfId !== null && players.has(selfId) ? 1 : 0),
     tick: (now) => {
       const facts = selfFacts();
       const dt = tickedAt === null ? 0 : now - tickedAt;

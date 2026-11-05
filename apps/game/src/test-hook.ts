@@ -1,4 +1,4 @@
-import type { Direction, Language, Point, StringId } from '@nebotok/core';
+import type { Direction, Language, Point, StringId, WelcomeMessageKey } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
@@ -30,6 +30,8 @@ export type TestSnapshot = {
   language: Language;
   protocol: number | null;
   playerCount: number | null;
+  /** The welcome line shown at the bottom, if any. */
+  welcome: WelcomeMessageKey | null;
   scene: string | null;
   /** The map whose tiles are drawn, if any. */
   map: string | null;

@@ -88,6 +88,7 @@ const input = createInput({
 function frame(now: number) {
   view.tick(now);
   input.frame();
+  if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -197,6 +198,8 @@ function enterWorld() {
     },
     welcome: (welcome) => {
       protocol = welcome.protocol;
+      // The count the line was chosen by, so the next frame does not judge it by an older room's.
+      playerCount = welcome.playerCount;
       hud.setWelcome(welcome);
     },
     players: (count) => {
@@ -275,6 +278,7 @@ installTestHook({
       language,
       protocol,
       playerCount,
+      welcome: hud.state().welcome,
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
       map: scene.mapId,
       players: players(),

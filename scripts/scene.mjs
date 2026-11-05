@@ -203,7 +203,8 @@ function shows(state, wanted) {
     (wanted.away ?? []).every((id) => other(id)?.connected === false) &&
     Object.entries(wanted.seesAt ?? {}).every(([id, tile]) => other(id)?.connected === true && standing(other(id), tile)) &&
     (!wanted.tagsApart || tagsApart(state)) &&
-    (!wanted.unmarked || state.marker === null)
+    (!wanted.unmarked || state.marker === null) &&
+    (!wanted.welcome || wanted.welcome.includes(state.welcome === null ? 'hidden' : state.welcome.replace('welcome.', '')))
   );
 }
 
