@@ -93,6 +93,10 @@
   "battle.weatherEnded": { "en": "The weather clears.", "sl": "Vreme se zjasni." },
   "battle.treatTaken": { "en": "{creature} takes the treat!", "sl": "{creature} vzame poslastico!" },
   "battle.canBefriend": { "en": "Offer a treat, or run.", "sl": "Ponudi poslastico ali pobegni." },
+  "battle.treatOrDone": { "en": "Offer a treat, or tap Done.", "sl": "Ponudi poslastico ali izberi Končaj." },
+  "battle.done": { "en": "Done", "sl": "Končaj" },
+  "battle.treatLater": { "en": "Tire it out first, then offer a treat.", "sl": "Najprej ga utrudi, potem mu ponudi poslastico." },
+  "battle.noTreats": { "en": "You have no treats left.", "sl": "Nimaš več poslastic." },
   "battle.treats": { "en": "Choose a treat", "sl": "Izberi poslastico" },
   "battle.back": { "en": "Back", "sl": "Nazaj" },
   "battle.won": { "en": "You win!", "sl": "Zmagaš!" },
@@ -116,5 +120,7 @@
   "storage.empty": { "en": "No creatures are waiting here.", "sl": "Tukaj ne čaka nobeno bitje." },
   "storage.take": { "en": "Take along", "sl": "Vzemi s seboj" },
   "storage.store": { "en": "Leave here", "sl": "Pusti tukaj" },
+  "storage.keepOne": { "en": "Keep at least one creature with you.", "sl": "Vsaj eno bitje naj ostane s tabo." },
+  "storage.pickFirst": { "en": "Your team is full. First pick a creature to swap on the Team tab.", "sl": "Tvoja ekipa je polna. Najprej v zavihku Ekipa izberi bitje za zamenjavo." },
   "starter.hint": { "en": "Your first creature goes everywhere with you.", "sl": "Tvoje prvo bitje gre povsod s tabo." }
 }

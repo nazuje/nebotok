@@ -7,6 +7,7 @@ import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { LearnState } from './learn-prompt.ts';
 import type { TagBox } from './names.ts';
+import type { TeamTab } from './team-screen.ts';
 import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
@@ -22,7 +23,7 @@ export type TestBattle = {
   turn: number;
   /** The weather the field shows now, part way through a turn's playback. */
   weather: string | null;
-  /** A turn is playing; a tap skips to its end. */
+  /** A turn is playing; a tap moves on to its next line, a second quick tap to its end. */
   playing: boolean;
   panel: BattleScreenState['panel'];
   /** A choice was sent and the server has not answered. */
@@ -43,7 +44,7 @@ export type TestBattle = {
   befriended: { species: string; placedIn: 'team' | 'storage' } | null;
 };
 
-export type TestTeamScreen = { selected: number | null };
+export type TestTeamScreen = { selected: number | null; tab: TeamTab };
 
 /** A player as the server last told this page, and where the page draws them. */
 export type TestPlayer = {

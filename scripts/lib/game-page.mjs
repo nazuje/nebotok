@@ -189,6 +189,17 @@ export const clearWalk = (world, from, to) => {
 export const battleIdle = (state) => state.screen === 'battle' && state.battle !== null && !state.battle.playing && !state.battle.waiting && state.battle.panel !== null;
 const MAX_BATTLE_CHOICES = 40;
 
+/**
+ * `until`, tapping the battle field whenever a turn is playing, as a player in a hurry would, so
+ * its lines move on at once. For steps that do not look at how long the lines stay up.
+ */
+export async function untilTappingThrough(page, check, what, timeoutMs = 20_000, deadline = Date.now() + timeoutMs) {
+  const state = await until(page, (s) => check(s) || s.battle?.playing === true, what, Math.max(1_000, deadline - Date.now()));
+  if (check(state)) return state;
+  await page.locator('#battle .battle-field').tap();
+  return untilTappingThrough(page, check, what, timeoutMs, deadline);
+}
+
 /** The button that gets a player out of a battle soonest from where it stands. */
 function wayOut(battle) {
   if (battle.panel === 'result') return '.battle-continue';
@@ -199,7 +210,7 @@ function wayOut(battle) {
 
 /** Runs from the battle on the page (attacking when running is not allowed) and continues past its result; returns the state back in the world. */
 export async function leaveBattle(page, choices = MAX_BATTLE_CHOICES) {
-  const state = await until(page, (s) => s.screen !== 'battle' || battleIdle(s), 'the battle to wait for a choice', 15_000);
+  const state = await untilTappingThrough(page, (s) => s.screen !== 'battle' || battleIdle(s), 'the battle to wait for a choice', 15_000);
   if (state.screen !== 'battle') return state;
   if (choices === 0) throw new Error(`still in battle ${state.battle.id} after ${MAX_BATTLE_CHOICES} choices`);
   const { panel, turn } = state.battle;

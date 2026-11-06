@@ -109,7 +109,10 @@ export const REQUIRED_STRING_IDS = [
   'battle.weather',
   'battle.weatherEnded',
   'battle.treatTaken',
-  'battle.canBefriend',
+  'battle.treatOrDone',
+  'battle.done',
+  'battle.treatLater',
+  'battle.noTreats',
   'battle.treats',
   'battle.back',
   'battle.won',
@@ -133,6 +136,8 @@ export const REQUIRED_STRING_IDS = [
   'storage.empty',
   'storage.take',
   'storage.store',
+  'storage.keepOne',
+  'storage.pickFirst',
   'starter.hint',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
