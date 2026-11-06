@@ -1,18 +1,42 @@
 // npm run scene -- <scene file> [--url <base>]
 // Plays a scene (scripts/scenes/README.md): several players at once, each in its own headless,
 // muted browser page against a running game, doing what the scene's steps say the way a player
-// would: taps, held keys, waits, reloads and a dropped connection. After each step with a "shot"
+// would: taps, held keys, waits, reloads, a dropped connection, and meeting, fighting and running
+// from a wild creature in the tall grass. After each step with a "shot"
 // it saves every joined player's screenshot and test-hook state in .proof/scenes/<name>/. Fails on
 // a console error, page error, failed or outside request, or a step that cannot be done. A new
-// player takes the first starter; a wild battle met on the way is run from and noted, so scenes
-// that are not about battles are not stopped by the tall grass. Every test player is signed out at
+// player takes the first starter; a wild battle met outside a "meet" step is run from and noted,
+// so scenes that are not about battles are not stopped by the tall grass. Every test player is signed out at
 // the end, pass or fail.
 // Without --url it plays this worktree's `npm run dev`, found through .proof/dev.json.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { PROTOCOL_VERSION, inBounds, isWalkable } from '../packages/core/src/index.ts';
-import { BROWSERS, DEVICES, apiCall, enterWorld, inWorld, readState, reportCspViolations, screenshot, servedMap, settledOn, signOut, tappable, testBase, tilesToScreen, untilPastBattles, walkByTaps, watch } from './lib/game-page.mjs';
+import {
+  BROWSERS,
+  DEVICES,
+  apiCall,
+  battleIdle,
+  enterWorld,
+  inWorld,
+  leaveBattle,
+  meetWildCreature,
+  nextFrames,
+  readState,
+  reportCspViolations,
+  screenshot,
+  servedMap,
+  settledOn,
+  signOut,
+  tappable,
+  testBase,
+  tilesToScreen,
+  until,
+  untilPastBattles,
+  walkByTaps,
+  watch,
+} from './lib/game-page.mjs';
 import { inTurn, sleep } from './lib/in-turn.mjs';
 import { parseScene } from './lib/scene-file.mjs';
 import { ROOT } from './lib/server-process.mjs';
@@ -66,7 +90,9 @@ mkdirSync(out, { recursive: true });
 
 // Each player is its own device: the server believes X-Forwarded-For from loopback (the dev proxy
 // and a local `npm start` both connect from there), so the per-address API limits stay apart.
-const players = new Map(scene.players.map((player, index) => [player.id, { ...player, address: `10.78.0.${index + 1}`, page: null, context: null, token: null, sockets: [], offlineUntil: 0, problems: [] }]));
+const players = new Map(
+  scene.players.map((player, index) => [player.id, { ...player, address: `10.78.0.${index + 1}`, page: null, context: null, token: null, sockets: [], offlineUntil: 0, battleId: null, problems: [] }]),
+);
 const nameOf = (id) => players.get(id).name;
 const browsers = new Map();
 const problems = [];
@@ -162,9 +188,21 @@ const apart = (a, b) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.
 /** No name tag on the page covers another. */
 const tagsApart = (state) => state.tags.every((tag, index) => state.tags.every((other, at) => at === index || apart(tag, other)));
 
-/** Whether the page shows everything a `waitFor` step asks for. */
-function shows(state, wanted) {
+const BATTLE_SHOWN = { menu: battleIdle, none: (state) => state.screen !== 'battle' && state.battle === null };
+
+/** Whether the page shows everything a `waitFor` step asks for, `self` being the player whose page it is. */
+function shows(state, wanted, self) {
   const other = (id) => state.players.find((player) => !player.self && player.name === nameOf(id));
+  return (
+    (!wanted.battle || BATTLE_SHOWN[wanted.battle](state)) &&
+    (!wanted.sameBattle || (state.battle !== null && state.battle.id === self.battleId)) &&
+    (wanted.battling ?? []).every((id) => other(id)?.inBattle === true) &&
+    (wanted.calm ?? []).every((id) => other(id) !== undefined && !other(id).inBattle) &&
+    shownInWorld(state, wanted, other)
+  );
+}
+
+function shownInWorld(state, wanted, other) {
   return (
     (!wanted.connection || state.connection === wanted.connection) &&
     (!wanted.settled || Boolean(settledOn(state))) &&
@@ -181,6 +219,26 @@ function shows(state, wanted) {
 }
 
 const pageOf = (id) => players.get(id).page;
+const aboutBattles = (wanted) => Boolean(wanted.battle || wanted.sameBattle);
+
+/** Waits for a `waitFor` step; one about battles must not run from the battle it waits on. */
+async function waitFor(entry) {
+  const player = players.get(entry.player);
+  const check = (state) => shows(state, entry.until, player);
+  const what = `${entry.player} to show ${JSON.stringify(entry.until)}`;
+  if (aboutBattles(entry.until)) await until(player.page, check, what, entry.ms, { ready: false });
+  else await untilPastBattles(player.page, check, what, notes, entry.ms, { ready: false });
+  // The mark is drawn on the name tag in HTML, so check the page itself too.
+  const marked = (id) =>
+    player.page
+      .locator('.name-tag.battling', { hasText: nameOf(id) })
+      .first()
+      .waitFor({ state: 'visible', timeout: entry.ms })
+      .catch(() => {
+        throw new Error(`${entry.player}'s page shows no battle mark on ${id}'s name tag`);
+      });
+  await Promise.all((entry.until.battling ?? []).map(marked));
+}
 
 const STEPS = {
   join: (entry) => joinWorld(players.get(entry.player)),
@@ -202,7 +260,7 @@ const STEPS = {
     await page.keyboard.up(KEYS[entry.direction]);
   },
   wait: (entry) => sleep(entry.ms),
-  waitFor: (entry) => untilPastBattles(pageOf(entry.player), (state) => shows(state, entry.until), `${entry.player} to show ${JSON.stringify(entry.until)}`, notes, entry.ms, { ready: false }),
+  waitFor,
   reload: async (entry) => {
     await pageOf(entry.player).reload();
     await enterWorld(pageOf(entry.player), inWorld, `${entry.player} back in the world after a reload`);
@@ -212,6 +270,27 @@ const STEPS = {
     player.offlineUntil = Date.now() + entry.ms;
     const open = player.sockets.splice(0);
     await Promise.all(open.flatMap(({ socket, server }) => [quietly(server.close({ code: SERVER_CLOSE })), quietly(socket.close({ code: PAGE_CLOSE, reason: 'scene: connection dropped' }))]));
+  },
+  meet: async (entry) => {
+    const player = players.get(entry.player);
+    await meetWildCreature(player.page, world, { notes });
+    const state = await until(player.page, battleIdle, `${entry.player}'s battle to offer a choice`, 15_000);
+    player.battleId = state.battle.id;
+  },
+  fight: async (entry) => {
+    const { page } = players.get(entry.player);
+    const before = await until(page, battleIdle, `${entry.player}'s battle to offer a choice`, 15_000);
+    if (before.battle.panel !== 'menu') throw new Error(`${entry.player}'s battle shows the ${before.battle.panel} panel, not the moves`);
+    const move = page.locator('#battle .move').nth(entry.slot);
+    if ((await move.count()) === 0) throw new Error(`${entry.player}'s creature has no move in slot ${entry.slot}`);
+    await move.tap();
+    await until(page, (s) => battleIdle(s) && (s.battle.turn > before.battle.turn || s.battle.panel === 'result'), `${entry.player}'s turn to play`, 15_000);
+    await nextFrames(page);
+  },
+  run: async (entry) => {
+    const player = players.get(entry.player);
+    await leaveBattle(player.page);
+    player.battleId = null;
   },
 };
 
