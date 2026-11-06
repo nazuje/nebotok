@@ -87,7 +87,7 @@ export const STOP_SAVE_GAP_MS = 5_000;
 const MAX_PLAYERS = 16;
 /** Each walk.to runs a path search; more than this a second from one client are dropped. */
 export const WALK_TO_PER_SECOND = 5;
-/** Battle, team, storage and starter requests a second from one client; more are dropped. A battle needs one a turn. */
+/** Battle, team, storage, starter and move requests a second from one client; more are dropped. A battle needs one a turn. */
 export const REQUESTS_PER_SECOND = 5;
 /** How often battles left without input, and offered moves left unanswered, are looked for. */
 export const BATTLE_CHECK_MS = 5_000;
