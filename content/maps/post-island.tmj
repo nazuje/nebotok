@@ -170,10 +170,94 @@
    "visible": true,
    "x": 0,
    "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 6,
+   "name": "npcs",
+   "objects": [
+    {
+     "height": 0,
+     "id": 5,
+     "name": "bavko",
+     "point": true,
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 344,
+     "y": 168
+    },
+    {
+     "height": 0,
+     "id": 6,
+     "name": "tobolko",
+     "point": true,
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 200,
+     "y": 200
+    },
+    {
+     "height": 0,
+     "id": 7,
+     "name": "mehurka",
+     "point": true,
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 408,
+     "y": 200
+    },
+    {
+     "height": 0,
+     "id": 8,
+     "name": "vetrinka",
+     "point": true,
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 568,
+     "y": 216
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 7,
+   "name": "marks",
+   "objects": [
+    {
+     "height": 0,
+     "id": 9,
+     "name": "lookout",
+     "point": true,
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 600,
+     "y": 232
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
   }
  ],
- "nextlayerid": 6,
- "nextobjectid": 5,
+ "nextlayerid": 8,
+ "nextobjectid": 10,
  "orientation": "orthogonal",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

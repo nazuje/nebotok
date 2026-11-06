@@ -7,14 +7,17 @@
 //   5. they spread out, every view must agree, and the server is stopped with SIGTERM while they
 //      are still connected; a fresh server on the same folder must start each bot where it stood;
 //   6. two bots choose a starter, step about in the tall grass until a wild creature appears, and
-//      play their battles to the end at the same time, never refused a request.
+//      play their battles to the end at the same time, never refused a request;
+//   7. the other two play the story at the same time, by what core's nextGoal asks, until the
+//      first quest is done: the starter from its character, the quest, its steps and its rewards.
 //   node scripts/bot-run.mjs [--out <dir>]
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Callbacks, Client } from '@colyseus/sdk';
-import { DIRECTIONS, PLAYER_SPAWN, PROTOCOL_VERSION, createRng, isWalkable, reachableFrom, readTiledMap } from '../packages/core/src/index.ts';
+import { loadWorld } from '../apps/server/src/world.ts';
+import { DIRECTIONS, PLAYER_SPAWN, PROTOCOL_VERSION, createRng, encounterZoneAt, isWalkable, nextGoal, reachableFrom, readTiledMap, storyBotCommand } from '../packages/core/src/index.ts';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 
@@ -68,7 +71,18 @@ async function joinWorld(base, profile, token) {
   const client = new Client(base);
   client.auth.token = token;
   const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION });
-  const bot = { profile, room, welcomes: [], progress: [], battles: { started: [], turns: [], results: [], refused: [] }, drops: 0, reconnects: 0, refusals: 0, count: null };
+  const bot = {
+    profile,
+    room,
+    welcomes: [],
+    progress: [],
+    battles: { started: [], turns: [], results: [], refused: [] },
+    story: { messages: [], nodes: [], ended: [], changes: [], offers: [] },
+    drops: 0,
+    reconnects: 0,
+    refusals: 0,
+    count: null,
+  };
   room.onMessage('welcome', (message) => bot.welcomes.push(message));
   room.onMessage('progress', (message) => bot.progress.push(message));
   room.onMessage('battle.started', (message) => bot.battles.started.push(message));
@@ -76,6 +90,11 @@ async function joinWorld(base, profile, token) {
   room.onMessage('battle.result', (message) => bot.battles.results.push(message));
   room.onMessage('refused', (message) => bot.battles.refused.push(message));
   room.onMessage('storage', () => {});
+  room.onMessage('story', (message) => bot.story.messages.push(message));
+  room.onMessage('talk.node', (message) => bot.story.nodes.push(message));
+  room.onMessage('talk.ended', (message) => bot.story.ended.push(message));
+  room.onMessage('quest.changed', (message) => bot.story.changes.push(message));
+  room.onMessage('move.offer', (message) => bot.story.offers.push(message));
   room.onMessage('walk.refused', () => {
     bot.refusals += 1;
   });
@@ -143,14 +162,14 @@ function battleChoice(battle) {
   return ['battle.move', { slot: 0 }];
 }
 
-/** Steps back and forth between two tall-grass tiles until a wild creature appears. */
-async function pace(bot, tiles, steps = 0) {
-  if (bot.battles.started.length > 0) return bot.battles.started[0].battle;
+/** Steps back and forth between two tall-grass tiles until wild creature number `index` appears. */
+async function pace(bot, tiles, index = 0, steps = 0) {
+  if (bot.battles.started.length > index) return bot.battles.started[index].battle;
   if (steps > 200) throw new Error(`${bot.profile.name} met no wild creature in 200 steps`);
   const tile = tiles[steps % 2];
   bot.room.send('walk.to', tile);
   await until(() => standsOn(bot, tile) || bot.battles.started.length > 0, `${bot.profile.name} to step in the grass`);
-  return pace(bot, tiles, steps + 1);
+  return pace(bot, tiles, index, steps + 1);
 }
 
 /** Answers each battle view until the battle is over. */
@@ -174,6 +193,145 @@ async function battleInGrass(bot, area, index) {
   return bot.battles.results[0].outcome;
 }
 
+// The story bots play the real story by asking core's storyBotCommand what nextGoal wants, as a
+// player would, until STORY_QUEST is done; they never follow a list of steps written here.
+const WORLD = loadWorld();
+const STORY_RULES = { content: WORLD.story, starters: WORLD.starters };
+const STORY_QUEST = 'first-round';
+const MAX_STORY_COMMANDS = 40;
+const WALK_DEADLINE_MS = 30_000;
+
+/** Sends a request after the gap the rate limit needs. */
+async function request(bot, type, payload) {
+  await sleep(REQUEST_GAP_MS);
+  bot.room.send(type, payload);
+}
+
+/** The bot's progress as its own messages tell it; storage comes only at shrines, and no bot keeps any. */
+function storyProgress(bot) {
+  const { team, inventory, lastShrine, seen, befriended } = bot.progress.at(-1);
+  return { team, storage: [], inventory, lastShrine, seen, befriended, story: bot.story.messages.at(-1) };
+}
+
+/** The reachable tiles next to `point`, out of the tall grass first. */
+function besideTiles(map, tiles, point) {
+  const near = tiles.filter((tile) => Math.abs(tile.x - point.x) + Math.abs(tile.y - point.y) === 1);
+  return near.toSorted((a, b) => Number(encounterZoneAt(map, a) !== null) - Number(encounterZoneAt(map, b) !== null));
+}
+
+/** Skips every move a level up offered, waiting for the progress each answer brings. */
+async function answerOffers(bot) {
+  const offer = bot.story.offers.shift();
+  if (!offer) return;
+  const seen = bot.progress.length;
+  await request(bot, 'move.choose', { offer: offer.offer, forget: null });
+  await until(() => bot.progress.length > seen, `${bot.profile.name}'s progress after a move offer`);
+  return answerOffers(bot);
+}
+
+/** Plays out the battle that started as number `index`, then any move it offers. */
+async function finishBattle(bot, index) {
+  await playBattle(bot, bot.battles.started[index].battle);
+  await until(() => bot.battles.results.length > index && mine(bot)?.inBattle === false, `${bot.profile.name}'s battle result`);
+  await sleep(REQUEST_GAP_MS);
+  await answerOffers(bot);
+}
+
+/** Walks to `tile`, playing out any wild creature met on the way (and walking on from wherever that leaves the bot). */
+async function goTo(bot, tile, tries = 0) {
+  if (standsOn(bot, tile)) return;
+  if (tries > 10) throw new Error(`${bot.profile.name} could not get to ${tile.x},${tile.y}`);
+  const battles = bot.battles.started.length;
+  bot.room.send('walk.to', tile);
+  await until(() => standsOn(bot, tile) || bot.battles.started.length > battles, `${bot.profile.name} to walk to ${tile.x},${tile.y}`, Date.now() + WALK_DEADLINE_MS);
+  if (bot.battles.started.length > battles) await finishBattle(bot, battles);
+  return goTo(bot, tile, tries + 1);
+}
+
+/** Gives a talk's answers in turn, choosing the starter where a node offers it, then walks away from what is left. */
+async function talkThrough(bot, command, node, answers) {
+  const ended = () => bot.story.ended.some((end) => end.conversation === node.conversation);
+  if (command.starter !== undefined && node.cue === 'offerStarter') {
+    await request(bot, 'starter.choose', { species: command.starter });
+    await until(ended, `${bot.profile.name}'s talk to end after the starter`);
+    return;
+  }
+  if (ended()) {
+    expect(answers.length === 0, `${bot.profile.name}'s talk with ${command.talk} ended with ${answers.length} answers left`);
+    return;
+  }
+  if (answers.length === 0) {
+    await request(bot, 'talk.end', { conversation: node.conversation });
+    await until(ended, `${bot.profile.name}'s talk to end`);
+    return;
+  }
+  const seen = bot.story.nodes.length;
+  await request(bot, 'talk.next', { conversation: node.conversation, choice: answers[0] });
+  await until(() => bot.story.nodes.length > seen || ended(), `${bot.profile.name}'s next node`);
+  return talkThrough(bot, command, bot.story.nodes.length > seen ? bot.story.nodes.at(-1) : node, answers.slice(1));
+}
+
+async function talkTo(bot, map, tiles, command) {
+  await goTo(bot, besideTiles(map, tiles, map.npcs[command.talk])[0]);
+  const seen = bot.story.nodes.length;
+  await request(bot, 'talk.start', { npc: command.talk });
+  await until(() => bot.story.nodes.length > seen, `${bot.profile.name}'s talk with ${command.talk} to open`);
+  await talkThrough(bot, command, bot.story.nodes.at(-1), command.answers);
+}
+
+/** Steps back and forth in `area` until a wild creature appears, and plays the battle out. */
+async function battleIn(bot, area) {
+  const index = bot.battles.started.length;
+  await playBattle(bot, await pace(bot, [{ x: area.x, y: area.y }, { x: area.x + 1, y: area.y }], index));
+  await until(() => bot.battles.results.length > index && mine(bot)?.inBattle === false, `${bot.profile.name}'s battle result`);
+  await sleep(REQUEST_GAP_MS);
+  await answerOffers(bot);
+}
+
+/** Makes `event` happen in the world: a mark reached, a shrine rested at or a battle won. */
+async function makeHappen(bot, map, tiles, event) {
+  if (event.kind === 'reached') {
+    const mark = map.marks[event.mark];
+    await goTo(bot, tiles.some((tile) => tile.x === mark.x && tile.y === mark.y) ? mark : besideTiles(map, tiles, mark)[0]);
+  } else if (event.kind === 'rested') {
+    // A rest counts on arriving, so step off the shrine first.
+    const shrine = map.shrines[event.shrine];
+    await goTo(bot, besideTiles(map, tiles, shrine)[0]);
+    await goTo(bot, shrine);
+  } else if (event.kind === 'battleWon') {
+    await battleIn(bot, map.encounterAreas.find((area) => event.zone === null || area.zone === event.zone));
+  } else {
+    throw new Error(`the story bot cannot make a "${event.kind}" event happen yet`);
+  }
+}
+
+/** Plays commands until STORY_QUEST is done, and returns what each was (an npc talked to, or an event). */
+async function playStoryBot(bot, map, tiles, played = []) {
+  const progress = storyProgress(bot);
+  if (progress.story.done.includes(STORY_QUEST)) return played;
+  if (played.length >= MAX_STORY_COMMANDS) throw new Error(`${bot.profile.name} played ${played.length} story commands without finishing ${STORY_QUEST}`);
+  const command = storyBotCommand(progress, STORY_RULES);
+  if (!command) throw new Error(`${bot.profile.name} is stuck at ${JSON.stringify(nextGoal(progress, WORLD.story))}`);
+  const stories = bot.story.messages.length;
+  await ('talk' in command ? talkTo(bot, map, tiles, command) : makeHappen(bot, map, tiles, command.event));
+  // A lost battle changes no story, so this only waits a moment for one that does.
+  await poll(() => bot.story.messages.length > stories, { deadline: Date.now() + 2_000 });
+  return playStoryBot(bot, map, tiles, [...played, 'talk' in command ? `talk:${command.talk}` : `event:${command.event.kind}`]);
+}
+
+/** Plays the story through STORY_QUEST and checks what the server sent for it. */
+async function storyRun(bot, map, tiles) {
+  await until(() => bot.story.messages.length > 0 && bot.progress.length > 0, `${bot.profile.name}'s story`);
+  const played = await playStoryBot(bot, map, tiles);
+  const done = bot.story.changes.find((change) => change.quest === STORY_QUEST && change.change === 'done');
+  expect(done !== undefined, `${bot.profile.name} got no "done" quest.changed for ${STORY_QUEST}`);
+  const rewarded = (done?.rewards?.items ?? []).every((reward) => bot.progress.at(-1).inventory.some((held) => held.item === reward.item && held.count >= reward.count));
+  expect(rewarded, `${bot.profile.name}'s bag lacks the rewards of ${STORY_QUEST}`);
+  // State patches can come a moment after talk.ended.
+  expect(await poll(() => mine(bot)?.talking === false, { deadline: Date.now() + 2_000 }), `${bot.profile.name} still shows the speech mark`);
+  expect(bot.battles.refused.length === 0, `${bot.profile.name} had requests refused: ${JSON.stringify(bot.battles.refused)}`);
+  return { bot: bot.profile.name, played };
+}
 async function dropMidWalk(bot, tiles) {
   bot.room.reconnection.minUptime = 0;
   const sessionBefore = bot.room.sessionId;
@@ -192,6 +350,7 @@ const EVENTS = ['player joined', 'player dropped', 'player reconnected', 'player
 const eventCounts = (server) => Object.fromEntries(EVENTS.map((event) => [event, server.lines.filter((line) => line.msg === event).length]));
 const intents = { to: 0, hold: 0 };
 const battles = [];
+const stories = [];
 let tally = null;
 
 try {
@@ -264,6 +423,8 @@ try {
   const outcomes = await Promise.all(fighters.map((bot, index) => battleInGrass(bot, meadow, index)));
   battles.push(...outcomes.map((outcome) => outcome.reason));
   step(`two bots chose a starter, met wild creatures in the grass at once and finished their battles: ${battles.join(', ')}`);
+  stories.push(...(await Promise.all(back.slice(2).map((bot) => storyRun(bot, map, tiles)))));
+  for (const story of stories) step(`${story.bot} played the story through ${STORY_QUEST}: ${story.played.join(', ')}`);
   await Promise.all(back.map((bot) => bot.room.leave()));
   await until(() => second.lines.filter((line) => line.msg === 'player left').length === back.length, 'the restarted server to log every leave');
 } catch (error) {
@@ -285,6 +446,7 @@ const summary = {
   bots: PROFILES.length,
   intents,
   battles,
+  stories,
   sampledPositions: tally?.samples ?? 0,
   blockedPositions: tally?.blocked ?? 0,
   positionsChecked: Object.keys(positions).length,

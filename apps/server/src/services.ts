@@ -15,6 +15,8 @@ export type Services = {
   readonly profiles: ProfileStore;
   readonly progress: ProgressStore;
   readonly now: () => number;
+  /** Tests set it to try both starter rules; the room's default is `STARTER_NEEDS_TALK`. */
+  readonly starterNeedsTalk?: boolean;
   close(): void;
 };
 
