@@ -148,7 +148,11 @@ async function battleTurn(page, world) {
   return turned;
 }
 
-/** Waits until the page is back in the world after the restart, noting every toast it showed on the way. */
+/**
+ * Waits until the page is back in the world after the restart and its courier has settled (the
+ * prediction catches up a frame or two after the room's state), noting every toast it showed on
+ * the way.
+ */
 async function backInWorld(page, toasts) {
   let last = null;
   const back = await poll(
@@ -156,11 +160,11 @@ async function backInWorld(page, toasts) {
       last = await readState(page).catch(() => null);
       if (last?.toast) toasts.add(last.toast);
       const ready = await page.evaluate((key) => window[key]?.ready === true, HOOK).catch(() => false);
-      return ready && last !== null && inWorld(last) && last.screen === 'world' && last.battle === null;
+      return ready && last !== null && inWorld(last) && last.screen === 'world' && last.battle === null && settledOn(last);
     },
     { deadline: Date.now() + 45_000, intervalMs: 100 },
   );
-  if (!back) throw new Error(`the page never came back to the world after the restart; last state ${JSON.stringify(last)}`);
+  if (!back) throw new Error(`the page never came back to the world, settled, after the restart; last state ${JSON.stringify(last)}`);
   return last;
 }
 
