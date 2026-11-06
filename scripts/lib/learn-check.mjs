@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { emptyProgress, loadBattleContent, newCreature, xpToNextLevel } from '../../packages/core/src/index.ts';
-import { battleIdle, nextFrames, readState, until } from './game-page.mjs';
+import { battleIdle, nextFrames, readState, until, untilTappingThrough } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -36,12 +36,12 @@ export function learnerSave({ name, language, position }) {
   return { name, language, createdAt: new Date().toISOString(), position, ...emptyProgress(), team: [learner], befriended: [SPECIES], seen: [SPECIES] };
 }
 
-/** Attacks with the first move until the battle is won, running once the wild creature has fainted and waits for a treat. */
+/** Attacks with the first move until the battle is won, leaving with Done once the wild creature has fainted and waits for a treat. */
 async function winBattle(page, state, turn = 0) {
   if (state.battle.panel === 'result' || turn >= MAX_TURNS) return state;
   await nextFrames(page);
   await page.locator(state.battle.phase === 'befriend' ? '#battle .battle-run' : '#battle .move').first().tap();
-  const next = await until(page, (s) => battleIdle(s) && (s.battle.turn > state.battle.turn || s.battle.panel === 'result'), 'the next turn of the learner’s battle', 15_000);
+  const next = await untilTappingThrough(page, (s) => battleIdle(s) && (s.battle.turn > state.battle.turn || s.battle.panel === 'result'), 'the next turn of the learner’s battle', 15_000);
   return winBattle(page, next, turn + 1);
 }
 
@@ -54,7 +54,7 @@ async function winBattle(page, state, turn = 0) {
 export async function playLearning(page, { language, strings, forget, expect, check }) {
   const say = (id) => strings[id][language];
   const name = (kind, id) => CONTENT[kind].get(id)?.name[language] ?? id;
-  const won = await winBattle(page, await until(page, battleIdle, 'the learner’s battle to offer a choice', 15_000));
+  const won = await winBattle(page, await untilTappingThrough(page, battleIdle, 'the learner’s battle to offer a choice', 15_000));
   expect(won.battle.outcome?.winner === 0, `the learner’s battle ended ${JSON.stringify(won.battle.outcome)}, not in a win`);
   expect(won.battle.rewards[0]?.level === NEXT.level, `the learner reached level ${won.battle.rewards[0]?.level}, not ${NEXT.level}`);
   await nextFrames(page);

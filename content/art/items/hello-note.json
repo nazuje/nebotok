@@ -2,28 +2,31 @@
   "width": 16,
   "height": 16,
   "palette": {
-    "k": "#4a3426",
+    "k": "#1b1b2f",
+    "w": "#ffffff",
     "p": "#fff8e7",
-    "d": "#c9b28f",
-    "r": "#c0392b"
+    "d": "#e0cfa8",
+    "l": "#b8a27e",
+    "r": "#d0574a",
+    "q": "#a8443a"
   },
   "frames": {
     "still": [
       "................",
-      "................",
-      "................",
-      ".kkkkkkkkkkkkk..",
-      ".kpppppppppppk..",
-      ".kdpppppppppdk..",
-      ".kpdpppppppdpk..",
-      ".kppdpppppdppk..",
-      ".kpppdpppdpppk..",
-      ".kppppdrdppppk..",
-      ".kpppppppppppk..",
-      ".kpppppppppppk..",
-      ".kkkkkkkkkkkkk..",
-      "................",
-      "................",
+      "...kkkkkkk......",
+      "..kwppppppkk....",
+      "..kpppppppddk...",
+      "..kplllllpdddk..",
+      "..kppppppppppdk.",
+      "..kpllllllllpdk.",
+      "..kppppppppppdk.",
+      "..kpllllllpppdk.",
+      "..kppppppppppdk.",
+      "..kpppppprrppdk.",
+      "..kppppprwrrpdk.",
+      "..kpppppqrrqpdk.",
+      "..kddddddqqdddk.",
+      "...kkkkkkkkkkk..",
       "................"
     ]
   }

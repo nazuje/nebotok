@@ -11,7 +11,7 @@ export function createGameServer(config: Config, log: Log, services: Services) {
   closeMatchmakeCors();
   return defineServer({
     rooms: {
-      world: defineRoom(worldRoom({ log, world: services.world, profiles: services.profiles, progress: services.progress, now: services.now })),
+      world: defineRoom(worldRoom({ log, world: services.world, profiles: services.profiles, progress: services.progress, now: services.now, starterNeedsTalk: services.starterNeedsTalk })),
     },
     routes: matchmakeRoutes(),
     transport: new WebSocketTransport(),

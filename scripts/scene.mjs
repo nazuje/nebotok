@@ -34,6 +34,7 @@ import {
   tilesToScreen,
   until,
   untilPastBattles,
+  untilTappingThrough,
   walkByTaps,
   watch,
 } from './lib/game-page.mjs';
@@ -274,17 +275,17 @@ const STEPS = {
   meet: async (entry) => {
     const player = players.get(entry.player);
     await meetWildCreature(player.page, world, { notes });
-    const state = await until(player.page, battleIdle, `${entry.player}'s battle to offer a choice`, 15_000);
+    const state = await untilTappingThrough(player.page, battleIdle, `${entry.player}'s battle to offer a choice`, 15_000);
     player.battleId = state.battle.id;
   },
   fight: async (entry) => {
     const { page } = players.get(entry.player);
-    const before = await until(page, battleIdle, `${entry.player}'s battle to offer a choice`, 15_000);
+    const before = await untilTappingThrough(page, battleIdle, `${entry.player}'s battle to offer a choice`, 15_000);
     if (before.battle.panel !== 'menu') throw new Error(`${entry.player}'s battle shows the ${before.battle.panel} panel, not the moves`);
     const move = page.locator('#battle .move').nth(entry.slot);
     if ((await move.count()) === 0) throw new Error(`${entry.player}'s creature has no move in slot ${entry.slot}`);
     await move.tap();
-    await until(page, (s) => battleIdle(s) && (s.battle.turn > before.battle.turn || s.battle.panel === 'result'), `${entry.player}'s turn to play`, 15_000);
+    await untilTappingThrough(page, (s) => battleIdle(s) && (s.battle.turn > before.battle.turn || s.battle.panel === 'result'), `${entry.player}'s turn to play`, 15_000);
     await nextFrames(page);
   },
   run: async (entry) => {

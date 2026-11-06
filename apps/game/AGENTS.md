@@ -23,7 +23,11 @@ changing Phaser code, and use Phaser 4 APIs only.
   and keep the hook read-only.
 - **Battles and teams** (`src/battles.ts`): the server's messages feed `src/battle-model.ts`,
   which always draws from the latest `BattleView` and uses a turn's events only to animate it
-  (`src/battle-playback.ts`, at most `TURN_BUDGET_MS`). `src/battle-scene.ts` draws the field;
+  (`src/battle-playback.ts`). A turn plays at reading pace: each line stays up `LINE_MIN_MS`
+  plus `LINE_MS_PER_CHARACTER`, at most `LINE_MAX_MS`, with its animations inside that time. A
+  tap moves on to the next line and a second quick tap to the end of the turn; reduced motion
+  keeps the timing and drops the movement. The browser check times one turn and taps through the
+  rest (`untilTappingThrough` in `scripts/lib/game-page.mjs`). `src/battle-scene.ts` draws the field;
   the battle, team and starter screens are HTML. Creature pictures come only from `creatureTexture` and
   `creaturePortrait` in
   `src/creature-art.ts`; the field's background comes from `src/battle-backdrop.ts`. Every battle

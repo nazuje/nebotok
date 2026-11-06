@@ -47,7 +47,7 @@ export type Battles = {
  * Phaser battle field, and the battle, team, starter and move-learning screens over the world.
  */
 export function createBattles(options: BattlesOptions): Battles {
-  const model = createBattleModel();
+  const model = createBattleModel((line, view) => lineText(line, view, options.language()).length);
   let link: BattleLink | null = null;
   let overlay: BattleOverlay | null = null;
 
@@ -63,7 +63,7 @@ export function createBattles(options: BattlesOptions): Battles {
     progress: () => model.progress(),
     send,
     pick: (picker) => model.pick(picker),
-    skip: () => model.skip(),
+    advance: () => model.advance(performance.now()),
     close: () => model.close(),
   });
   const team = createTeamScreen(element<HTMLElement>('#team'), {
@@ -93,10 +93,12 @@ export function createBattles(options: BattlesOptions): Battles {
   });
 
   function receive(message: ServerMessage) {
+    const restedAt = model.storage()?.shrine;
     model.receive(message, performance.now());
     learn.receive(message);
     if (message.type === SERVER_MESSAGES.refused) options.toast(`refused.${message.payload.reason}`);
-    if (message.type === SERVER_MESSAGES.storage) options.toast('shrine.rested', 'news');
+    // Storage comes again after every swap at the shrine; only arriving there is news, and a toast then would cover Close.
+    if (message.type === SERVER_MESSAGES.storage && message.payload.shrine !== restedAt) options.toast('shrine.rested', 'news');
   }
 
   function update(now = performance.now()) {
