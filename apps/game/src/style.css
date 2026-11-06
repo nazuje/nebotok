@@ -173,10 +173,10 @@ body:not([data-screen='world']) #names {
   line-height: 36px;
 }
 
-body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter']) .title,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter']) .badge,
+body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn']) .title,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn']) .badge,
 body:not([data-screen='world']) .welcome,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter']) .toast,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn']) .toast,
 body:not([data-screen='world']) .walk-hint {
   display: none;
 }
@@ -1171,6 +1171,38 @@ body:not([data-screen='world']) .team-button {
 .starter-choice canvas.creature {
   width: 96px;
   height: 96px;
+}
+
+/* Learning a move after a level up */
+
+.learn-creature {
+  display: flex;
+  justify-content: center;
+}
+
+.learn-creature canvas.creature {
+  width: 96px;
+  height: 96px;
+}
+
+.learn-new {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.learn-new .move-chip {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+#learn[aria-busy='true'] button {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .toast[data-kind='news'] {

@@ -85,7 +85,7 @@ describe('ending a battle', () => {
     const progress = progressWith({ team: [newCreature('glowbun', 6, content)] });
     const battle = begin(progress);
     playStep(battle, { kind: 'run' }, content);
-    expect(settleBattle(progress, battle, content)).toEqual({ progress, rewards: [], befriended: null, fainted: false });
+    expect(settleBattle(progress, battle, content)).toEqual({ progress, rewards: [], learned: [], offers: [], befriended: null, fainted: false });
   });
 });
 

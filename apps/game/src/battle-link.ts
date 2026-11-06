@@ -9,6 +9,8 @@ import {
   type BattleUpdate,
   type BattleViewMessage,
   type BefriendResult,
+  type MoveChooseMessage,
+  type MoveOffer,
   type ProgressMessage,
   type Refused,
   type StarterChooseMessage,
@@ -27,6 +29,7 @@ export type ServerPayloads = {
   [SERVER_MESSAGES.battleView]: BattleViewMessage;
   [SERVER_MESSAGES.battleBefriend]: BefriendResult;
   [SERVER_MESSAGES.battleResult]: BattleResult;
+  [SERVER_MESSAGES.moveOffer]: MoveOffer;
   [SERVER_MESSAGES.refused]: Refused;
 };
 
@@ -38,6 +41,7 @@ export type ClientPayloads = {
   [CLIENT_MESSAGES.teamReorder]: TeamReorderMessage;
   [CLIENT_MESSAGES.storageSwap]: StorageSwapMessage;
   [CLIENT_MESSAGES.starterChoose]: StarterChooseMessage;
+  [CLIENT_MESSAGES.moveChoose]: MoveChooseMessage;
 };
 
 type Tagged<Payloads> = { [Type in keyof Payloads]: { readonly type: Type; readonly payload: Payloads[Type] } }[keyof Payloads];
@@ -59,6 +63,7 @@ const SERVER_TYPES = [
   SERVER_MESSAGES.battleView,
   SERVER_MESSAGES.battleBefriend,
   SERVER_MESSAGES.battleResult,
+  SERVER_MESSAGES.moveOffer,
   SERVER_MESSAGES.refused,
 ] as const satisfies readonly (keyof ServerPayloads)[];
 

@@ -3,7 +3,7 @@
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, and `src/messages.ts` for battles and teams), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **4**).
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **5**).
 
 Everything is same-origin: the page, the API, the maps and the WebSocket all come from the server
 that served the page. In development Vite proxies `/colyseus/*` to the server and strips the prefix,
@@ -138,10 +138,11 @@ The battle, team and starter messages are in the next section.
 
 ## Battles, teams and treats
 
-Since protocol 4. The payload schemas are in `packages/core/src/messages.ts`, the type names in
-`CLIENT_MESSAGES` and `SERVER_MESSAGES`, and the rules they use in core: `rollEncounter`
-(`encounter.ts`), the battle engine (`battle/`), `befriendChance` (`befriend.ts`), the team, treat
-and shrine rules (`creatures.ts`) and experience (`growth.ts`).
+Since protocol 4, with learning moves since protocol 5. The payload schemas are in
+`packages/core/src/messages.ts`, the type names in `CLIENT_MESSAGES` and `SERVER_MESSAGES`, and
+the rules they use in core: `rollEncounter` (`encounter.ts`), the battle engine (`battle/`),
+`befriendChance` (`befriend.ts`), the team, treat and shrine rules (`creatures.ts`), experience
+(`growth.ts`) and learning moves (`learning.ts`).
 
 ### Privacy: battles are messages to one player
 
@@ -177,10 +178,12 @@ A future duel (Slice D) uses the same messages: each player gets their own view,
 | `battle.run` | `{}` | `canRun` | Leave the battle |
 | `team.reorder` | `{ order }`, `order[i]` the current place of the creature going to place i | Not in a battle | New team order (core `reorderTeam`); the first creature that can battle goes out first |
 | `storage.swap` | `{ team, storage }`, each a place or null | At a shrine, not in a battle | Swap, store or bring back creatures (core `swapStorage`) |
+| `move.choose` | `{ offer, forget }`: `offer` the id from `move.offer`, `forget` a slot 0 to 3 or null | A `move.offer` is waiting | Forget the move in that slot for the offered one, or skip it with null (core `answerMove`) |
 
 A message that does not match its schema closes the connection (4002), as with walking. A message
 that matches but is not allowed now (not in a battle, an illegal move, a treat the player has not
-got, `storage.swap` away from a shrine) is answered with `refused`, and nothing changes. The client
+got, `storage.swap` away from a shrine, `move.choose` with no offer waiting (`notNow`) or for
+another offer (`invalid`)) is answered with `refused`, and nothing changes. The client
 shows `refused.<reason>` from `content/strings.json`.
 
 ### Server to client
@@ -193,7 +196,8 @@ shows `refused.<reason>` from `content/strings.json`.
 | `battle.turn` | `BattleUpdate` | After each step: a turn, a swap, or a treat or run in the befriend phase |
 | `battle.view` | `{ battle }` | After a reconnection during a battle |
 | `battle.befriend` | `BefriendResult`: `{ battle, species, placedIn }` | The wild creature accepted a treat; `placedIn` is `team` or `storage` |
-| `battle.result` | `BattleResult`: `{ battle, outcome, rewards, woke }` | The battle is over; `inBattle` turns false |
+| `battle.result` | `BattleResult`: `{ battle, outcome, rewards, learned, woke }` | The battle is over; `inBattle` turns false |
+| `move.offer` | `MoveOffer`: `{ offer, index, species, move, moves }` | After `battle.result`, one at a time: the creature at team place `index` may learn `move` by forgetting one of `moves` |
 | `refused` | `Refused`: `{ request, reason }` | A request from the table above was not done |
 
 `battle` in a `BattleUpdate` is a `BattleView` (core `battleView`): the phase, the turn, the
@@ -226,14 +230,27 @@ and `ended`.
    when the team has 6 (`addCreature`), at full health, and `befriended` gains its species. A
    refused treat in phase `befriend` ends the battle as a win.
 4. **End.** The server sends the last `battle.turn` (ending in `ended`), then `battle.befriend`
-   if a treat was accepted, then `battle.result` and `progress`. The team keeps the health it ended
-   with (`teamAfterBattle`). A win or a befriending gives `xpForWin` of the wild creature's level to
-   every creature that was sent out and still stands (`awardXp`, `sentOut`); `rewards` lists them.
-5. **Fainting.** When the whole team faints, the player wakes at `wakePoint`: their last shrine,
+   if a treat was accepted, then `battle.result`, then the first `move.offer` if there is one,
+   then `progress`. The team keeps the health it ended with (`teamAfterBattle`). A win or a
+   befriending gives `xpForWin` of the wild creature's level to every creature that was sent out
+   and still stands (`awardXp`, `sentOut`); `rewards` lists them.
+5. **Learning moves.** A creature whose level rises past a level in its species' `learnset` learns
+   that move (core `learnTeamMoves`, `learning.ts`), in learnset order, one level after another.
+   While it knows fewer than four moves the move is added at once, and `battle.result.learned`
+   lists it as `{ index, move }`, `index` its team place. A creature that already knows four is
+   offered the move instead: after `battle.result` the server sends one `move.offer`, waits for its
+   answer, and only then sends the next one, then `progress` after each. The player answers with
+   `move.choose`: `forget` is the slot of the move given up, whose place the new move takes, or
+   null to skip it (core `answerMove`). The answer is saved at once. While an offer waits, no wild
+   creature appears and `team.reorder`, `storage.swap` and `starter.choose` are refused with
+   `notNow`, so the team place in the offer stays right. An offer with no answer for 2 minutes is
+   skipped, connected or not, like an idle battle. After a reconnection the server sends the
+   waiting offer again, after `progress`.
+6. **Fainting.** When the whole team faints, the player wakes at `wakePoint`: their last shrine,
    or the map's `player` spawn before they have touched one (spread out with `freeTileNear`). The
    rules in `content/shrines.json` `teamFainted` apply (`wakeAfterFainting`): the team is healed
    and nothing is lost. `battle.result.woke` says where.
-6. **Shrines.** Stepping onto a shrine's tile or one next to it (`shrineAt`) heals the team
+7. **Shrines.** Stepping onto a shrine's tile or one next to it (`shrineAt`) heals the team
    (`healTeam`), makes it `lastShrine`, and sends `progress` and `storage`.
 
 A battle lives only in the server's memory. While its player is disconnected it waits, up to the
@@ -241,7 +258,13 @@ A battle lives only in the server's memory. While its player is disconnected it 
 it ends like a run (a win, if the wild creature had already fainted), and the team keeps its health.
 Each battle draws from its own RNG, seeded from the server's randomness when it starts.
 
-The battle, starter, team and storage requests together are limited to 5 a second per client;
+Move offers live only in the server's memory too, and are never saved: the save format stays as it
+was. When the seat ends with offers waiting (the player leaves, the seat expires, another device
+takes the profile over or the server stops), they are dropped, and the creature simply does not
+learn those moves. The level and experience are saved as usual. Offers have ids counted across the
+room, so an answer to an old offer never matches a new one.
+
+The battle, starter, team, storage and move requests together are limited to 5 a second per client;
 past that the server drops them without an answer and without closing the connection.
 
 ## Movement rules
