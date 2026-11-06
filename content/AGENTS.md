@@ -75,7 +75,9 @@ translation.
 `creatures/renamed.json` maps each species id that was renamed or removed to the species that
 stands in for it now. The server applies it to every save it loads, because old saves keep old
 ids. Renaming or removing a species adds a line here, and its old ids stay forever; point every
-old id straight at a species in `species.json`, never at another renamed id.
+old id straight at a species in `species.json`, never at another renamed id. A species, move or
+item that is gone without a line here is dropped or replaced as a save loads (`sanitizeProgress`,
+"Saves" in `docs/protocol.md`), so a removal without a rename costs players that creature.
 
 `creatures/befriending.json` tunes how likely a wild creature is to accept a treat (core
 `befriendChance`): tiredness, a favourite or liked treat and level. A species may name a

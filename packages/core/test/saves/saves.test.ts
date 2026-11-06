@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import renamed from '../../../../content/creatures/renamed.json' with { type: 'json' };
-import { MAX_ACTIVE_QUESTS, RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, maxHpOf, migrateSave, migrations, pruneStory, renameSpecies } from '../../src/index.ts';
+import { MAX_ACTIVE_QUESTS, RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, knowableMoves, maxHpOf, migrateSave, migrations, pruneStory, renameSpecies, sanitizeProgress } from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
 import { storyContent } from '../support/story-content.ts';
 
@@ -14,6 +14,15 @@ const fixtures = versionDirs.flatMap((dir) =>
     .filter((name) => name.endsWith('.json'))
     .map((name) => ({ label: `${dir}/${name}`, version: Number(dir.slice(1)), path: join(SAVES_DIR, dir, name) })),
 );
+
+/**
+ * What the server does to every save it loads (apps/server/src/renamed.ts): today's species for
+ * renamed ones, then the check against content, then the story pruned to today's quests and flags.
+ */
+function loaded(path: string) {
+  const { progress, repairs } = sanitizeProgress(renameSpecies(migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data, RenamedFile.parse(renamed), battleContent), battleContent);
+  return { progress: { ...progress, story: pruneStory(progress.story, storyContent) }, repairs };
+}
 
 describe('save migrations', () => {
   it('keeps fixtures, schemas and migrations for every version', () => {
@@ -33,14 +42,49 @@ describe('save migrations', () => {
     expect(createSave(latest.data)).toEqual(latest);
   });
 
-  it.each(fixtures)('$label names only creatures and moves that exist once renamed species are replaced', ({ path }) => {
-    const data = renameSpecies(migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data, RenamedFile.parse(renamed), battleContent);
+  it.each(fixtures)('$label names only creatures, moves and items that exist once loaded', ({ path }) => {
+    const { progress: data } = loaded(path);
     expect(createSave(data).data).toEqual(data);
     const creatures = [...data.team, ...data.storage];
     const species = [...data.seen, ...data.befriended, ...creatures.map((creature) => creature.species)];
     expect(species.filter((id) => !battleContent.species.has(id))).toEqual([]);
-    expect(creatures.flatMap((creature) => creature.moves).filter((id) => !battleContent.moves.has(id))).toEqual([]);
+    expect(creatures.filter((creature) => !creature.moves.every((id) => knowableMoves(battleContent.species.get(creature.species)!, battleContent).has(id)))).toEqual([]);
     expect(creatures.filter((creature) => creature.hp > maxHpOf(creature, battleContent))).toEqual([]);
+    expect(data.inventory.filter((entry) => !battleContent.items.has(entry.item))).toEqual([]);
+  });
+
+  it('drops the creatures, moves and items of a save that content no longer has, and keeps the rest', () => {
+    const { progress: data, repairs } = loaded(join(SAVES_DIR, 'v3', 'unknown-species.json'));
+    expect(repairs).toEqual({
+      droppedCreatures: ['gone-species', 'old-cloud'],
+      droppedItems: ['gone-treat'],
+      replacedMoves: ['gone-move', 'drip-drop'],
+      clamped: 1,
+      forgottenSpecies: ['gone-species', 'old-cloud'],
+      refilledTeam: false,
+    });
+    expect(data).toMatchObject({
+      name: 'Test Courier',
+      team: [{ species: 'glowbun', level: 7, xp: 10, hp: maxHpOf({ species: 'glowbun', level: 7 }, battleContent), moves: ['sun-ray', 'heat-shimmer', 'storm-tap'], nickname: 'Žarek' }],
+      storage: [],
+      inventory: [{ item: 'plain-treat', count: 2 }],
+      lastShrine: { map: 'post-island', shrine: 'post-shrine' },
+      seen: ['glowbun'],
+      befriended: ['glowbun'],
+    });
+  });
+
+  it('keeps the story through the repair and drops only the quests and flags the story no longer has', () => {
+    const path = join(SAVES_DIR, 'v4', 'old-content.json');
+    const raw = migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data;
+    const repaired = sanitizeProgress(raw, battleContent);
+    expect(repaired.repairs).toMatchObject({ droppedCreatures: ['gone-species'], droppedItems: ['gone-treat'] });
+    expect(repaired.progress.story).toEqual(raw.story);
+    const { progress: data } = loaded(path);
+    expect(data.story).toEqual({ active: [{ quest: 'first-round', step: 0, count: 0 }], done: [], flags: [] });
+    expect(data.inventory).toEqual([{ item: 'hello-note', count: 1 }]);
+    expect(data.team.map((creature) => creature.species)).toEqual(['glowbun']);
+    expect(createSave(data).data).toEqual(data);
   });
 
   it('gives a v1 player no position, so they start at the spawn', () => {

@@ -1,6 +1,7 @@
+import { matchMaker } from '@colyseus/core';
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, MAX_PROFILES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
@@ -225,6 +226,24 @@ describe('one character per profile', () => {
     await until(() => newer.state.players.size === 1, 'only the newer character to remain');
     expect(at(newer, newer.sessionId, target)).toBe(true);
     expect(newer.state.playerCount).toBe(1);
+  });
+
+  it(`keeps every one of ${MAX_PROFILES} profiles in one world room, and lets a second join take the seat over`, async () => {
+    const letters = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const profiles = await repeat(MAX_PROFILES, (index) => profile(`Courier ${letters[index]}`));
+    const rooms = await repeat(MAX_PROFILES, (index) => join(profiles[index]!.token));
+    const [first] = rooms;
+    expect(new Set(rooms.map((room) => room.roomId))).toEqual(new Set([first!.roomId]));
+    expect(await matchMaker.query({ name: 'world' })).toHaveLength(1);
+    await expect(matchMaker.createRoom('world', {})).rejects.toThrow(/already has its world room/);
+    expect(await matchMaker.query({ name: 'world' })).toHaveLength(1);
+
+    const firstLeft = leftWith(first!);
+    const again = await join(await signIn(profiles[0]!.id));
+    expect(await firstLeft).toBe(CLOSE_CODES.replaced);
+    expect(again.roomId).toBe(first!.roomId);
+    await until(() => again.state.players.size === MAX_PROFILES, `${MAX_PROFILES} players, one per profile`);
+    expect(await matchMaker.query({ name: 'world' })).toHaveLength(1);
   });
 
   it('takes over a character that is waiting to reconnect, which then cannot come back', async () => {

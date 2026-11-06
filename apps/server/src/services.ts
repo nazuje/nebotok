@@ -5,7 +5,7 @@ import { DATABASE_FILE, openDatabase } from './db.ts';
 import { createLog, type Log } from './log.ts';
 import { createProfileStore, type ProfileStore } from './profiles.ts';
 import { createProgressStore, type ProgressStore } from './progress.ts';
-import { loadRenames } from './renamed.ts';
+import { loadSaveRepair } from './renamed.ts';
 import { loadWorld, type WorldContent } from './world.ts';
 
 /** Everything the server keeps besides Colyseus itself: content, the database and the stores on it. */
@@ -25,7 +25,7 @@ export function createServices(config: Config, now: () => number = Date.now, log
     db,
     world,
     profiles: createProfileStore({ db, now, avatars: world.avatars, log }),
-    progress: createProgressStore({ db, now, rename: loadRenames() }),
+    progress: createProgressStore({ db, now, repair: loadSaveRepair(log) }),
     now,
     close: () => {
       if (db.isOpen) db.close();
