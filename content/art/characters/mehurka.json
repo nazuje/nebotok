@@ -1,8 +1,71 @@
 {
-  "recolour": "characters/bavko",
+  "width": 16,
+  "height": 16,
   "palette": {
-    "y": "#e8f4ff",
-    "b": "#5dade2",
-    "r": "#ffffff"
+    "k": "#1b1b2f",
+    "w": "#ffffff",
+    "s": "#f4c7a1",
+    "c": "#e9f6ff",
+    "o": "#bfe6ff",
+    "q": "#8fd3ff",
+    "r": "#ff7eb6",
+    "z": "#d65a94",
+    "f": "#4a3426"
+  },
+  "frames": {
+    "down": [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......kkkk......",
+      "....kkcccckk....",
+      "...kcwwcooook...",
+      "..kcwssssssoqk..",
+      "..kcoskssksoqk..",
+      "..kcorssssroqk..",
+      "..kcoossssooqk..",
+      "...koqqqqqqqk...",
+      "....ksrrrrsk....",
+      "...krrrrrrrzk...",
+      "....kffkkffk....",
+      ".....kk..kk....."
+    ],
+    "up": [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......kkkk......",
+      "....kkcccckk....",
+      "...kcwwcooook...",
+      "..kcwcooooooqk..",
+      "..kcooooooooqk..",
+      "..kcooooooooqk..",
+      "..kcoooooooqqk..",
+      "...koqqqqqqqk...",
+      "....ksrrrrsk....",
+      "...krrrrrrrzk...",
+      "....kffkkffk....",
+      ".....kk..kk....."
+    ],
+    "right": [
+      "................",
+      "................",
+      "................",
+      "................",
+      "......kkkk......",
+      "....kkcccckk....",
+      "...kcwwcooook...",
+      "..kcwcoossssqk..",
+      "..kcooosssksqk..",
+      "..kcooosssrsqk..",
+      "..kcoooossssqk..",
+      "...koqqqqqqqk...",
+      "....krrrrsrk....",
+      "...krrrrrrrzk...",
+      "....kkffffkk....",
+      "......kkkk......"
+    ]
   }
 }
