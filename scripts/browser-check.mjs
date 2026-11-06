@@ -3,11 +3,14 @@
 // languages, the way a player would: make a player with a PIN on the number pad, enter the world
 // and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), tap a
 // far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
-// and come straight back, switch player, get the PIN wrong, then right. At 360px wide it also
-// checks the lock messages (a first and a second lock), the PIN hint and a full profile list, and
-// adds a PIN to a profile made without one from the settings, then signs in with it. Every run then
-// plays the starter choice, a wild battle to befriending and the team screen against the page's own
-// fake server (?fake=new), and at 360px also a battle the whole team loses (?fake=faint).
+// and come straight back, switch player, get the PIN wrong, then right. A new player takes the
+// first starter on the way into the world, walks keep out of the tall grass, and each device run
+// also walks into the grass until a wild creature appears on the real server, attacks once and
+// runs. A wild battle met where none was meant is run from and noted, not failed. At 360px wide it
+// also checks the lock messages (a first and a second lock), the PIN hint and a full profile list,
+// and adds a PIN to a profile made without one from the settings, then signs in with it. Every run
+// then plays the starter choice, a wild battle to befriending and the team screen against the
+// page's own fake server (?fake=new), and at 360px also a battle the whole team loses (?fake=faint).
 // Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
@@ -18,14 +21,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Client } from '@colyseus/sdk';
-import { MAX_PROFILES, PIN_LOCK_MS, PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
+import { MAX_PROFILES, PIN_LOCK_MS, PLAYER_SPAWN, PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
   HOOK,
   apiCall,
+  battleIdle,
+  clearWalk,
   enterPin,
+  enterWorld,
+  inGrass,
   inWorld,
+  leaveBattle,
+  nextFrames,
   presetLanguage,
   readState,
   reportCspViolations,
@@ -38,6 +47,8 @@ import {
   testBase,
   tilesToScreen,
   until,
+  untilPastBattles,
+  walkByTaps,
   watch,
 } from './lib/game-page.mjs';
 import { fakeUrl, playBattle } from './lib/battle-check.mjs';
@@ -166,14 +177,23 @@ const standsOn = (player, tile) => player?.x === tile.x && player.y === tile.y &
 
 const OFFSETS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
-/** A direction with two free tiles ahead, so a short hold is sure to move. */
+// A short hold walks about three tiles; the tiles this far ahead must be free of tall grass.
+const HOLD_REACH = 5;
+
+/** A direction with two free tiles ahead and no tall grass within a short hold, so a hold is sure to move and meets no wild creature. */
 function openDirection(bot, from, not = []) {
   const free = (tile) => isWalkable(bot.map, tile) && bot.reach[tile.y * bot.map.width + tile.x];
-  const found = Object.entries(OFFSETS).find(([name, [dx, dy]]) => !not.includes(name) && free({ x: from.x + dx, y: from.y + dy }) && free({ x: from.x + 2 * dx, y: from.y + 2 * dy }));
+  const ahead = ([dx, dy], n) => ({ x: from.x + n * dx, y: from.y + n * dy });
+  const reached = (offset) => {
+    const tiles = [];
+    for (let n = 1; n <= HOLD_REACH && isWalkable(bot.map, ahead(offset, n)); n += 1) tiles.push(ahead(offset, n));
+    return tiles;
+  };
+  const open = (offset) => free(ahead(offset, 1)) && free(ahead(offset, 2)) && !reached(offset).some((tile) => inGrass(bot, tile));
+  const found = Object.entries(OFFSETS).find(([name, offset]) => !not.includes(name) && open(offset));
   if (!found) throw new Error(`no open direction from ${from.x},${from.y}`);
   return found[0];
 }
-
 const KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
 
 /** One short hold of an arrow key, which is sure to take at least one step. */
@@ -200,19 +220,18 @@ const movedToward = (from, to, direction) => {
   return (to.x - from.x) * dx + (to.y - from.y) * dy >= 1 && (dx === 0 ? to.x === from.x : to.y === from.y);
 };
 
-/** The reachable tile on screen, clear of the corners, furthest from `from`. */
+/** The reachable tile on screen, clear of the corners and the tall grass, furthest from `from` along a walk that keeps out of the grass. */
 async function farTile(page, bot, from) {
-  const tiles = bot.reach.flatMap((ok, at) => (ok ? [{ x: at % bot.map.width, y: Math.floor(at / bot.map.width) }] : []));
+  const tiles = bot.reach.flatMap((ok, at) => (ok ? [{ x: at % bot.map.width, y: Math.floor(at / bot.map.width) }] : [])).filter((tile) => !inGrass(bot, tile));
   const spots = await tilesToScreen(page, tiles);
-  let best = null;
-  tiles.forEach((tile, index) => {
-    const spot = spots[index];
-    const far = Math.abs(tile.x - from.x) + Math.abs(tile.y - from.y);
-    if (tappable(page, spot) && (!best || far > best.far)) best = { tile, spot, far };
-  });
-  return best;
+  return (
+    tiles
+      .map((tile, index) => ({ tile, spot: spots[index], far: Math.abs(tile.x - from.x) + Math.abs(tile.y - from.y) }))
+      .filter(({ spot }) => tappable(page, spot))
+      .toSorted((a, b) => b.far - a.far)
+      .find(({ tile }) => clearWalk(bot, from, tile)) ?? null
+  );
 }
-
 /** A thumb on the left half, pushed one way and held. Real touches in Chromium; a mouse in WebKit. */
 async function pushJoystick(page, browserName, direction, holdMs) {
   const { width, height } = page.viewportSize();
@@ -238,7 +257,7 @@ async function pushJoystick(page, browserName, direction, holdMs) {
 }
 
 /** Tap a far tile with a real touch, then walk with the keyboard and the joystick. */
-async function moveAround(page, browserName, bot, language, { expect, shot }) {
+async function moveAround(page, browserName, bot, language, { expect, shot, notes }) {
   let state = await readState(page);
   const before = selfIn(state);
   const far = await farTile(page, bot, before);
@@ -249,7 +268,12 @@ async function moveAround(page, browserName, bot, language, { expect, shot }) {
   expect(state.marker?.x === far.tile.x && state.marker?.y === far.tile.y, `the marker is on ${JSON.stringify(state.marker)}, not the tapped ${far.tile.x},${far.tile.y}`);
   await page.waitForTimeout(300);
   await shot('7-tap');
-  state = await until(page, (s) => settledOn(s, far.tile) && s.marker === null, `arrival at the tapped tile ${far.tile.x},${far.tile.y}`, far.far * 400 + 5_000);
+  state = await until(page, (s) => s.screen === 'battle' || (settledOn(s, far.tile) && s.marker === null), `arrival at the tapped tile ${far.tile.x},${far.tile.y}`, far.far * 400 + 5_000);
+  if (state.screen === 'battle') {
+    notes.push(`ran from a wild battle that started on the way to the tapped tile ${far.tile.x},${far.tile.y}`);
+    await leaveBattle(page);
+    state = await walkByTaps(page, bot, far.tile, { notes });
+  }
 
   const keySets = [
     { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' },
@@ -261,7 +285,7 @@ async function moveAround(page, browserName, bot, language, { expect, shot }) {
     await page.keyboard.down(keys[direction]);
     await page.waitForTimeout(450);
     await page.keyboard.up(keys[direction]);
-    state = await until(page, (s) => settledOn(s), `the courier to stop after holding ${keys[direction]}`, 5_000);
+    state = await untilPastBattles(page, (s) => settledOn(s), `the courier to stop after holding ${keys[direction]}`, notes, 5_000);
     expect(movedToward(from, selfIn(state), direction), `holding ${keys[direction]} moved the courier from ${from.x},${from.y} to ${selfIn(state).x},${selfIn(state).y}, not ${direction}`);
   });
 
@@ -278,11 +302,91 @@ async function moveAround(page, browserName, bot, language, { expect, shot }) {
   expect(await page.locator('.joystick').isVisible(), 'the joystick is not shown under the thumb');
   await shot('8-joystick');
   await release();
-  state = await until(page, (s) => s.input.joystick === null && settledOn(s), 'the courier to stop when the thumb lifts', 5_000);
+  state = await untilPastBattles(page, (s) => s.input.joystick === null && settledOn(s), 'the courier to stop when the thumb lifts', notes, 5_000);
   expect(movedToward(from, selfIn(state), direction), `the joystick moved the courier from ${from.x},${from.y} to ${selfIn(state).x},${selfIn(state).y}, not ${direction}`);
   expect(!(await page.locator('.joystick').isVisible()), 'the joystick stays after the thumb lifts');
+
+  // Back to taps, since a tap on the left half drives the joystick instead of walking.
+  await page.locator('.settings-button').tap();
+  await page.locator('.controls').tap();
+  await until(page, (s) => s.controls === 'tap', 'tap controls again');
+  await page.locator('.settings-button').tap();
+  await until(page, (s) => !s.settingsOpen, 'the settings to close');
 }
-/** The bot joins, walks past the page's courier while the page is sampled, then drops. */
+
+const MAX_GRASS_STEPS = 80;
+const apartBy = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/** The tall grass tile beside open ground nearest the spawn, and a grass tile next to it to step back and forth on (on the edge too when there is one). */
+function grassEdge(bot) {
+  const spawn = bot.map.spawns[PLAYER_SPAWN];
+  const free = (tile) => isWalkable(bot.map, tile) && bot.reach[tile.y * bot.map.width + tile.x];
+  const around = (tile) => Object.values(OFFSETS).map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy })).filter(free);
+  const onEdge = (tile) => around(tile).some((next) => !inGrass(bot, next));
+  const mateOf = (tile) => {
+    const grass = around(tile).filter((next) => inGrass(bot, next));
+    return grass.find(onEdge) ?? grass[0];
+  };
+  const [nearest] = bot.map.encounterAreas
+    .flatMap((area) => Array.from({ length: area.width * area.height }, (_, at) => ({ x: area.x + (at % area.width), y: area.y + Math.floor(at / area.width) })))
+    .filter((tile) => free(tile) && onEdge(tile) && mateOf(tile))
+    .toSorted((a, b) => apartBy(a, spawn) - apartBy(b, spawn));
+  if (!nearest) throw new Error(`${START_MAP} has no tall grass to meet a wild creature in`);
+  return [nearest, mateOf(nearest)];
+}
+
+/** Steps back and forth between the two grass tiles until a wild creature appears. */
+async function stepInGrass(page, pair, steps) {
+  const target = pair[steps % 2];
+  const [spot] = await tilesToScreen(page, [target]);
+  await page.touchscreen.tap(spot.x, spot.y);
+  const state = await until(page, (s) => s.screen === 'battle' || (settledOn(s, target) && s.marker === null), `a step in the grass to ${target.x},${target.y}`, 5_000);
+  if (state.screen === 'battle') return state;
+  if (steps >= MAX_GRASS_STEPS) throw new Error(`no wild creature appeared in ${MAX_GRASS_STEPS} steps through the tall grass`);
+  return stepInGrass(page, pair, steps + 1);
+}
+
+/** Runs once the first turn is played, unless that turn ended the battle; returns the state on the result. */
+async function runAfterTurn(page, state, expect) {
+  if (state.battle.panel === 'result') return state;
+  expect(state.battle.panel === 'menu' && state.battle.menu.run, `after one turn the wild battle shows ${state.battle.panel} with ${JSON.stringify(state.battle.menu)}, no way to run`);
+  if (!(state.battle.panel === 'menu' && state.battle.menu.run)) return null;
+  await nextFrames(page);
+  await page.locator('#battle .battle-run').tap();
+  return until(page, (s) => battleIdle(s) && s.battle.panel === 'result', 'the result after running', 15_000);
+}
+
+/**
+ * Against the real server: walks into the tall grass nearest the spawn and steps about until a wild
+ * creature appears, attacks once with the starter, runs, and walks back to the spawn.
+ */
+async function wildBattle(page, bot, { expect, check, notes }) {
+  const pair = grassEdge(bot);
+  const met = await walkByTaps(page, bot, pair[0], { notes, meet: true });
+  if (met.screen !== 'battle') await stepInGrass(page, pair, 1);
+  await until(page, battleIdle, 'the wild battle to offer a choice', 15_000);
+  await nextFrames(page);
+  const { battle, progress } = await readState(page);
+  const fighter = battle.team[battle.active];
+  expect(fighter?.species === progress?.team[0]?.species, `the wild battle sent out ${fighter?.species}, not the starter ${progress?.team[0]?.species}`);
+  expect(battle.drawn?.creatures[0] === fighter?.species && battle.drawn?.creatures[1] === battle.opponent?.species, `the field drew ${JSON.stringify(battle.drawn)}, not the creatures out`);
+  expect(battle.menu.moves.length > 0 && (await page.locator('#battle .move').count()) === battle.menu.moves.length, `the wild battle offers ${JSON.stringify(battle.menu)}`);
+  await check('the wild battle', '11-wild-battle');
+  await page.locator('#battle .move').first().tap();
+  const turned = await until(page, (s) => battleIdle(s) && (s.battle.turn > battle.turn || s.battle.panel === 'result'), 'the first turn against the wild creature', 15_000);
+  const ended = await runAfterTurn(page, turned, expect);
+  if (!ended) {
+    await leaveBattle(page);
+    return;
+  }
+  expect(ended.battle.outcome !== null, 'the wild battle shows a result without an outcome');
+  await nextFrames(page);
+  await check('the wild battle result', '12-wild-result');
+  await page.locator('#battle .battle-continue').tap();
+  const back = await until(page, (s) => s.screen === 'world' && s.battle === null && s.progress !== null, 'the world after the wild battle');
+  expect(back.progress.team.length >= 1, 'the team is empty after the wild battle');
+  await walkByTaps(page, bot, bot.map.spawns[PLAYER_SPAWN], { notes });
+}/** The bot joins, walks past the page's courier while the page is sampled, then drops. */
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
   try {
@@ -346,6 +450,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
   const name = deviceName(browserName, device.name, language, TAG);
   const problems = [];
   const screenshots = [];
+  const notes = [];
   const expect = (ok, message) => {
     if (!ok) problems.push(message);
   };
@@ -390,7 +495,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await shot('3-new-player');
 
     await page.locator('.create').tap();
-    state = await until(page, inWorld, 'the world after making a player');
+    state = await enterWorld(page, inWorld, 'the world after making a player');
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
     expect(state.playerCount >= 1, `player count is ${state.playerCount}`);
     expect(state.protocol === PROTOCOL_VERSION, `protocol is ${state.protocol}`);
@@ -405,7 +510,12 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await targets('world');
     await shot('4-world');
     if (self) await meetBot(bot, page, self, { expect, shot });
-    if (self) await moveAround(page, browserName, bot, language, { expect, shot });
+    if (self) await moveAround(page, browserName, bot, language, { expect, shot, notes });
+    const check = async (where, step) => {
+      await targets(where);
+      await shot(step);
+    };
+    if (self) await wildBattle(page, bot, { expect, check, notes });
 
     await page.reload();
     state = await until(page, inWorld, 'the world straight after a reload');
@@ -454,21 +564,13 @@ async function checkDevice(browser, browserName, device, language, bot) {
       expect(after.connection === 'connected', `after a reload under the service worker the connection is ${after.connection}`);
       expect(after.language === language, 'the language choice did not survive a reload');
     }
-    await battleScreens(page, bot, {
-      scenarios: ['new'],
-      language,
-      expect,
-      check: async (where, step) => {
-        await targets(where);
-        await shot(step);
-      },
-    });
+    await battleScreens(page, bot, { scenarios: ['new'], language, expect, check });
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
     await signOut(page);
-    results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, screenshots });
+    results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, notes, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
-    results.push({ label, ok: false, state, problems, screenshots });
+    results.push({ label, ok: false, state, problems, notes, screenshots });
   } finally {
     await context.close();
   }
@@ -606,7 +708,7 @@ async function checkAddPin(browser, browserName, language, bot) {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    let state = await until(page, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add');
+    let state = await enterWorld(page, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add');
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
 
     await page.locator('.settings-button').tap();
@@ -764,6 +866,7 @@ writeFileSync(join(out, 'logs', 'browser-check.json'), `${JSON.stringify(results
 for (const result of results) {
   console.log(`${result.ok ? 'ok  ' : 'FAIL'} ${result.label}${result.serviceWorkerReload ? ' (+ reload under service worker)' : ''}`);
   for (const problem of result.problems) console.log(`       - ${problem}`);
+  for (const note of result.notes ?? []) console.log(`       note: ${note}`);
 }
 const failed = results.filter((result) => !result.ok).length;
 console.log(failed ? `\nbrowser-check: ${failed} run(s) failed` : `\nbrowser-check: all ${results.length} runs passed`);

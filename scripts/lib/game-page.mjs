@@ -1,8 +1,8 @@
 // What the browser check and the scene command (scripts/scene.mjs) share: the browsers and devices,
-// watching a page for trouble, the page's ?test=1 hook (apps/game/src/test-hook.ts), and the
-// server's profile API and maps.
+// watching a page for trouble, the page's ?test=1 hook (apps/game/src/test-hook.ts), the server's
+// profile API and maps, and getting a courier into the world and around it past the tall grass.
 import { chromium, devices, webkit } from '@playwright/test';
-import { PLAYER_SPAWN, readTiledMap, reachableFrom } from '../../packages/core/src/index.ts';
+import { PLAYER_SPAWN, encounterZoneAt, findPath, isWalkable, readTiledMap, reachableFrom } from '../../packages/core/src/index.ts';
 import { inTurn, poll } from './in-turn.mjs';
 import { chromiumLaunchOptions, webkitLaunchOptions } from './launch-options.mjs';
 import { livePorts } from './local-stack.mjs';
@@ -158,4 +158,123 @@ export async function servedMap(serverBase, id) {
   const read = readTiledMap(id, await (await fetch(`${serverBase}/maps/${id}.tmj`)).json());
   if (!read.ok) throw new Error(`the served map ${id} does not read: ${read.problems.join('; ')}`);
   return { map: read.map, reach: reachableFrom(read.map, read.map.spawns[PLAYER_SPAWN]) };
+}
+
+/** Two frames later: the hook answers from the model at once, and the page redraws its screens on the next frame. */
+export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+/**
+ * Waits until the page's state passes `check`, choosing the first starter on the way when the page
+ * asks a new player for one, as every player entering the world for the first time is asked.
+ */
+export async function enterWorld(page, check, what, timeoutMs = 20_000) {
+  const state = await until(page, (s) => s.screen === 'starter' || check(s), what, timeoutMs);
+  if (state.screen !== 'starter') return state;
+  await nextFrames(page);
+  await page.locator('.starter-choice').first().tap();
+  return until(page, (s) => s.progress?.needsStarter === false && check(s), `${what} after choosing a starter`, timeoutMs);
+}
+
+/** Whether `tile` is tall grass, where a wild creature may appear. `world` is a servedMap. */
+export const inGrass = (world, tile) => encounterZoneAt(world.map, tile) !== null;
+/** Whether the walk the page plans from `from` to `to` (the core's path) stays out of the grass. */
+export const clearWalk = (world, from, to) => {
+  const path = findPath(world.map, from, to);
+  return path !== null && !path.some((tile) => inGrass(world, tile));
+};
+
+/** In a battle that waits for the player: no turn playing, no choice unanswered. */
+export const battleIdle = (state) => state.screen === 'battle' && state.battle !== null && !state.battle.playing && !state.battle.waiting && state.battle.panel !== null;
+const MAX_BATTLE_CHOICES = 40;
+
+/** The button that gets a player out of a battle soonest from where it stands. */
+function wayOut(battle) {
+  if (battle.panel === 'result') return '.battle-continue';
+  if (battle.panel === 'team') return '.battle-choice:enabled';
+  if (battle.panel === 'treats') return '.battle-back';
+  return battle.menu.run ? '.battle-run' : '.move';
+}
+
+/** Runs from the battle on the page (attacking when running is not allowed) and continues past its result; returns the state back in the world. */
+export async function leaveBattle(page, choices = MAX_BATTLE_CHOICES) {
+  const state = await until(page, (s) => s.screen !== 'battle' || battleIdle(s), 'the battle to wait for a choice', 15_000);
+  if (state.screen !== 'battle') return state;
+  if (choices === 0) throw new Error(`still in battle ${state.battle.id} after ${MAX_BATTLE_CHOICES} choices`);
+  const { panel, turn } = state.battle;
+  await nextFrames(page);
+  await page.locator(`#battle ${wayOut(state.battle)}`).first().tap();
+  await until(page, (s) => !battleIdle(s) || s.battle.panel !== panel || s.battle.turn !== turn, 'the battle to take a choice', 5_000);
+  return leaveBattle(page, choices - 1);
+}
+
+/**
+ * `until`, with a safety net for a step that is not about battles: when a wild battle starts
+ * instead, it is run from, noted in `notes`, and the wait goes on.
+ */
+export async function untilPastBattles(page, check, what, notes, timeoutMs = 20_000, options = {}) {
+  const state = await until(page, (s) => s.screen === 'battle' || check(s), what, timeoutMs, options);
+  if (state.screen !== 'battle' || check(state)) return state;
+  notes.push(`ran from a wild battle that started while waiting for ${what}`);
+  await leaveBattle(page);
+  return until(page, check, what, timeoutMs, options);
+}
+
+const MAX_TAPS = 10;
+const STEPS_AROUND = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+/** Steps on foot from every tile to `to`, Infinity where it cannot be reached; `careful` keeps out of the grass. */
+function stepsTo(world, to, careful) {
+  const { map } = world;
+  const steps = Array.from({ length: map.width * map.height }, () => Infinity);
+  steps[to.y * map.width + to.x] = 0;
+  const queue = [to];
+  for (let at = 0; at < queue.length; at += 1) {
+    const from = queue[at];
+    for (const [dx, dy] of STEPS_AROUND) {
+      const tile = { x: from.x + dx, y: from.y + dy };
+      const index = tile.y * map.width + tile.x;
+      if (isWalkable(map, tile) && !(careful && inGrass(world, tile)) && steps[index] === Infinity) {
+        steps[index] = steps[from.y * map.width + from.x] + 1;
+        queue.push(tile);
+      }
+    }
+  }
+  return steps;
+}
+
+/** The on-screen tile to tap next toward `to`, nearest it on foot; when `careful`, one whose walk keeps out of the grass. */
+async function nextTap(page, world, self, to, careful) {
+  const tiles = stepsTo(world, to, careful)
+    .flatMap((count, at) => (Number.isFinite(count) ? [{ count, x: at % world.map.width, y: Math.floor(at / world.map.width) }] : []))
+    .filter((tile) => !(tile.x === self.x && tile.y === self.y))
+    .toSorted((a, b) => a.count - b.count);
+  const spots = await tilesToScreen(page, tiles);
+  const index = spots.findIndex((spot, at) => tappable(page, spot) && (!careful || clearWalk(world, self, tiles[at])));
+  return index === -1 ? null : { tile: tiles[index], spot: spots[index] };
+}
+
+/**
+ * Walks the page's courier to `to` by taps: on the on-screen tile nearest it on foot, waiting for
+ * the courier to stop, until it stands there. Walks keep out of the tall grass when they can. A
+ * wild battle on the way is run from and noted in `notes`, unless `meet` asks for one, when the walk
+ * ends there instead. Returns the last state.
+ */
+export async function walkByTaps(page, world, to, { notes, meet = false, taps = MAX_TAPS }) {
+  const state = await until(page, (s) => settledOn(s) || (meet && s.screen === 'battle'), 'the courier to stand still before walking');
+  if (state.screen === 'battle') return state;
+  const self = selfIn(state);
+  if (self.x === to.x && self.y === to.y) return state;
+  if (taps === 0) throw new Error(`still at ${self.x},${self.y} after ${MAX_TAPS} taps toward ${to.x},${to.y}`);
+  const next = (!meet && (await nextTap(page, world, self, to, true))) || (await nextTap(page, world, self, to, false));
+  if (!next) throw new Error(`no tile toward ${to.x},${to.y} is on screen`);
+  await page.touchscreen.tap(next.spot.x, next.spot.y);
+  const far = Math.abs(next.tile.x - self.x) + Math.abs(next.tile.y - self.y);
+  const what = `arrival at ${next.tile.x},${next.tile.y}`;
+  const arrived = await until(page, (s) => s.screen === 'battle' || (settledOn(s, next.tile) && s.marker === null), what, far * 500 + 5_000);
+  if (arrived.screen === 'battle') {
+    if (meet) return arrived;
+    notes.push(`ran from a wild battle that started on the way to ${to.x},${to.y}`);
+    await leaveBattle(page);
+  }
+  return walkByTaps(page, world, to, { notes, meet, taps: taps - 1 });
 }

@@ -3,14 +3,16 @@
 // muted browser page against a running game, doing what the scene's steps say the way a player
 // would: taps, held keys, waits, reloads and a dropped connection. After each step with a "shot"
 // it saves every joined player's screenshot and test-hook state in .proof/scenes/<name>/. Fails on
-// a console error, page error, failed or outside request, or a step that cannot be done. Every
-// test player is signed out at the end, pass or fail.
+// a console error, page error, failed or outside request, or a step that cannot be done. A new
+// player takes the first starter; a wild battle met on the way is run from and noted, so scenes
+// that are not about battles are not stopped by the tall grass. Every test player is signed out at
+// the end, pass or fail.
 // Without --url it plays this worktree's `npm run dev`, found through .proof/dev.json.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { PROTOCOL_VERSION, inBounds, isWalkable } from '../packages/core/src/index.ts';
-import { BROWSERS, DEVICES, apiCall, inWorld, readState, reportCspViolations, screenshot, selfIn, servedMap, settledOn, signOut, tappable, testBase, tilesToScreen, until, watch } from './lib/game-page.mjs';
+import { BROWSERS, DEVICES, apiCall, enterWorld, inWorld, readState, reportCspViolations, screenshot, servedMap, settledOn, signOut, tappable, testBase, tilesToScreen, untilPastBattles, walkByTaps, watch } from './lib/game-page.mjs';
 import { inTurn, sleep } from './lib/in-turn.mjs';
 import { parseScene } from './lib/scene-file.mjs';
 import { ROOT } from './lib/server-process.mjs';
@@ -20,7 +22,6 @@ const KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'Arro
 // network drop; the server's side sees "going away", which it holds the seat open for.
 const PAGE_CLOSE = 4010;
 const SERVER_CLOSE = 1001;
-const MAX_TAPS = 10;
 const DEV_FILE = join(ROOT, '.proof', 'dev.json');
 
 const fail = (message) => {
@@ -71,6 +72,7 @@ const browsers = new Map();
 const problems = [];
 const captures = [];
 const done = [];
+const notes = [];
 let serverBase = '';
 let world = null;
 
@@ -140,7 +142,7 @@ async function joinWorld(player) {
   player.page = await player.context.newPage();
   watch(player.context, player.page, player.problems, { allowedHost });
   await player.page.goto(`${base}/?test=1`);
-  const state = await until(player.page, (s) => inWorld(s) && settledOn(s), `${player.id} to stand in the world`);
+  const state = await enterWorld(player.page, (s) => inWorld(s) && settledOn(s), `${player.id} to stand in the world`);
   if (state.profile?.name !== player.name) throw new Error(`${player.id} is signed in as ${state.profile?.name}, not ${player.name}`);
 }
 
@@ -151,47 +153,6 @@ const checkTile = (tile) => {
 const checkOnMap = (tile) => {
   if (!inBounds(world.map, tile)) throw new Error(`tile ${tile.x},${tile.y} is off the map`);
 };
-
-/** Steps on foot from every tile to `to`, Infinity where it cannot be reached. */
-function stepsTo(to) {
-  const { map } = world;
-  const steps = Array.from({ length: map.width * map.height }, () => Infinity);
-  steps[to.y * map.width + to.x] = 0;
-  const queue = [to];
-  for (let at = 0; at < queue.length; at += 1) {
-    const from = queue[at];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const tile = { x: from.x + dx, y: from.y + dy };
-      const index = tile.y * map.width + tile.x;
-      if (isWalkable(map, tile) && steps[index] === Infinity) {
-        steps[index] = steps[from.y * map.width + from.x] + 1;
-        queue.push(tile);
-      }
-    }
-  }
-  return steps;
-}
-
-/** Taps the tile on screen nearest `to` on foot, waits for the courier to arrive, and repeats until there. */
-async function walk(page, to, taps = MAX_TAPS) {
-  const state = await until(page, (s) => settledOn(s), 'the courier to stand still before walking');
-  const self = selfIn(state);
-  if (self.x === to.x && self.y === to.y) return;
-  if (taps === 0) throw new Error(`still at ${self.x},${self.y} after ${MAX_TAPS} taps toward ${to.x},${to.y}`);
-  const steps = stepsTo(to);
-  const tiles = steps
-    .flatMap((count, at) => (Number.isFinite(count) ? [{ count, x: at % world.map.width, y: Math.floor(at / world.map.width) }] : []))
-    .filter((tile) => !(tile.x === self.x && tile.y === self.y))
-    .toSorted((a, b) => a.count - b.count);
-  const spots = await tilesToScreen(page, tiles);
-  const index = spots.findIndex((spot) => tappable(page, spot));
-  if (index === -1) throw new Error(`no tile toward ${to.x},${to.y} is on screen`);
-  const target = tiles[index];
-  await page.touchscreen.tap(spots[index].x, spots[index].y);
-  const far = Math.abs(target.x - self.x) + Math.abs(target.y - self.y);
-  await until(page, (s) => settledOn(s, target) && s.marker === null, `arrival at ${target.x},${target.y}`, far * 500 + 5_000);
-  return walk(page, to, taps - 1);
-}
 
 /** Another player drawn standing still on `tile`, where the server has them too. */
 const standing = (player, tile) => player && !player.moving && player.x === tile.x && player.y === tile.y && player.drawn.x === tile.x && player.drawn.y === tile.y;
@@ -225,7 +186,7 @@ const STEPS = {
   join: (entry) => joinWorld(players.get(entry.player)),
   walk: (entry) => {
     checkTile(entry.to);
-    return walk(pageOf(entry.player), entry.to);
+    return walkByTaps(pageOf(entry.player), world, entry.to, { notes });
   },
   tap: async (entry) => {
     checkOnMap(entry.tile);
@@ -241,10 +202,10 @@ const STEPS = {
     await page.keyboard.up(KEYS[entry.direction]);
   },
   wait: (entry) => sleep(entry.ms),
-  waitFor: (entry) => until(pageOf(entry.player), (state) => shows(state, entry.until), `${entry.player} to show ${JSON.stringify(entry.until)}`, entry.ms, { ready: false }),
+  waitFor: (entry) => untilPastBattles(pageOf(entry.player), (state) => shows(state, entry.until), `${entry.player} to show ${JSON.stringify(entry.until)}`, notes, entry.ms, { ready: false }),
   reload: async (entry) => {
     await pageOf(entry.player).reload();
-    await until(pageOf(entry.player), inWorld, `${entry.player} back in the world after a reload`);
+    await enterWorld(pageOf(entry.player), inWorld, `${entry.player} back in the world after a reload`);
   },
   drop: async (entry) => {
     const player = players.get(entry.player);
@@ -306,7 +267,8 @@ try {
 }
 
 const ok = problems.length === 0;
-writeFileSync(join(out, 'scene.json'), `${JSON.stringify({ ok, scene: scene.name, file: relative(ROOT, sceneFile), url: base, durationMs: Date.now() - started, steps: done, problems, captures }, null, 2)}\n`);
+writeFileSync(join(out, 'scene.json'), `${JSON.stringify({ ok, scene: scene.name, file: relative(ROOT, sceneFile), url: base, durationMs: Date.now() - started, steps: done, notes, problems, captures }, null, 2)}\n`);
+for (const note of notes) console.log(`  note ${note}`);
 for (const problem of problems) console.log(`  FAIL ${problem}`);
 console.log(`\nscene ${scene.name}: ${ok ? 'PASSED' : 'FAILED'} in ${((Date.now() - started) / 1000).toFixed(1)}s, ${captures.length} screenshot(s) with their state beside them:`);
 for (const path of captures) console.log(`  ${path}`);

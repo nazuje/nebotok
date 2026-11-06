@@ -9,7 +9,7 @@
 //   6. two bots choose a starter, step about in the tall grass until a wild creature appears, and
 //      play their battles to the end at the same time, never refused a request.
 //   node scripts/bot-run.mjs [--out <dir>]
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -134,7 +134,7 @@ async function wander(bot, tiles, endsAt, intents) {
 
 // Battle requests are limited per client, so bots pace theirs.
 const REQUEST_GAP_MS = 250;
-const STARTERS = ['sun-blob', 'rain-blob', 'bloom-blob'];
+const STARTERS = JSON.parse(readFileSync(join(ROOT, 'content/starters.json'), 'utf8')).species;
 
 /** The bot's request for this view: leave a beaten wild creature, send out a fresh one, or attack. */
 function battleChoice(battle) {
