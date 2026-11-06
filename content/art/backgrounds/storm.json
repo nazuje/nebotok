@@ -1,0 +1,53 @@
+{
+  "width": 64,
+  "height": 36,
+  "palette": {
+    "a": "#2e2a48",
+    "b": "#3e3a5c",
+    "c": "#56527a",
+    "d": "#6b6890",
+    "e": "#5a7860",
+    "f": "#47604c",
+    "g": "#384c3c"
+  },
+  "frames": {
+    "still": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "abababababababababababababababababababababababababababababababab",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "dededededededededededededededededededededededededededededededede",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "fgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfgfg",
+      "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+      "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+      "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+      "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"
+    ]
+  }
+}

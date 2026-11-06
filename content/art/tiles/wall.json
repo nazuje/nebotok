@@ -1,0 +1,29 @@
+{
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "n": "#6b4329",
+    "o": "#9a6a3f",
+    "m": "#f3e6c8"
+  },
+  "frames": {
+    "still": [
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "noooooooooooooon",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nmmmmmmmmmmmmmmn",
+      "nnnnnnnnnnnnnnnn"
+    ]
+  }
+}

@@ -1,41 +1,28 @@
+import { DEFAULT_COURIER, courierFrame, courierWalk, spriteFor, type CourierFacing, type CourierPose } from '@nebotok/core';
 import type { Scene } from 'phaser';
-import { COURIER_FACINGS, COURIER_POSES, WALK_CYCLE, courierFrame, withCap, type CourierFacing, type CourierPose } from './art.ts';
-import { capColour, paintArt } from './avatars.ts';
-import { TILE } from './zoom.ts';
+import { ART, spriteTexture, type AnimationTiming } from './sprites.ts';
 
-export const frameName = (facing: CourierFacing, pose: CourierPose) => `${facing}-${pose}`;
-export const walkAnimation = (texture: string, facing: CourierFacing) => `${texture}-walk-${facing}`;
+export const frameName = (facing: CourierFacing, pose: CourierPose) => courierFrame(facing, pose);
+export const walkAnimation = (texture: string, facing: CourierFacing) => `${texture}:${courierWalk(facing)}`;
 
-/**
- * The sprite sheet and walk animations for one avatar, made on first use: every facing and pose
- * of the placeholder courier in the avatar's cap colour. A walk cycle spans two steps.
- */
+/** The sprite drawn for an avatar: its own courier, or the default one for an avatar without. */
+export function courierSprite(avatar: string): string {
+  const own = spriteFor.avatar(avatar);
+  return ART.sprites.has(own) ? own : DEFAULT_COURIER;
+}
+
+/** Scales `ms` so they add up to `total`, keeping their proportions. */
+export function stretched(ms: readonly number[], total: number): number[] {
+  const sum = ms.reduce((all, each) => all + each, 0);
+  return ms.map((each) => (each * total) / sum);
+}
+
+/** One walk cycle covers two steps, so the walk animations are stretched to the walking speed. */
+export function walkTiming(stepMs: number): AnimationTiming {
+  return (name, ms) => (name.startsWith('walk-') ? stretched(ms, 2 * stepMs) : ms);
+}
+
+/** The texture and walk animations for one avatar's courier, made on first use. */
 export function courierTexture(scene: Scene, avatar: string, stepMs: number): string {
-  const key = `courier-${avatar}`;
-  if (scene.textures.exists(key)) return key;
-  const canvas = document.createElement('canvas');
-  canvas.width = TILE * COURIER_FACINGS.length * COURIER_POSES.length;
-  canvas.height = TILE;
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('no 2D canvas for the courier sprites');
-  const frames: { name: string; left: number }[] = [];
-  for (const facing of COURIER_FACINGS) {
-    for (const pose of COURIER_POSES) {
-      const left = frames.length * TILE;
-      paintArt(context, withCap(courierFrame(facing, pose), capColour(avatar)), left, 0);
-      frames.push({ name: frameName(facing, pose), left });
-    }
-  }
-  const texture = scene.textures.addCanvas(key, canvas);
-  if (!texture) throw new Error(`could not add the ${key} texture`);
-  for (const { name, left } of frames) texture.add(name, 0, left, 0, TILE, TILE);
-  for (const facing of COURIER_FACINGS) {
-    scene.anims.create({
-      key: walkAnimation(key, facing),
-      frames: WALK_CYCLE.map((pose) => ({ key, frame: frameName(facing, pose) })),
-      frameRate: (WALK_CYCLE.length / 2) * (1_000 / stepMs),
-      repeat: -1,
-    });
-  }
-  return key;
+  return spriteTexture(scene, courierSprite(avatar), walkTiming(stepMs));
 }

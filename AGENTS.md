@@ -37,6 +37,9 @@ working in before you start.
 - One test file: `npx vitest run --project <name> <path>`; projects are in `vitest.config.mjs`.
 - `npm run content:validate` checks `content/`. `npm run golden:update` re-records golden replay
   hashes, only after `packages/core/AGENTS.md`'s golden policy.
+- Art is JSON pixel grids in `content/art/` (guide: `docs/art.md`). `npm run art:sheet` draws every
+  sprite onto `.proof/art/sheet.png`; open it after changing art. `npm run tiles` redraws the
+  tileset PNG Tiled uses.
 
 ## Done means
 

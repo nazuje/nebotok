@@ -53,7 +53,7 @@ answer is 429 with `Retry-After`.
 ## Maps (HTTP)
 
 `GET /maps/<map>.tmj` is the Tiled map named in the room state; `GET /maps/sky-tiles.png` is its
-tileset. Clients read the map with `readTiledMap` from core, the same function the server uses, so
+tileset image, for tools (the game draws its tiles from the art bundled in it, `content/art/`). Clients read the map with `readTiledMap` from core, the same function the server uses, so
 predicted walking matches the server's.
 
 ## Joining the world (Colyseus)

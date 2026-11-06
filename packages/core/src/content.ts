@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { artSchemaFor } from './art.ts';
 import { MapId, playabilityProblems, readTiledMap } from './map.ts';
 import { WELCOME_MESSAGE_KEYS } from './protocol.ts';
 
@@ -101,11 +102,10 @@ export const WorldSettings = z.strictObject({
 export type WorldSettings = z.infer<typeof WorldSettings>;
 
 const AvatarId = z.string().regex(/^[a-z][a-z0-9-]{0,19}$/, 'avatar ids are short lowercase words');
+/** A look a profile can pick. Its courier is the sprite `couriers/<id>` in `content/art/`. */
 export const Avatar = z.strictObject({
   id: AvatarId,
   name: LocalizedText,
-  /** The placeholder colour the client tints the courier with, until real art arrives. */
-  color: z.string().regex(/^#[0-9a-f]{6}$/, 'colours look like #3a7bd5'),
 });
 export type Avatar = z.infer<typeof Avatar>;
 
@@ -347,7 +347,9 @@ export function contentSchemaFor(fileName: string): z.ZodType | undefined {
   const exact = CONTENT_SCHEMAS[fileName];
   if (exact) return exact;
   const map = MAP_FILE.exec(fileName);
-  return map?.[1] ? tiledMapFile(map[1]) : undefined;
+  if (map?.[1]) return tiledMapFile(map[1]);
+  // Art: sprites and tilesets in content/art/, whose schemas live in art.ts.
+  return artSchemaFor(fileName);
 }
 
 export type ContentCheck = { readonly ok: true } | { readonly ok: false; readonly problems: readonly string[] };
