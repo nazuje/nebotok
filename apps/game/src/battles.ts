@@ -1,4 +1,4 @@
-import { SERVER_MESSAGES, type Language, type Point, type ProgressMessage, type StringId } from '@nebotok/core';
+import { SERVER_MESSAGES, type Language, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
 import { createBattleModel } from './battle-model.ts';
@@ -6,7 +6,6 @@ import { BATTLE_SCENE, BattleScene } from './battle-scene.ts';
 import { createBattleScreen, lineText } from './battle-screen.ts';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
-import { createFakeServer, isFakeScenario, type FakeServer } from './fake-server.ts';
 import type { ToastKind } from './hud.ts';
 import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
 import { createStarterScreen } from './starter-screen.ts';
@@ -27,39 +26,30 @@ export type BattlesOptions = {
   changed(): void;
   /** A battle started: whatever the player was doing with their courier stops. */
   battleStarted(): void;
+  /** The map and your own courier's tile on it, as the server last said, once both are known. */
+  standing(): { map: WorldMap; tile: Point } | null;
 };
 
 export type Battles = {
   readonly scene: BattleScene;
-  /** Battles come from the page's own fake server, not the real one. */
-  readonly faked: boolean;
   /** Listens to a joined room. Returns a function that stops. */
   joined(room: WorldRoom): () => void;
-  /** Called every frame, with your own courier's tile from the server, if known. */
-  frame(now: number, self: Point | null): void;
+  /** Called every frame. */
+  frame(now: number): void;
   overlay(): BattleOverlay | null;
   /** Forgets every battle and team, as when the player leaves the world. */
   reset(): void;
-  snapshot(now: number): { battle: TestBattle | null; progress: ProgressMessage | null; teamScreen: TestTeamScreen | null; starterChosen: string | null; learning: LearnState | null };
+  snapshot(now: number): { battle: TestBattle | null; progress: ProgressMessage | null; storage: StorageMessage | null; teamScreen: TestTeamScreen | null; starterChosen: string | null; learning: LearnState | null };
 };
 
-/** With ?test=1&fake=<scenario> the page plays battles against its own fake server (src/fake-server.ts). */
-function fakeFromUrl(): FakeServer | null {
-  const params = new URLSearchParams(location.search);
-  const scenario = params.get('fake');
-  return params.get('test') === '1' && isFakeScenario(scenario) ? createFakeServer(scenario) : null;
-}
-
 /**
- * Everything about creatures in the page: the messages from the server (or the fake), the battle
- * model, the Phaser battle field, and the battle, team, starter and move-learning screens over the world.
+ * Everything about creatures in the page: the messages from the server, the battle model, the
+ * Phaser battle field, and the battle, team, starter and move-learning screens over the world.
  */
 export function createBattles(options: BattlesOptions): Battles {
   const model = createBattleModel();
-  const fake = fakeFromUrl();
-  let link: BattleLink | null = fake?.link ?? null;
+  let link: BattleLink | null = null;
   let overlay: BattleOverlay | null = null;
-  let lastSelf: string | null = null;
 
   const send = (message: ClientMessage) => {
     if (!link) return;
@@ -108,7 +98,6 @@ export function createBattles(options: BattlesOptions): Battles {
     if (message.type === SERVER_MESSAGES.refused) options.toast(`refused.${message.payload.reason}`);
     if (message.type === SERVER_MESSAGES.storage) options.toast('shrine.rested', 'news');
   }
-  fake?.link.listen(receive);
 
   function update(now = performance.now()) {
     const battle = model.battle(now);
@@ -135,12 +124,7 @@ export function createBattles(options: BattlesOptions): Battles {
 
   return {
     scene,
-    faked: fake !== null,
     joined: (room) => {
-      if (fake) {
-        fake.joined();
-        return () => {};
-      }
       const roomSide = roomLink(room);
       link = roomSide;
       const stop = roomSide.listen(receive);
@@ -149,10 +133,9 @@ export function createBattles(options: BattlesOptions): Battles {
         if (link === roomSide) link = null;
       };
     },
-    frame: (now, self) => {
-      const tile = self ? `${self.x},${self.y}` : null;
-      if (fake && tile !== null && lastSelf !== null && tile !== lastSelf) fake.stepped();
-      lastSelf = tile;
+    frame: (now) => {
+      const standing = options.standing();
+      if (standing) model.standingAt(standing.map, standing.tile);
       update(now);
     },
     overlay: () => overlay,
@@ -187,7 +170,7 @@ export function createBattles(options: BattlesOptions): Battles {
         woke: state.result?.woke ?? null,
         befriended: state.befriended && { species: state.befriended.species, placedIn: state.befriended.placedIn },
       };
-      return { battle, progress: model.progress(), teamScreen: team.isOpen() ? team.state() : null, starterChosen: starter.chosen(), learning: learn.current() };
+      return { battle, progress: model.progress(), storage: model.storage(), teamScreen: team.isOpen() ? team.state() : null, starterChosen: starter.chosen(), learning: learn.current() };
     },
   };
 }

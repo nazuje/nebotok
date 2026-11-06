@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ProfileName } from '../../packages/core/src/profile.ts';
-import { botName, deviceName, isTestPlayer, learnerName, lockedName, pinlessName, runTag } from './test-players.mjs';
+import { battlerName, botName, deviceName, isTestPlayer, learnerName, lockedName, pinlessName, runTag } from './test-players.mjs';
 
 const BROWSER_NAMES = ['chromium', 'webkit'];
 const DEVICE_NAMES = ['iphone-portrait', 'ipad-landscape'];
@@ -8,6 +8,7 @@ const namesFor = (tag) => [
   botName(tag),
   ...BROWSER_NAMES.flatMap((browser) => ['Zaklep', 'Dvakrat'].map((lock) => lockedName(lock, browser, tag))),
   ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => deviceName(browser, device, language, tag)))),
+  ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => battlerName(browser, device, language, tag)))),
   ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => pinlessName(browser, language, tag))),
   ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => learnerName(browser, language, tag))),
 ];

@@ -1,0 +1,21 @@
+{
+  "name": "battle-seen-by-friend",
+  "about": "One courier meets a wild creature in the tall grass: a friend standing by sees their name tag marked as battling but none of the battle, and sees the mark go once they run.",
+  "players": [
+    { "id": "mira", "name": "Scena Mira", "avatar": "orange", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "tine", "name": "Scena Tine", "avatar": "blue", "browser": "webkit", "device": "ipad-landscape", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "mira" },
+    { "do": "join", "player": "tine" },
+    { "do": "walk", "player": "mira", "to": { "x": 17, "y": 12 } },
+    { "do": "walk", "player": "tine", "to": { "x": 19, "y": 11 } },
+    { "do": "waitFor", "player": "tine", "until": { "seesAt": { "mira": { "x": 17, "y": 12 } }, "calm": ["mira"] }, "shot": "before" },
+    { "do": "meet", "player": "mira" },
+    { "do": "waitFor", "player": "tine", "until": { "battling": ["mira"], "battle": "none" }, "shot": "friend-battling" },
+    { "do": "fight", "player": "mira", "slot": 3, "shot": "one-turn" },
+    { "do": "waitFor", "player": "tine", "until": { "battling": ["mira"], "battle": "none" } },
+    { "do": "run", "player": "mira" },
+    { "do": "waitFor", "player": "tine", "until": { "calm": ["mira"] }, "shot": "after" }
+  ]
+}

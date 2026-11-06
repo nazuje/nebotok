@@ -6,14 +6,15 @@
 // and come straight back, switch player, get the PIN wrong, then right. A new player takes the
 // first starter on the way into the world, walks keep out of the tall grass, and each device run
 // also walks into the grass until a wild creature appears on the real server, attacks once and
-// runs. A wild battle met where none was meant is run from and noted, not failed. At 360px wide it
-// also checks the lock messages (a first and a second lock), the PIN hint and a full profile list,
-// and adds a PIN to a profile made without one from the settings, then signs in with it. Every run
-// then plays the starter choice, a wild battle to befriending and the team screen against the
-// page's own fake server (?fake=new), and at 360px also a battle the whole team loses (?fake=faint).
-// Against its own server, a player saved one point short of a level up wins a wild battle at 360px
-// and answers the offer of a new move.
-// Fails on any console
+// runs. A wild battle met where none was meant is run from and noted, not failed. Every device run
+// then signs in as a player whose save the check prepared in its own server's database
+// (scripts/lib/battle-check.mjs): their worn-out team faints and wakes at the shrine, a wild
+// creature is befriended onto the team, the team screen shows it, and storage at the shrine takes
+// one along and leaves one there. At 360px wide it also checks the lock messages (a first and a
+// second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
+// from the settings, then signs in with it and meets a wild creature. Against its own server, a
+// player saved one point short of a level up wins a wild battle at 360px and answers the offer of
+// a new move (scripts/lib/learn-check.mjs). Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
@@ -23,7 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Client } from '@colyseus/sdk';
-import { MAX_PROFILES, PIN_LOCK_MS, PLAYER_SPAWN, PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
+import { MAX_PROFILES, PIN_LOCK_MS, PLAYER_SPAWN, PROTOCOL_VERSION, SERVER_MESSAGES, isWalkable } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
@@ -36,6 +37,7 @@ import {
   inGrass,
   inWorld,
   leaveBattle,
+  meetWildCreature,
   nextFrames,
   presetLanguage,
   readState,
@@ -53,11 +55,12 @@ import {
   walkByTaps,
   watch,
 } from './lib/game-page.mjs';
-import { fakeUrl, playBattle } from './lib/battle-check.mjs';
-import { playLearning, seedLearner } from './lib/learn-check.mjs';
+import { battleSave, chooseStarter, playBattles } from './lib/battle-check.mjs';
+import { learnerSave, playLearning } from './lib/learn-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
+import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
-import { botName, deviceName, learnerName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
+import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
 let given = null;
@@ -171,7 +174,9 @@ async function joinBot(bot) {
   const client = new Client(server.base);
   client.auth.token = bot.token;
   const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION, language: 'en' });
-  room.onMessage('welcome', () => {});
+  // The bot only walks, so it ignores every message about itself, storage when it passes the shrine
+  // and a battle or move offer included, rather than have the SDK warn about each.
+  for (const type of Object.values(SERVER_MESSAGES)) room.onMessage(type, () => {});
   return room;
 }
 
@@ -197,27 +202,6 @@ function openDirection(bot, from, not = []) {
   if (!found) throw new Error(`no open direction from ${from.x},${from.y}`);
   return found[0];
 }
-const KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
-
-/** One short hold of an arrow key, which is sure to take at least one step. */
-async function walkOneStep(page, bot) {
-  const direction = openDirection(bot, selfIn(await readState(page)));
-  await page.keyboard.down(KEYS[direction]);
-  await page.waitForTimeout(250);
-  await page.keyboard.up(KEYS[direction]);
-}
-
-/**
- * The battle screens against the page's fake server (scripts/lib/battle-check.mjs), for a page
- * already signed in: each scenario in turn, from a fresh load of its URL.
- */
-async function battleScreens(page, bot, { scenarios, language, expect, check }) {
-  await inTurn(scenarios, async (scenario) => {
-    await page.goto(fakeUrl(server.base, scenario));
-    await playBattle(page, { scenario, language, strings: STRINGS, expect, check, walk: () => walkOneStep(page, bot) });
-  });
-}
-
 const movedToward = (from, to, direction) => {
   const [dx, dy] = OFFSETS[direction];
   return (to.x - from.x) * dx + (to.y - from.y) * dy >= 1 && (dx === 0 ? to.x === from.x : to.y === from.y);
@@ -317,38 +301,6 @@ async function moveAround(page, browserName, bot, language, { expect, shot, note
   await until(page, (s) => !s.settingsOpen, 'the settings to close');
 }
 
-const MAX_GRASS_STEPS = 80;
-const apartBy = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-
-/** The tall grass tile beside open ground nearest the spawn, and a grass tile next to it to step back and forth on (on the edge too when there is one). */
-function grassEdge(bot) {
-  const spawn = bot.map.spawns[PLAYER_SPAWN];
-  const free = (tile) => isWalkable(bot.map, tile) && bot.reach[tile.y * bot.map.width + tile.x];
-  const around = (tile) => Object.values(OFFSETS).map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy })).filter(free);
-  const onEdge = (tile) => around(tile).some((next) => !inGrass(bot, next));
-  const mateOf = (tile) => {
-    const grass = around(tile).filter((next) => inGrass(bot, next));
-    return grass.find(onEdge) ?? grass[0];
-  };
-  const [nearest] = bot.map.encounterAreas
-    .flatMap((area) => Array.from({ length: area.width * area.height }, (_, at) => ({ x: area.x + (at % area.width), y: area.y + Math.floor(at / area.width) })))
-    .filter((tile) => free(tile) && onEdge(tile) && mateOf(tile))
-    .toSorted((a, b) => apartBy(a, spawn) - apartBy(b, spawn));
-  if (!nearest) throw new Error(`${START_MAP} has no tall grass to meet a wild creature in`);
-  return [nearest, mateOf(nearest)];
-}
-
-/** Steps back and forth between the two grass tiles until a wild creature appears. */
-async function stepInGrass(page, pair, steps) {
-  const target = pair[steps % 2];
-  const [spot] = await tilesToScreen(page, [target]);
-  await page.touchscreen.tap(spot.x, spot.y);
-  const state = await until(page, (s) => s.screen === 'battle' || (settledOn(s, target) && s.marker === null), `a step in the grass to ${target.x},${target.y}`, 5_000);
-  if (state.screen === 'battle') return state;
-  if (steps >= MAX_GRASS_STEPS) throw new Error(`no wild creature appeared in ${MAX_GRASS_STEPS} steps through the tall grass`);
-  return stepInGrass(page, pair, steps + 1);
-}
-
 /** Runs once the first turn is played, unless that turn ended the battle; returns the state on the result. */
 async function runAfterTurn(page, state, expect) {
   if (state.battle.panel === 'result') return state;
@@ -364,9 +316,7 @@ async function runAfterTurn(page, state, expect) {
  * creature appears, attacks once with the starter, runs, and walks back to the spawn.
  */
 async function wildBattle(page, bot, { expect, check, notes }) {
-  const pair = grassEdge(bot);
-  const met = await walkByTaps(page, bot, pair[0], { notes, meet: true });
-  if (met.screen !== 'battle') await stepInGrass(page, pair, 1);
+  await meetWildCreature(page, bot, { notes });
   await until(page, battleIdle, 'the wild battle to offer a choice', 15_000);
   await nextFrames(page);
   const { battle, progress } = await readState(page);
@@ -389,7 +339,37 @@ async function wildBattle(page, bot, { expect, check, notes }) {
   const back = await until(page, (s) => s.screen === 'world' && s.battle === null && s.progress !== null, 'the world after the wild battle');
   expect(back.progress.team.length >= 1, 'the team is empty after the wild battle');
   await walkByTaps(page, bot, bot.map.spawns[PLAYER_SPAWN], { notes });
-}/** The bot joins, walks past the page's courier while the page is sampled, then drops. */
+}
+
+/**
+ * Makes a player over the API and prepares their save in our own server's database
+ * (battleSave), then signs in as them from the profile list the page shows next. A server given
+ * by --url keeps its database to itself, so there the battles are skipped and noted.
+ */
+async function prepareBattler(browserName, device, language, bot) {
+  if (!dataDir) return null;
+  const name = battlerName(browserName, device.name, language, TAG);
+  const made = await api('/profiles', { body: { name, avatar: 'yellow' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { shrine, data } = battleSave(bot, { name, language });
+  prepareSave(dataDir, made.data.id, data);
+  return { id: made.data.id, name, shrine };
+}
+
+/** From the profile list: signs in as the prepared player, plays the battles, signs out, and deletes the player. */
+async function preparedBattles(page, battler, { language, expect, check, notes }) {
+  try {
+    await page.locator(`.profile-card[data-profile-id="${battler.id}"]`).tap();
+    const state = await enterWorld(page, inWorld, 'the world as the prepared player');
+    expect(state.profile?.name === battler.name, `signed in as ${state.profile?.name}, not ${battler.name}`);
+    await playBattles(page, bot, { shrine: battler.shrine, language, strings: STRINGS, expect, check, notes });
+    await signOut(page);
+  } finally {
+    deleteProfile(dataDir, battler.id);
+  }
+}
+
+/** The bot joins, walks past the page's courier while the page is sampled, then drops. */
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
   try {
@@ -472,6 +452,11 @@ async function checkDevice(browser, browserName, device, language, bot) {
   const targets = async (where) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
   };
+  const check = async (where, step) => {
+    await targets(where);
+    await shot(step);
+  };
+  const say = (id) => STRINGS[id][language];
   let state = null;
   try {
     await page.goto(`${server.base}/?test=1`);
@@ -498,6 +483,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await shot('3-new-player');
 
     await page.locator('.create').tap();
+    await chooseStarter(page, { say, expect, check });
     state = await enterWorld(page, inWorld, 'the world after making a player');
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
     expect(state.playerCount >= 1, `player count is ${state.playerCount}`);
@@ -514,10 +500,6 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await shot('4-world');
     if (self) await meetBot(bot, page, self, { expect, shot });
     if (self) await moveAround(page, browserName, bot, language, { expect, shot, notes });
-    const check = async (where, step) => {
-      await targets(where);
-      await shot(step);
-    };
     if (self) await wildBattle(page, bot, { expect, check, notes });
 
     await page.reload();
@@ -567,9 +549,12 @@ async function checkDevice(browser, browserName, device, language, bot) {
       expect(after.connection === 'connected', `after a reload under the service worker the connection is ${after.connection}`);
       expect(after.language === language, 'the language choice did not survive a reload');
     }
-    await battleScreens(page, bot, { scenarios: ['new'], language, expect, check });
+    // Made before signing out, so the profile list the page shows next has the prepared player on it.
+    const battler = await prepareBattler(browserName, device, language, bot);
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
     await signOut(page);
+    if (battler) await preparedBattles(page, battler, { language, expect, check, notes });
+    else notes.push('the battles from a prepared save need the database of a server the check started, so they were skipped');
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, notes, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -698,6 +683,7 @@ async function checkAddPin(browser, browserName, language, bot) {
   const name = pinlessName(browserName, language, TAG);
   const problems = [];
   const screenshots = [];
+  const notes = [];
   const expect = (ok, message) => {
     if (!ok) problems.push(message);
   };
@@ -763,30 +749,32 @@ async function checkAddPin(browser, browserName, language, bot) {
     state = await until(page, inWorld, 'the world after signing in with the added PIN');
     expect(state.profile?.name === name, 'the added PIN signed in as someone else');
     await shot('add-pin-5-signed-in');
-    await battleScreens(page, bot, {
-      scenarios: ['new', 'faint'],
-      language,
-      expect,
-      check: async (where, step) => {
-        await targets(where);
-        await noSideways(where);
-        await shot(step);
-      },
-    });
+    const check = async (where, step) => {
+      await targets(where);
+      await noSideways(where);
+      await shot(step);
+    };
+    await wildBattle(page, bot, { expect, check, notes });
+    await page.locator('.team-button').tap();
+    await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
+    await nextFrames(page);
+    await check('the team screen', 'b5-team');
+    await page.locator('#team .team-close').tap();
+    await until(page, (s) => s.screen === 'world', 'the world after closing the team');
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
     await context.close();
   }
-  results.push({ label: `${label} (add a PIN)`, ok: problems.length === 0, problems, screenshots });
+  results.push({ label: `${label} (add a PIN)`, ok: problems.length === 0, problems, notes, screenshots });
 }
 
 /**
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
- * a learnset level, saved straight into the server's database (scripts/lib/learn-check.mjs), wins a
- * wild battle and is asked which move to forget for the new one. Chromium forgets one, in English;
- * WebKit keeps them all, in Slovenian.
+ * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs), wins a wild
+ * battle and is asked which move to forget for the new one. Chromium forgets one, in English;
+ * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'en' : 'sl';
@@ -800,7 +788,7 @@ async function checkLearn(browser, browserName, bot) {
   };
   const made = await api('/profiles', { body: { name, avatar: 'green' }, address: nextAddress() });
   if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
-  seedLearner(dataDir, { profileId: made.data.id, name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } });
+  prepareSave(dataDir, made.data.id, learnerSave({ name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } }));
   const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
   const check = async (where, step) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
@@ -812,18 +800,18 @@ async function checkLearn(browser, browserName, bot) {
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
     await until(page, (s) => inWorld(s) && s.progress?.team.length === 1, 'the world with the learner');
-    const pair = grassEdge(bot);
-    const met = await walkByTaps(page, bot, pair[0], { notes, meet: true });
-    if (met.screen !== 'battle') await stepInGrass(page, pair, 1);
+    await meetWildCreature(page, bot, { notes });
     await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
     await context.close();
+    deleteProfile(dataDir, made.data.id);
   }
   results.push({ label: `${label} (learn a move)`, ok: problems.length === 0, problems, screenshots, notes });
 }
+
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
 async function fillProfiles() {
   const listed = await api('/profiles', { address: nextAddress() });

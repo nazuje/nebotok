@@ -37,6 +37,10 @@ const Until = z
     welcome: z.array(z.enum(['alone', 'together', 'hidden'])).min(1).optional(),
     toast: z.enum(['blocked', 'hidden']).optional(),
     hint: z.enum(['tap', 'joystick', 'hidden']).optional(),
+    battle: z.enum(['menu', 'none']).optional(),
+    sameBattle: z.literal(true).optional(),
+    battling: z.array(Id).min(1).optional(),
+    calm: z.array(Id).min(1).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 
@@ -50,10 +54,14 @@ const Step = z.discriminatedUnion('do', [
   step('waitFor', { player: Id, until: Until, ms: Ms.default(15_000) }),
   step('reload', { player: Id }),
   step('drop', { player: Id, ms: Ms }),
+  step('meet', { player: Id }),
+  step('fight', { player: Id, slot: z.number().int().min(0).max(3).default(0) }),
+  step('run', { player: Id }),
 ]);
 
 /** Every player a step names, so a typo is caught before any browser starts. */
-const named = (entry) => [entry.player, ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {})].filter(Boolean);
+const named = (entry) =>
+  [entry.player, ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? [])].filter(Boolean);
 
 export const Scene = z
   .strictObject({ name: Label, about: z.string().min(1), players: z.array(Player).min(1).max(6), steps: z.array(Step).min(1) })

@@ -26,8 +26,8 @@ changing Phaser code, and use Phaser 4 APIs only.
   (`src/battle-playback.ts`, at most `TURN_BUDGET_MS`). `src/battle-scene.ts` draws the field;
   the battle, team and starter screens are HTML. Creature pictures come only from `creatureTexture` and
   `creaturePortrait` in
-  `src/creature-art.ts`. With `?test=1&fake=<scenario>` the page battles its own fake server
-  (`src/fake-server.ts`, the same core rules) instead of the real one.
+  `src/creature-art.ts`; the field's background comes from `src/battle-backdrop.ts`. Every battle
+  is the server's: the browser check plays them against the real server (`scripts/lib/battle-check.mjs`).
 - **World drawing.** `src/world-feed.ts` copies the room's state into the view model
   (`src/world-view.ts`), which `src/world-scene.ts` reads every frame. Others are drawn
   `OTHERS_DELAY_MS` in the past along their `src/track.ts` so each step is smooth; prediction of

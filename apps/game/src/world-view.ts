@@ -59,6 +59,8 @@ export type WorldView = {
   canReach(target: Point): boolean;
   /** The server refused a walk: stop predicting it. */
   refused(): void;
+  /** The map shown and your own courier's tile on it as the server last gave it, once both are known. */
+  standing(): { map: WorldMap; tile: Point } | null;
   /** Your own courier's predicted tile and plan, once it is known. */
   predicted(): { tile: Point; intent: 'idle' | 'hold' | 'path'; moving: boolean } | null;
   shown(now: number): ShownPlayer[];
@@ -140,6 +142,10 @@ export function createWorldView(): WorldView {
     canReach: (target) => prediction !== null && map !== null && canReach(prediction, map, target),
     refused: () => {
       if (map && prediction) prediction = applyCommand(prediction, map, { kind: 'stop' }, stepMs)?.prediction ?? prediction;
+    },
+    standing: () => {
+      const facts = selfFacts();
+      return map && facts ? { map, tile: { x: facts.x, y: facts.y } } : null;
     },
     predicted: () =>
       prediction && { tile: { x: prediction.walker.x, y: prediction.walker.y }, intent: prediction.walker.intent.kind, moving: prediction.walker.moving },

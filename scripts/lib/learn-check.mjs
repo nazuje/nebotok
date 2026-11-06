@@ -1,12 +1,10 @@
 // Learning a move at a level up, against the real server. Nothing in the game reaches a learnset
-// level quickly, so the browser check writes the player's save straight into its own server's
-// database before the player first signs in: one glowbun a point of experience short of the level
-// where it learns a fifth move. Only for a server the check started itself, on a temporary DATA_DIR.
+// level quickly, so the browser check prepares the player's save in its own server's database
+// (scripts/lib/prepared-saves.mjs) before the player first signs in: one glowbun a point of
+// experience short of the level where it learns a fifth move.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { DATABASE_FILE } from '../../apps/server/src/db.ts';
-import { createSave, emptyProgress, loadBattleContent, newCreature, xpToNextLevel } from '../../packages/core/src/index.ts';
+import { emptyProgress, loadBattleContent, newCreature, xpToNextLevel } from '../../packages/core/src/index.ts';
 import { battleIdle, nextFrames, readState, until } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
@@ -30,19 +28,12 @@ const MAX_TURNS = 40;
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 
-/** Saves a learner for `profileId`, who has not been in the world yet, standing at `position`. */
-export function seedLearner(dataDir, { profileId, name, language, position }) {
+/** The save data of a learner who has not been in the world yet, standing at `position`, for prepareSave. */
+export function learnerSave({ name, language, position }) {
   const grown = newCreature(SPECIES, LEVEL, CONTENT);
   // The strongest move first, since the check attacks with the first one.
   const learner = { ...grown, xp: xpToNextLevel(LEVEL) - 1, moves: grown.moves.toSorted((a, b) => power(b) - power(a)) };
-  const save = createSave({ name, language, createdAt: new Date().toISOString(), position, ...emptyProgress(), team: [learner], befriended: [SPECIES], seen: [SPECIES] });
-  const db = new DatabaseSync(join(dataDir, DATABASE_FILE));
-  try {
-    db.exec('PRAGMA busy_timeout = 5000');
-    db.prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, ?, ?, ?)').run(profileId, save.v, JSON.stringify(save.data), Date.now());
-  } finally {
-    db.close();
-  }
+  return { name, language, createdAt: new Date().toISOString(), position, ...emptyProgress(), team: [learner], befriended: [SPECIES], seen: [SPECIES] };
 }
 
 /** Attacks with the first move until the battle is won, running once the wild creature has fainted and waits for a treat. */

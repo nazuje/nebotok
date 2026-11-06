@@ -1,4 +1,4 @@
-import type { BattleOutcome, BattleView, CreatureReward, Direction, Language, LearnedMove, Point, ProgressMessage, StringId, WakePoint, WelcomeMessageKey } from '@nebotok/core';
+import type { BattleOutcome, BattleView, CreatureReward, Direction, Language, LearnedMove, Point, ProgressMessage, StorageMessage, StringId, WakePoint, WelcomeMessageKey } from '@nebotok/core';
 import type { BattleScreenState, Menu } from './battle-model.ts';
 import type { BattleDrawn } from './battle-scene.ts';
 import type { BattleOverlay } from './battles.ts';
@@ -34,7 +34,7 @@ export type TestBattle = {
   team: TestCreature[];
   active: number;
   opponent: TestCreature | null;
-  /** The species the Phaser field drew last frame, yours then the wild one. */
+  /** The species the Phaser field drew last frame, yours then the wild one, and its background sprite. */
   drawn: BattleDrawn | null;
   outcome: BattleOutcome | null;
   rewards: readonly CreatureReward[];
@@ -104,6 +104,8 @@ export type TestSnapshot = {
   battle: TestBattle | null;
   /** Your creatures, treats and whether you still choose a starter, as the server last sent them. */
   progress: ProgressMessage | null;
+  /** The creatures waiting at the shrine the server last said the player rests at, if any. */
+  storage: StorageMessage | null;
   /** The team screen, if it is open. */
   teamScreen: TestTeamScreen | null;
   /** The starter chosen and not yet confirmed, if any. */
