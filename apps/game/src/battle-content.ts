@@ -1,17 +1,15 @@
-import { ShrinesFile, StartersFile, loadBattleContent, type BattleContent, type Language } from '@nebotok/core';
+import { StartersFile, loadBattleContent, type BattleContent, type Language } from '@nebotok/core';
 import rules from '../../../content/creatures/battle-rules.json';
 import befriending from '../../../content/creatures/befriending.json';
 import moves from '../../../content/creatures/moves.json';
 import species from '../../../content/creatures/species.json';
 import weather from '../../../content/creatures/weather.json';
 import items from '../../../content/items.json';
-import shrines from '../../../content/shrines.json';
 import starters from '../../../content/starters.json';
 
 /** The creatures, moves, weather types and treats, by id, for naming and drawing what the server sends. */
 export const CONTENT: BattleContent = loadBattleContent({ weather, moves, species, rules, befriending, items });
 export const STARTERS = StartersFile.parse(starters);
-export const SHRINES = ShrinesFile.parse(shrines);
 
 export const speciesName = (id: string, language: Language): string => CONTENT.species.get(id)?.name[language] ?? id;
 export const speciesType = (id: string): string | null => CONTENT.species.get(id)?.type ?? null;

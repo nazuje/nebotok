@@ -56,11 +56,7 @@ const battles = createBattles({
     input.release();
     showScreen();
   },
-  battleStarted: () => {
-    // The real server stops the walk itself; it knows nothing of the fake's battles.
-    if (battles.faked) deliver({ kind: 'stop' });
-    startClean();
-  },
+  battleStarted: () => startClean(),
 });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const settings = createSettings(language, controls, {
@@ -133,7 +129,7 @@ const input = createInput({
 
 function frame(now: number) {
   view.tick(now);
-  battles.frame(now, inWorld ? (view.shown(now).find((player) => player.self)?.tile ?? null) : null);
+  battles.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null, controls);

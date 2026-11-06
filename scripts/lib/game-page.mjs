@@ -280,3 +280,45 @@ export async function walkByTaps(page, world, to, { notes, meet = false, taps = 
   }
   return walkByTaps(page, world, to, { notes, meet, taps: taps - 1 });
 }
+
+const MAX_GRASS_STEPS = 80;
+const apartBy = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/** The tall grass tile beside open ground nearest the spawn, and a grass tile next to it to step back and forth on (on the edge too when there is one). */
+export function grassEdge(world) {
+  const spawn = world.map.spawns[PLAYER_SPAWN];
+  const free = (tile) => isWalkable(world.map, tile) && world.reach[tile.y * world.map.width + tile.x];
+  const around = (tile) => STEPS_AROUND.map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy })).filter(free);
+  const onEdge = (tile) => around(tile).some((next) => !inGrass(world, next));
+  const mateOf = (tile) => {
+    const grass = around(tile).filter((next) => inGrass(world, next));
+    return grass.find(onEdge) ?? grass[0];
+  };
+  const [nearest] = world.map.encounterAreas
+    .flatMap((area) => Array.from({ length: area.width * area.height }, (_, at) => ({ x: area.x + (at % area.width), y: area.y + Math.floor(at / area.width) })))
+    .filter((tile) => free(tile) && onEdge(tile) && mateOf(tile))
+    .toSorted((a, b) => apartBy(a, spawn) - apartBy(b, spawn));
+  if (!nearest) throw new Error(`${world.map.id} has no tall grass to meet a wild creature in`);
+  return [nearest, mateOf(nearest)];
+}
+
+/** Steps back and forth between the two grass tiles until a wild creature appears. */
+async function stepInGrass(page, pair, steps) {
+  const target = pair[steps % 2];
+  const [spot] = await tilesToScreen(page, [target]);
+  await page.touchscreen.tap(spot.x, spot.y);
+  const state = await until(page, (s) => s.screen === 'battle' || (settledOn(s, target) && s.marker === null), `a step in the grass to ${target.x},${target.y}`, 5_000);
+  if (state.screen === 'battle') return state;
+  if (steps >= MAX_GRASS_STEPS) throw new Error(`no wild creature appeared in ${MAX_GRASS_STEPS} steps through the tall grass`);
+  return stepInGrass(page, pair, steps + 1);
+}
+
+/**
+ * Walks to the tall grass nearest the spawn and steps about in it until a wild creature appears on
+ * the server, as a player looking for one would. Returns the state once the battle is on screen.
+ */
+export async function meetWildCreature(page, world, { notes }) {
+  const pair = grassEdge(world);
+  const met = await walkByTaps(page, world, pair[0], { notes, meet: true });
+  return met.screen === 'battle' ? met : stepInGrass(page, pair, 1);
+}

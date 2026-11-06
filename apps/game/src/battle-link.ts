@@ -44,7 +44,7 @@ type Tagged<Payloads> = { [Type in keyof Payloads]: { readonly type: Type; reado
 export type ServerMessage = Tagged<ServerPayloads>;
 export type ClientMessage = Tagged<ClientPayloads>;
 
-/** The battle and team half of a connection: the real room, or the page's own fake with ?test=1&fake=… */
+/** The battle and team half of a connection to the room. */
 export type BattleLink = {
   /** Calls `handler` with every battle, team and progress message, in order. Returns a function that stops. */
   listen(handler: (message: ServerMessage) => void): () => void;
