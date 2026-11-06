@@ -4,25 +4,27 @@ import { MAX_TEAM, PLAYER_SIDE, WILD_SIDE, activeCreature, type BattleSetup, typ
 import type { RenamedFile, Species, StartersFile, TeamFaintedRules } from './content.ts';
 import type { WildEncounter } from './encounter.ts';
 import { STORAGE_LIMIT, type CreatureInstance, type SaveData } from './save.ts';
+import { emptyStory } from './story.ts';
 
 /**
- * The creature-and-treat part of a save. Every function here is pure: it returns a new Progress and
- * never changes the one passed in. A function a player's request drives returns null when the
+ * The part of a save that play changes: creatures, items, the last shrine and the story. Every
+ * function here, and in inventory.ts, quests.ts and dialogue.ts, is pure: it returns a new Progress
+ * and never changes the one passed in. A function a player's request drives returns null when the
  * request is not allowed, so the server can refuse it.
  */
-export type Progress = Pick<SaveData, 'team' | 'storage' | 'inventory' | 'lastShrine' | 'seen' | 'befriended'>;
+export type Progress = Pick<SaveData, 'team' | 'storage' | 'inventory' | 'lastShrine' | 'seen' | 'befriended' | 'story'>;
 
 /** Most of one item a player can carry; extra is lost. */
 export const MAX_ITEM_COUNT = 999;
 
 export function emptyProgress(): Progress {
-  return { team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] };
+  return { team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [], story: emptyStory() };
 }
 
 /** The part of a save that is Progress. */
 export function progressOf(data: SaveData): Progress {
-  const { team, storage, inventory, lastShrine, seen, befriended } = data;
-  return { team, storage, inventory, lastShrine, seen, befriended };
+  const { team, storage, inventory, lastShrine, seen, befriended, story } = data;
+  return { team, storage, inventory, lastShrine, seen, befriended, story };
 }
 
 /** A player with no creature at all has not chosen their starter yet. */
@@ -85,7 +87,7 @@ export function itemCount(progress: Progress, item: string): number {
   return progress.inventory.find((entry) => entry.item === item)?.count ?? 0;
 }
 
-/** Adds `count` of an item, up to MAX_ITEM_COUNT. */
+/** Adds `count` of an item, up to MAX_ITEM_COUNT. `giveItems` in inventory.ts also keeps to each kind's stack limit. */
 export function addItems(progress: Progress, item: string, count: number): Progress {
   if (!Number.isInteger(count) || count < 1) throw new RangeError(`addItems() needs a whole count of at least 1, got ${count}`);
   const total = Math.min(itemCount(progress, item) + count, MAX_ITEM_COUNT);
@@ -168,9 +170,13 @@ export function canBattle(progress: Progress): boolean {
   return progress.team.some((creature) => creature.hp > 0);
 }
 
-/** After the whole team fainted, by the rules in shrines.json. Moving the player to `wakePoint` is the server's part. */
+/**
+ * After the whole team fainted, by the rules in shrines.json; quest items are always kept, so a
+ * quest can still be finished. Moving the player to `wakePoint` is the server's part.
+ */
 export function wakeAfterFainting(progress: Progress, rules: TeamFaintedRules, content: BattleContent): Progress {
   const inventory = progress.inventory.flatMap((entry) => {
+    if (content.items.get(entry.item)?.kind === 'quest') return [entry];
     const count = Math.floor((entry.count * rules.itemsKeptPercent) / 100);
     return count > 0 ? [{ item: entry.item, count }] : [];
   });

@@ -92,6 +92,7 @@ Player
   moving             boolean
   connected          boolean  false while the player's connection is lost
   inBattle           boolean  true while the player is in a battle
+  talking            boolean  true while the player is talking to a character
 ```
 
 The key of `players` is the Colyseus `sessionId`; your own is `room.sessionId`. Nothing else about a
@@ -134,7 +135,8 @@ Server to client:
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
 
-The battle, team and starter messages are in the next section.
+The battle, team and starter messages are in the next section, and the talk and quest messages in
+"Talking, quests and the bag".
 
 ## Battles, teams and treats
 
@@ -171,7 +173,7 @@ A future duel (Slice D) uses the same messages: each player gets their own view,
 
 | Type | Payload | When | Effect |
 | --- | --- | --- | --- |
-| `starter.choose` | `{ species }` | `progress.needsStarter` | The starter from `content/starters.json` joins the team, with the starting treats (core `chooseStarter`) |
+| `starter.choose` | `{ species }` | `progress.needsStarter` (since protocol 6, also at Bavko's starter node: see "The starter") | The starter from `content/starters.json` joins the team, with the starting treats (core `chooseStarter`) |
 | `battle.move` | `{ slot }`, 0 to 3 | In a battle | Use the active creature's move in that slot |
 | `battle.switch` | `{ index }`, 0 to 5 | In a battle | Send out the team creature at that place; also the answer to `mustSwap` |
 | `battle.treat` | `{ itemId }` | `canTreat`, with that treat in the inventory | Offer one; it is used up whether or not it is accepted |
@@ -267,6 +269,83 @@ room, so an answer to an old offer never matches a new one.
 The battle, starter, team, storage and move requests together are limited to 5 a second per client;
 past that the server drops them without an answer and without closing the connection.
 
+## Talking, quests and the bag
+
+Since protocol 6. The payload schemas are in `packages/core/src/story-messages.ts`, the content
+schemas in `story-content.ts`, and the rules in core: talks (`dialogue.ts`), quests (`quests.ts`),
+the bag (`inventory.ts`) and the content links (`story.ts`). Like battles, everything here goes
+**only to its player**, as messages; the room state shows others just `talking` on that player.
+
+**Until the story server lands**, this server answers `talk.start`, `talk.next` and `talk.end`
+with `refused` `notNow`, keeps `talking` false, never sends the messages below, and keeps each
+player's saved `story` unchanged.
+
+### Client to server
+
+| Type | Payload | When | Effect |
+| --- | --- | --- | --- |
+| `talk.start` | `{ npc }` | Standing next to the character (core `npcInReach`: on a tile beside theirs, not diagonally), not in a battle, not talking, no `move.offer` waiting | Opens the talk at the first entry of `dialogue/<npc>.json` whose `if` holds (core `openConversation`), does that node's effects, sets `talking` and sends `talk.node` |
+| `talk.next` | `{ conversation, choice }`: `choice` 0 to 2, or null | Talking, `conversation` the id of the current talk | With a number, picks that choice, which must be one of `talk.node`'s `choices`; with null, goes on to the node's `next`, or ends the talk when the node has neither `next` nor a choice to show (core `advanceConversation`) |
+| `talk.end` | `{ conversation }` | Talking | Ends the talk at once. Nothing is undone: effects happen on entering a node |
+| `starter.choose` | `{ species }` | See "The starter" below | As in protocol 5 |
+
+A talk request that matches its schema but is not allowed now is answered with `refused`:
+`tooFar` (not next to that character, or the character is on another map), `notTalking`
+(`talk.next` or `talk.end` with no talk open), `invalid` (an unknown character, another talk's
+`conversation`, a choice the node does not show, or null where the player must choose), and
+`inBattle` or `notNow` (a battle or a move offer is in the way, or already talking).
+
+### Server to client
+
+| Type | Payload | When |
+| --- | --- | --- |
+| `story` | `StoryMessage`: `{ active, done, flags }`, the saved story | After `progress` on joining and on each reconnection, and after anything that changes it |
+| `talk.node` | `TalkNode`: `{ conversation, npc, node, choices, cue }` | On opening a talk and after each step that stays in it; again after a reconnection during a talk |
+| `talk.ended` | `TalkEnded`: `{ conversation }` | The talk is over: the player ended it, it reached its end, a node's effect could not happen, or a battle or the seat took over. `talking` turns false |
+| `quest.changed` | `QuestChanged`: `{ quest, change, step, rewards, cue }` | A quest `started`, moved to its next `step`, or was `done` (`step` is then its number of steps and `rewards` the items given, what did not fit and the experience each team creature got) |
+
+`talk.node` carries ids, not text: the client finds the line in `dialogue/<npc>.json`
+(`nodes[node]`) in the player's language, and shows the choices whose places are in `choices`, in
+that order. The speaker, mood and portrait come from the node and `npcs.json`. `cue` is a scene to
+play (`effects/<cue>` in content/art/), `offerStarter` (below) or null. `conversation` is a number
+counted across the room, so an answer to an old talk never matches a new one.
+
+After each step that changes them the server sends, in this order: `quest.changed` for each quest
+that changed, then `progress` (items and experience), then `story`. A `quest.changed` with
+experience is followed by the same learning of moves as after a battle (`move.offer`).
+
+### The starter
+
+A new player has no creature (`progress.needsStarter`), so no wild creature appears for them and no
+character marks a new quest. Bavko's first talk with them ends at a node with the effect
+`{ "offerStarter": true }`: that `talk.node` has `cue: "offerStarter"`, and the client opens its
+starter screen over the talk. The player picks with `starter.choose` as before, and the server
+answers with `progress`. `starter.choose` is allowed only while the player is talking at a node
+that offers the starter (core `offersStarter`) and still has no creature; otherwise it is refused
+with `notTalking` or `notNow`. Until the story server lands, `starter.choose` keeps protocol 5's
+rule (allowed whenever `needsStarter`), because no talk can be open yet. A player who already has a
+creature never meets the starter node: the dialogue's `needsStarter` condition skips it, and an
+`offerStarter` effect for them ends the talk instead.
+
+### Quests
+
+A quest has steps, done in order. `talk` and `deliver` steps are completed by a dialogue node's
+`completeStep` effect (a `deliver` node also takes the item, and only opens while the player has
+it); the others count world events (core `questEvent`): `winBattles` (a won wild battle, in one
+zone or any), `befriend` (a befriended creature, of a species or weather type or any),
+`visitShrine` (resting at that shrine) and `reach` (stepping onto or next to a point of a map's
+`marks` layer, core `marksAt`). Each active quest remembers its step and the events counted for it.
+Finishing the last step marks the quest `done` and gives its rewards: items, each up to its stack,
+and experience to every team creature. A quest is `available` once every quest it `requires` is
+done. Core `questLog` is the journal, `npcMarks` the marks over characters (`turnIn` or
+`newQuest`), and `nextGoal` what to do next.
+
+### The bag
+
+`progress.inventory` holds every item: `quest` items (given and taken by dialogue, kept in full
+when the team faints), `treat`s and `material`s. `content/inventory.json` gives each kind's stack:
+how many of one item fit (core `stackLimit`). What does not fit is not added (a quest's
+`rewards.extra` lists it); nothing is ever thrown away, and players cannot discard items. Core `bagView` is the bag screen: one section per kind, in `order`.
 ## Movement rules
 
 The server runs core's `stepWalker` 20 times a second (`setFixedTimestep`, 50 ms) for every
@@ -292,7 +371,7 @@ A dropped player stays in the world, standing still with `connected: false`, for
 
 ## Saves
 
-The server saves each player (save format v3, `packages/core/src/save.ts`) when they leave or
+The server saves each player (save format v4, `packages/core/src/save.ts`) when they leave or
 their seat expires, every 30 seconds for players who moved, and when it shuts down. A save holds the
 position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
 an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item id and count),
@@ -300,6 +379,17 @@ an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item
 creatures, so that player chooses a starter on their next visit. A player
 starts at their saved tile, or at the map's `player` spawn when there is no save or the saved tile
 is no longer walkable.
+
+Since v4 a save also holds `story`: `active` quests (each with its `step` index and the
+`count` of events for that step, at most `MAX_ACTIVE_QUESTS`, 50), the `done` quests and the
+story `flags` set, each id once and no quest both active and done. A v3 save gets an empty
+story. When the server loads a save it drops what the content no longer has (core `pruneStory`):
+unknown quests and flags, and active quests whose saved step is past their steps now.
+
+**The Slice B story is a placeholder.** When the real story replaces it, a new save version resets
+every player's `story` to empty, so everyone starts it from the beginning, and keeps their
+creatures, items and levels. Do not build anything that depends on a placeholder quest or flag
+lasting.
 
 ## The profile screen
 

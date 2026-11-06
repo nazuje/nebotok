@@ -6,6 +6,7 @@
     { "id": "rain-treat", "kind": "treat", "name": { "en": "Rain Treat", "sl": "Deževna poslastica" }, "likedBy": { "species": [], "types": ["rain"] } },
     { "id": "frost-treat", "kind": "treat", "name": { "en": "Frost Treat", "sl": "Mrzla poslastica" }, "likedBy": { "species": [], "types": ["frost"] } },
     { "id": "storm-treat", "kind": "treat", "name": { "en": "Storm Treat", "sl": "Nevihtna poslastica" }, "likedBy": { "species": [], "types": ["storm"] } },
-    { "id": "bloom-treat", "kind": "treat", "name": { "en": "Bloom Treat", "sl": "Cvetna poslastica" }, "likedBy": { "species": [], "types": ["bloom"] } }
+    { "id": "bloom-treat", "kind": "treat", "name": { "en": "Bloom Treat", "sl": "Cvetna poslastica" }, "likedBy": { "species": [], "types": ["bloom"] } },
+    { "id": "hello-note", "kind": "quest", "quest": "first-round", "name": { "en": "Hello Note", "sl": "Pozdravno sporočilo" }, "description": { "en": "A short note from Bavko to Tobolko.", "sl": "Kratko sporočilo od Bavka za Tobolka." } }
   ]
 }

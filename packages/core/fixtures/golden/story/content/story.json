@@ -1,0 +1,47 @@
+{
+  "chapters": [
+    {
+      "id": "training",
+      "name": {
+        "en": "Training",
+        "sl": "Training"
+      },
+      "quests": [
+        "first-round",
+        "restless-grass",
+        "bell",
+        "new-friend"
+      ]
+    },
+    {
+      "id": "storm",
+      "name": {
+        "en": "The Grey Letter",
+        "sl": "The Grey Letter"
+      },
+      "quests": [
+        "wind-readings",
+        "grey-letter"
+      ],
+      "endsWith": "chapter-1-done"
+    }
+  ],
+  "flags": [
+    {
+      "id": "grey-letter-read",
+      "about": "Vetrinka read the grey letter"
+    },
+    {
+      "id": "storm-seen",
+      "about": "Saw the storm glimpse"
+    },
+    {
+      "id": "chapter-1-done",
+      "about": "Finished the chapter"
+    },
+    {
+      "id": "met-bavko",
+      "about": "Talked to Bavko once"
+    }
+  ]
+}

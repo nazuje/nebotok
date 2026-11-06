@@ -56,7 +56,7 @@ describe('art schemas', () => {
       '(root): creatures sprites need a frame "back"',
     ]);
     expect(problems('art/couriers/courier.json', tile()).join()).toContain('need a frame "down-stand"');
-    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items']);
+    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items, characters, portraits, effects']);
   });
 });
 
@@ -104,15 +104,18 @@ describe('loadArt', () => {
 
   it('lists every sprite content needs and the art lacks', () => {
     const art = loadArt({ 'art/couriers/courier.json': courier('#8a8a8a') });
-    expect(missingArt(art, { avatars: ['blue'], species: ['glowbun'], weather: ['sun'], items: ['berry'], tilesets: ['sky-tiles'] })).toEqual([
+    expect(missingArt(art, { avatars: ['blue'], species: ['glowbun'], weather: ['sun'], items: ['berry'], npcs: ['bavko'], cues: ['storm-glimpse'], tilesets: ['sky-tiles'] })).toEqual([
       'avatar "blue" needs the sprite couriers/blue (content/art/couriers/blue.json)',
       'species "glowbun" needs the sprite creatures/glowbun (content/art/creatures/glowbun.json)',
       'species "glowbun" needs the sprite icons/glowbun (content/art/icons/glowbun.json)',
       'weather "sun" needs the sprite backgrounds/sun (content/art/backgrounds/sun.json)',
       'item "berry" needs the sprite items/berry (content/art/items/berry.json)',
+      'npc "bavko" needs the sprite characters/bavko (content/art/characters/bavko.json)',
+      'npc "bavko" needs the sprite portraits/bavko (content/art/portraits/bavko.json)',
+      'story cue "storm-glimpse" needs the sprite effects/storm-glimpse (content/art/effects/storm-glimpse.json)',
       'tileset "sky-tiles" needs content/art/tilesets/sky-tiles.json',
     ]);
-    expect(missingArt(loadArt({}), { avatars: [], species: [], weather: [], items: [], tilesets: [] })).toEqual([
+    expect(missingArt(loadArt({}), { avatars: [], species: [], weather: [], items: [], npcs: [], cues: [], tilesets: [] })).toEqual([
       `the game, for avatars without a courier of their own, needs the sprite ${DEFAULT_COURIER} (content/art/${DEFAULT_COURIER}.json)`,
     ]);
   });

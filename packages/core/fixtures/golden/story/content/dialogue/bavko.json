@@ -1,0 +1,267 @@
+{
+  "npc": "bavko",
+  "entries": [
+    {
+      "if": [
+        {
+          "needsStarter": true
+        }
+      ],
+      "node": "welcome"
+    },
+    {
+      "if": [
+        {
+          "quest": "grey-letter",
+          "at": "report"
+        }
+      ],
+      "node": "grey-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "is": "available"
+        }
+      ],
+      "node": "offer-note"
+    },
+    {
+      "if": [
+        {
+          "quest": "bell",
+          "is": "available"
+        }
+      ],
+      "node": "offer-bell"
+    },
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "is": "available"
+        }
+      ],
+      "node": "offer-wind"
+    },
+    {
+      "if": [
+        {
+          "quest": "grey-letter",
+          "is": "available"
+        }
+      ],
+      "node": "offer-grey"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "welcome": {
+      "say": {
+        "en": "Welcome!",
+        "sl": "Welcome!"
+      },
+      "effects": [
+        {
+          "setFlag": "met-bavko"
+        }
+      ],
+      "next": "pick"
+    },
+    "pick": {
+      "say": {
+        "en": "Pick a creature.",
+        "sl": "Pick a creature."
+      },
+      "effects": [
+        {
+          "offerStarter": true
+        }
+      ]
+    },
+    "offer-note": {
+      "say": {
+        "en": "Take this note?",
+        "sl": "Take this note?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Later."
+          },
+          "next": "later"
+        },
+        {
+          "say": {
+            "en": "I'll do it!",
+            "sl": "I'll do it!"
+          },
+          "next": "accept-note"
+        }
+      ]
+    },
+    "accept-note": {
+      "say": {
+        "en": "Here.",
+        "sl": "Here."
+      },
+      "effects": [
+        {
+          "startQuest": "first-round"
+        },
+        {
+          "give": "hello-note",
+          "count": 1
+        }
+      ]
+    },
+    "offer-bell": {
+      "say": {
+        "en": "Take this bell?",
+        "sl": "Take this bell?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Later."
+          },
+          "next": "later"
+        },
+        {
+          "say": {
+            "en": "I'll do it!",
+            "sl": "I'll do it!"
+          },
+          "next": "accept-bell"
+        }
+      ]
+    },
+    "accept-bell": {
+      "say": {
+        "en": "Here.",
+        "sl": "Here."
+      },
+      "effects": [
+        {
+          "startQuest": "bell"
+        },
+        {
+          "give": "shrine-bell",
+          "count": 1
+        }
+      ]
+    },
+    "offer-wind": {
+      "say": {
+        "en": "Take this gauge?",
+        "sl": "Take this gauge?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Later."
+          },
+          "next": "later"
+        },
+        {
+          "say": {
+            "en": "I'll do it!",
+            "sl": "I'll do it!"
+          },
+          "next": "accept-wind"
+        }
+      ]
+    },
+    "accept-wind": {
+      "say": {
+        "en": "Here.",
+        "sl": "Here."
+      },
+      "effects": [
+        {
+          "startQuest": "wind-readings"
+        },
+        {
+          "give": "wind-gauge",
+          "count": 1
+        }
+      ]
+    },
+    "offer-grey": {
+      "say": {
+        "en": "Take this letter?",
+        "sl": "Take this letter?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Later."
+          },
+          "next": "later"
+        },
+        {
+          "say": {
+            "en": "I'll do it!",
+            "sl": "I'll do it!"
+          },
+          "next": "accept-grey"
+        }
+      ]
+    },
+    "accept-grey": {
+      "say": {
+        "en": "Here.",
+        "sl": "Here."
+      },
+      "effects": [
+        {
+          "startQuest": "grey-letter"
+        },
+        {
+          "give": "grey-letter",
+          "count": 1
+        }
+      ]
+    },
+    "grey-report": {
+      "say": {
+        "en": "It's addressed to you.",
+        "sl": "It's addressed to you."
+      },
+      "mood": "surprised",
+      "effects": [
+        {
+          "completeStep": "grey-letter",
+          "step": "report"
+        }
+      ],
+      "next": "continued"
+    },
+    "continued": {
+      "say": {
+        "en": "To be continued.",
+        "sl": "To be continued."
+      },
+      "speaker": "narrator"
+    },
+    "later": {
+      "say": {
+        "en": "No hurry.",
+        "sl": "No hurry."
+      }
+    },
+    "idle": {
+      "say": {
+        "en": "Hello again.",
+        "sl": "Hello again."
+      }
+    }
+  }
+}

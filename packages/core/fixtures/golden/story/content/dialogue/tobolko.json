@@ -1,0 +1,209 @@
+{
+  "npc": "tobolko",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "at": "deliver-note"
+        },
+        {
+          "has": "hello-note"
+        }
+      ],
+      "node": "note"
+    },
+    {
+      "if": [
+        {
+          "quest": "restless-grass",
+          "at": "report"
+        }
+      ],
+      "node": "grass-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "new-friend",
+          "at": "tell"
+        }
+      ],
+      "node": "friend-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "restless-grass",
+          "is": "available"
+        }
+      ],
+      "node": "offer-grass"
+    },
+    {
+      "if": [
+        {
+          "quest": "new-friend",
+          "is": "available"
+        }
+      ],
+      "node": "offer-friend"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "note": {
+      "say": {
+        "en": "A note!",
+        "sl": "A note!"
+      },
+      "effects": [
+        {
+          "take": "hello-note",
+          "count": 1
+        },
+        {
+          "completeStep": "first-round",
+          "step": "deliver-note"
+        }
+      ]
+    },
+    "offer-grass": {
+      "say": {
+        "en": "Calm the grass?",
+        "sl": "Calm the grass?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Later."
+          },
+          "next": "later"
+        },
+        {
+          "say": {
+            "en": "I'll do it!",
+            "sl": "I'll do it!"
+          },
+          "next": "accept-grass"
+        }
+      ]
+    },
+    "accept-grass": {
+      "say": {
+        "en": "Win two.",
+        "sl": "Win two."
+      },
+      "effects": [
+        {
+          "startQuest": "restless-grass"
+        }
+      ]
+    },
+    "grass-report": {
+      "say": {
+        "en": "Calm again.",
+        "sl": "Calm again."
+      },
+      "effects": [
+        {
+          "completeStep": "restless-grass",
+          "step": "report"
+        }
+      ]
+    },
+    "offer-friend": {
+      "say": {
+        "en": "Make a friend?",
+        "sl": "Make a friend?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Later."
+          },
+          "next": "later"
+        },
+        {
+          "say": {
+            "en": "I'll do it!",
+            "sl": "I'll do it!"
+          },
+          "next": "accept-friend"
+        }
+      ]
+    },
+    "accept-friend": {
+      "say": {
+        "en": "Befriend one.",
+        "sl": "Befriend one."
+      },
+      "effects": [
+        {
+          "startQuest": "new-friend"
+        }
+      ]
+    },
+    "friend-report": {
+      "say": {
+        "en": "A friend!",
+        "sl": "A friend!"
+      },
+      "effects": [
+        {
+          "completeStep": "new-friend",
+          "step": "tell"
+        }
+      ],
+      "choices": [
+        {
+          "say": {
+            "en": "Out of treats.",
+            "sl": "Out of treats."
+          },
+          "next": "refill",
+          "if": [
+            {
+              "lacks": "plain-treat"
+            }
+          ]
+        },
+        {
+          "say": {
+            "en": "Thanks.",
+            "sl": "Thanks."
+          },
+          "next": "later"
+        }
+      ]
+    },
+    "refill": {
+      "say": {
+        "en": "Have some.",
+        "sl": "Have some."
+      },
+      "effects": [
+        {
+          "give": "plain-treat",
+          "count": 5
+        }
+      ]
+    },
+    "later": {
+      "say": {
+        "en": "See you.",
+        "sl": "See you."
+      }
+    },
+    "idle": {
+      "say": {
+        "en": "Treats!",
+        "sl": "Treats!"
+      }
+    }
+  }
+}

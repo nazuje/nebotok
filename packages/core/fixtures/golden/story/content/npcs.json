@@ -1,0 +1,64 @@
+{
+  "npcs": [
+    {
+      "id": "bavko",
+      "name": {
+        "en": "bavko",
+        "sl": "bavko"
+      },
+      "role": {
+        "en": "bavko's job",
+        "sl": "bavko's job"
+      },
+      "voice": {
+        "pitch": 1,
+        "pace": 1
+      }
+    },
+    {
+      "id": "tobolko",
+      "name": {
+        "en": "tobolko",
+        "sl": "tobolko"
+      },
+      "role": {
+        "en": "tobolko's job",
+        "sl": "tobolko's job"
+      },
+      "voice": {
+        "pitch": 2,
+        "pace": 2
+      }
+    },
+    {
+      "id": "mehurka",
+      "name": {
+        "en": "mehurka",
+        "sl": "mehurka"
+      },
+      "role": {
+        "en": "mehurka's job",
+        "sl": "mehurka's job"
+      },
+      "voice": {
+        "pitch": 3,
+        "pace": 3
+      }
+    },
+    {
+      "id": "vetrinka",
+      "name": {
+        "en": "vetrinka",
+        "sl": "vetrinka"
+      },
+      "role": {
+        "en": "vetrinka's job",
+        "sl": "vetrinka's job"
+      },
+      "voice": {
+        "pitch": 4,
+        "pace": 1
+      }
+    }
+  ]
+}

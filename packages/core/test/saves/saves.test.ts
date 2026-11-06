@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import renamed from '../../../../content/creatures/renamed.json' with { type: 'json' };
-import { RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, maxHpOf, migrateSave, migrations, renameSpecies } from '../../src/index.ts';
+import { MAX_ACTIVE_QUESTS, RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, maxHpOf, migrateSave, migrations, pruneStory, renameSpecies } from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
+import { storyContent } from '../support/story-content.ts';
 
 const SAVES_DIR = fileURLToPath(new URL('../../fixtures/saves/', import.meta.url));
 const versionDirs = readdirSync(SAVES_DIR).filter((name) => /^v\d+$/.test(name)).toSorted();
@@ -84,5 +85,40 @@ describe('save migrations', () => {
   it('refuses damaged data', () => {
     expect(() => migrateSave({ v: 1, data: { name: '', language: 'en', createdAt: '2026-01-01T00:00:00Z' } })).toThrow(SaveError);
     expect(() => migrateSave({ v: 1, data: { name: 'A', language: 'de', createdAt: '2026-01-01T00:00:00Z' } })).toThrow(SaveError);
+  });
+});
+
+const active = (quest: string, step = 0, count = 0) => ({ quest, step, count });
+
+describe('the story in a save', () => {
+  const base = { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null, team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] };
+  const withStory = (story: unknown) => ({ v: 4, data: { ...base, story } });
+
+  it('gives a v3 player an empty story, so the story starts for them as for a new player', () => {
+    expect(migrateSave({ v: 3, data: base }).data.story).toEqual({ active: [], done: [], flags: [] });
+  });
+
+  it('refuses a quest twice, a quest both active and done, a repeated flag, and numbers out of range', () => {
+    expect(migrateSave(withStory({ active: [active('first-round')], done: ['old-round'], flags: ['met-bavko'] })).data.story.active).toHaveLength(1);
+    for (const story of [
+      { active: [active('first-round'), active('first-round', 1)], done: [], flags: [] },
+      { active: [active('first-round')], done: ['first-round'], flags: [] },
+      { active: [], done: ['first-round', 'first-round'], flags: [] },
+      { active: [], done: [], flags: ['met-bavko', 'met-bavko'] },
+      { active: [active('first-round', 50)], done: [], flags: [] },
+      { active: [active('first-round', 0, 1000)], done: [], flags: [] },
+      { active: Array.from({ length: MAX_ACTIVE_QUESTS + 1 }, (_, at) => active(`quest-${at}`)), done: [], flags: [] },
+      { active: [active('First Round')], done: [], flags: [] },
+      { active: [], done: [] },
+    ]) {
+      expect(() => migrateSave(withStory(story))).toThrow(SaveError);
+    }
+  });
+
+  it.each(fixtures)('$label keeps a valid save once its story is pruned to the real content', ({ path }) => {
+    const data = migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data;
+    const story = pruneStory(data.story, storyContent);
+    expect(createSave({ ...data, story }).data.story).toEqual(story);
+    expect(story.active.every((entry) => storyContent.quests.has(entry.quest))).toBe(true);
   });
 });

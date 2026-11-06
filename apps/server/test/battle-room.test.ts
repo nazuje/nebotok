@@ -463,6 +463,36 @@ describe('learning moves at a level up', () => {
 });
 const roomHasPlayer = (who: Player) => colyseus.getRoomById<WorldRoom>(who.room.roomId)?.state.players.has(who.room.sessionId) ?? false;
 
+describe('the story, before the story server', () => {
+  it('keeps a saved story, shows nobody talking, and refuses every talk request for now', async () => {
+    const story = { active: [{ quest: 'first-round', step: 0, count: 0 }], done: [], flags: [] };
+    const who = await player('Storied Courier', { story });
+    expect(me(who)?.talking).toBe(false);
+    const requests: [string, object][] = [
+      ['talk.start', { npc: 'bavko' }],
+      ['talk.next', { conversation: 1, choice: null }],
+      ['talk.end', { conversation: 1 }],
+    ];
+    await repeat(requests.length, async (index) => {
+      const [type, payload] = requests[index]!;
+      await sleep(PACE_MS);
+      who.room.send(type, payload);
+      expect(await who.box.take<Refused>('refused')).toEqual({ request: type, reason: 'notNow' });
+    });
+    await sleep(PACE_MS);
+    who.room.send('starter.choose', { species: 'puddlepip' });
+    await who.box.take<ProgressMessage>('progress');
+    expect(saved(who.id)?.story).toEqual(story);
+  });
+
+  it('disconnects a client that sends a malformed talk request', async () => {
+    const who = await player('Chatty Courier');
+    const left = new Promise<number>((resolve) => who.room.onLeave((code) => resolve(code)));
+    who.room.send('talk.next', { conversation: 1, choice: 7 });
+    expect(await left).toBe(4002);
+  });
+});
+
 describe('starters, shrines, team and storage', () => {
   it('gives a new player the starter they choose, once', async () => {
     const who = await player('New Courier');

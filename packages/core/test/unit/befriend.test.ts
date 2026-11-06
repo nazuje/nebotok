@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { befriendChance, treatLiking, type BefriendRules, type Item } from '../../src/index.ts';
+import { befriendChance, treatLiking, type BefriendRules, type Item, type Treat } from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
 
 const rules: BefriendRules = { basePercent: 10, tiredPercent: 50, favouritePercent: 30, likedPercent: 15, levelPenaltyPer10Levels: 5, minPercent: 5, maxPercent: 95, windowPercent: 50 };
 const glowbun = battleContent.species.get('glowbun')!;
-const treat = (types: string[], species: string[] = []): Item => ({ id: 'test-treat', kind: 'treat', name: { en: 'Test Treat', sl: 'Testna poslastica' }, likedBy: { species, types } });
+function placeholder(id: string): Treat {
+  const item: Item | undefined = battleContent.items.get(id);
+  if (item?.kind !== 'treat') throw new Error(`${id} is not a treat`);
+  return item;
+}
+const treat = (types: string[], species: string[] = []): Treat => ({ id: 'test-treat', kind: 'treat', name: { en: 'Test Treat', sl: 'Testna poslastica' }, likedBy: { species, types } });
 
 describe('treat liking', () => {
   it('knows a favourite, a treat for the weather type, and a plain treat', () => {
@@ -15,8 +20,8 @@ describe('treat liking', () => {
   });
 
   it('gives each placeholder treat to the type it is named for', () => {
-    expect(treatLiking(battleContent.items.get('sun-treat')!, glowbun)).toBe('liked');
-    expect(treatLiking(battleContent.items.get('plain-treat')!, glowbun)).toBe('none');
+    expect(treatLiking(placeholder('sun-treat'), glowbun)).toBe('liked');
+    expect(treatLiking(placeholder('plain-treat'), glowbun)).toBe('none');
   });
 });
 

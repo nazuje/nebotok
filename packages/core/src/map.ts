@@ -8,9 +8,15 @@ export const MAX_MAP_SIDE = 256;
 /** The only spawn the rules ask for so far: where a new player, or one whose saved tile is gone, appears. */
 export const PLAYER_SPAWN = 'player';
 
-/** Optional object layers: rectangles of tall grass named by encounter zone, and points named by shrine. */
+/**
+ * Optional object layers: rectangles of tall grass named by encounter zone, points named by shrine,
+ * points named by npc id (the character stands there, and the tile is blocked) and points named
+ * by map mark (places quests send the player to).
+ */
 export const ENCOUNTER_LAYER = 'encounters';
 export const SHRINE_LAYER = 'shrines';
+export const NPC_LAYER = 'npcs';
+export const MARK_LAYER = 'marks';
 
 /** Tiled flips and rotates a tile by setting the top three bits of its gid. */
 const GID_MASK = 0x1fffffff;
@@ -100,7 +106,8 @@ export type EncounterArea = {
 
 /**
  * What the rules know about a map: its size, which tiles can be walked on, its named spawn points,
- * its shrines (by shrine id) and its tall grass (in map order).
+ * its shrines (by shrine id), its tall grass (in map order), where its characters stand (by npc
+ * id) and its marks (by mark id).
  */
 export type WorldMap = {
   readonly id: string;
@@ -111,6 +118,8 @@ export type WorldMap = {
   readonly spawns: Readonly<Record<string, Point>>;
   readonly shrines: Readonly<Record<string, Point>>;
   readonly encounterAreas: readonly EncounterArea[];
+  readonly npcs: Readonly<Record<string, Point>>;
+  readonly marks: Readonly<Record<string, Point>>;
 };
 
 export type MapResult = { readonly ok: true; readonly map: WorldMap } | { readonly ok: false; readonly problems: readonly string[] };
@@ -128,7 +137,9 @@ function blockingGids(tilesets: TiledMap['tilesets']): { readonly blocked: Reado
 
 /**
  * Turns a checked Tiled map into the rules' map. A tile is walkable when the `ground` layer has a
- * tile there and no tile on any tile layer there has the `collides` property set to true.
+ * tile there, no tile on any tile layer there has the `collides` property set to true, and no
+ * character of the `npcs` layer stands there. A character must stand on a tile that would
+ * otherwise be walkable, so that players can reach it.
  */
 export function readTiledMap(id: string, raw: unknown): MapResult {
   const parsed = TiledMap.safeParse(raw);
@@ -164,13 +175,21 @@ export function readTiledMap(id: string, raw: unknown): MapResult {
   if (!(PLAYER_SPAWN in spawns)) problems.push(`the "spawns" layer needs a point named "${PLAYER_SPAWN}"`);
   const shrines = namedPoints(objectsOf(SHRINE_LAYER), 'shrine', tiled, problems);
   const encounterAreas = objectsOf(ENCOUNTER_LAYER).flatMap((object) => encounterArea(object, tiled, problems));
+  const npcs = namedPoints(objectsOf(NPC_LAYER), 'npc', tiled, problems);
+  const marks = namedPoints(objectsOf(MARK_LAYER), 'mark', tiled, problems);
   if (problems.length > 0 || !ground) return { ok: false, problems };
 
   const walkable = Array.from({ length: area }, (_, at) => {
     if (((ground.data[at] ?? 0) & GID_MASK) === 0) return false;
     return tileLayers.every((layer) => !blocked.has((layer.data[at] ?? 0) & GID_MASK));
   });
-  return { ok: true, map: { id, width: tiled.width, height: tiled.height, walkable, spawns, shrines, encounterAreas } };
+  for (const [npc, at] of Object.entries(npcs)) {
+    const index = at.y * tiled.width + at.x;
+    if (!walkable[index]) problems.push(`npc "${npc}" at ${at.x},${at.y} stands on a tile nobody can walk to`);
+    walkable[index] = false;
+  }
+  if (problems.length > 0) return { ok: false, problems };
+  return { ok: true, map: { id, width: tiled.width, height: tiled.height, walkable, spawns, shrines, encounterAreas, npcs, marks } };
 }
 
 /** Named points of an object layer, as the tiles they sit on. Unnamed objects are ignored. */
@@ -210,7 +229,7 @@ export function isWalkable(map: WorldMap, at: Point): boolean {
   return inBounds(map, at) && map.walkable[at.y * map.width + at.x] === true;
 }
 
-/** A map from rows of text, for tests and goldens: `#` is blocked, anything else walkable. It has no shrines or tall grass. */
+/** A map from rows of text, for tests and goldens: `#` is blocked, anything else walkable. It has no shrines, tall grass, characters or marks. */
 export function mapFromRows(id: string, rows: readonly string[], spawn: Point = { x: 0, y: 0 }): WorldMap {
   const width = rows[0]?.length ?? 0;
   if (width === 0 || rows.some((row) => row.length !== width)) throw new RangeError('mapFromRows() needs equal, non-empty rows');
@@ -222,6 +241,8 @@ export function mapFromRows(id: string, rows: readonly string[], spawn: Point = 
     spawns: { [PLAYER_SPAWN]: spawn },
     shrines: {},
     encounterAreas: [],
+    npcs: {},
+    marks: {},
   };
 }
 
@@ -241,6 +262,34 @@ export function shrineAt(map: WorldMap, at: Point): string | null {
     if (Math.abs(shrine.x - at.x) + Math.abs(shrine.y - at.y) <= 1) return id;
   }
   return null;
+}
+
+/** The ids of the points within one step of `at` (on it or next to it, not diagonally), by id. */
+function pointsInReach(points: Readonly<Record<string, Point>>, at: Point): string[] {
+  return Object.keys(points)
+    .toSorted()
+    .filter((id) => {
+      const point = points[id] as Point;
+      return Math.abs(point.x - at.x) + Math.abs(point.y - at.y) <= 1;
+    });
+}
+
+/**
+ * The characters a player standing on `at` can talk to: those on a tile next to it, not
+ * diagonally, by id. A character's own tile is blocked, so nobody stands on it.
+ */
+export function npcsInReach(map: WorldMap, at: Point): string[] {
+  return pointsInReach(map.npcs, at);
+}
+
+/** Whether a player standing on `at` can talk to the character `npc`. */
+export function npcInReach(map: WorldMap, at: Point, npc: string): boolean {
+  return npcsInReach(map, at).includes(npc);
+}
+
+/** The marks a player standing on `at` has reached: on that tile or next to it, not diagonally, by id. */
+export function marksAt(map: WorldMap, at: Point): string[] {
+  return pointsInReach(map.marks, at);
 }
 
 /**
@@ -300,14 +349,20 @@ export function freeTileNear(map: WorldMap, from: Point, taken: readonly Point[]
 
 /**
  * Problems a playable map must not have: a blocked player spawn, walkable tiles nobody can reach,
- * or a shrine on a blocked tile (players wake on it).
+ * a shrine on a blocked tile (players wake on it), a mark on a blocked tile, or a character with
+ * no reachable tile next to it to talk from.
  */
 export function playabilityProblems(map: WorldMap): readonly string[] {
   const spawn = map.spawns[PLAYER_SPAWN];
   if (!spawn) return [`no "${PLAYER_SPAWN}" spawn`];
   if (!isWalkable(map, spawn)) return [`the "${PLAYER_SPAWN}" spawn at ${spawn.x},${spawn.y} is not walkable`];
   const problems = Object.entries(map.shrines).flatMap(([id, at]) => (isWalkable(map, at) ? [] : [`shrine "${id}" at ${at.x},${at.y} is not walkable`]));
+  for (const [id, at] of Object.entries(map.marks)) if (!isWalkable(map, at)) problems.push(`mark "${id}" at ${at.x},${at.y} is not walkable`);
   const reached = reachableFrom(map, spawn);
+  for (const [id, at] of Object.entries(map.npcs)) {
+    const sides = DIRECTIONS.map((direction) => stepFrom(at, direction)).filter((side) => isWalkable(map, side) && reached[side.y * map.width + side.x]);
+    if (sides.length === 0) problems.push(`npc "${id}" at ${at.x},${at.y} has no tile next to it that players can reach`);
+  }
   const stranded = map.walkable.flatMap((walkable, at) => (walkable && !reached[at] ? [`${at % map.width},${Math.floor(at / map.width)}`] : []));
   if (stranded.length > 0) problems.push(`${stranded.length} walkable tile(s) cannot be reached from the spawn, first at ${stranded.slice(0, 5).join(' ')}`);
   return problems;

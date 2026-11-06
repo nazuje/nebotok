@@ -1,0 +1,42 @@
+{
+  "quests": [
+    {
+      "id": "first-round",
+      "chapter": "post-training",
+      "giver": "bavko",
+      "requires": [],
+      "placeholder": true,
+      "name": {
+        "en": "First Round",
+        "sl": "Prvi obhod"
+      },
+      "summary": {
+        "en": "Take Bavko's note to Tobolko by the meadow.",
+        "sl": "Odnesi Bavkovo sporočilo Tobolku pri travniku."
+      },
+      "steps": [
+        {
+          "id": "deliver-note",
+          "kind": "deliver",
+          "item": "hello-note",
+          "count": 1,
+          "to": "tobolko",
+          "hint": {
+            "en": "Bring the note to Tobolko by the meadow.",
+            "sl": "Prinesi sporočilo Tobolku pri travniku."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "plain-treat",
+            "count": 3
+          }
+        ],
+        "xp": 0
+      },
+      "effects": []
+    }
+  ]
+}

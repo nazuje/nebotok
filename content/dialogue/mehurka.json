@@ -1,0 +1,17 @@
+{
+  "npc": "mehurka",
+  "entries": [
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "idle": {
+      "say": {
+        "en": "Bubbles rise. Rest comes. The shrine is calm.",
+        "sl": "Mehurčki se dvigajo. Počitek pride. Svetišče je mirno."
+      },
+      "mood": "calm"
+    }
+  }
+}
