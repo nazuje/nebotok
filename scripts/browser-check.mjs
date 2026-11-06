@@ -11,6 +11,8 @@
 // and adds a PIN to a profile made without one from the settings, then signs in with it. Every run
 // then plays the starter choice, a wild battle to befriending and the team screen against the
 // page's own fake server (?fake=new), and at 360px also a battle the whole team loses (?fake=faint).
+// Against its own server, a player saved one point short of a level up wins a wild battle at 360px
+// and answers the offer of a new move.
 // Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
@@ -52,9 +54,10 @@ import {
   watch,
 } from './lib/game-page.mjs';
 import { fakeUrl, playBattle } from './lib/battle-check.mjs';
+import { playLearning, seedLearner } from './lib/learn-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
-import { botName, deviceName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
+import { botName, deviceName, learnerName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
 let given = null;
@@ -779,6 +782,48 @@ async function checkAddPin(browser, browserName, language, bot) {
   results.push({ label: `${label} (add a PIN)`, ok: problems.length === 0, problems, screenshots });
 }
 
+/**
+ * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
+ * a learnset level, saved straight into the server's database (scripts/lib/learn-check.mjs), wins a
+ * wild battle and is asked which move to forget for the new one. Chromium forgets one, in English;
+ * WebKit keeps them all, in Slovenian.
+ */
+async function checkLearn(browser, browserName, bot) {
+  const language = browserName === 'chromium' ? 'en' : 'sl';
+  const label = `${browserName}-360px-${language}`;
+  const name = learnerName(browserName, language, TAG);
+  const problems = [];
+  const screenshots = [];
+  const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
+  const made = await api('/profiles', { body: { name, avatar: 'green' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  seedLearner(dataDir, { profileId: made.data.id, name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } });
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
+  const check = async (where, step) => {
+    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await noSideways(where);
+    await shot(step);
+  };
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
+    await until(page, (s) => inWorld(s) && s.progress?.team.length === 1, 'the world with the learner');
+    const pair = grassEdge(bot);
+    const met = await walkByTaps(page, bot, pair[0], { notes, meet: true });
+    if (met.screen !== 'battle') await stepInGrass(page, pair, 1);
+    await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+  }
+  results.push({ label: `${label} (learn a move)`, ok: problems.length === 0, problems, screenshots, notes });
+}
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
 async function fillProfiles() {
   const listed = await api('/profiles', { address: nextAddress() });
@@ -830,6 +875,7 @@ try {
       const twiceId = relock ? await relock() : null;
       await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, { lockedId, twiceId }));
       await inTurn(LANGUAGES, (language) => checkAddPin(browser, name, language, bot));
+      if (LOCAL) await checkLearn(browser, name, bot);
     } finally {
       await browser.close();
     }

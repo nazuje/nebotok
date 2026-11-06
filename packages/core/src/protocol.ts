@@ -3,7 +3,7 @@ import { DirectionSchema, type Point } from './grid.ts';
 import type { WalkCommand } from './movement.ts';
 
 /** Bumped whenever a client and server of different versions could misunderstand each other. */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export type WorldInfo = {
   readonly name: string;
@@ -50,6 +50,7 @@ export const CLIENT_MESSAGES = {
   teamReorder: 'team.reorder',
   storageSwap: 'storage.swap',
   starterChoose: 'starter.choose',
+  moveChoose: 'move.choose',
 } as const;
 
 /** Messages the world room sends to a client, by type. Each goes only to the player it is about. */
@@ -64,6 +65,7 @@ export const SERVER_MESSAGES = {
   battleView: 'battle.view',
   battleResult: 'battle.result',
   battleBefriend: 'battle.befriend',
+  moveOffer: 'move.offer',
   refused: 'refused',
 } as const;
 

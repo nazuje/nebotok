@@ -36,7 +36,7 @@ function speciesOf(content: BattleContent, id: string): Species {
   return species;
 }
 
-/** The moves a creature of this species knows at a level. Every species knows its four from the start; learning more as it grows is not a rule yet. */
+/** The moves a new creature of this species knows: its four. It learns the rest of its learnset only by growing (`learnMoves` in learning.ts). */
 export function movesAt(species: Species, _level: number): readonly string[] {
   return species.moves;
 }

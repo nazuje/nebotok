@@ -8,13 +8,15 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { createFakeServer, isFakeScenario, type FakeServer } from './fake-server.ts';
 import type { ToastKind } from './hud.ts';
+import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
 import { createStarterScreen } from './starter-screen.ts';
 import { text } from './strings.ts';
 import { createTeamScreen } from './team-screen.ts';
+import type { LearnState } from './learn-prompt.ts';
 import type { TestBattle, TestTeamScreen } from './test-hook.ts';
 
 /** A screen over the world that battles, the team and the starter choice put up. */
-export type BattleOverlay = 'battle' | 'team' | 'starter';
+export type BattleOverlay = 'battle' | 'team' | 'starter' | 'learn';
 
 export type BattlesOptions = {
   /** The game, made after this, since the game needs the battle scene. */
@@ -38,7 +40,7 @@ export type Battles = {
   overlay(): BattleOverlay | null;
   /** Forgets every battle and team, as when the player leaves the world. */
   reset(): void;
-  snapshot(now: number): { battle: TestBattle | null; progress: ProgressMessage | null; teamScreen: TestTeamScreen | null; starterChosen: string | null };
+  snapshot(now: number): { battle: TestBattle | null; progress: ProgressMessage | null; teamScreen: TestTeamScreen | null; starterChosen: string | null; learning: LearnState | null };
 };
 
 /** With ?test=1&fake=<scenario> the page plays battles against its own fake server (src/fake-server.ts). */
@@ -50,7 +52,7 @@ function fakeFromUrl(): FakeServer | null {
 
 /**
  * Everything about creatures in the page: the messages from the server (or the fake), the battle
- * model, the Phaser battle field, and the battle, team and starter screens over the world.
+ * model, the Phaser battle field, and the battle, team, starter and move-learning screens over the world.
  */
 export function createBattles(options: BattlesOptions): Battles {
   const model = createBattleModel();
@@ -82,6 +84,16 @@ export function createBattles(options: BattlesOptions): Battles {
     closed: () => update(),
   });
   const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: (message) => link?.send(message) });
+  // A move a level up offers is asked about once the battle screen is put away.
+  const learn = createLearnModel();
+  const learnPrompt = createLearnPrompt(element<HTMLElement>('#learn'), {
+    language: options.language,
+    answer: (forget) => {
+      const message = learn.answer(forget);
+      if (message) link?.send(message);
+      update();
+    },
+  });
   const scene = new BattleScene({ state: (now) => model.battle(now), field: () => battleScreen.field() });
 
   teamButton.addEventListener('click', () => {
@@ -92,6 +104,7 @@ export function createBattles(options: BattlesOptions): Battles {
 
   function receive(message: ServerMessage) {
     model.receive(message, performance.now());
+    learn.receive(message);
     if (message.type === SERVER_MESSAGES.refused) options.toast(`refused.${message.payload.reason}`);
     if (message.type === SERVER_MESSAGES.storage) options.toast('shrine.rested', 'news');
   }
@@ -100,18 +113,20 @@ export function createBattles(options: BattlesOptions): Battles {
   function update(now = performance.now()) {
     const battle = model.battle(now);
     const progress = model.progress();
-    if (battle) team.close();
+    const offer = battle ? null : learn.current();
+    if (battle || offer) team.close();
     starter.render(battle ? null : progress);
     battleScreen.render(battle);
+    learnPrompt.render(offer);
     team.render();
-    teamButton.hidden = battle !== null || (progress?.team.length ?? 0) === 0;
+    teamButton.hidden = battle !== null || offer !== null || (progress?.team.length ?? 0) === 0;
     teamButton.setAttribute('aria-label', text('team.title', options.language()));
     const running = options.game().scene.isActive(BATTLE_SCENE);
     if (battle && !running) {
       options.game().scene.run(BATTLE_SCENE);
       options.battleStarted();
     } else if (!battle && running) options.game().scene.stop(BATTLE_SCENE);
-    const next: BattleOverlay | null = battle ? 'battle' : starter.isOpen() ? 'starter' : team.isOpen() ? 'team' : null;
+    const next: BattleOverlay | null = battle ? 'battle' : offer ? 'learn' : starter.isOpen() ? 'starter' : team.isOpen() ? 'team' : null;
     if (next !== overlay) {
       overlay = next;
       options.changed();
@@ -143,6 +158,7 @@ export function createBattles(options: BattlesOptions): Battles {
     overlay: () => overlay,
     reset: () => {
       model.reset();
+      learn.reset();
       team.close();
       update();
     },
@@ -167,10 +183,11 @@ export function createBattles(options: BattlesOptions): Battles {
         drawn: scene.drawn(),
         outcome: state.result?.outcome ?? null,
         rewards: state.result?.rewards ?? [],
+        learned: state.result?.learned ?? [],
         woke: state.result?.woke ?? null,
         befriended: state.befriended && { species: state.befriended.species, placedIn: state.befriended.placedIn },
       };
-      return { battle, progress: model.progress(), teamScreen: team.isOpen() ? team.state() : null, starterChosen: starter.chosen() };
+      return { battle, progress: model.progress(), teamScreen: team.isOpen() ? team.state() : null, starterChosen: starter.chosen(), learning: learn.current() };
     },
   };
 }

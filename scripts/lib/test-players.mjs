@@ -19,7 +19,9 @@ export const lockedName = (lock, browserName, tag) => `${lock} ${browserName ===
 
 /** A profile made without a PIN, to add one from the settings; two letters keep it within 16. */
 export const pinlessName = (browserName, language, tag) => `Dodaj ${browserName === 'chromium' ? 'Kro' : 'Web'} ${language === 'sl' ? 'Čž' : 'Ab'} ${tag}`;
+/** A profile whose save the check writes, to learn a move at its next level up. */
+export const learnerName = (browserName, language, tag) => `Uči ${browserName === 'chromium' ? 'Kro' : 'Web'} ${language === 'sl' ? 'Čž' : 'Ab'} ${tag}`;
 
 // Without a tag too: runs before tags left their players under the bare names.
-const TEST_PLAYER = /^(?:Bot Oblak|(?:Kro|Web) (?:Tel|Tab) (?:Abc|Čšž)|(?:Zaklep|Dvakrat) (?:Kro|Web)|Dodaj (?:Kro|Web) (?:Abc|Čšž|Ab|Čž))(?: [A-Z][a-z]{2})?$/;
+const TEST_PLAYER = /^(?:Bot Oblak|(?:Kro|Web) (?:Tel|Tab) (?:Abc|Čšž)|(?:Zaklep|Dvakrat) (?:Kro|Web)|Dodaj (?:Kro|Web) (?:Abc|Čšž|Ab|Čž)|Uči (?:Kro|Web) (?:Ab|Čž))(?: [A-Z][a-z]{2})?$/;
 export const isTestPlayer = (name) => TEST_PLAYER.test(name);

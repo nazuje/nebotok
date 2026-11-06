@@ -1,10 +1,11 @@
-import type { BattleOutcome, BattleView, CreatureReward, Direction, Language, Point, ProgressMessage, StringId, WakePoint, WelcomeMessageKey } from '@nebotok/core';
+import type { BattleOutcome, BattleView, CreatureReward, Direction, Language, LearnedMove, Point, ProgressMessage, StringId, WakePoint, WelcomeMessageKey } from '@nebotok/core';
 import type { BattleScreenState, Menu } from './battle-model.ts';
 import type { BattleDrawn } from './battle-scene.ts';
 import type { BattleOverlay } from './battles.ts';
 import type { ConnectionStatus } from './connection.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
+import type { LearnState } from './learn-prompt.ts';
 import type { TagBox } from './names.ts';
 import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
@@ -37,6 +38,7 @@ export type TestBattle = {
   drawn: BattleDrawn | null;
   outcome: BattleOutcome | null;
   rewards: readonly CreatureReward[];
+  learned: readonly LearnedMove[];
   woke: WakePoint | null;
   befriended: { species: string; placedIn: 'team' | 'storage' } | null;
 };
@@ -106,6 +108,8 @@ export type TestSnapshot = {
   teamScreen: TestTeamScreen | null;
   /** The starter chosen and not yet confirmed, if any. */
   starterChosen: string | null;
+  /** The move a level up offers and whether the answer is on its way, if one is waiting. */
+  learning: LearnState | null;
 };
 
 export type TestHook = {

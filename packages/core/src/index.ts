@@ -238,6 +238,7 @@ export {
   type Progress,
 } from './creatures.ts';
 export { xpForWin, xpToNextLevel, gainXp, sentOut, awardXp } from './growth.ts';
+export { learnMoves, learnTeamMoves, chooseMove, answerMove, type MoveLearning, type PendingMove } from './learning.ts';
 export {
   BattleMoveMessage,
   BattleSwitchMessage,
@@ -246,6 +247,8 @@ export {
   TeamReorderMessage,
   StorageSwapMessage,
   StarterChooseMessage,
+  OfferId,
+  MoveChooseMessage,
   REFUSAL_REASONS,
   battleView,
   progressMessage,
@@ -255,6 +258,8 @@ export {
   type BattleUpdate,
   type BattleViewMessage,
   type CreatureReward,
+  type LearnedMove,
+  type MoveOffer,
   type WakePoint,
   type BattleResult,
   type BefriendResult,

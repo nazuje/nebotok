@@ -14,6 +14,7 @@ import {
   emptyProgress,
   greedyPolicy,
   isLegalAction,
+  learnTeamMoves,
   markBefriended,
   markSeen,
   needsStarter,
@@ -109,8 +110,11 @@ export function createFakeServer(scenario: FakeScenario, options: FakeOptions = 
 
   function end({ id, state, events }: Battle) {
     battle = null;
-    const awarded = awardXp(teamAfterBattle(progress.team, state), state, sentOut(events), CONTENT);
-    progress = { ...progress, team: awarded.team };
+    const ended = teamAfterBattle(progress.team, state);
+    const awarded = awardXp(ended, state, sentOut(events), CONTENT);
+    // The fake teaches moves there is room for, as the server does, but offers none: no fake scenario grows a creature that far.
+    const taught = learnTeamMoves(ended, awarded.team, CONTENT);
+    progress = { ...progress, team: taught.team };
     if (state.outcome?.reason === 'befriended') {
       const species = activeCreature(state, 1).species;
       const placed = addCreature(progress, befriendedCreature(state, CONTENT));
@@ -124,7 +128,7 @@ export function createFakeServer(scenario: FakeScenario, options: FakeOptions = 
       progress = wakeAfterFainting(progress, SHRINES.teamFainted, CONTENT);
       woke = { map: progress.lastShrine?.map ?? START_MAP, shrine: progress.lastShrine?.shrine ?? null };
     }
-    if (state.outcome) emit({ type: SERVER_MESSAGES.battleResult, payload: { battle: id, outcome: state.outcome, rewards: awarded.rewards, woke } });
+    if (state.outcome) emit({ type: SERVER_MESSAGES.battleResult, payload: { battle: id, outcome: state.outcome, rewards: awarded.rewards, learned: taught.learned, woke } });
     sendProgress();
   }
 

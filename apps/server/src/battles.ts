@@ -13,6 +13,7 @@ import {
   greedyPolicy,
   hasRoomForCreature,
   isLegalAction,
+  learnTeamMoves,
   legalActions,
   markBefriended,
   randomPolicy,
@@ -28,6 +29,8 @@ import {
   type BattleState,
   type CreatureReward,
   type EncounterZone,
+  type LearnedMove,
+  type PendingMove,
   type Progress,
   type RefusalReason,
   type Rng,
@@ -64,6 +67,10 @@ export type PlannedRequest = { readonly ok: true; readonly action: BattleAction;
 export type Settlement = {
   readonly progress: Progress;
   readonly rewards: readonly CreatureReward[];
+  /** Moves a creature that levelled up learned at once, with room for them. */
+  readonly learned: readonly LearnedMove[];
+  /** Moves a creature that levelled up can learn by forgetting one, to offer in this order. */
+  readonly offers: readonly PendingMove[];
   readonly befriended: { readonly species: string; readonly placedIn: 'team' | 'storage' } | null;
   /** The whole team fainted: the player wakes at their last shrine. */
   readonly fainted: boolean;
@@ -165,17 +172,21 @@ export function abandonBattle(battle: LiveBattle): readonly BattleEvent[] {
   return events;
 }
 
-/** The team keeps the health it ended with, gains experience, and welcomes a befriended creature. */
+/** The team keeps the health it ended with, gains experience and the moves of its new levels, and welcomes a befriended creature. */
 export function settleBattle(progress: Progress, battle: LiveBattle, content: BattleContent): Settlement {
   const { state } = battle;
-  const grown = awardXp(teamAfterBattle(progress.team, state), state, sentOut(battle.events), content);
-  const after: Progress = { ...progress, team: grown.team };
+  const ended = teamAfterBattle(progress.team, state);
+  const grown = awardXp(ended, state, sentOut(battle.events), content);
+  const taught = learnTeamMoves(ended, grown.team, content);
+  const after: Progress = { ...progress, team: taught.team };
   const creature = state.outcome?.reason === 'befriended' ? befriendedCreature(state, content) : null;
   const added = creature ? addCreature(after, creature) : null;
   const next = creature && added ? markBefriended(added.progress, creature.species) : after;
   return {
     progress: next,
     rewards: grown.rewards,
+    learned: taught.learned,
+    offers: taught.offers,
     befriended: creature && added ? { species: creature.species, placedIn: added.placedIn } : null,
     fainted: !canBattle(next),
   };

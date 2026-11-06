@@ -45,6 +45,13 @@ export const StorageSwapMessage = z
   .refine(({ team, storage }) => team !== null || storage !== null, 'name a team place, a storage place or both');
 export type StorageSwapMessage = z.infer<typeof StorageSwapMessage>;
 
+/** The number of an offer in `move.offer`, so an answer cannot land on a later offer. */
+export const OfferId = z.number().int().min(1).max(2 ** 31 - 1);
+
+/** The answer to `move.offer` `offer`: forget the move in slot `forget` for the new one, or null to skip the new move. */
+export const MoveChooseMessage = z.strictObject({ offer: OfferId, forget: MoveSlot.nullable() });
+export type MoveChooseMessage = z.infer<typeof MoveChooseMessage>;
+
 /** A new player's choice of starter, one of the species in content/starters.json. */
 export const StarterChooseMessage = z.strictObject({ species: ContentId });
 export type StarterChooseMessage = z.infer<typeof StarterChooseMessage>;
@@ -111,13 +118,26 @@ export type CreatureReward = { readonly index: number; readonly xp: number; read
 /** Where a player woke after their whole team fainted: their last shrine, or null for the map's player spawn. */
 export type WakePoint = { readonly map: string; readonly shrine: string | null };
 
-/** `battle.result`: how the battle ended, what each creature gained, and where the player woke if they lost. */
+/** A move the team creature at place `index` learned. */
+export type LearnedMove = { readonly index: number; readonly move: string };
+
+/**
+ * `battle.result`: how the battle ended, what each creature gained, the moves they learned at once
+ * (with room for them), and where the player woke if they lost.
+ */
 export type BattleResult = {
   readonly battle: string;
   readonly outcome: BattleOutcome;
   readonly rewards: readonly CreatureReward[];
+  readonly learned: readonly LearnedMove[];
   readonly woke: WakePoint | null;
 };
+
+/**
+ * `move.offer`: the team creature at place `index` (a `species`) can learn `move`, but already
+ * knows four, `moves` in slot order. The player answers with `move.choose` naming `offer`.
+ */
+export type MoveOffer = { readonly offer: number; readonly index: number; readonly species: string; readonly move: string; readonly moves: readonly string[] };
 
 /** `battle.befriend`: the wild creature joined, and where it went. */
 export type BefriendResult = { readonly battle: string; readonly species: string; readonly placedIn: 'team' | 'storage' };

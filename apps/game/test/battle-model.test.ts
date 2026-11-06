@@ -119,7 +119,7 @@ describe('the battle model', () => {
     model.receive(started, 0);
     const last = turn(battle, { kind: 'run' });
     model.receive(last, LATER);
-    model.receive({ type: 'battle.result', payload: { battle: 'battle-1', outcome: { winner: null, reason: 'ran' }, rewards: [], woke: null } }, LATER);
+    model.receive({ type: 'battle.result', payload: { battle: 'battle-1', outcome: { winner: null, reason: 'ran' }, rewards: [], learned: [], woke: null } }, LATER);
     expect(model.battle(LATER)?.panel).toBeNull();
     expect(model.battle(LATER * 2)?.panel).toBe('result');
     model.close();
@@ -132,12 +132,12 @@ describe('the result lines', () => {
   const view = started.payload.battle;
 
   it('names a befriended creature and where it went', () => {
-    const lines = resultLines({ battle: view.id, outcome: { winner: 0, reason: 'befriended' }, rewards: [], woke: null }, { battle: view.id, species: 'pinwhirl', placedIn: 'storage' }, view);
+    const lines = resultLines({ battle: view.id, outcome: { winner: 0, reason: 'befriended' }, rewards: [], learned: [], woke: null }, { battle: view.id, species: 'pinwhirl', placedIn: 'storage' }, view);
     expect(lines).toEqual([{ id: 'battle.befriendedStored', species: 'pinwhirl' }]);
   });
 
   it('gives experience per creature and a level up only when the level rose', () => {
-    const lines = resultLines({ battle: view.id, outcome: { winner: 0, reason: 'fainted' }, rewards: [{ index: 0, xp: 22, level: 6 }, { index: 1, xp: 22, level: 5 }], woke: null }, null, view);
+    const lines = resultLines({ battle: view.id, outcome: { winner: 0, reason: 'fainted' }, rewards: [{ index: 0, xp: 22, level: 6 }, { index: 1, xp: 22, level: 5 }], learned: [], woke: null }, null, view);
     expect(lines).toEqual([
       { id: 'battle.won' },
       { id: 'battle.xp', creature: 'a1', xp: 22 },
@@ -146,8 +146,16 @@ describe('the result lines', () => {
     ]);
   });
 
+  it('says which moves a creature learned straight away, after its level up', () => {
+    const result = { battle: view.id, outcome: { winner: 0, reason: 'fainted' }, rewards: [{ index: 0, xp: 99, level: 8 }], learned: [{ index: 0, move: 'sun-tap' }], woke: null } as const;
+    expect(resultLines(result, null, view).slice(2)).toEqual([
+      { id: 'battle.levelUp', creature: 'a1', level: 8 },
+      { id: 'battle.learned', creature: 'a1', move: 'sun-tap' },
+    ]);
+  });
+
   it('says the team wakes at the shrine after it all fainted', () => {
-    const lines = resultLines({ battle: view.id, outcome: { winner: 1, reason: 'fainted' }, rewards: [], woke: { map: 'post-island', shrine: null } }, null, view);
+    const lines = resultLines({ battle: view.id, outcome: { winner: 1, reason: 'fainted' }, rewards: [], learned: [], woke: { map: 'post-island', shrine: null } }, null, view);
     expect(lines).toEqual([{ id: 'battle.teamFainted' }]);
   });
 });
