@@ -114,6 +114,7 @@ export const REQUIRED_STRING_IDS = [
   'battle.back',
   'battle.won',
   'battle.over',
+  'battle.interrupted',
   'battle.xp',
   'battle.levelUp',
   'battle.learned',

@@ -97,6 +97,7 @@
   "battle.back": { "en": "Back", "sl": "Nazaj" },
   "battle.won": { "en": "You win!", "sl": "Zmagaš!" },
   "battle.over": { "en": "The battle is over.", "sl": "Boja je konec." },
+  "battle.interrupted": { "en": "The battle was cut short.", "sl": "Boj je bil prekinjen." },
   "battle.xp": { "en": "{creature} gets {xp} XP.", "sl": "{creature} dobi {xp} XP." },
   "battle.levelUp": { "en": "{creature} reaches level {level}!", "sl": "{creature} doseže stopnjo {level}!" },
   "battle.learned": { "en": "{creature} learns {move}!", "sl": "{creature} se nauči poteze {move}!" },

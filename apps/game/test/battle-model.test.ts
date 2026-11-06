@@ -93,6 +93,40 @@ describe('the battle model', () => {
     expect(model.battle(LATER)?.waiting).toBe(false);
   });
 
+  it('forgets a battle without its result once the server says there is no battle, as after a restart', () => {
+    const model = createBattleModel();
+    const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
+    model.receive(started, 0);
+    model.sent();
+    model.receive({ type: 'refused', payload: { request: 'battle.move', reason: 'notInBattle' } }, LATER);
+    expect(model.battle(LATER)).toBeNull();
+  });
+
+  it('keeps a battle’s result on screen when a late choice is refused as not in a battle', () => {
+    const model = createBattleModel();
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
+    model.receive(started, 0);
+    model.receive(turn(battle, { kind: 'run' }), 0);
+    model.receive({ type: 'battle.result', payload: { battle: 'battle-1', outcome: { winner: null, reason: 'ran' }, rewards: [], learned: [], woke: null } }, 0);
+    model.receive({ type: 'refused', payload: { request: 'battle.run', reason: 'notInBattle' } }, LATER);
+    expect(model.battle(LATER)?.panel).toBe('result');
+  });
+
+  it('forgets the battle, progress and storage on reset, as a room joined afresh needs', () => {
+    const model = createBattleModel();
+    model.receive(progress([{ species: 'glowbun', level: 5 }]), 0);
+    model.receive({ type: 'storage', payload: { shrine: 'isle-shrine', storage: [] } }, 0);
+    model.receive(wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 }).started, 0);
+    model.reset();
+    expect(model.battle(LATER)).toBeNull();
+    expect(model.progress()).toBeNull();
+    expect(model.storage()).toBeNull();
+    // The new room's view starts a battle afresh, however the old one ended.
+    const next = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 }, null, 'battle-2');
+    model.receive({ type: 'battle.view', payload: { battle: next.started.payload.battle } }, LATER);
+    expect(model.battle(LATER)?.view.id).toBe('battle-2');
+  });
+
   it('opens the team or the treats only while the menu allows them', () => {
     const model = createBattleModel();
     const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });

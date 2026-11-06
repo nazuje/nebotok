@@ -534,7 +534,9 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       seat.walker = createWalker(tile, facing);
       seat.battle = begun.battle;
       seat.progress = markSeen(seat.progress, wild.species);
-      seat.dirty = true;
+      // Saved at once with the team as it was before the battle, so a server that stops before the
+      // battle ends brings the player back here, in the world, rather than wherever they last stood.
+      this.changed(seat);
       const player = this.state.players.get(sessionId);
       if (player) player.inBattle = true;
       client.send(SERVER_MESSAGES.battleStarted, { battle: battleView(begun.battle.id, begun.battle.state), events: begun.events } satisfies BattleUpdate);

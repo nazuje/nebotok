@@ -193,7 +193,10 @@ export function createBattleModel(): BattleModel {
           }
           break;
         case SERVER_MESSAGES.refused:
-          if (battle) battle.waiting = false;
+          // The server has no battle for this player, so one still waiting for its result is gone
+          // there, as after the server restarted: drawing it on would refuse every tap.
+          if (battle && message.payload.reason === 'notInBattle' && !battle.result) battle = null;
+          else if (battle) battle.waiting = false;
           break;
       }
     },
