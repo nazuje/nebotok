@@ -1,21 +1,25 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   AvatarsFile,
+  DIALOGUE_FILE,
   EncountersFile,
   ShrinesFile,
   StartersFile,
   WorldSettings,
   encounterProblems,
   loadBattleContent,
+  loadStoryContent,
   mapLinkProblems,
   playabilityProblems,
   readTiledMap,
   starterProblems,
   stepDurationMs,
+  storyMapProblems,
   type BattleContent,
   type EncounterZone,
+  type StoryContent,
   type WorldMap,
 } from '@nebotok/core';
 
@@ -33,6 +37,8 @@ export type WorldContent = {
   readonly encounters: ReadonlyMap<string, EncounterZone>;
   readonly shrines: ShrinesFile;
   readonly starters: StartersFile;
+  /** The characters, their dialogue, the quests, the chapters and the bag's stacks. */
+  readonly story: StoryContent;
 };
 
 const readJson = (dir: string, file: string): unknown => JSON.parse(readFileSync(join(dir, file), 'utf8'));
@@ -48,7 +54,16 @@ function battleContentOf(dir: string): BattleContent {
   });
 }
 
-/** Reads and checks the start map, walk speed, avatars and everything battles need. Throws on anything content:validate would refuse. */
+function storyContentOf(dir: string, battle: BattleContent): StoryContent {
+  const dialogue: Record<string, unknown> = {};
+  for (const file of readdirSync(join(dir, 'dialogue')).toSorted()) {
+    const npc = DIALOGUE_FILE.exec(`dialogue/${file}`)?.[1];
+    if (npc !== undefined) dialogue[npc] = readJson(dir, `dialogue/${file}`);
+  }
+  return loadStoryContent({ npcs: readJson(dir, 'npcs.json'), dialogue, quests: readJson(dir, 'quests.json'), story: readJson(dir, 'story.json'), inventory: readJson(dir, 'inventory.json') }, battle);
+}
+
+/** Reads and checks the start map, walk speed, avatars, everything battles need and the story. Throws on anything content:validate would refuse. */
 export function loadWorld(dir: string = CONTENT_DIR): WorldContent {
   const settings = WorldSettings.parse(readJson(dir, 'world.json'));
   const avatars = AvatarsFile.parse(readJson(dir, 'avatars.json'));
@@ -58,11 +73,13 @@ export function loadWorld(dir: string = CONTENT_DIR): WorldContent {
   const encounters = EncountersFile.parse(readJson(dir, 'encounters.json'));
   const shrines = ShrinesFile.parse(readJson(dir, 'shrines.json'));
   const starters = StartersFile.parse(readJson(dir, 'starters.json'));
+  const story = storyContentOf(dir, battle);
   const problems = [
     ...playabilityProblems(result.map),
     ...mapLinkProblems(result.map, encounters, shrines),
     ...encounterProblems(encounters, battle),
     ...starterProblems(starters, battle),
+    ...storyMapProblems(story, { maps: [result.map], zones: encounters.zones.map((zone) => zone.id), shrines: shrines.shrines.map((shrine) => shrine.id) }),
   ];
   if (problems.length > 0) throw new Error(`content for map ${settings.startMap}: ${problems.join('; ')}`);
   return {
@@ -73,5 +90,6 @@ export function loadWorld(dir: string = CONTENT_DIR): WorldContent {
     encounters: new Map(encounters.zones.map((zone) => [zone.id, zone])),
     shrines,
     starters,
+    story,
   };
 }

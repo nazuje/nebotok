@@ -278,9 +278,14 @@ schemas in `story-content.ts`, and the rules in core: talks (`dialogue.ts`), que
 the bag (`inventory.ts`) and the content links (`story.ts`). Like battles, everything here goes
 **only to its player**, as messages; the room state shows others just `talking` on that player.
 
-**Until the story server lands**, this server answers `talk.start`, `talk.next` and `talk.end`
-with `refused` `notNow`, keeps `talking` false, never sends the messages below, and keeps each
-player's saved `story` unchanged.
+While a talk is open the player stands still: `talk.start` stops any walk (the step under way
+still ends), walk messages are ignored, and no wild creature appears. A talk ends on `talk.end`, at
+the end of its dialogue, when a node's effect cannot happen, after a chosen starter, when a battle
+starts, when the player leaves or another device takes over the seat, when the server stops, and
+after two minutes with no `talk.start` or `talk.next` (`TALK_IDLE_MS` in
+`apps/server/src/talk.ts`). A dropped connection does not end it: after the reconnection the
+server sends `progress`, `story` and then the same `talk.node` again, and the talk goes on from
+there.
 
 ### Client to server
 
@@ -303,7 +308,7 @@ A talk request that matches its schema but is not allowed now is answered with `
 | --- | --- | --- |
 | `story` | `StoryMessage`: `{ active, done, flags }`, the saved story | After `progress` on joining and on each reconnection, and after anything that changes it |
 | `talk.node` | `TalkNode`: `{ conversation, npc, node, choices, cue }` | On opening a talk and after each step that stays in it; again after a reconnection during a talk |
-| `talk.ended` | `TalkEnded`: `{ conversation }` | The talk is over: the player ended it, it reached its end, a node's effect could not happen, or a battle or the seat took over. `talking` turns false |
+| `talk.ended` | `TalkEnded`: `{ conversation }` | The talk is over: the player ended it, it reached its end, a node's effect could not happen, a starter was chosen, it was left two minutes, or a battle, a leave or another device took over. `talking` turns false |
 | `quest.changed` | `QuestChanged`: `{ quest, change, step, rewards, cue }` | A quest `started`, moved to its next `step`, or was `done` (`step` is then its number of steps and `rewards` the items given, what did not fit and the experience each team creature got) |
 
 `talk.node` carries ids, not text: the client finds the line in `dialogue/<npc>.json`
@@ -313,8 +318,10 @@ play (`effects/<cue>` in content/art/), `offerStarter` (below) or null. `convers
 counted across the room, so an answer to an old talk never matches a new one.
 
 After each step that changes them the server sends, in this order: `quest.changed` for each quest
-that changed, then `progress` (items and experience), then `story`. A `quest.changed` with
-experience is followed by the same learning of moves as after a battle (`move.offer`).
+that changed, then `progress` (items and experience), then `story`, and then the `talk.node` the
+step leads to, if any. A `quest.changed` with experience brings the same learning of moves as after
+a battle: a move offered on a level up comes as `move.offer` just before that `progress`, and
+`talk.start` is refused with `notNow` until it is answered.
 
 ### The starter
 
@@ -324,10 +331,13 @@ character marks a new quest. Bavko's first talk with them ends at a node with th
 starter screen over the talk. The player picks with `starter.choose` as before, and the server
 answers with `progress`. `starter.choose` is allowed only while the player is talking at a node
 that offers the starter (core `offersStarter`) and still has no creature; otherwise it is refused
-with `notTalking` or `notNow`. Until the story server lands, `starter.choose` keeps protocol 5's
-rule (allowed whenever `needsStarter`), because no talk can be open yet. A player who already has a
-creature never meets the starter node: the dialogue's `needsStarter` condition skips it, and an
-`offerStarter` effect for them ends the talk instead.
+with `notTalking` or `notNow`. The server holds that rule behind `STARTER_NEEDS_TALK` in
+`apps/server/src/talk.ts`. While it is `false` (until the client's talk screen can reach the
+starter node), `starter.choose` is also allowed with no talk open, as in protocol 5, whenever
+`needsStarter`; it is still refused with `notNow` once the player has a creature. Either way, a
+chosen starter ends any open talk (`talk.ended`), since what the dialogue checks has changed. A
+player who already has a creature never meets the starter node: the dialogue's `needsStarter`
+condition skips it, and an `offerStarter` effect for them ends the talk instead.
 
 ### Quests
 
@@ -348,6 +358,7 @@ done. Core `questLog` is the journal, `npcMarks` the marks over characters (`tur
 when the team faints), `treat`s and `material`s. `content/inventory.json` gives each kind's stack:
 how many of one item fit (core `stackLimit`). What does not fit is not added (a quest's
 `rewards.extra` lists it); nothing is ever thrown away, and players cannot discard items. Core `bagView` is the bag screen: one section per kind, in `order`.
+
 ## Movement rules
 
 The server runs core's `stepWalker` 20 times a second (`setFixedTimestep`, 50 ms) for every
