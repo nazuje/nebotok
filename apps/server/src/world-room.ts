@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { Deferred, ErrorCode, Room, ServerError, validate, type Client } from '@colyseus/core';
+import { Deferred, ErrorCode, OnMessageException, Room, ServerError, validate, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
 import {
   BattleMoveMessage,
   BattleRunMessage,
@@ -9,6 +9,7 @@ import {
   CLOSE_CODES,
   IDLE,
   LanguageSchema,
+  MAX_PROFILES,
   MoveChooseMessage,
   PLAYER_SPAWN,
   SERVER_MESSAGES,
@@ -69,7 +70,7 @@ import {
   type WorldInfo,
 } from '@nebotok/core';
 import { z } from 'zod';
-import { BATTLE_IDLE_MS, abandonBattle, beginBattle, planRequest, playStep, settleBattle, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
+import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
 import type { Log } from './log.ts';
 import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
@@ -84,7 +85,12 @@ export const TICK_RATE = 20;
 export const SAVE_EVERY_MS = 30_000;
 /** A walker that comes to a stop is saved too, but one seat at most this often, so a crash loses little. */
 export const STOP_SAVE_GAP_MS = 5_000;
-const MAX_PLAYERS = 16;
+/**
+ * The server has one world room, and every profile must fit in it: a full room would make
+ * matchmaking open a second one. Twice the profiles leaves each one room for a second device
+ * taking its seat over.
+ */
+export const MAX_PLAYERS = MAX_PROFILES * 2;
 /** Each walk.to runs a path search; more than this a second from one client are dropped. */
 export const WALK_TO_PER_SECOND = 5;
 /** Battle, team, storage, starter and move requests a second from one client; more are dropped. A battle needs one a turn. */
@@ -181,7 +187,15 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
   const spawn = spawnOf(world);
 
   return class WorldRoom extends Room {
+    /** The one world room of this server while it is open. */
+    private static open: WorldRoom | null = null;
+    /** Which room and session holds each profile's seat, across rooms: a profile holds one seat at most. */
+    private static readonly seated = new Map<number, { readonly room: WorldRoom; readonly sessionId: string }>();
+
     override maxClients = MAX_PLAYERS;
+    // The world stays open while nobody plays, so a join never races the room closing down and
+    // finds it locked, which would open a second one.
+    override autoDispose = false;
     override maxMessagesPerSecond = 30;
     override state = new WorldState();
     private readonly seats = new Map<string, Seat>();
@@ -219,6 +233,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     }
 
     override onCreate() {
+      if (WorldRoom.open) throw new Error('this server already has its world room');
+      WorldRoom.open = this;
       this.state.map = map.id;
       this.state.stepMs = stepMs;
       this.setFixedTimestep((context) => this.tick(Math.round(context.dtMs)), TICK_RATE);
@@ -232,14 +248,14 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const auth = client.auth as SeatAuth;
       const profile = profiles.get(auth.playerId);
       if (!profile) throw new ServerError(ErrorCode.AUTH_FAILED, 'this profile no longer exists');
-      const earlier = this.activeSeatOf(auth.playerId);
+      const earlier = this.seatOf(auth.playerId);
       // The battle does not move to the new device: it ends as a run first, so the team keeps its health.
-      if (earlier) this.endBattle(earlier.sessionId, earlier.seat, 'replaced');
+      if (earlier) earlier.room.endBattle(earlier.sessionId, earlier.seat, 'replaced');
       // Taking over from another device continues from where that device's character stands.
       const start = earlier
         ? { walker: withIntent(earlier.seat.walker, IDLE), canSave: earlier.seat.canSave, language: earlier.seat.language, progress: earlier.seat.progress }
         : this.load(auth.playerId);
-      if (earlier) this.replace(earlier.sessionId, earlier.seat);
+      if (earlier) earlier.room.replace(earlier.sessionId, earlier.seat);
 
       const seat: Seat = {
         playerId: profile.id,
@@ -265,6 +281,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       player.name = profile.name;
       player.avatar = profile.avatar;
       this.seats.set(client.sessionId, seat);
+      WorldRoom.seated.set(seat.playerId, { room: this, sessionId: client.sessionId });
       this.state.players.set(client.sessionId, player);
       this.show(client.sessionId, seat.walker);
       this.state.playerCount = this.state.players.size;
@@ -320,6 +337,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         this.save(seat);
       }
       this.seats.delete(client.sessionId);
+      const held = seat && WorldRoom.seated.get(seat.playerId);
+      if (seat && held?.room === this && held.sessionId === client.sessionId) WorldRoom.seated.delete(seat.playerId);
       this.state.players.delete(client.sessionId);
       this.state.playerCount = this.state.players.size;
       log.info('player left', { roomId: this.roomId, sessionId: client.sessionId, code, playerCount: this.state.playerCount });
@@ -327,17 +346,77 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     override onDispose() {
       this.stopListening();
-      for (const [sessionId, seat] of this.seats) {
-        if (seat.replaced) continue;
+      if (WorldRoom.open === this) WorldRoom.open = null;
+      for (const [playerId, held] of WorldRoom.seated) if (held.room === this) WorldRoom.seated.delete(playerId);
+      this.forEachSeat('onDispose', (sessionId, seat) => {
+        if (seat.replaced) return;
         this.endBattle(sessionId, seat, 'shutdown');
         this.save(seat);
-      }
+      });
       log.info('room disposed', { roomId: this.roomId });
     }
 
-    private activeSeatOf(playerId: number): { sessionId: string; seat: Seat } | undefined {
-      for (const [sessionId, seat] of this.seats) if (seat.playerId === playerId && !seat.replaced) return { sessionId, seat };
-      return undefined;
+    /**
+     * Colyseus calls this for an error that escapes a message handler, a tick, a clock timer or a
+     * lifecycle hook; without it an error in a tick or timer stops the whole server. The room goes
+     * on. A failed message also ends its sender's battle, which may be left half played. Errors in
+     * one seat's part of a tick or check are caught closer, by forEachSeat, which ends that seat.
+     */
+    override onUncaughtException(error: RoomException, method: RoomMethodName) {
+      const sessionId = error instanceof OnMessageException ? error.client.sessionId : undefined;
+      log.error('room error', { roomId: this.roomId, method, sessionId, ...errorOf(error.cause ?? error) });
+      const seat = sessionId === undefined ? undefined : this.seats.get(sessionId);
+      if (sessionId !== undefined && seat?.battle) this.dropBattle(sessionId, seat);
+    }
+
+    /** Runs one seat's share of a tick or a check. When it throws, that seat ends, or with `battleOnly` just its battle, and the other seats go on. */
+    private forEachSeat(task: string, visit: (sessionId: string, seat: Seat) => void, battleOnly = false) {
+      for (const [sessionId, seat] of this.seats) {
+        try {
+          visit(sessionId, seat);
+        } catch (error) {
+          this.seatFailed(task, sessionId, seat, error, battleOnly);
+        }
+      }
+    }
+
+    private seatFailed(task: string, sessionId: string, seat: Seat, error: unknown, battleOnly: boolean) {
+      if (seat.closing) return;
+      log.error('seat error', { roomId: this.roomId, sessionId, playerId: seat.playerId, task, ...errorOf(error) });
+      if (battleOnly && seat.battle) {
+        this.dropBattle(sessionId, seat);
+        return;
+      }
+      // Its battle is left unsettled: the team keeps the health it had before it. The seat is saved
+      // as it leaves, and its client joins again.
+      seat.battle = null;
+      this.close(sessionId, seat, CLOSE_CODES.failed);
+    }
+
+    /** Ends a battle that hit an error as a run. When even that fails it is dropped unsettled, and the team keeps the health it had before it. */
+    private dropBattle(sessionId: string, seat: Seat) {
+      const { battle } = seat;
+      if (!battle) return;
+      try {
+        this.endBattle(sessionId, seat, 'failed');
+        return;
+      } catch (error) {
+        log.error('battle dropped', { roomId: this.roomId, playerId: seat.playerId, battle: battle.id, ...errorOf(error) });
+      }
+      if (seat.battle !== battle) return;
+      seat.battle = null;
+      const player = this.state.players.get(sessionId);
+      if (player) player.inBattle = false;
+      const client = this.clients.get(sessionId);
+      client?.send(SERVER_MESSAGES.battleResult, { battle: battle.id, outcome: { winner: null, reason: 'ran' }, rewards: [], learned: [], woke: null } satisfies BattleResult);
+      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+    }
+
+    /** The seat a profile holds, in this room or another of this server, unless it was taken over. */
+    private seatOf(playerId: number): { room: WorldRoom; sessionId: string; seat: Seat } | undefined {
+      const held = WorldRoom.seated.get(playerId);
+      const seat = held?.room.seats.get(held.sessionId);
+      return held && seat && !seat.replaced ? { room: held.room, sessionId: held.sessionId, seat } : undefined;
     }
 
     /** The saved position when it is still a walkable tile of this map, else the free tile nearest the spawn. */
@@ -346,7 +425,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       try {
         save = progress.load(playerId);
       } catch (error) {
-        log.warn('save unreadable; this player will not be saved', { playerId, error: error instanceof Error ? error.message : String(error) });
+        // Only the name: a parse error's message can quote the save.
+        log.warn('save unreadable; this player will not be saved', { playerId, error: error instanceof Error ? error.name : typeof error });
         return { walker: createWalker(this.arrival()), canSave: false, language: 'en', progress: emptyProgress() };
       }
       const position = save?.data.position;
@@ -373,8 +453,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     /** Some of the player's sessions ended: their seat goes unless it joined with one that still holds, as after adding a PIN. */
     private signOut(playerId: number) {
-      const found = this.activeSeatOf(playerId);
-      if (found && !profiles.isSessionLive(found.seat.session)) this.close(found.sessionId, found.seat, CLOSE_CODES.signedOut);
+      const found = this.seatOf(playerId);
+      if (found?.room === this && !profiles.isSessionLive(found.seat.session)) this.close(found.sessionId, found.seat, CLOSE_CODES.signedOut);
     }
 
     /** Ends a seat from the server side, whether its client is connected or waiting to reconnect. */
@@ -401,7 +481,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     private tick(dtMs: number) {
       const at = now();
-      for (const [sessionId, seat] of this.seats) {
+      this.forEachSeat('tick', (sessionId, seat) => {
         const before = seat.walker;
         const after = stepWalker(map, before, dtMs, stepMs);
         seat.walker = after;
@@ -414,7 +494,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           this.save(seat);
         }
         this.show(sessionId, seat.walker);
-      }
+      });
     }
 
     /** A step ended on `tile`: rest at a shrine in reach, then maybe meet a wild creature in tall grass. */
@@ -459,7 +539,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (player) player.inBattle = true;
       client.send(SERVER_MESSAGES.battleStarted, { battle: battleView(begun.battle.id, begun.battle.state), events: begun.events } satisfies BattleUpdate);
       client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
-      log.info('battle started', { roomId: this.roomId, playerId: seat.playerId, battle: begun.battle.id, zone: zone.id, species: wild.species, level: wild.level, seed: battleSeed });
+      log.info('battle started', { roomId: this.roomId, playerId: seat.playerId, battle: begun.battle.id, zone: zone.id, species: wild.species, level: wild.level });
+      log.debug('battle seed', { roomId: this.roomId, battle: begun.battle.id, seed: battleSeed });
     }
 
     /** The seat of a client whose request is within its rate limit; extra requests are dropped without an answer, like extra walk.to. */
@@ -487,10 +568,12 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         this.refuse(client, request, planned.reason);
         return;
       }
+      // The step is played on copies first, so one that throws changes neither the battle nor the treats.
+      const step = nextStep(battle, planned.action, world.battle);
       const usedItem = planned.progress !== seat.progress;
+      commitStep(battle, step);
       seat.progress = planned.progress;
-      const events = playStep(battle, planned.action, world.battle);
-      this.sendTurn(client.sessionId, battle, events);
+      this.sendTurn(client.sessionId, battle, step.events);
       if (battle.state.phase === 'over') {
         this.finishBattle(client.sessionId, seat, battle);
       } else if (usedItem) {
@@ -504,7 +587,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     }
 
     /** Ends a seat's battle, if it has one, as a run: its player timed out, left, was replaced, or the room is closing. */
-    private endBattle(sessionId: string, seat: Seat, why: 'idle' | 'left' | 'replaced' | 'shutdown') {
+    private endBattle(sessionId: string, seat: Seat, why: 'idle' | 'left' | 'replaced' | 'shutdown' | 'failed') {
       const { battle } = seat;
       if (!battle) return;
       log.info('battle abandoned', { roomId: this.roomId, playerId: seat.playerId, battle: battle.id, why });
@@ -641,11 +724,11 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
      * one is closed (and saved as it leaves), the others are saved.
      */
     checkSeats() {
-      for (const [sessionId, seat] of this.seats) {
-        if (seat.replaced || seat.closing) continue;
+      this.forEachSeat('checkSeats', (sessionId, seat) => {
+        if (seat.replaced || seat.closing) return;
         if (profiles.hasSession(seat.playerId)) this.save(seat);
         else this.close(sessionId, seat, CLOSE_CODES.signedOut);
-      }
+      });
     }
 
     /**
@@ -654,11 +737,15 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
      */
     checkBattles() {
       const at = now();
-      for (const [sessionId, seat] of this.seats) {
-        if (seat.replaced) continue;
-        if (seat.battle && at - seat.battle.lastInputAt >= BATTLE_IDLE_MS) this.endBattle(sessionId, seat, 'idle');
-        if (seat.offer && at - seat.offer.sentAt >= OFFER_IDLE_MS) this.settleOffer(sessionId, seat, seat.progress, 'timedOut');
-      }
+      this.forEachSeat(
+        'checkBattles',
+        (sessionId, seat) => {
+          if (seat.replaced) return;
+          if (seat.battle && at - seat.battle.lastInputAt >= BATTLE_IDLE_MS) this.endBattle(sessionId, seat, 'idle');
+          if (seat.offer && at - seat.offer.sentAt >= OFFER_IDLE_MS) this.settleOffer(sessionId, seat, seat.progress, 'timedOut');
+        },
+        true,
+      );
     }
 
     /** The creatures or treats changed: saved at once, so a crash never loses a battle's outcome. */
@@ -684,3 +771,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 }
 
 export type WorldRoom = InstanceType<ReturnType<typeof worldRoom>>;
+
+/** An error's name and message for the log: content ids at most, never a payload. */
+function errorOf(error: unknown): { error: string; message: string } {
+  return error instanceof Error ? { error: error.name, message: error.message } : { error: typeof error, message: '' };
+}

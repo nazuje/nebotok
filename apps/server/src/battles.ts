@@ -17,6 +17,7 @@ import {
   legalActions,
   markBefriended,
   randomPolicy,
+  rngFromState,
   sentOut,
   startBattle,
   teamAfterBattle,
@@ -48,8 +49,8 @@ export type LiveBattle = {
   /** Every event since the start, start events included: experience goes to the creatures they show sent out. */
   readonly events: BattleEvent[];
   /** The battle's own numbers and the wild creature's choices come from separate RNGs, as in core's playBattle. */
-  readonly battleRng: Rng;
-  readonly wildRng: Rng;
+  battleRng: Rng;
+  wildRng: Rng;
   /** When the player last sent a battle request, by the room's clock. */
   lastInputAt: number;
 };
@@ -147,13 +148,33 @@ export function planRequest(request: BattleRequest, state: BattleState, progress
   return isLegalAction(state, PLAYER_SIDE, action) ? { ok: true, action, progress } : refused('notNow');
 }
 
-/** Runs one step with the player's action and the wild creature's, and returns what happened. */
+/** A step played but not yet applied: the battle's next state, the step's events, and its RNGs after the step. */
+export type PlayedStep = { readonly state: BattleState; readonly events: readonly BattleEvent[]; readonly battleRng: Rng; readonly wildRng: Rng };
+
+/**
+ * Plays one step with the player's action and the wild creature's on copies of the battle's RNGs,
+ * changing nothing, so a step that throws leaves the battle as it was. `commitStep` applies it.
+ */
+export function nextStep(battle: LiveBattle, action: BattleAction, content: BattleContent): PlayedStep {
+  const battleRng = rngFromState(battle.battleRng.state());
+  const wildRng = rngFromState(battle.wildRng.state());
+  const wild = wildAction(battle.state, wildRng, content);
+  const result = battleStep(battle.state, [action, wild], battleRng, content);
+  return { state: result.state, events: result.events, battleRng, wildRng };
+}
+
+export function commitStep(battle: LiveBattle, step: PlayedStep): void {
+  battle.state = step.state;
+  battle.events.push(...step.events);
+  battle.battleRng = step.battleRng;
+  battle.wildRng = step.wildRng;
+}
+
+/** Plays one step and applies it, and returns what happened. */
 export function playStep(battle: LiveBattle, action: BattleAction, content: BattleContent): readonly BattleEvent[] {
-  const wild = wildAction(battle.state, battle.wildRng, content);
-  const result = battleStep(battle.state, [action, wild], battle.battleRng, content);
-  battle.state = result.state;
-  battle.events.push(...result.events);
-  return result.events;
+  const step = nextStep(battle, action, content);
+  commitStep(battle, step);
+  return step.events;
 }
 
 /**

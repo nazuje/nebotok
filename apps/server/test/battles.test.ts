@@ -1,6 +1,6 @@
 import { MAX_TEAM, PLAYER_SIDE, STORAGE_LIMIT, emptyProgress, newCreature, type BattleAction, type Progress } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
-import { abandonBattle, beginBattle, planRequest, playStep, settleBattle, storageRefusal, wildSlipPercent, type LiveBattle } from '../src/battles.ts';
+import { abandonBattle, beginBattle, commitStep, nextStep, planRequest, playStep, settleBattle, storageRefusal, wildSlipPercent, type LiveBattle } from '../src/battles.ts';
 import { loadWorld } from '../src/world.ts';
 
 const world = loadWorld();
@@ -58,6 +58,26 @@ describe('planning a request', () => {
     expect(planRequest({ kind: 'treat', itemId: 'sun-treat' }, state, progress, open)).toEqual({ ok: false, reason: 'noItem' });
     const crowded = { ...progress, team: Array.from({ length: MAX_TEAM }, () => newCreature('glowbun', 1, content)), storage: Array.from({ length: STORAGE_LIMIT }, () => newCreature('glowbun', 1, content)) };
     expect(planRequest({ kind: 'treat', itemId: 'plain-treat' }, state, crowded, open)).toEqual({ ok: false, reason: 'full' });
+  });
+});
+
+describe('playing a step', () => {
+  it('changes nothing, random numbers included, when the step throws', () => {
+    const battle = begin(progressWith({ team: [newCreature('glowbun', 6, content)] }));
+    const before = { state: battle.state, events: battle.events.length, battleRng: battle.battleRng.state(), wildRng: battle.wildRng.state() };
+    expect(() => playStep(battle, { kind: 'switch', to: 5 }, content)).toThrow(/cannot/);
+    expect({ state: battle.state, events: battle.events.length, battleRng: battle.battleRng.state(), wildRng: battle.wildRng.state() }).toEqual(before);
+    expect(battle.state).toBe(before.state);
+  });
+
+  it('applies a step only when committed', () => {
+    const battle = begin(progressWith({ team: [newCreature('glowbun', 6, content)] }));
+    const before = battle.state;
+    const step = nextStep(battle, { kind: 'move', slot: 0 }, content);
+    expect(battle.state).toBe(before);
+    commitStep(battle, step);
+    expect(battle.state).toBe(step.state);
+    expect(battle.events.slice(-step.events.length)).toEqual(step.events);
   });
 });
 
