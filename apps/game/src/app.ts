@@ -57,6 +57,7 @@ const battles = createBattles({
     showScreen();
   },
   battleStarted: () => startClean(),
+  standing: () => view.standing(),
 });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const settings = createSettings(language, controls, {

@@ -24,7 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Client } from '@colyseus/sdk';
-import { MAX_PROFILES, PIN_LOCK_MS, PLAYER_SPAWN, PROTOCOL_VERSION, isWalkable } from '../packages/core/src/index.ts';
+import { MAX_PROFILES, PIN_LOCK_MS, PLAYER_SPAWN, PROTOCOL_VERSION, SERVER_MESSAGES, isWalkable } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
@@ -174,7 +174,9 @@ async function joinBot(bot) {
   const client = new Client(server.base);
   client.auth.token = bot.token;
   const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION, language: 'en' });
-  room.onMessage('welcome', () => {});
+  // The bot only walks, so it ignores every message about itself, storage when it passes the shrine
+  // and a battle or move offer included, rather than have the SDK warn about each.
+  for (const type of Object.values(SERVER_MESSAGES)) room.onMessage(type, () => {});
   return room;
 }
 

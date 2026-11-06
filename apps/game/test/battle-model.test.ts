@@ -1,4 +1,6 @@
+import { mapFromRows } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
+import type { ServerMessage } from '../src/battle-link.ts';
 import { createBattleModel, menuFor, resultLines } from '../src/battle-model.ts';
 import { playbackMs, playback } from '../src/battle-playback.ts';
 import { progress, turn, wildBattle } from './support/battle-messages.ts';
@@ -157,5 +159,34 @@ describe('the result lines', () => {
   it('says the team wakes at the shrine after it all fainted', () => {
     const lines = resultLines({ battle: view.id, outcome: { winner: 1, reason: 'fainted' }, rewards: [], learned: [], woke: { map: 'post-island', shrine: null } }, null, view);
     expect(lines).toEqual([{ id: 'battle.teamFainted' }]);
+  });
+});
+
+describe('storage at a shrine', () => {
+  const map = { ...mapFromRows('isle', ['.......']), shrines: { 'isle-shrine': { x: 3, y: 0 } } };
+  const stored: ServerMessage = { type: 'storage', payload: { shrine: 'isle-shrine', storage: [] } };
+
+  it('is kept while the courier stands in reach of the shrine, including the step it arrived from', () => {
+    const model = createBattleModel();
+    model.receive(stored, 0);
+    // The storage message can come before the state that moves the courier onto the shrine.
+    model.standingAt(map, { x: 1, y: 0 });
+    model.standingAt(map, { x: 2, y: 0 });
+    model.standingAt(map, { x: 3, y: 0 });
+    model.standingAt(map, { x: 4, y: 0 });
+    expect(model.storage()).toEqual(stored.payload);
+  });
+
+  it('is forgotten once the courier walks out of reach, until the shrine sends it again', () => {
+    const model = createBattleModel();
+    model.standingAt(map, { x: 6, y: 0 });
+    model.receive(stored, 0);
+    model.standingAt(map, { x: 4, y: 0 });
+    model.standingAt(map, { x: 5, y: 0 });
+    expect(model.storage()).toBeNull();
+    model.standingAt(map, { x: 4, y: 0 });
+    expect(model.storage()).toBeNull();
+    model.receive(stored, 0);
+    expect(model.storage()).toEqual(stored.payload);
   });
 });

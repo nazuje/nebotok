@@ -1,4 +1,4 @@
-import { SERVER_MESSAGES, type Language, type ProgressMessage, type StorageMessage, type StringId } from '@nebotok/core';
+import { SERVER_MESSAGES, type Language, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
 import { createBattleModel } from './battle-model.ts';
@@ -26,6 +26,8 @@ export type BattlesOptions = {
   changed(): void;
   /** A battle started: whatever the player was doing with their courier stops. */
   battleStarted(): void;
+  /** The map and your own courier's tile on it, as the server last said, once both are known. */
+  standing(): { map: WorldMap; tile: Point } | null;
 };
 
 export type Battles = {
@@ -131,7 +133,11 @@ export function createBattles(options: BattlesOptions): Battles {
         if (link === roomSide) link = null;
       };
     },
-    frame: (now) => update(now),
+    frame: (now) => {
+      const standing = options.standing();
+      if (standing) model.standingAt(standing.map, standing.tile);
+      update(now);
+    },
     overlay: () => overlay,
     reset: () => {
       model.reset();
