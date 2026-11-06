@@ -1,8 +1,34 @@
 {
-  "recolour": "items/hello-note",
+  "width": 16,
+  "height": 16,
   "palette": {
-    "p": "#ffd94a",
-    "d": "#e8a33a",
-    "r": "#5dade2"
+    "k": "#1b1b2f",
+    "w": "#ffffff",
+    "g": "#ffd94a",
+    "b": "#e8a33a",
+    "d": "#b8742a",
+    "r": "#ff7eb6",
+    "q": "#d65a94",
+    "c": "#6b4329"
+  },
+  "frames": {
+    "still": [
+      "....kk....kk....",
+      "...krrkkkkrrk...",
+      "...krrrqqrrrk...",
+      "....kkgbbdkk....",
+      "....kgbbbbdk....",
+      "....kgwbbbdk....",
+      "...kgwbbbbbdk...",
+      "...kgbbbbbbdk...",
+      "...kgbbbbbbdk...",
+      "..kgbbbbbbbbdk..",
+      ".kgbbbbbbbbbbdk.",
+      ".kddddddddddddk.",
+      "..kkkkkcckkkkk..",
+      ".......kk.......",
+      "................",
+      "................"
+    ]
   }
 }
