@@ -1,0 +1,150 @@
+{
+  "items": [
+    {
+      "id": "plain-treat",
+      "kind": "treat",
+      "name": {
+        "en": "plain-treat",
+        "sl": "plain-treat"
+      },
+      "likedBy": {
+        "species": [],
+        "types": []
+      }
+    },
+    {
+      "id": "sun-treat",
+      "kind": "treat",
+      "name": {
+        "en": "sun-treat",
+        "sl": "sun-treat"
+      },
+      "likedBy": {
+        "species": [],
+        "types": [
+          "sun"
+        ]
+      }
+    },
+    {
+      "id": "rain-treat",
+      "kind": "treat",
+      "name": {
+        "en": "rain-treat",
+        "sl": "rain-treat"
+      },
+      "likedBy": {
+        "species": [],
+        "types": [
+          "rain"
+        ]
+      }
+    },
+    {
+      "id": "bloom-treat",
+      "kind": "treat",
+      "name": {
+        "en": "bloom-treat",
+        "sl": "bloom-treat"
+      },
+      "likedBy": {
+        "species": [],
+        "types": [
+          "bloom"
+        ]
+      }
+    },
+    {
+      "id": "gale-treat",
+      "kind": "treat",
+      "name": {
+        "en": "gale-treat",
+        "sl": "gale-treat"
+      },
+      "likedBy": {
+        "species": [],
+        "types": [
+          "gale"
+        ]
+      }
+    },
+    {
+      "id": "storm-treat",
+      "kind": "treat",
+      "name": {
+        "en": "storm-treat",
+        "sl": "storm-treat"
+      },
+      "likedBy": {
+        "species": [],
+        "types": [
+          "storm"
+        ]
+      }
+    },
+    {
+      "id": "hello-note",
+      "kind": "quest",
+      "quest": "first-round",
+      "name": {
+        "en": "hello-note",
+        "sl": "hello-note"
+      },
+      "description": {
+        "en": "The hello-note to deliver.",
+        "sl": "The hello-note to deliver."
+      }
+    },
+    {
+      "id": "shrine-bell",
+      "kind": "quest",
+      "quest": "bell",
+      "name": {
+        "en": "shrine-bell",
+        "sl": "shrine-bell"
+      },
+      "description": {
+        "en": "The shrine-bell to deliver.",
+        "sl": "The shrine-bell to deliver."
+      }
+    },
+    {
+      "id": "wind-gauge",
+      "kind": "quest",
+      "quest": "wind-readings",
+      "name": {
+        "en": "wind-gauge",
+        "sl": "wind-gauge"
+      },
+      "description": {
+        "en": "The wind-gauge to deliver.",
+        "sl": "The wind-gauge to deliver."
+      }
+    },
+    {
+      "id": "grey-letter",
+      "kind": "quest",
+      "quest": "grey-letter",
+      "name": {
+        "en": "grey-letter",
+        "sl": "grey-letter"
+      },
+      "description": {
+        "en": "The grey-letter to deliver.",
+        "sl": "The grey-letter to deliver."
+      }
+    },
+    {
+      "id": "feather",
+      "kind": "material",
+      "name": {
+        "en": "feather",
+        "sl": "feather"
+      },
+      "description": {
+        "en": "A feather.",
+        "sl": "A feather."
+      }
+    }
+  ]
+}

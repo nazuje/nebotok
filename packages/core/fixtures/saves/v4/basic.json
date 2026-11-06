@@ -1,0 +1,77 @@
+{
+  "v": 4,
+  "data": {
+    "name": "Test Courier",
+    "language": "en",
+    "createdAt": "2026-05-02T10:00:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 12,
+      "y": 9,
+      "facing": "left"
+    },
+    "team": [
+      {
+        "species": "sun-blob",
+        "level": 7,
+        "xp": 40,
+        "hp": 26,
+        "moves": [
+          "sun-tap",
+          "sun-wallop",
+          "sun-call",
+          "storm-tap"
+        ]
+      },
+      {
+        "species": "gale-blob",
+        "level": 3,
+        "xp": 0,
+        "hp": 0,
+        "moves": [
+          "gale-tap",
+          "gale-wallop",
+          "gale-call",
+          "frost-tap"
+        ]
+      }
+    ],
+    "storage": [],
+    "inventory": [
+      {
+        "item": "plain-treat",
+        "count": 3
+      },
+      {
+        "item": "gale-treat",
+        "count": 1
+      }
+    ],
+    "lastShrine": {
+      "map": "post-island",
+      "shrine": "post-shrine"
+    },
+    "seen": [
+      "sun-blob",
+      "gale-blob",
+      "bloom-blob"
+    ],
+    "befriended": [
+      "sun-blob",
+      "gale-blob"
+    ],
+    "story": {
+      "active": [
+        {
+          "quest": "restless-grass",
+          "step": 0,
+          "count": 1
+        }
+      ],
+      "done": [
+        "first-round"
+      ],
+      "flags": []
+    }
+  }
+}

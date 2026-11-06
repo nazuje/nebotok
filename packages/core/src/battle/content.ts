@@ -52,6 +52,7 @@ function linkProblems({ weather, moves, species, items }: BattleContent): string
     }
   }
   for (const item of items.values()) {
+    if (item.kind !== 'treat') continue;
     for (const id of item.likedBy.species) if (!species.has(id)) problems.push(`items.json "${item.id}": likedBy.species names "${id}", which is not in species.json`);
     for (const id of item.likedBy.types) if (!weather.has(id)) problems.push(`items.json "${item.id}": likedBy.types names "${id}", which is not a weather type`);
   }

@@ -1,0 +1,68 @@
+{
+  "description": "Story golden: two quests open at once, events counted for each, a refill of treats asked for with none left, stopped part way through the storm chapter.",
+  "commands": [
+    {
+      "talk": "bavko",
+      "answers": [
+        null
+      ],
+      "starter": "bloom-blob"
+    },
+    {
+      "talk": "bavko",
+      "answers": [
+        1
+      ]
+    },
+    {
+      "talk": "tobolko",
+      "answers": []
+    },
+    {
+      "talk": "bavko",
+      "answers": [
+        1
+      ]
+    },
+    {
+      "talk": "tobolko",
+      "answers": [
+        1
+      ]
+    },
+    {
+      "event": {
+        "kind": "rested",
+        "shrine": "shrine"
+      }
+    },
+    {
+      "talk": "mehurka",
+      "answers": []
+    },
+    {
+      "event": {
+        "kind": "battleWon",
+        "zone": "meadow"
+      }
+    },
+    {
+      "event": {
+        "kind": "battleWon",
+        "zone": "meadow"
+      }
+    },
+    {
+      "event": {
+        "kind": "rested",
+        "shrine": "shrine"
+      }
+    },
+    {
+      "talk": "tobolko",
+      "answers": []
+    }
+  ],
+  "botCommands": 6,
+  "expectedHash": "08f3490f9c1c99"
+}

@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TURN_BUDGET_MS } from '../../apps/game/src/battle-playback.ts';
-import { MAX_TEAM, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
+import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
 import { battleIdle, meetWildCreature, nextFrames, readState, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
@@ -60,6 +60,7 @@ export function battleSave(world, { name, language }) {
       lastShrine: { map: world.map.id, shrine },
       seen: owned,
       befriended: owned,
+      story: emptyStory(),
     },
   };
 }

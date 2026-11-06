@@ -1,0 +1,55 @@
+{
+  "npc": "tobolko",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "at": "deliver-note"
+        },
+        {
+          "has": "hello-note",
+          "count": 1
+        }
+      ],
+      "node": "note"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "note": {
+      "say": {
+        "en": "A note from Bavko? For me? Thank you!",
+        "sl": "Sporočilo od Bavka? Zame? Hvala!"
+      },
+      "mood": "surprised",
+      "effects": [
+        {
+          "take": "hello-note",
+          "count": 1
+        },
+        {
+          "completeStep": "first-round",
+          "step": "deliver-note"
+        }
+      ],
+      "next": "bag"
+    },
+    "bag": {
+      "say": {
+        "en": "Your bag holds treats for wild creatures. Look inside any time.",
+        "sl": "V torbi imaš poslastice za divja bitja. Poglej vanjo, kadar želiš."
+      },
+      "mood": "happy"
+    },
+    "idle": {
+      "say": {
+        "en": "Treats, bags, and more treats. That's my job!",
+        "sl": "Poslastice, torbe in še več poslastic. To je moje delo!"
+      },
+      "mood": "happy"
+    }
+  }
+}

@@ -15,6 +15,9 @@ import {
   SERVER_MESSAGES,
   StarterChooseMessage,
   StorageSwapMessage,
+  TalkEndMessage,
+  TalkNextMessage,
+  TalkStartMessage,
   TeamReorderMessage,
   WalkHoldMessage,
   WalkStopMessage,
@@ -226,6 +229,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       ),
       [CLIENT_MESSAGES.storageSwap]: validate(StorageSwapMessage, (client: Client, { team, storage }) => this.storageSwap(client, team, storage)),
       [CLIENT_MESSAGES.moveChoose]: validate(MoveChooseMessage, (client: Client, { offer, forget }) => this.chooseMove(client, offer, forget)),
+      // Talking comes with the story server; until then every talk request is refused.
+      [CLIENT_MESSAGES.talkStart]: validate(TalkStartMessage, (client: Client) => this.notYet(client, CLIENT_MESSAGES.talkStart)),
+      [CLIENT_MESSAGES.talkNext]: validate(TalkNextMessage, (client: Client) => this.notYet(client, CLIENT_MESSAGES.talkNext)),
+      [CLIENT_MESSAGES.talkEnd]: validate(TalkEndMessage, (client: Client) => this.notYet(client, CLIENT_MESSAGES.talkEnd)),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -554,6 +561,11 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     private refuse(client: Client, request: string, reason: RefusalReason) {
       client.send(SERVER_MESSAGES.refused, { request, reason } satisfies Refused);
+    }
+
+    /** Refuses a request this server does not do yet, within the rate limit like every request. */
+    private notYet(client: Client, request: string) {
+      if (this.requestingSeat(client)) this.refuse(client, request, 'notNow');
     }
 
     private battleRequest(client: Client, request: string, wanted: BattleRequest) {

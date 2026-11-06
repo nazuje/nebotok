@@ -1,0 +1,73 @@
+{
+  "v": 4,
+  "data": {
+    "name": "Šimen Pozabljivec",
+    "language": "sl",
+    "createdAt": "2026-06-01T10:00:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 12,
+      "y": 9,
+      "facing": "up"
+    },
+    "team": [
+      {
+        "species": "gone-species",
+        "level": 5,
+        "xp": 0,
+        "hp": 20,
+        "moves": [
+          "sun-tap"
+        ]
+      },
+      {
+        "species": "glowbun",
+        "level": 7,
+        "xp": 10,
+        "hp": 22,
+        "moves": [
+          "sun-ray"
+        ]
+      }
+    ],
+    "storage": [],
+    "inventory": [
+      {
+        "item": "hello-note",
+        "count": 1
+      },
+      {
+        "item": "gone-treat",
+        "count": 1
+      }
+    ],
+    "lastShrine": null,
+    "seen": [
+      "glowbun",
+      "gone-species"
+    ],
+    "befriended": [
+      "glowbun"
+    ],
+    "story": {
+      "active": [
+        {
+          "quest": "first-round",
+          "step": 0,
+          "count": 0
+        },
+        {
+          "quest": "gone-quest",
+          "step": 2,
+          "count": 3
+        }
+      ],
+      "done": [
+        "old-round"
+      ],
+      "flags": [
+        "gone-flag"
+      ]
+    }
+  }
+}

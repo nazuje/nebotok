@@ -143,14 +143,14 @@ export type MoveOffer = { readonly offer: number; readonly index: number; readon
 export type BefriendResult = { readonly battle: string; readonly species: string; readonly placedIn: 'team' | 'storage' };
 
 /** Why the server did not do what a client asked. */
-export const REFUSAL_REASONS = ['notInBattle', 'inBattle', 'notNow', 'noItem', 'notAtShrine', 'full', 'invalid'] as const;
+export const REFUSAL_REASONS = ['notInBattle', 'inBattle', 'notNow', 'noItem', 'notAtShrine', 'full', 'invalid', 'tooFar', 'notTalking'] as const;
 export type RefusalReason = (typeof REFUSAL_REASONS)[number];
 
 /** `refused`: a request from this list was not done; `request` is its message type. */
 export type Refused = { readonly request: string; readonly reason: RefusalReason };
 
-/** `progress`: the player's own creatures and treats. Storage comes separately, at shrines. */
-export type ProgressMessage = Omit<Progress, 'storage'> & { readonly needsStarter: boolean };
+/** `progress`: the player's own creatures and items. Storage comes separately, at shrines, and the story as `story`. */
+export type ProgressMessage = Omit<Progress, 'storage' | 'story'> & { readonly needsStarter: boolean };
 
 export function progressMessage(progress: Progress): ProgressMessage {
   const { team, inventory, lastShrine, seen, befriended } = progress;

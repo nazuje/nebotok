@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { artSchemaFor } from './art.ts';
-import { MapId, playabilityProblems, readTiledMap } from './map.ts';
+import { MapId } from './map.ts';
 import { WELCOME_MESSAGE_KEYS } from './protocol.ts';
 
 export const LANGUAGES = ['en', 'sl'] as const;
@@ -100,6 +99,8 @@ export const REQUIRED_STRING_IDS = [
   'refused.notAtShrine',
   'refused.full',
   'refused.invalid',
+  'refused.tooFar',
+  'refused.notTalking',
   'battle.go',
   'battle.used',
   'battle.missed',
@@ -177,7 +178,7 @@ export type AvatarsFile = z.infer<typeof AvatarsFile>;
 /** Ids of creatures, moves and weather types: short lowercase words joined by dashes. */
 export const ContentId = z.string().regex(/^[a-z][a-z0-9-]{0,23}$/, 'ids are short lowercase words, such as "sun-tap"');
 
-function noRepeatedIds(entries: readonly { readonly id: string }[], key: string, ctx: z.RefinementCtx): void {
+export function noRepeatedIds(entries: readonly { readonly id: string }[], key: string, ctx: z.RefinementCtx): void {
   const ids = entries.map((entry) => entry.id);
   ids.forEach((id, at) => {
     if (ids.indexOf(id) !== at) ctx.addIssue({ code: 'custom', message: `"${id}" appears twice`, path: [key, at, 'id'] });
@@ -339,12 +340,28 @@ export const Treat = z.strictObject({
   id: ContentId,
   kind: z.literal('treat'),
   name: LocalizedText,
+  description: LocalizedText.optional(),
   likedBy: z.strictObject({ species: z.array(ContentId).max(100), types: z.array(ContentId).max(12) }),
 });
 export type Treat = z.infer<typeof Treat>;
 
-/** Everything a player can carry. Only treats so far; later kinds join this union by `kind`. */
-export const Item = z.discriminatedUnion('kind', [Treat]);
+/**
+ * Something a quest asks the player to carry, such as a letter to deliver. It belongs to `quest`,
+ * never goes into battle, and is taken from the bag when it is delivered.
+ */
+export const QuestItem = z.strictObject({ id: ContentId, kind: z.literal('quest'), name: LocalizedText, description: LocalizedText, quest: ContentId });
+export type QuestItem = z.infer<typeof QuestItem>;
+
+/** Something gathered for crafting. Nothing uses materials yet; Slice C (skills) does. */
+export const Material = z.strictObject({ id: ContentId, kind: z.literal('material'), name: LocalizedText, description: LocalizedText });
+export type Material = z.infer<typeof Material>;
+
+/** The kinds of things a player can carry. `content/inventory.json` sets how many of each fit in one stack. */
+export const ITEM_KINDS = ['quest', 'treat', 'material'] as const;
+export type ItemKind = (typeof ITEM_KINDS)[number];
+
+/** Everything a player can carry, by `kind`. */
+export const Item = z.discriminatedUnion('kind', [Treat, QuestItem, Material]);
 export type Item = z.infer<typeof Item>;
 
 export const ItemsFile = z.strictObject({ items: z.array(Item).min(1).max(1_000) }).superRefine(({ items }, ctx) => noRepeatedIds(items, 'items', ctx));
@@ -413,54 +430,3 @@ export const RenamedFile = z
     }
   });
 export type RenamedFile = z.infer<typeof RenamedFile>;
-
-/** Each file in `content/` and the schema it must match. A file not listed here is an error. */
-export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
-  'strings.json': StringsFile,
-  'world.json': WorldSettings,
-  'avatars.json': AvatarsFile,
-  'items.json': ItemsFile,
-  'encounters.json': EncountersFile,
-  'shrines.json': ShrinesFile,
-  'starters.json': StartersFile,
-  'creatures/weather.json': WeatherFile,
-  'creatures/moves.json': MovesFile,
-  'creatures/species.json': SpeciesFile,
-  'creatures/battle-rules.json': BattleRules,
-  'creatures/befriending.json': BefriendRules,
-  'creatures/renamed.json': RenamedFile,
-};
-
-/** Maps are `content/maps/<id>.tmj`, Tiled's JSON format; see content/AGENTS.md. */
-export const MAP_FILE = /^maps\/([a-z][a-z0-9-]*)\.tmj$/;
-
-/** A map file must convert into a rules map and be playable: spawn walkable, every walkable tile reachable. */
-export function tiledMapFile(id: string): z.ZodType {
-  return z.unknown().superRefine((raw, ctx) => {
-    const result = readTiledMap(id, raw);
-    const problems = result.ok ? playabilityProblems(result.map) : result.problems;
-    for (const message of problems) ctx.addIssue({ code: 'custom', message });
-  });
-}
-
-export function contentSchemaFor(fileName: string): z.ZodType | undefined {
-  const exact = CONTENT_SCHEMAS[fileName];
-  if (exact) return exact;
-  const map = MAP_FILE.exec(fileName);
-  if (map?.[1]) return tiledMapFile(map[1]);
-  // Art: sprites and tilesets in content/art/, whose schemas live in art.ts.
-  return artSchemaFor(fileName);
-}
-
-export type ContentCheck = { readonly ok: true } | { readonly ok: false; readonly problems: readonly string[] };
-
-export function checkContentFile(fileName: string, raw: unknown): ContentCheck {
-  const schema = contentSchemaFor(fileName);
-  if (!schema) return { ok: false, problems: [`no schema for content file "${fileName}"; add one to CONTENT_SCHEMAS`] };
-  const result = schema.safeParse(raw);
-  if (result.success) return { ok: true };
-  return {
-    ok: false,
-    problems: result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`),
-  };
-}

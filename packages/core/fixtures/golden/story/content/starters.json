@@ -1,0 +1,14 @@
+{
+  "species": [
+    "sun-blob",
+    "rain-blob",
+    "bloom-blob"
+  ],
+  "level": 5,
+  "items": [
+    {
+      "item": "plain-treat",
+      "count": 5
+    }
+  ]
+}
