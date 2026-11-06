@@ -1,0 +1,12 @@
+{
+  "species": {
+    "sun-blob": "glowbun",
+    "sun-cube": "dawnshell",
+    "rain-blob": "puddlepip",
+    "rain-cube": "drizzlesnail",
+    "frost-blob": "snowsnoot",
+    "storm-blob": "boltkit",
+    "gale-blob": "pinwhirl",
+    "bloom-blob": "bloomlet"
+  }
+}

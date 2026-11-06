@@ -32,6 +32,8 @@ export {
   ShrinesFile,
   TeamFaintedRules,
   StartersFile,
+  RenamedFile,
+  LearnsetEntry,
   LocalizedText,
   REQUIRED_STRING_IDS,
   StringsFile,
@@ -203,11 +205,11 @@ export { BattleContentError, battleContentProblems, loadBattleContent, type Batt
 export { battleCreature, maxHpAt, damageOf, effectivenessOf, fieldEffectOf, type DamageRoll } from './battle/damage.ts';
 export { startBattle, battleStep, legalActions, isLegalAction, canOfferTreat } from './battle/engine.ts';
 export { greedyPolicy, randomPolicy, befriendPolicy, BOT_POLICIES, BOT_NAMES, playBattle, type BattlePolicy, type BotName, type PlayedBattle } from './battle/bots.ts';
-export { mirroredSetup, simulateBots, type SimulationOptions, type SimulationReport } from './battle/simulate.ts';
+export { mirroredSetup, simulateBots, roundRobin, type SimulationOptions, type SimulationReport, type RoundRobinOptions, type SpeciesRecord } from './battle/simulate.ts';
 export { BattlePilot, BattleGoldenFile, battleReplay, battleReplayHash, type BattleReplay } from './battle/golden.ts';
 export { befriendChance, treatLiking, type BefriendInput, type TreatLiking } from './befriend.ts';
 export { rollEncounter, type WildEncounter } from './encounter.ts';
-export { encounterProblems, starterProblems, mapLinkProblems } from './content-links.ts';
+export { encounterProblems, starterProblems, mapLinkProblems, renamedProblems } from './content-links.ts';
 export {
   MAX_ITEM_COUNT,
   emptyProgress,
@@ -232,6 +234,7 @@ export {
   wildBattleSetup,
   teamAfterBattle,
   befriendedCreature,
+  renameSpecies,
   type Progress,
 } from './creatures.ts';
 export { xpForWin, xpToNextLevel, gainXp, sentOut, awardXp } from './growth.ts';

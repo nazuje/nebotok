@@ -24,7 +24,8 @@ changing Phaser code, and use Phaser 4 APIs only.
 - **Battles and teams** (`src/battles.ts`): the server's messages feed `src/battle-model.ts`,
   which always draws from the latest `BattleView` and uses a turn's events only to animate it
   (`src/battle-playback.ts`, at most `TURN_BUDGET_MS`). `src/battle-scene.ts` draws the field;
-  the battle, team and starter screens are HTML. Creature pictures come only from `creatureArt` in
+  the battle, team and starter screens are HTML. Creature pictures come only from `creatureTexture` and
+  `creaturePortrait` in
   `src/creature-art.ts`. With `?test=1&fake=<scenario>` the page battles its own fake server
   (`src/fake-server.ts`, the same core rules) instead of the real one.
 - **World drawing.** `src/world-feed.ts` copies the room's state into the view model

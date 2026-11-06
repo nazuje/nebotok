@@ -6,7 +6,7 @@ import { loadWorld } from '../src/world.ts';
 const world = loadWorld();
 const content = world.battle;
 const zone = world.encounters.get('post-meadow')!;
-const WILD = { species: 'rain-cube', level: 3 } as const;
+const WILD = { species: 'drizzlesnail', level: 3 } as const;
 
 const progressWith = (progress: Partial<Progress>): Progress => ({ ...emptyProgress(), ...progress });
 const begin = (progress: Progress, seed = 7): LiveBattle => beginBattle({ id: 'battle-1', seed, zone, wild: WILD, team: progress.team, content, now: 1_000 }).battle;
@@ -27,18 +27,19 @@ describe('wild creatures', () => {
   });
 
   it('play the same battle from the same seed, and another from another', () => {
-    const progress = progressWith({ team: [newCreature('sun-blob', 6, content)] });
+    const progress = progressWith({ team: [newCreature('glowbun', 6, content)] });
     const events = (seed: number) => playOut(begin(progress, seed)).events;
     expect(events(42)).toEqual(events(42));
-    expect(events(42)).not.toEqual(events(43));
+    // A short battle can play out the same from two seeds, so another seed is looked for among a few.
+    expect([43, 44, 45, 46, 47].some((seed) => JSON.stringify(events(seed)) !== JSON.stringify(events(42)))).toBe(true);
   });
 });
 
 describe('planning a request', () => {
-  const progress = progressWith({ team: [newCreature('sun-blob', 6, content)], inventory: [{ item: 'plain-treat', count: 1 }, { item: 'gale-treat', count: 1 }] });
+  const progress = progressWith({ team: [newCreature('glowbun', 6, content)], inventory: [{ item: 'plain-treat', count: 1 }, { item: 'gale-treat', count: 1 }] });
 
   it('allows a legal move and refuses one the creature does not know', () => {
-    const { state } = begin(progressWith({ team: [{ ...newCreature('sun-blob', 6, content), moves: ['sun-tap'] }] }));
+    const { state } = begin(progressWith({ team: [{ ...newCreature('glowbun', 6, content), moves: ['sun-tap'] }] }));
     expect(planRequest({ kind: 'move', slot: 0 }, state, progress, content)).toEqual({ ok: true, action: { kind: 'move', slot: 0 }, progress });
     expect(planRequest({ kind: 'move', slot: 3 }, state, progress, content)).toEqual({ ok: false, reason: 'notNow' });
     expect(planRequest({ kind: 'switch', index: 1 }, state, progress, content)).toEqual({ ok: false, reason: 'notNow' });
@@ -55,14 +56,14 @@ describe('planning a request', () => {
     const planned = planRequest({ kind: 'treat', itemId: 'plain-treat' }, state, progress, open);
     expect(planned).toEqual({ ok: true, action: { kind: 'treat', item: 'plain-treat' }, progress: { ...progress, inventory: [{ item: 'gale-treat', count: 1 }] } });
     expect(planRequest({ kind: 'treat', itemId: 'sun-treat' }, state, progress, open)).toEqual({ ok: false, reason: 'noItem' });
-    const crowded = { ...progress, team: Array.from({ length: MAX_TEAM }, () => newCreature('sun-blob', 1, content)), storage: Array.from({ length: STORAGE_LIMIT }, () => newCreature('sun-blob', 1, content)) };
+    const crowded = { ...progress, team: Array.from({ length: MAX_TEAM }, () => newCreature('glowbun', 1, content)), storage: Array.from({ length: STORAGE_LIMIT }, () => newCreature('glowbun', 1, content)) };
     expect(planRequest({ kind: 'treat', itemId: 'plain-treat' }, state, crowded, open)).toEqual({ ok: false, reason: 'full' });
   });
 });
 
 describe('ending a battle', () => {
   it('ends an abandoned battle as a run, or as a win once the wild creature fainted', () => {
-    const progress = progressWith({ team: [newCreature('sun-blob', 60, content)] });
+    const progress = progressWith({ team: [newCreature('glowbun', 60, content)] });
     const early = begin(progress);
     expect(abandonBattle(early)).toEqual([{ kind: 'ran', side: PLAYER_SIDE }, { kind: 'ended', winner: null, reason: 'ran' }]);
     expect(early.state).toMatchObject({ phase: 'over', outcome: { winner: null, reason: 'ran' } });
@@ -74,14 +75,14 @@ describe('ending a battle', () => {
   });
 
   it('keeps the health a lost battle left, and says the team fainted', () => {
-    const progress = progressWith({ team: [{ ...newCreature('sun-blob', 1, content), hp: 1 }] });
+    const progress = progressWith({ team: [{ ...newCreature('glowbun', 1, content), hp: 1 }] });
     const settled = settleBattle(progress, playOut(begin(progress)), content);
     expect(settled).toMatchObject({ rewards: [], befriended: null, fainted: true });
     expect(settled.progress.team[0]?.hp).toBe(0);
   });
 
   it('gives no experience for a run', () => {
-    const progress = progressWith({ team: [newCreature('sun-blob', 6, content)] });
+    const progress = progressWith({ team: [newCreature('glowbun', 6, content)] });
     const battle = begin(progress);
     playStep(battle, { kind: 'run' }, content);
     expect(settleBattle(progress, battle, content)).toEqual({ progress, rewards: [], befriended: null, fainted: false });
@@ -90,7 +91,7 @@ describe('ending a battle', () => {
 
 describe('storage refusals', () => {
   it('say full only when the side a creature goes to has no room', () => {
-    const full = progressWith({ team: Array.from({ length: MAX_TEAM }, () => newCreature('sun-blob', 1, content)) });
+    const full = progressWith({ team: Array.from({ length: MAX_TEAM }, () => newCreature('glowbun', 1, content)) });
     expect(storageRefusal(full, null, 0)).toBe('full');
     expect(storageRefusal(full, 7, null)).toBe('invalid');
     expect(storageRefusal(progressWith({}), 0, 0)).toBe('invalid');

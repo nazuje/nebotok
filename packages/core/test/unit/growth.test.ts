@@ -4,7 +4,7 @@ import { battleContent } from '../support/battle-content.ts';
 
 describe('growing', () => {
   it('levels up when the experience reaches the next level, keeping the rest and the damage taken', () => {
-    const creature = { ...newCreature('sun-blob', 5, battleContent), hp: 10 };
+    const creature = { ...newCreature('glowbun', 5, battleContent), hp: 10 };
     const grown = gainXp(creature, xpToNextLevel(5) + xpToNextLevel(6) + 3, battleContent);
     expect(grown).toMatchObject({ level: 7, xp: 3 });
     expect(maxHpOf(grown, battleContent) - grown.hp).toBe(maxHpOf(creature, battleContent) - 10);
@@ -12,14 +12,14 @@ describe('growing', () => {
   });
 
   it('stops at the top level and keeps a fainted creature fainted', () => {
-    expect(gainXp(newCreature('sun-blob', MAX_LEVEL, battleContent), 1_000, battleContent)).toMatchObject({ level: MAX_LEVEL, xp: 0 });
-    expect(gainXp({ ...newCreature('sun-blob', 5, battleContent), hp: 0 }, 1_000, battleContent).hp).toBe(0);
-    expect(() => gainXp(newCreature('sun-blob', 5, battleContent), -1, battleContent)).toThrow(RangeError);
+    expect(gainXp(newCreature('glowbun', MAX_LEVEL, battleContent), 1_000, battleContent)).toMatchObject({ level: MAX_LEVEL, xp: 0 });
+    expect(gainXp({ ...newCreature('glowbun', 5, battleContent), hp: 0 }, 1_000, battleContent).hp).toBe(0);
+    expect(() => gainXp(newCreature('glowbun', 5, battleContent), -1, battleContent)).toThrow(RangeError);
   });
 
   it('rewards the creatures that were sent out and still stand after a win', () => {
-    const team = [newCreature('rain-blob', 3, battleContent), newCreature('storm-blob', 60, battleContent), newCreature('sun-blob', 3, battleContent)];
-    const started = startBattle(wildBattleSetup(team, { species: 'gale-blob', level: 4 }, null), battleContent);
+    const team = [newCreature('puddlepip', 3, battleContent), newCreature('boltkit', 60, battleContent), newCreature('glowbun', 3, battleContent)];
+    const started = startBattle(wildBattleSetup(team, { species: 'pinwhirl', level: 4 }, null), battleContent);
     const rng = createRng(2);
     const switched = battleStep(started.state, [{ kind: 'switch', to: 1 }, { kind: 'move', slot: 0 }], rng, battleContent);
     const events = [...started.events, ...switched.events];
@@ -40,8 +40,8 @@ describe('growing', () => {
   });
 
   it('rewards nothing after a run', () => {
-    const team = [newCreature('rain-blob', 3, battleContent)];
-    const { state } = battleStep(startBattle(wildBattleSetup(team, { species: 'gale-blob', level: 4 }, null), battleContent).state, [{ kind: 'run' }, { kind: 'move', slot: 0 }], createRng(1), battleContent);
+    const team = [newCreature('puddlepip', 3, battleContent)];
+    const { state } = battleStep(startBattle(wildBattleSetup(team, { species: 'pinwhirl', level: 4 }, null), battleContent).state, [{ kind: 'run' }, { kind: 'move', slot: 0 }], createRng(1), battleContent);
     expect(awardXp(team, state, [0], battleContent)).toEqual({ team, rewards: [] });
   });
 });

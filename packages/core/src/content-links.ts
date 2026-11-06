@@ -1,5 +1,5 @@
 import type { BattleContent } from './battle/content.ts';
-import type { EncountersFile, ShrinesFile, StartersFile } from './content.ts';
+import type { EncountersFile, RenamedFile, ShrinesFile, StartersFile } from './content.ts';
 import type { WorldMap } from './map.ts';
 
 /** Every species and weather an encounter zone names must exist. */
@@ -21,6 +21,16 @@ export function starterProblems(starters: StartersFile, content: BattleContent):
   }
   if (problems.length === 0 && types.size !== starters.species.length) problems.push('starters.json: the starters must be of different weather types');
   for (const { item } of starters.items) if (!content.items.has(item)) problems.push(`starters.json: item "${item}" is not in items.json`);
+  return problems;
+}
+
+/** Every renamed species now stands in as one in species.json, and no old id is still a species of its own. */
+export function renamedProblems(renamed: RenamedFile, content: BattleContent): string[] {
+  const problems: string[] = [];
+  for (const [from, to] of Object.entries(renamed.species)) {
+    if (!content.species.has(to)) problems.push(`creatures/renamed.json: "${from}" becomes "${to}", which is not in species.json`);
+    if (content.species.has(from)) problems.push(`creatures/renamed.json: "${from}" is still in species.json`);
+  }
   return problems;
 }
 

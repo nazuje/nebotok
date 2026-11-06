@@ -52,11 +52,11 @@ type Scenario = { readonly progress: Progress; readonly wild: { readonly species
 
 const SCENARIOS: Readonly<Record<FakeScenario, () => Scenario>> = {
   // A new player: no creatures yet, then a weak wild creature to fight and befriend.
-  new: () => ({ progress: emptyProgress(), wild: { species: 'gale-blob', level: 2 }, weather: 'rain' }),
+  new: () => ({ progress: emptyProgress(), wild: { species: 'pinwhirl', level: 2 }, weather: 'rain' }),
   // One worn-out creature against a strong wild one: the whole team faints.
   faint: () => ({
-    progress: { ...emptyProgress(), team: [{ ...newCreature('sun-blob', 3, CONTENT), hp: 1 }], inventory: [{ item: 'plain-treat', count: 1 }], seen: ['sun-blob'], befriended: ['sun-blob'] },
-    wild: { species: 'rain-blob', level: 40 },
+    progress: { ...emptyProgress(), team: [{ ...newCreature('glowbun', 3, CONTENT), hp: 1 }], inventory: [{ item: 'plain-treat', count: 1 }], seen: ['glowbun'], befriended: ['glowbun'] },
+    wild: { species: 'puddlepip', level: 40 },
     weather: null,
   }),
 };

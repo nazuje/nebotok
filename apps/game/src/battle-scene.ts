@@ -127,9 +127,9 @@ export class BattleScene extends Scene {
     }
     const texture = creatureTexture(this, creature.species, side === 0 ? 'back' : 'front');
     let sprite = current;
-    if (!sprite || sprite.texture.key !== texture) {
+    if (!sprite || sprite.texture.key !== texture.key || sprite.frame.name !== texture.frame) {
       sprite?.destroy();
-      sprite = this.add.image(0, 0, texture);
+      sprite = this.add.image(0, 0, texture.key, texture.frame);
       this.sprites[side] = sprite;
     }
     const fx = this.fx[side];

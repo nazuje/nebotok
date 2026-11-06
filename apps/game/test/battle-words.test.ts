@@ -4,14 +4,14 @@ import { swappedOrder } from '../src/team-screen.ts';
 import { wildBattle } from './support/battle-messages.ts';
 
 describe('the words of a battle', () => {
-  const { started } = wildBattle([{ species: 'sun-blob', level: 5 }], { species: 'gale-blob', level: 3 }, 'rain');
+  const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 3 }, 'rain');
   const view = started.payload.battle;
 
   it('names creatures by species, and moves and weather by their own names, in each language', () => {
-    expect(lineText({ id: 'battle.used', creature: 'a1', move: 'sun-tap' }, view, 'en')).toBe('Sun Blob uses Sun Tap!');
+    expect(lineText({ id: 'battle.used', creature: 'a1', move: 'sun-tap' }, view, 'en')).toBe('Glowbun uses Sun Tap!');
     expect(lineText({ id: 'battle.weather', weather: 'rain' }, view, 'sl')).toBe('Vreme: Dež');
-    expect(lineText({ id: 'battle.befriended', species: 'gale-blob' }, view, 'en')).toBe('Gale Blob joins your team!');
-    expect(lineText({ id: 'battle.xp', creature: 'a1', xp: 18 }, view, 'sl')).toBe('Sončna kepica dobi 18 XP.');
+    expect(lineText({ id: 'battle.befriended', species: 'pinwhirl' }, view, 'en')).toBe('Pinwhirl joins your team!');
+    expect(lineText({ id: 'battle.xp', creature: 'a1', xp: 18 }, view, 'sl')).toBe('Sončni zajček dobi 18 XP.');
   });
 });
 

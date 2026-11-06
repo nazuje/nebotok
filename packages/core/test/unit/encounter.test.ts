@@ -8,8 +8,8 @@ const zone: EncounterZone = {
   encounterPercent: 25,
   weather: null,
   creatures: [
-    { species: 'sun-blob', minLevel: 2, maxLevel: 4, weight: 3 },
-    { species: 'rain-blob', minLevel: 7, maxLevel: 7, weight: 1 },
+    { species: 'glowbun', minLevel: 2, maxLevel: 4, weight: 3 },
+    { species: 'puddlepip', minLevel: 7, maxLevel: 7, weight: 1 },
   ],
 };
 
@@ -24,11 +24,11 @@ describe('wild encounters', () => {
     const met = Array.from({ length: 4_000 }, () => rollEncounter(zone, rng)).filter((wild) => wild !== null);
     expect(met.length).toBeGreaterThan(4_000 * 0.2);
     expect(met.length).toBeLessThan(4_000 * 0.3);
-    const rain = met.filter((wild) => wild.species === 'rain-blob');
+    const rain = met.filter((wild) => wild.species === 'puddlepip');
     expect(rain.length).toBeGreaterThan(met.length * 0.18);
     expect(rain.length).toBeLessThan(met.length * 0.32);
     expect(rain.every((wild) => wild.level === 7)).toBe(true);
-    expect(new Set(met.filter((wild) => wild.species === 'sun-blob').map((wild) => wild.level))).toEqual(new Set([2, 3, 4]));
+    expect(new Set(met.filter((wild) => wild.species === 'glowbun').map((wild) => wild.level))).toEqual(new Set([2, 3, 4]));
   });
 
   it('meets one every step at 100 percent', () => {

@@ -35,9 +35,9 @@ let colyseus: ColyseusTestServer;
 let world: WorldContent;
 const logged = capturedLog();
 
-/** The one wild creature of every test zone: it loves gale treats and does not care for the others. */
-const WILD = { species: 'rain-cube', level: 3 } as const;
-const FAVOURITE = 'gale-treat';
+/** The one wild creature of every test zone: it loves its favourite treat and does not care for plain ones. */
+const WILD = { species: 'drizzlesnail', level: 3 } as const;
+const favourite = (): string => world.battle.species.get(WILD.species)!.favouriteTreat!;
 const DISLIKED = 'plain-treat';
 
 beforeAll(async () => {
@@ -78,8 +78,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Requests are limited to REQUESTS_PER_SECOND, so the tests pace theirs. */
 const PACE_MS = Math.ceil(1_000 / REQUESTS_PER_SECOND) + 20;
 
-const strong = (level = 60): CreatureInstance => newCreature('sun-blob', level, world.battle);
-const weak = (): CreatureInstance => ({ ...newCreature('sun-blob', 1, world.battle), hp: 1 });
+const strong = (level = 60): CreatureInstance => newCreature('glowbun', level, world.battle);
+const weak = (): CreatureInstance => ({ ...newCreature('glowbun', 1, world.battle), hp: 1 });
 
 type Heard = { readonly type: string; readonly payload: unknown };
 type Inbox = { readonly heard: Heard[]; take<T>(type: string): Promise<T>; has(type: string): boolean };
@@ -154,14 +154,14 @@ describe('meeting wild creatures', () => {
   it('sends progress after welcome, starts a battle on a step into the grass, and holds the player still', async () => {
     const watcher = await player('Watching Courier', {}, { x: 20, y: 12 });
     const who = await player('Grass Courier', { team: [strong()] });
-    expect(who.progress).toMatchObject({ needsStarter: false, team: [{ species: 'sun-blob', level: 60 }] });
+    expect(who.progress).toMatchObject({ needsStarter: false, team: [{ species: 'glowbun', level: 60 }] });
 
     const { started, progress } = await meetWild(who);
     expect(started.events.map((event) => event.kind)).toEqual(['switched', 'switched']);
     expect(started.battle).toMatchObject({ phase: 'choose', turn: 0, canRun: true, canTreat: true, mustSwap: false, outcome: null });
     expect(started.battle.opponent.creatures).toEqual([expect.objectContaining({ id: 'b1', ...WILD })]);
     expect(started.battle.opponent.creatures[0]).not.toHaveProperty('moves');
-    expect(started.battle.team.creatures[0]).toMatchObject({ id: 'a1', species: 'sun-blob', moves: strong().moves });
+    expect(started.battle.team.creatures[0]).toMatchObject({ id: 'a1', species: 'glowbun', moves: strong().moves });
     expect(progress.seen).toContain(WILD.species);
     await until(() => me(who)?.inBattle === true && watcher.room.state.players.get(who.room.sessionId)?.inBattle === true, 'both to see the battle');
     await until(() => me(who)?.moving === false, 'the courier to stand');
@@ -222,15 +222,15 @@ describe('winning and losing', () => {
 
 describe('befriending', () => {
   it('welcomes a creature that takes its favourite treat onto the team', async () => {
-    const who = await player('Friendly Courier', { team: [strong()], inventory: [{ item: FAVOURITE, count: 1 }] });
+    const who = await player('Friendly Courier', { team: [strong()], inventory: [{ item: favourite(), count: 1 }] });
     const { started } = await meetWild(who);
-    const turn = await act(who, 'battle.treat', { itemId: FAVOURITE });
-    expect(turn.events).toContainEqual(expect.objectContaining({ kind: 'treatOffered', item: FAVOURITE, chance: 100, accepted: true }));
+    const turn = await act(who, 'battle.treat', { itemId: favourite() });
+    expect(turn.events).toContainEqual(expect.objectContaining({ kind: 'treatOffered', item: favourite(), chance: 100, accepted: true }));
     expect(turn.battle.outcome).toEqual({ winner: 0, reason: 'befriended' });
     expect(await who.box.take<BefriendResult>('battle.befriend')).toEqual({ battle: started.battle.id, species: WILD.species, placedIn: 'team' });
     expect((await who.box.take<BattleResult>('battle.result')).outcome.reason).toBe('befriended');
     const progress = await who.box.take<ProgressMessage>('progress');
-    expect(progress.team.map((creature) => creature.species)).toEqual(['sun-blob', WILD.species]);
+    expect(progress.team.map((creature) => creature.species)).toEqual(['glowbun', WILD.species]);
     expect(progress.team[1]).toMatchObject({ level: WILD.level, xp: 0, hp: maxHpOf(WILD, world.battle) });
     expect(progress.befriended).toContain(WILD.species);
     expect(progress.inventory).toEqual([]);
@@ -238,9 +238,9 @@ describe('befriending', () => {
   });
 
   it('sends a befriended creature to storage when the team is full', async () => {
-    const who = await player('Full Courier', { team: Array.from({ length: MAX_TEAM }, () => strong()), inventory: [{ item: FAVOURITE, count: 2 }] });
+    const who = await player('Full Courier', { team: Array.from({ length: MAX_TEAM }, () => strong()), inventory: [{ item: favourite(), count: 2 }] });
     await meetWild(who);
-    await act(who, 'battle.treat', { itemId: FAVOURITE });
+    await act(who, 'battle.treat', { itemId: favourite() });
     expect((await who.box.take<BefriendResult>('battle.befriend')).placedIn).toBe('storage');
     expect(saved(who.id)?.storage.map((creature) => creature.species)).toEqual([WILD.species]);
   });
@@ -254,7 +254,7 @@ describe('befriending', () => {
     expect((await who.box.take<ProgressMessage>('progress')).inventory).toEqual([{ item: DISLIKED, count: 1 }]);
 
     await sleep(PACE_MS);
-    who.room.send('battle.treat', { itemId: FAVOURITE });
+    who.room.send('battle.treat', { itemId: favourite() });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'battle.treat', reason: 'noItem' });
 
     const fainted = await act(who, 'battle.move', { slot: 0 });
@@ -279,7 +279,7 @@ describe('battle requests', () => {
       ['battle.switch', { index: 1 }, 'notNow'],
       ['team.reorder', { order: [0] }, 'inBattle'],
       ['storage.swap', { team: 0, storage: null }, 'inBattle'],
-      ['starter.choose', { species: 'rain-blob' }, 'inBattle'],
+      ['starter.choose', { species: 'puddlepip' }, 'inBattle'],
     ];
     await repeat(requests.length, async (index) => {
       const [type, payload, reason] = requests[index]!;
@@ -356,20 +356,20 @@ describe('starters, shrines, team and storage', () => {
   it('gives a new player the starter they choose, once', async () => {
     const who = await player('New Courier');
     expect(who.progress.needsStarter).toBe(true);
-    who.room.send('starter.choose', { species: 'storm-blob' });
+    who.room.send('starter.choose', { species: 'boltkit' });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'invalid' });
     await sleep(PACE_MS);
-    who.room.send('starter.choose', { species: 'rain-blob' });
+    who.room.send('starter.choose', { species: 'puddlepip' });
     const progress = await who.box.take<ProgressMessage>('progress');
-    expect(progress).toMatchObject({ needsStarter: false, team: [{ species: 'rain-blob', level: world.starters.level }], inventory: world.starters.items, befriended: ['rain-blob'] });
+    expect(progress).toMatchObject({ needsStarter: false, team: [{ species: 'puddlepip', level: world.starters.level }], inventory: world.starters.items, befriended: ['puddlepip'] });
     expect(saved(who.id)?.team).toHaveLength(1);
     await sleep(PACE_MS);
-    who.room.send('starter.choose', { species: 'sun-blob' });
+    who.room.send('starter.choose', { species: 'glowbun' });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'notNow' });
   });
 
   it('heals the team at a shrine, remembers it, and swaps with storage only there', async () => {
-    const stored = newCreature('frost-blob', 4, world.battle);
+    const stored = newCreature('snowsnoot', 4, world.battle);
     const who = await player('Resting Courier', { team: [{ ...strong(), hp: 3 }, weak()], storage: [stored] }, { x: shrineTile().x - 3, y: shrineTile().y });
     who.room.send('storage.swap', { team: 1, storage: 0 });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'storage.swap', reason: 'notAtShrine' });
@@ -385,15 +385,15 @@ describe('starters, shrines, team and storage', () => {
 
     await sleep(PACE_MS);
     who.room.send('storage.swap', { team: 1, storage: 0 });
-    expect((await who.box.take<ProgressMessage>('progress')).team.map((creature) => creature.species)).toEqual(['sun-blob', 'frost-blob']);
+    expect((await who.box.take<ProgressMessage>('progress')).team.map((creature) => creature.species)).toEqual(['glowbun', 'snowsnoot']);
     expect((await who.box.take<StorageMessage>('storage')).storage).toEqual([{ ...weak(), hp: maxHpOf(weak(), world.battle) }]);
 
     await sleep(PACE_MS);
     who.room.send('team.reorder', { order: [1, 0] });
-    expect((await who.box.take<ProgressMessage>('progress')).team.map((creature) => creature.species)).toEqual(['frost-blob', 'sun-blob']);
+    expect((await who.box.take<ProgressMessage>('progress')).team.map((creature) => creature.species)).toEqual(['snowsnoot', 'glowbun']);
     await sleep(PACE_MS);
     who.room.send('team.reorder', { order: [0, 1, 2] });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'team.reorder', reason: 'invalid' });
-    expect(saved(who.id)).toMatchObject({ lastShrine: { shrine: 'post-shrine' }, team: [{ species: 'frost-blob' }, { species: 'sun-blob' }] });
+    expect(saved(who.id)).toMatchObject({ lastShrine: { shrine: 'post-shrine' }, team: [{ species: 'snowsnoot' }, { species: 'glowbun' }] });
   });
 });
