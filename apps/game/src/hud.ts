@@ -28,13 +28,15 @@ export function welcomeLine(shown: WelcomeMessageKey | null, company: boolean | 
   return shown === 'welcome.alone' ? shown : null;
 }
 
+export type ToastKind = 'refused' | 'news';
+
 export type Hud = {
   setStatus(status: ConnectionStatus): void;
   setWelcome(welcome: Welcome | undefined): void;
   /** Whether anyone else is in the world right now, away players included. */
   setCompany(company: boolean): void;
-  /** A short message at the bottom of the screen for TOAST_MS. */
-  toast(id: StringId): void;
+  /** A short message at the bottom of the screen for TOAST_MS: something refused, or good news. */
+  toast(id: StringId, kind?: ToastKind): void;
   setLanguage(language: Language): void;
   state(): { welcome: WelcomeMessageKey | null; toast: StringId | null };
 };
@@ -95,8 +97,9 @@ export function createHud(language: Language): Hud {
       welcome = line;
       render();
     },
-    toast: (id) => {
+    toast: (id, kind = 'refused') => {
       toast = id;
+      toastText.dataset.kind = kind;
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => {
         toast = null;

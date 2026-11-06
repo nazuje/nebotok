@@ -21,11 +21,20 @@ changing Phaser code, and use Phaser 4 APIs only.
   `tileToScreen(x, y)` (a tile's centre in CSS pixels). Scripts wait
   on `ready` and read state there; add a field to the snapshot when a test needs to see new state,
   and keep the hook read-only.
+- **Battles and teams** (`src/battles.ts`): the server's messages feed `src/battle-model.ts`,
+  which always draws from the latest `BattleView` and uses a turn's events only to animate it
+  (`src/battle-playback.ts`, at most `TURN_BUDGET_MS`). `src/battle-scene.ts` draws the field;
+  the battle, team and starter screens are HTML. Creature pictures come only from `creatureArt` in
+  `src/creature-art.ts`. With `?test=1&fake=<scenario>` the page battles its own fake server
+  (`src/fake-server.ts`, the same core rules) instead of the real one.
 - **World drawing.** `src/world-feed.ts` copies the room's state into the view model
   (`src/world-view.ts`), which `src/world-scene.ts` reads every frame. Others are drawn
   `OTHERS_DELAY_MS` in the past along their `src/track.ts` so each step is smooth; prediction of
   your own courier lives in the view model too (`src/self-walker.ts`), not the scene. Names over
   couriers are HTML (`src/names.ts`).
+- **Art** comes from `content/art/`, bundled by `src/sprites.ts`, which makes each sprite a
+  Phaser texture with its frames and animations; `src/tileset-art.ts` draws and animates map
+  tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`).
 - **Input** (`src/input.ts`) sends every movement command through `src/outbox.ts`, which keeps
   a page under the server's message limits however fast it is tapped or mashed.
 - Unit tests for pure helpers go in `test/` (`npx vitest run --project game-unit`); anything that

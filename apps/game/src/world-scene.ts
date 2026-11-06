@@ -1,7 +1,9 @@
 import { PLAYER_SPAWN, type Point } from '@nebotok/core';
-import { Loader, Scale, Scene, Scenes, Tilemaps, type GameObjects, type Time, type Tweens } from 'phaser';
+import { Scale, Scene, Scenes, Tilemaps, type GameObjects, type Time, type Tweens } from 'phaser';
 import { courierTexture, frameName, walkAnimation } from './couriers.ts';
 import type { LoadedMap } from './map-loader.ts';
+import { loadArtImages } from './sprites.ts';
+import { tilesetArt, type TilesetArt } from './tileset-art.ts';
 import type { ShownPlayer, WorldView } from './world-view.ts';
 import { TILE } from './zoom.ts';
 
@@ -29,7 +31,7 @@ const AWAY_ALPHA = 0.5;
 const AWAY_TINT = 0xb8c4d0;
 
 /** A name to show above a courier, at a spot on the page in CSS pixels. */
-export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly x: number; readonly y: number };
+export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly x: number; readonly y: number };
 
 export type WorldSceneOptions = {
   readonly view: WorldView;
@@ -39,7 +41,8 @@ export type WorldSceneOptions = {
   labels(labels: readonly NameLabel[]): void;
 };
 
-const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotion = () => REDUCED_MOTION.matches;
 
 /** The world: the map's tiles and every player's courier, drawn from the client's view model. */
 export class WorldScene extends Scene {
@@ -51,6 +54,8 @@ export class WorldScene extends Scene {
   private shownPlayers: readonly ShownPlayer[] = [];
   private followed: GameObjects.Sprite | null = null;
   private currentMap: Tilemaps.Tilemap | null = null;
+  private readonly tilesets = new Map<string, TilesetArt>();
+  private tiles: TilesetArt | null = null;
   private spawnTile: Point = { x: 0, y: 0 };
   private markBooted: () => void = () => {};
   private marker: GameObjects.Graphics | null = null;
@@ -80,16 +85,21 @@ export class WorldScene extends Scene {
   /** Draws a map's tiles, replacing any map shown before. */
   async showMap(map: LoadedMap): Promise<void> {
     if (this.mapId === map.id) return;
-    const key = `tiles-${map.id}`;
-    if (!this.textures.exists(key)) await this.loadImage(key, map.tilesetUrl);
+    await loadArtImages();
+    let tiles = this.tilesets.get(map.tilesetArt);
+    if (!tiles) {
+      tiles = tilesetArt(this, map.tilesetArt);
+      this.tilesets.set(map.tilesetArt, tiles);
+    }
     if (!this.cache.tilemap.exists(map.id)) this.cache.tilemap.add(map.id, { format: Tilemaps.Formats.TILED_JSON, data: map.raw });
     this.currentMap?.destroy();
     const tilemap = this.make.tilemap({ key: map.id });
-    const tileset = tilemap.addTilesetImage(map.tilesetName, key);
+    const tileset = tilemap.addTilesetImage(map.tilesetName, tiles.key);
     if (!tileset) throw new Error(`map ${map.id} has no tileset named ${map.tilesetName}`);
     map.tileLayers.forEach((name, index) => tilemap.createLayer(name, tileset, 0, 0)?.setDepth(index));
     this.cameras.main.setBounds(0, 0, tilemap.widthInPixels, tilemap.heightInPixels);
     this.currentMap = tilemap;
+    this.tiles = tiles;
     this.spawnTile = map.world.spawns[PLAYER_SPAWN] ?? { x: 0, y: 0 };
     this.mapId = map.id;
     if (!this.followed) this.centreOnSpawn();
@@ -98,6 +108,7 @@ export class WorldScene extends Scene {
   override update(): void {
     const now = performance.now();
     this.options.frame(now);
+    if (!reducedMotion()) this.tiles?.animate(now);
     const view = this.options.view;
     const shown = this.mapId === null ? [] : view.shown(now);
     const seen = new Set<string>();
@@ -168,14 +179,6 @@ export class WorldScene extends Scene {
     return { x: canvas.left + (worldX - view.x) * scale, y: canvas.top + (worldY - view.y) * scale };
   }
 
-  private loadImage(key: string, url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.load.once(Loader.Events.COMPLETE, () => (this.textures.exists(key) ? resolve() : reject(new Error(`could not load ${url}`))));
-      this.load.image(key, url);
-      this.load.start();
-    });
-  }
-
   private centreOnSpawn(): void {
     this.cameras.main.centerOn(this.spawnTile.x * TILE + TILE / 2, this.spawnTile.y * TILE + TILE / 2);
   }
@@ -244,7 +247,7 @@ export class WorldScene extends Scene {
       const sprite = this.sprites.get(player.id);
       if (player.self || !sprite) return [];
       const at = this.toScreen(Math.round(sprite.x), Math.round(sprite.y) - TILE / 2);
-      return [{ id: player.id, name: player.name, away: !player.connected, x: at.x, y: at.y }];
+      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, x: at.x, y: at.y }];
     });
   }
 }

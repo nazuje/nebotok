@@ -1,0 +1,28 @@
+{
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "s": "#8fd3ff",
+    "c": "#e9f6ff"
+  },
+  "frames": {
+    "still": [
+      "ssssssssssssssss",
+      "ssssssssssssssss",
+      "ssssssssssssssss",
+      "ssssssssssssssss",
+      "ssscssssssssssss",
+      "sssssssssscsssss",
+      "ssssscssscsscsss",
+      "sssssccsssssscss",
+      "sssssscssssscsss",
+      "sssssssssscsccss",
+      "sssssssssssscsss",
+      "ssssssssssssssss",
+      "ssssssssssssssss",
+      "ssssssssssssssss",
+      "ssssssssssssssss",
+      "ssssssssssssssss"
+    ]
+  }
+}

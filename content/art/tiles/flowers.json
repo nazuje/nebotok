@@ -1,0 +1,31 @@
+{
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "g": "#5bbf5b",
+    "d": "#47a44c",
+    "l": "#7ad66f",
+    "p": "#ff7eb6",
+    "y": "#ffd94a"
+  },
+  "frames": {
+    "still": [
+      "dglggggggggggggg",
+      "dggglgggggggglgd",
+      "gggdggdgggdpgggg",
+      "gdgygdggllpgpgdg",
+      "ggygyggglglpgggd",
+      "gdlygggggggggdgg",
+      "gggggggglgdggggg",
+      "ggdggggggdgggggg",
+      "gdddgggglggggglg",
+      "ggglggdygggglggg",
+      "ggggggygygglgdgg",
+      "gglgglgygggggygg",
+      "gggggglglgggygyg",
+      "glgggggggggggygg",
+      "gggdgggggggggggd",
+      "gggllggggggdglgg"
+    ]
+  }
+}

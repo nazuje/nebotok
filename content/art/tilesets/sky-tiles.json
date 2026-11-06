@@ -1,0 +1,21 @@
+{
+  "columns": 4,
+  "tiles": [
+    "tiles/sky",
+    "tiles/grass",
+    "tiles/flowers",
+    "tiles/path",
+    "tiles/water",
+    "tiles/cliff",
+    "tiles/tree",
+    "tiles/fence",
+    "tiles/wall",
+    "tiles/roof",
+    "tiles/door",
+    "tiles/bush",
+    "tiles/tall-grass",
+    "tiles/path-edge",
+    "tiles/sign",
+    "tiles/shrine"
+  ]
+}
