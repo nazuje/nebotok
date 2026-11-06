@@ -1,14 +1,15 @@
 // The starter choice and the battle, team and storage screens, played the way a player would against
-// the real server. A battle's outcome is the server's dice, so each part plays until it gets what it
-// checks, within a bounded number of turns or battles: a team worn down to one point of health that
+// the real server. One turn is left to play at its own pace and then tapped through; every other
+// turn is tapped through at once, as a player in a hurry would. A battle's outcome is the server's
+// dice, so each part plays until it gets what it checks, within a bounded number of turns or battles: a team worn down to one point of health that
 // only calls the weather loses, and treats a creature loves, offered once it is tired, befriend it.
 // The player starts from a save the check prepares (scripts/lib/prepared-saves.mjs), so the team,
 // the creature waiting at the shrine and the last shrine are known before the first step.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { TURN_BUDGET_MS } from '../../apps/game/src/battle-playback.ts';
+import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
 import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
-import { battleIdle, meetWildCreature, nextFrames, readState, until, walkByTaps } from './game-page.mjs';
+import { battleIdle, meetWildCreature, nextFrames, readState, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -24,9 +25,10 @@ const STARTERS = readContent('starters.json');
 const TREATS = [...CONTENT.items.values()].filter((item) => item.kind === 'treat');
 const MAX_TURNS = 40;
 const MAX_BEFRIEND_BATTLES = 4;
-/** Room for the page's clock, the server's reply and the check's polling on top of a turn's playback. */
-const TURN_SLACK_MS = 700;
+/** How much sooner than it did a line can seem to go, as the check sees each line up to a poll late. */
+const POLL_SLACK_MS = 250;
 const TREATS_EACH = 10;
+const WEATHER_NAMES = new Map(readContent('creatures/weather.json').types.map((type) => [type.id, type.name]));
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 const nameOf = (species, language) => CONTENT.species.get(species)?.name[language] ?? species;
@@ -78,8 +80,30 @@ export async function chooseStarter(page, { say, expect, check }) {
   return state;
 }
 
+/** The weather badge on the field: shown with the weather's name while there is weather, hidden without. */
+async function weatherShown(page, battle, { language, expect }) {
+  const badge = page.locator('#battle .battle-weather');
+  if (battle.weather === null) {
+    expect(!(await badge.isVisible()), 'the field shows a weather badge without weather');
+    return;
+  }
+  const name = WEATHER_NAMES.get(battle.weather)?.[language];
+  expect((await badge.isVisible()) && (await textOf(page, '#battle .battle-weather')) === name, `the weather badge says "${await textOf(page, '#battle .battle-weather')}", not "${name}"`);
+}
+
+/** The line under a disabled treat button, saying why, as the menu gives it. */
+async function treatReasonShown(page, battle, { say, expect }) {
+  const reason = page.locator('#battle-treat-reason');
+  if (battle.menu.treatReason === null) {
+    expect((await reason.count()) === 0, 'a treat reason shows while a treat can be offered');
+    return;
+  }
+  expect((await textOf(page, '#battle-treat-reason')) === say(battle.menu.treatReason), `the treat reason says "${await textOf(page, '#battle-treat-reason')}", not "${say(battle.menu.treatReason)}"`);
+  expect((await page.locator('#battle .battle-treat').getAttribute('aria-describedby')) === 'battle-treat-reason', 'the disabled treat button does not point at its reason');
+}
+
 /** The battle on screen as the server says it is: the creatures out, the background, the buttons and the line. */
-async function firstLook(page, { expect }) {
+async function firstLook(page, { language, say, expect }) {
   await nextFrames(page);
   const { battle } = await readState(page);
   expect(battle.drawn?.creatures[0] === battle.team[battle.active]?.species && battle.drawn?.creatures[1] === battle.opponent?.species, `the field drew ${JSON.stringify(battle.drawn)}, not the creatures out`);
@@ -90,30 +114,63 @@ async function firstLook(page, { expect }) {
   expect((await page.locator('#battle .battle-treat').isEnabled()) === battle.menu.treat, 'the treat button does not follow canTreat');
   expect((await page.locator('#battle .battle-team').isEnabled()) === battle.menu.team, 'the team button does not follow the team');
   expect((await textOf(page, '#battle .battle-line')) === battle.lineText, `the line says "${await textOf(page, '#battle .battle-line')}", not "${battle.lineText}"`);
+  await weatherShown(page, battle, { language, expect });
+  await treatReasonShown(page, battle, { say, expect });
 }
 
-/** Taps the field while the turn plays, which must jump to its end. */
-async function skipTurn(page, before, { expect, seen }) {
-  const playing = await until(page, (s) => s.battle?.playing === true || (s.battle !== null && battleIdle(s) && s.battle.turn > before.battle.turn), 'the turn to play', 5_000);
-  if (!playing.battle.playing) return;
-  await page.locator('#battle .battle-field').tap();
+const tapField = (page) => page.locator('#battle .battle-field').tap();
+const lineMoved = (line) => (s) => !s.battle?.playing || s.battle.lineText !== line;
+
+/**
+ * A turn's pace, untouched and then tapped: its second line stays up at least `LINE_MIN_MS`
+ * (screenshotted the first time), a tap moves on to the next line, and a second quick tap jumps to
+ * the end of the turn. A turn too short for all of it is tried again on the next one.
+ */
+async function paceTurn(page, before, { expect, check, notes, seen }) {
+  const done = (s) => s.battle === null || s.battle.panel === 'result' || (battleIdle(s) && s.battle.turn > before.battle.turn);
+  const first = await until(page, (s) => s.battle?.playing === true || done(s), 'the turn to play', 5_000);
+  if (!first.battle?.playing) return;
+  const second = await until(page, lineMoved(first.battle.lineText), 'the turn’s second line', 10_000);
+  if (!second.battle?.playing) return;
+  const shownAt = Date.now();
+  if (!seen.midLine) {
+    seen.midLine = true;
+    await nextFrames(page);
+    await check('a line while the turn plays', 'b2-line');
+  }
+  const third = await until(page, lineMoved(second.battle.lineText), 'the turn’s next line', 10_000);
+  const held = Date.now() - shownAt;
+  if (!seen.paced) notes.push(`a ${second.battle.lineText.length}-character battle line stayed up ${held}ms untouched (seen up to a poll late)`);
+  seen.paced = true;
+  expect(held >= LINE_MIN_MS - POLL_SLACK_MS, `the line "${second.battle.lineText}" stayed up only ${held}ms, not the ${LINE_MIN_MS}ms every line gets`);
+  if (!third.battle?.playing) return;
+  await tapField(page);
+  const tapped = await readState(page);
+  expect(!tapped.battle?.playing || tapped.battle.lineText !== third.battle.lineText, `a tap left the line "${third.battle.lineText}" up`);
+  if (!tapped.battle?.playing) return;
+  await tapField(page);
+  const skipped = await readState(page);
+  expect(!skipped.battle?.playing, 'a second quick tap did not jump to the end of the turn');
   seen.skipped = true;
-  const after = await readState(page);
-  expect(!after.battle?.playing, 'a tap during a turn did not skip to its end');
+}
+
+/** The first time the field has weather, waiting for a choice or on the result: the badge, screenshotted. */
+async function weatherOnce(page, state, { language, expect, check, seen }) {
+  if (state.battle.weather === null || seen.weather) return;
+  seen.weather = true;
+  await nextFrames(page);
+  await weatherShown(page, state.battle, { language, expect });
+  await check('the weather on the field', 'f2-weather');
 }
 
 /** One turn after another until the result, `choose` making each choice; written as recursion so each waits for the one before. */
 async function nextTurn(page, state, turn, choose, options) {
+  await weatherOnce(page, state, options);
   if (state.battle.panel === 'result') return state;
   if (turn >= MAX_TURNS) throw new Error(`battle ${state.battle.id} still going after ${MAX_TURNS} choices`);
-  const { seen } = options;
   await choose(state);
-  const sentAt = Date.now();
-  if (seen.skipped) {
-    await until(page, battleIdle, 'the turn to finish', 10_000);
-    seen.longestMs = Math.max(seen.longestMs, Date.now() - sentAt);
-  } else await skipTurn(page, state, options);
-  return nextTurn(page, await until(page, battleIdle, 'the turn to finish', 10_000), turn + 1, choose, options);
+  if (!options.seen.skipped) await paceTurn(page, state, options);
+  return nextTurn(page, await untilTappingThrough(page, battleIdle, 'the turn to finish', 10_000), turn + 1, choose, options);
 }
 
 /** The forced team picker after a creature faints: the first creature that can go out. */
@@ -166,12 +223,12 @@ async function continueToWorld(page) {
 }
 
 /** With one point of health and only the weather call, the team faints; the player wakes rested at the last shrine. */
-async function loseAll(page, world, { shrine, say, expect, check, notes }) {
+async function loseAll(page, world, { shrine, language, say, expect, check, notes, seen }) {
   await meetWildCreature(page, world, { notes });
-  let state = await until(page, battleIdle, 'the battle menu', 15_000);
-  await firstLook(page, { expect });
+  let state = await untilTappingThrough(page, battleIdle, 'the battle menu', 15_000);
+  await firstLook(page, { language, say, expect });
   const choose = (current) => (current.battle.panel === 'team' ? sendNext(page) : tapMove(page, harmlessSlot(current.battle.menu.moves)));
-  state = await nextTurn(page, state, 0, choose, { expect, seen: { skipped: false, longestMs: 0 } });
+  state = await nextTurn(page, state, 0, choose, { language, expect, check, notes, seen });
   expect(state.battle.outcome?.winner === 1 && state.battle.woke?.shrine === shrine, `the battle ended ${JSON.stringify(state.battle.outcome)}, waking ${JSON.stringify(state.battle.woke)}, not the team fainting and waking at ${shrine}`);
   await resultSays(page, say('battle.teamFainted'), { expect, check }, 'f4-result');
   const back = await continueToWorld(page);
@@ -185,18 +242,24 @@ async function loseAll(page, world, { shrine, say, expect, check, notes }) {
 async function befriend(page, world, options, tries = 1) {
   const { language, say, expect, check, notes, seen } = options;
   await meetWildCreature(page, world, { notes });
-  const start = await until(page, battleIdle, 'the battle menu', 15_000);
+  const start = await untilTappingThrough(page, battleIdle, 'the battle menu', 15_000);
   if (tries === 1) {
-    await firstLook(page, { expect });
+    await firstLook(page, { language, say, expect });
     await check('the battle menu', 'b2-battle');
   }
   const wild = start.battle.opponent.species;
-  const choose = (current) => {
+  const choose = async (current) => {
     if (current.battle.panel === 'team') return sendNext(page);
+    if (current.battle.phase === 'befriend' && !seen.done) {
+      seen.done = true;
+      const label = await textOf(page, '#battle .battle-run');
+      expect(label === say('battle.done'), `after the wild creature fainted the leave button says "${label}", not "${say('battle.done')}"`);
+      await check('the end of the battle after the wild creature fainted', 'b3-done');
+    }
     if (current.battle.menu.treat) return offerTreat(page, wild, { language, check, seen });
     return tapMove(page, gentlestSlot(current.battle.menu.moves));
   };
-  const state = await nextTurn(page, start, 0, choose, { expect, seen });
+  const state = await nextTurn(page, start, 0, choose, { language, expect, check, notes, seen });
   const { outcome, befriended } = state.battle;
   if (outcome?.reason === 'befriended') {
     const wanted = say(befriended?.placedIn === 'storage' ? 'battle.befriendedStored' : 'battle.befriended').replace('{creature}', nameOf(befriended?.species, language));
@@ -218,9 +281,40 @@ async function openTeam(page, say, expect) {
   return opened;
 }
 
-async function closeTeam(page) {
+/** Close is on screen without scrolling, wherever the cards above it are scrolled to. */
+export async function closeInView(page, expect) {
+  const inView = await page
+    .waitForFunction(
+      () => {
+        const box = document.querySelector('#team .team-close')?.getBoundingClientRect();
+        return box !== undefined && box.bottom > box.top && box.top >= 0 && box.bottom <= window.innerHeight;
+      },
+      null,
+      { timeout: 3_000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  if (inView) return;
+  const at = await page.evaluate(() => {
+    const box = document.querySelector('#team .team-close')?.getBoundingClientRect();
+    return { top: box?.top ?? null, bottom: box?.bottom ?? null, height: window.innerHeight, screen: document.body.dataset.screen };
+  });
+  expect(false, `the team screen's Close is at ${JSON.stringify(at)}, not on the screen`);
+}
+
+async function closeTeam(page, expect) {
+  await closeInView(page, expect);
   await page.locator('#team .team-close').tap();
   return until(page, (s) => s.screen === 'world', 'the world after closing the team');
+}
+
+/** Shows the shrine's Team or Storage tab. */
+async function showTab(page, tab) {
+  await page.locator(`#team .team-tab[data-tab="${tab}"]`).tap();
+  await until(page, (s) => s.teamScreen?.tab === tab, `the ${tab} tab`);
+  await nextFrames(page);
 }
 
 /** The team screen lists the creature that just joined, and two creatures tapped one after the other swap places. */
@@ -237,19 +331,17 @@ async function teamScreen(page, joined, { language, say, expect, check }) {
   await until(page, (s) => s.teamScreen?.selected === 0, 'the first creature picked');
   await page.locator('#team .team-pick').nth(1).tap();
   await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === second, 'the two creatures to swap places');
-  await closeTeam(page);
+  await closeTeam(page, expect);
 }
 
-/** Scrolls the shrine's storage into view once the toast about resting there has gone, so the screenshot shows it. */
-async function storageInView(page) {
-  await until(page, (s) => s.toast === null, 'the toast about resting to go', 6_000);
-  await page.locator('#team .team-card.stored').last().scrollIntoViewIfNeeded();
-  await nextFrames(page);
-}
+/** Waits for the toast about resting at the shrine to go, so the screenshot shows the screen under it. */
+const toastGone = (page) => until(page, (s) => s.toast === null, 'the toast about resting to go', 6_000);
 
 /**
- * At the shrine the team screen also lists storage. With the team full, the last creature is picked
- * and swapped for the one waiting there (Take along), then another is left there (Leave here).
+ * At the shrine the team screen has a Storage tab. With the team full and no creature picked, Take
+ * along waits with a line saying to pick one first; the last creature is picked and swapped for the
+ * one waiting there (Take along), then another is left there (Leave here). Close stays on screen
+ * with the cards scrolled to the bottom.
  */
 async function shrineStorage(page, world, { shrine, say, expect, check, notes }) {
   await walkByTaps(page, world, world.map.shrines[shrine], { notes });
@@ -258,21 +350,33 @@ async function shrineStorage(page, world, { shrine, say, expect, check, notes })
   const team = state.progress.team.map((creature) => creature.species);
   const stored = state.storage.storage.map((creature) => creature.species);
   expect(team.length === MAX_TEAM, `the team has ${team.length} creatures at the shrine, not a full ${MAX_TEAM}`);
-  expect((await page.locator('#team .storage-take').count()) === stored.length, 'the team screen does not offer to take along each stored creature');
+  expect((await page.locator('#team .team-tab').count()) === 2, 'the team screen at the shrine has no Team and Storage tabs');
   expect((await page.locator('#team .team-store').count()) === team.length, 'the team screen does not offer to leave each creature here');
-  await storageInView(page);
+  await page.locator('#team .team-card').last().scrollIntoViewIfNeeded();
+  await toastGone(page);
+  await nextFrames(page);
+  await closeInView(page, expect);
+  await check('the team tab at the shrine', 'b6-team-tab');
+  await showTab(page, 'storage');
+  expect((await page.locator('#team .storage-take').count()) === stored.length, 'the storage tab does not offer to take along each stored creature');
+  expect(!(await page.locator('#team .storage-take').first().isEnabled()), 'Take along is offered with the team full and no creature picked');
+  expect((await textOf(page, '#team .storage-reason')) === say('storage.pickFirst'), `the storage tab says "${await textOf(page, '#team .storage-reason')}", not to pick a creature first`);
   await check('storage at the shrine', 'b6-storage');
+  await showTab(page, 'team');
   const last = team.length - 1;
   await page.locator('#team .team-pick').nth(last).tap();
   await until(page, (s) => s.teamScreen?.selected === last, 'the last creature picked');
+  await showTab(page, 'storage');
   await page.locator('#team .storage-take').first().tap();
   state = await until(page, (s) => s.progress?.team[last]?.species === stored[0] && s.storage?.storage[0]?.species === team[last], 'the picked creature and the stored one to swap');
+  await showTab(page, 'team');
   await page.locator('#team .team-store').nth(1).tap();
   state = await until(page, (s) => s.progress?.team.length === MAX_TEAM - 1 && s.storage?.storage.length === stored.length + 1, 'a creature to be left at the shrine');
   expect(state.storage.storage.at(-1)?.species === team[1], `the shrine keeps ${state.storage.storage.at(-1)?.species}, not ${team[1]}, who was left there`);
-  await storageInView(page);
+  expect((await readState(page)).toast === null, 'a swap at the shrine showed the toast about resting again, over Close');
+  await showTab(page, 'storage');
   await check('storage after taking one along and leaving one', 'b7-stored');
-  await closeTeam(page);
+  await closeTeam(page, expect);
 }
 
 /**
@@ -284,11 +388,13 @@ async function shrineStorage(page, world, { shrine, say, expect, check, notes })
 export async function playBattles(page, world, { shrine, language, strings, expect, check, notes }) {
   const say = (id) => strings[id][language];
   await until(page, (s) => s.screen === 'world' && (s.progress?.team.length ?? 0) > 0, 'the world with the prepared team');
-  await loseAll(page, world, { shrine, say, expect, check, notes });
-  const seen = { treats: false, skipped: false, longestMs: 0 };
+  const seen = { treats: false, paced: false, skipped: false, midLine: false, weather: false, done: false };
+  await loseAll(page, world, { shrine, language, say, expect, check, notes, seen });
   const joined = await befriend(page, world, { language, say, expect, check, notes, seen });
-  expect(seen.skipped, 'no turn played long enough to skip');
-  expect(seen.longestMs < TURN_BUDGET_MS + TURN_SLACK_MS, `a turn took ${seen.longestMs}ms to play`);
+  expect(seen.paced, 'no turn played long enough to time a line');
+  expect(seen.skipped, 'no turn played long enough to tap through');
+  if (!seen.weather) notes.push('no battle had weather, so the weather badge was not seen');
+  if (!seen.done) notes.push('no wild creature fainted, so the Done button after it faints was not seen');
   expect(joined?.placedIn === 'team', `the befriended creature went to ${joined?.placedIn}, not the team`);
   await teamScreen(page, joined, { language, say, expect, check });
   await shrineStorage(page, world, { shrine, say, expect, check, notes });

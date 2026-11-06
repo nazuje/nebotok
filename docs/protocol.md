@@ -232,7 +232,8 @@ and `ended`.
    `befriendChance` once: more likely the more tired the creature, with its favourite treat (or one
    its weather type likes) and the lower its level. Accepted, the creature joins the team, or storage
    when the team has 6 (`addCreature`), at full health, and `befriended` gains its species. A
-   refused treat in phase `befriend` ends the battle as a win.
+   refused treat in phase `befriend` ends the battle as a win, and so does `battle.run` there
+   (the game's Done button), which plays no line about running away.
 4. **End.** The server sends the last `battle.turn` (ending in `ended`), then `battle.befriend`
    if a treat was accepted, then `battle.result`, then the first `move.offer` if there is one,
    then `progress`. The team keeps the health it ended with (`teamAfterBattle`). A win or a

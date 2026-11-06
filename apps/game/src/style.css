@@ -959,9 +959,40 @@ body:not([data-screen='world']) .team-button {
   box-shadow: var(--shadow);
 }
 
-.battle-card.foe {
+/* The wild creature's card, with the weather under it, in the field's top left corner. */
+.battle-top {
+  position: absolute;
   top: 0;
   left: 0;
+  width: min(15rem, 52%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.battle-card.foe {
+  position: static;
+  width: 100%;
+}
+
+.battle-weather {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-weight: 800;
+}
+
+.weather-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
 }
 
 .battle-card.mine {
@@ -1032,8 +1063,17 @@ body:not([data-screen='world']) .team-button {
   hyphens: auto;
 }
 
+.battle-reason {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 .battle .secondary:disabled,
-.battle-choice:disabled {
+.battle-choice:disabled,
+#team .secondary:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -1101,7 +1141,81 @@ body:not([data-screen='world']) .team-button {
   pointer-events: none;
 }
 
-/* Team and storage */
+/* Team and storage: the title, tabs and Close stay put while the cards between them scroll. */
+
+#team {
+  display: flex;
+  flex-direction: column;
+}
+
+.team-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.team-head,
+.team-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-scroll {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+}
+
+.team-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.team-tab {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.team-tab[aria-selected='true'] {
+  background: var(--accent);
+  color: white;
+}
+
+.tab-count {
+  flex: none;
+  min-width: 1.75em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e6eef6;
+  color: var(--ink);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.team-keep {
+  text-align: center;
+}
 
 .team-list {
   display: grid;

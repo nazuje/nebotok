@@ -52,6 +52,7 @@ import {
   tilesToScreen,
   until,
   untilPastBattles,
+  untilTappingThrough,
   walkByTaps,
   watch,
 } from './lib/game-page.mjs';
@@ -308,7 +309,7 @@ async function runAfterTurn(page, state, expect) {
   if (!(state.battle.panel === 'menu' && state.battle.menu.run)) return null;
   await nextFrames(page);
   await page.locator('#battle .battle-run').tap();
-  return until(page, (s) => battleIdle(s) && s.battle.panel === 'result', 'the result after running', 15_000);
+  return untilTappingThrough(page, (s) => battleIdle(s) && s.battle.panel === 'result', 'the result after running', 15_000);
 }
 
 /**
@@ -317,7 +318,7 @@ async function runAfterTurn(page, state, expect) {
  */
 async function wildBattle(page, bot, { expect, check, notes }) {
   await meetWildCreature(page, bot, { notes });
-  await until(page, battleIdle, 'the wild battle to offer a choice', 15_000);
+  await untilTappingThrough(page, battleIdle, 'the wild battle to offer a choice', 15_000);
   await nextFrames(page);
   const { battle, progress } = await readState(page);
   const fighter = battle.team[battle.active];
@@ -326,7 +327,7 @@ async function wildBattle(page, bot, { expect, check, notes }) {
   expect(battle.menu.moves.length > 0 && (await page.locator('#battle .move').count()) === battle.menu.moves.length, `the wild battle offers ${JSON.stringify(battle.menu)}`);
   await check('the wild battle', '11-wild-battle');
   await page.locator('#battle .move').first().tap();
-  const turned = await until(page, (s) => battleIdle(s) && (s.battle.turn > battle.turn || s.battle.panel === 'result'), 'the first turn against the wild creature', 15_000);
+  const turned = await untilTappingThrough(page, (s) => battleIdle(s) && (s.battle.turn > battle.turn || s.battle.panel === 'result'), 'the first turn against the wild creature', 15_000);
   const ended = await runAfterTurn(page, turned, expect);
   if (!ended) {
     await leaveBattle(page);
@@ -339,6 +340,24 @@ async function wildBattle(page, bot, { expect, check, notes }) {
   const back = await until(page, (s) => s.screen === 'world' && s.battle === null && s.progress !== null, 'the world after the wild battle');
   expect(back.progress.team.length >= 1, 'the team is empty after the wild battle');
   await walkByTaps(page, bot, bot.map.spawns[PLAYER_SPAWN], { notes });
+}
+
+/**
+ * At a shrine with only the starter, the team screen never offers to leave it there (the server
+ * refuses, core `swapStorage`) and says it stays with you instead.
+ */
+async function keepOne(page, bot, { language, expect, check, notes }) {
+  const shrine = Object.keys(bot.map.shrines).toSorted()[0];
+  await walkByTaps(page, bot, bot.map.shrines[shrine], { notes });
+  await until(page, (s) => s.storage?.shrine === shrine, `the storage of ${shrine} after resting there`);
+  await page.locator('.team-button').tap();
+  const opened = await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
+  await until(page, (s) => s.toast === null, 'the toast about resting to go', 6_000);
+  await nextFrames(page);
+  expect(opened.progress?.team.length === 1, `the new player has ${opened.progress?.team.length} creatures, not just the starter`);
+  expect((await page.locator('#team .team-store').count()) === 0, 'the team screen offers to leave the only creature at the shrine');
+  expect((await textOf(page, '#team .team-keep')) === STRINGS['storage.keepOne'][language], `the team screen says "${await textOf(page, '#team .team-keep')}" about the only creature`);
+  await check('the team screen with one creature at a shrine', 'b5-team');
 }
 
 /**
@@ -755,10 +774,7 @@ async function checkAddPin(browser, browserName, language, bot) {
       await shot(step);
     };
     await wildBattle(page, bot, { expect, check, notes });
-    await page.locator('.team-button').tap();
-    await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
-    await nextFrames(page);
-    await check('the team screen', 'b5-team');
+    await keepOne(page, bot, { language, expect, check, notes });
     await page.locator('#team .team-close').tap();
     await until(page, (s) => s.screen === 'world', 'the world after closing the team');
     await signOut(page);

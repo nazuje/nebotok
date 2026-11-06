@@ -56,7 +56,7 @@ describe('art schemas', () => {
       '(root): creatures sprites need a frame "back"',
     ]);
     expect(problems('art/couriers/courier.json', tile()).join()).toContain('need a frame "down-stand"');
-    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items, characters, portraits, effects']);
+    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items, weather, characters, portraits, effects']);
   });
 });
 
@@ -109,6 +109,7 @@ describe('loadArt', () => {
       'species "glowbun" needs the sprite creatures/glowbun (content/art/creatures/glowbun.json)',
       'species "glowbun" needs the sprite icons/glowbun (content/art/icons/glowbun.json)',
       'weather "sun" needs the sprite backgrounds/sun (content/art/backgrounds/sun.json)',
+      'weather "sun" needs the sprite weather/sun (content/art/weather/sun.json)',
       'item "berry" needs the sprite items/berry (content/art/items/berry.json)',
       'npc "bavko" needs the sprite characters/bavko (content/art/characters/bavko.json)',
       'npc "bavko" needs the sprite portraits/bavko (content/art/portraits/bavko.json)',
