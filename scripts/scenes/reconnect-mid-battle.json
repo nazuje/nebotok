@@ -1,0 +1,24 @@
+{
+  "name": "reconnect-mid-battle",
+  "about": "A courier loses the connection in the middle of a wild battle: the same battle comes back by itself once the page reconnects, and it goes on to the next turn.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "iphone-portrait", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "walk", "player": "lan", "to": { "x": 17, "y": 12 } },
+    { "do": "walk", "player": "zarja", "to": { "x": 19, "y": 11 } },
+    { "do": "wait", "ms": 5000 },
+    { "do": "meet", "player": "lan" },
+    { "do": "fight", "player": "lan", "slot": 3, "shot": "before-drop" },
+    { "do": "drop", "player": "lan", "ms": 3000 },
+    { "do": "waitFor", "player": "zarja", "until": { "away": ["lan"] }, "shot": "dropped" },
+    { "do": "waitFor", "player": "lan", "until": { "connection": "connected", "battle": "menu", "sameBattle": true }, "ms": 20000, "shot": "back" },
+    { "do": "waitFor", "player": "zarja", "until": { "sees": ["lan"], "battling": ["lan"] } },
+    { "do": "fight", "player": "lan", "slot": 3, "shot": "goes-on" },
+    { "do": "run", "player": "lan" },
+    { "do": "waitFor", "player": "lan", "until": { "battle": "none", "settled": true }, "shot": "after" }
+  ]
+}

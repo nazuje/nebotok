@@ -1,4 +1,4 @@
-import { SERVER_MESSAGES, type BattleResult, type BattleView, type BefriendResult, type ProgressMessage, type StorageMessage } from '@nebotok/core';
+import { SERVER_MESSAGES, samePoint, shrineAt, type BattleResult, type BattleView, type BefriendResult, type Point, type ProgressMessage, type StorageMessage, type WorldMap } from '@nebotok/core';
 import type { ServerMessage } from './battle-link.ts';
 import { lineAt, playback, playbackMs, shownOf, stepAt, type Effect, type Line, type Shown, type Step } from './battle-playback.ts';
 
@@ -92,7 +92,14 @@ export type BattleModel = {
   close(): void;
   /** Forgets everything, as when the world is left. */
   reset(): void;
+  /**
+   * Your courier stands on `tile`, as the server last said. Once it moves on to a tile out of reach
+   * of the shrine whose storage was sent, that storage is forgotten: the server swaps only at a
+   * shrine, and sends its storage again when the courier comes back.
+   */
+  standingAt(map: WorldMap, tile: Point): void;
   progress(): ProgressMessage | null;
+  /** The creatures waiting at the shrine the courier stands by, if the server sent them. */
   storage(): StorageMessage | null;
   battle(now: number): BattleScreenState | null;
 };
@@ -105,6 +112,9 @@ export type BattleModel = {
 export function createBattleModel(): BattleModel {
   let progress: ProgressMessage | null = null;
   let storage: StorageMessage | null = null;
+  // The tile the courier stood on when storage last arrived, or since; the message can come before
+  // the state that moves the courier onto the shrine, so only a step after it counts.
+  let storageSeenFrom: Point | null = null;
   let battle: Battle | null = null;
   let updates = 0;
 
@@ -158,6 +168,7 @@ export function createBattleModel(): BattleModel {
           break;
         case SERVER_MESSAGES.storage:
           storage = message.payload;
+          storageSeenFrom = null;
           break;
         case SERVER_MESSAGES.battleStarted:
           update(message.payload.battle, message.payload.events, now, true);
@@ -201,7 +212,14 @@ export function createBattleModel(): BattleModel {
     reset: () => {
       progress = null;
       storage = null;
+      storageSeenFrom = null;
       battle = null;
+    },
+    standingAt: (map, tile) => {
+      if (!storage || (storageSeenFrom && samePoint(storageSeenFrom, tile))) return;
+      const moved = storageSeenFrom !== null;
+      storageSeenFrom = tile;
+      if (moved && shrineAt(map, tile) !== storage.shrine) storage = null;
     },
     progress: () => progress,
     storage: () => storage,
