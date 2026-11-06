@@ -22,6 +22,52 @@ export type SimulationReport = {
   readonly longestTurns: number;
 };
 
+export type RoundRobinOptions = {
+  readonly seeds: readonly (number | string)[];
+  readonly level: number;
+};
+
+/** How one species fared one on one against every other species. */
+export type SpeciesRecord = {
+  readonly species: string;
+  readonly type: string;
+  readonly battles: number;
+  readonly wins: number;
+  readonly draws: number;
+};
+
+/**
+ * Every species battles every other one on one at the same level, greedy bot against greedy bot,
+ * once per seed from each side, so neither moving first on a speed tie nor the seeds favour one.
+ * Records come in species id order.
+ */
+export function roundRobin(content: BattleContent, options: RoundRobinOptions): SpeciesRecord[] {
+  const ids = [...content.species.keys()].toSorted();
+  const records = ids.map((id) => ({ species: id, type: content.species.get(id)?.type ?? '', battles: 0, wins: 0, draws: 0 }));
+  const tally = new Map(records.map((record) => [record.species, record]));
+  const greedy = BOT_POLICIES.greedy;
+  for (const [a, first] of ids.entries()) {
+    for (const second of ids.slice(a + 1)) {
+      for (const seed of options.seeds) {
+        for (const [left, right] of [[first, second], [second, first]] as const) {
+          const setup: BattleSetup = { sides: [{ creatures: [{ species: left, level: options.level }] }, { creatures: [{ species: right, level: options.level }] }], weather: null };
+          const key = `${left}:${right}:${seed}`;
+          const { state } = playBattle(setup, [greedy, greedy], createRng(`battle:${key}`), createRng(`bots:${key}`), content);
+          const winner = state.outcome?.winner ?? null;
+          for (const [side, id] of [left, right].entries()) {
+            const record = tally.get(id);
+            if (!record) continue;
+            record.battles += 1;
+            if (winner === null) record.draws += 1;
+            else if (winner === side) record.wins += 1;
+          }
+        }
+      }
+    }
+  }
+  return records;
+}
+
 /** The same random team for both sides, so only the bots differ. */
 export function mirroredSetup(content: BattleContent, seed: number | string, teamSize: number, level: number): BattleSetup {
   const rng = createRng(`teams:${seed}`);

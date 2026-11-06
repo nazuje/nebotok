@@ -33,10 +33,15 @@ describe('battle content', () => {
     expect([...battleContent.weather.values()].map((type) => type.name.en).toSorted()).toEqual(['Bloom', 'Frost', 'Gale', 'Rain', 'Storm', 'Sun']);
   });
 
-  it('has 6 to 8 placeholder creatures that know four moves each', () => {
-    expect(battleContent.species.size).toBeGreaterThanOrEqual(6);
-    expect(battleContent.species.size).toBeLessThanOrEqual(8);
-    for (const entry of battleContent.species.values()) expect(entry.moves).toHaveLength(4);
+  it('has three placeholder creatures of each weather type, each knowing four moves and learning more', () => {
+    const species = [...battleContent.species.values()];
+    for (const type of battleContent.weather.keys()) expect(species.filter((entry) => entry.type === type)).toHaveLength(3);
+    for (const entry of species) {
+      expect(entry.placeholder).toBe(true);
+      expect(entry.moves).toHaveLength(4);
+      expect(entry.learnset?.length).toBeGreaterThanOrEqual(6);
+      expect(entry.description?.sl).toBeTruthy();
+    }
   });
 
   it('writes Slovenian names with Slovenian letters', () => {
@@ -100,6 +105,25 @@ describe('battle content', () => {
     const [plain] = battleFiles.items.items;
     expect(checkContentFile('items.json', { items: [{ ...plain, kind: 'hat' }] }).ok).toBe(false);
     expect(checkContentFile('items.json', { items: [plain, plain] }).ok).toBe(false);
+  });
+
+  it('accepts a learnset that starts with the four moves at level 1 and rises from there', () => {
+    const learnset = [...goodSpecies.moves.map((move) => ({ level: 1, move })), { level: 9, move: 'rain-tap' }];
+    expect(checkContentFile('creatures/species.json', { species: [{ ...goodSpecies, learnset }] })).toEqual({ ok: true });
+    expect(battleContentProblems({ ...battleFiles, species: { species: [{ ...goodSpecies, learnset }] } })).toEqual([]);
+  });
+
+  it('rejects a learnset whose level 1 moves are not the four moves, that goes back in level, or repeats a move', () => {
+    const start = goodSpecies.moves.map((move) => ({ level: 1, move }));
+    const wrongStart = [...start.slice(0, 3), { level: 1, move: 'rain-tap' }];
+    const backwards = [...start, { level: 9, move: 'rain-tap' }, { level: 5, move: 'gale-tap' }];
+    const twice = [...start, { level: 9, move: 'sun-tap' }];
+    for (const learnset of [wrongStart, backwards, twice]) expect(checkContentFile('creatures/species.json', { species: [{ ...goodSpecies, learnset }] }).ok).toBe(false);
+  });
+
+  it('reports a learnset move no file has', () => {
+    const learnset = [...goodSpecies.moves.map((move) => ({ level: 1, move })), { level: 9, move: 'moon-tap' }];
+    expect(battleContentProblems({ ...battleFiles, species: { species: [{ ...goodSpecies, learnset }] } })).toEqual(['species.json "test-blob": learns "moon-tap" at level 9, which is not in moves.json']);
   });
 
   it('reports a creature with only weather moves', () => {

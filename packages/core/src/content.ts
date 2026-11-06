@@ -169,7 +169,7 @@ export const AvatarsFile = z
 export type AvatarsFile = z.infer<typeof AvatarsFile>;
 
 /** Ids of creatures, moves and weather types: short lowercase words joined by dashes. */
-export const ContentId = z.string().regex(/^[a-z][a-z0-9-]{0,23}$/, 'ids are short lowercase words, such as "sun-blob"');
+export const ContentId = z.string().regex(/^[a-z][a-z0-9-]{0,23}$/, 'ids are short lowercase words, such as "sun-tap"');
 
 function noRepeatedIds(entries: readonly { readonly id: string }[], key: string, ctx: z.RefinementCtx): void {
   const ids = entries.map((entry) => entry.id);
@@ -236,18 +236,48 @@ const BaseStat = z.number().int().min(1).max(255);
 export const MAX_LEVEL = 100;
 export const CreatureLevel = z.number().int().min(1).max(MAX_LEVEL);
 
+/** A move a species learns when it reaches `level`. */
+export const LearnsetEntry = z.strictObject({ level: CreatureLevel, move: ContentId });
+export type LearnsetEntry = z.infer<typeof LearnsetEntry>;
+
+/**
+ * A learnset lists every move a species learns, in rising level order, each move once. It starts
+ * with the species' four `moves` at level 1, in slot order, so a new creature knows those; every
+ * later move is learned above level 1.
+ */
+function learnsetIssues({ moves, learnset }: { moves: readonly string[]; learnset?: readonly LearnsetEntry[] | undefined }): string[] {
+  if (!learnset) return [];
+  const issues: string[] = [];
+  const start = learnset.filter((entry) => entry.level === 1).map((entry) => entry.move);
+  if (start.join() !== moves.join()) issues.push(`the level 1 moves must be the four moves, in order: ${moves.join(', ')}`);
+  if (learnset.some((entry, at) => at > 0 && entry.level < (learnset[at - 1]?.level ?? 1))) issues.push('the moves are listed in rising level order');
+  const ids = learnset.map((entry) => entry.move);
+  ids.forEach((id, at) => {
+    if (ids.indexOf(id) !== at) issues.push(`"${id}" is learned twice`);
+  });
+  return issues;
+}
+
 export const Species = z
   .strictObject({
     id: ContentId,
     name: LocalizedText,
+    /** One short line about the creature, for players. */
+    description: LocalizedText.optional(),
     type: ContentId,
+    /** Stands in until a real design replaces it. */
+    placeholder: z.boolean().optional(),
     stats: z.strictObject({ hp: BaseStat, attack: BaseStat, defense: BaseStat, speed: BaseStat }),
-    /** Every creature knows exactly four moves. */
+    /** Every creature knows exactly four moves: these, at first. */
     moves: z.array(ContentId).length(4),
+    learnset: z.array(LearnsetEntry).min(4).max(40).optional(),
     /** A treat in items.json this species loves most. See `treatLiking` in befriend.ts. */
     favouriteTreat: ContentId.optional(),
   })
-  .refine((species) => new Set(species.moves).size === species.moves.length, 'a creature knows each move once');
+  .refine((species) => new Set(species.moves).size === species.moves.length, 'a creature knows each move once')
+  .superRefine((species, ctx) => {
+    for (const message of learnsetIssues(species)) ctx.addIssue({ code: 'custom', message, path: ['learnset'] });
+  });
 export type Species = z.infer<typeof Species>;
 
 export const SpeciesFile = z.strictObject({ species: z.array(Species).min(1).max(1_000) }).superRefine(({ species }, ctx) => noRepeatedIds(species, 'species', ctx));
@@ -364,6 +394,20 @@ export const StartersFile = z
   .refine(({ items }) => new Set(items.map(({ item }) => item)).size === items.length, 'each starting item appears once');
 export type StartersFile = z.infer<typeof StartersFile>;
 
+/**
+ * Species ids that were renamed or replaced, each old id mapped to the species that now stands in
+ * for it, so a save that names an old id still loads. Old ids stay here for good, because old saves
+ * do; when a species is renamed again, point its old ids straight at the new one.
+ */
+export const RenamedFile = z
+  .strictObject({ species: z.record(ContentId, ContentId) })
+  .superRefine(({ species }, ctx) => {
+    for (const [from, to] of Object.entries(species)) {
+      if (Object.hasOwn(species, to)) ctx.addIssue({ code: 'custom', message: `"${from}" becomes "${to}", which is renamed too; name the species it ends up as`, path: ['species', from] });
+    }
+  });
+export type RenamedFile = z.infer<typeof RenamedFile>;
+
 /** Each file in `content/` and the schema it must match. A file not listed here is an error. */
 export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   'strings.json': StringsFile,
@@ -378,6 +422,7 @@ export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   'creatures/species.json': SpeciesFile,
   'creatures/battle-rules.json': BattleRules,
   'creatures/befriending.json': BefriendRules,
+  'creatures/renamed.json': RenamedFile,
 };
 
 /** Maps are `content/maps/<id>.tmj`, Tiled's JSON format; see content/AGENTS.md. */

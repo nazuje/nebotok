@@ -7,7 +7,7 @@ import { z } from 'zod';
  * frames side by side. `docs/art.md` is the guide.
  */
 
-export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'backgrounds', 'items'] as const;
+export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items'] as const;
 export type SpriteKind = (typeof SPRITE_KINDS)[number];
 
 /** "." is always transparent, so it can never be a palette colour. */
@@ -31,6 +31,8 @@ export const DEFAULT_COURIER = 'couriers/courier';
 export const spriteFor = {
   avatar: (id: string) => `couriers/${id}`,
   species: (id: string) => `creatures/${id}`,
+  /** The small picture of a species for the world, lists and menus. */
+  speciesIcon: (id: string) => `icons/${id}`,
   weather: (id: string) => `backgrounds/${id}`,
   item: (id: string) => `items/${id}`,
 } as const;
@@ -46,6 +48,7 @@ export const SPRITE_RULES: Readonly<Record<SpriteKind, KindRule>> = {
     animations: COURIER_FACINGS.map(courierWalk),
   },
   creatures: { sizes: [[32, 32], [48, 48]], frames: ['front', 'back'], animations: [] },
+  icons: { sizes: [[16, 16]], frames: [], animations: [] },
   backgrounds: { sizes: [[64, 36]], frames: [], animations: [] },
   items: { sizes: [[16, 16]], frames: [], animations: [] },
 };
@@ -278,7 +281,10 @@ export function missingArt(art: Art, users: ArtUsers): string[] {
   const needs: [string, string][] = [
     ['the game, for avatars without a courier of their own,', DEFAULT_COURIER],
     ...users.avatars.map((id): [string, string] => [`avatar "${id}"`, spriteFor.avatar(id)]),
-    ...users.species.map((id): [string, string] => [`species "${id}"`, spriteFor.species(id)]),
+    ...users.species.flatMap((id): [string, string][] => [
+      [`species "${id}"`, spriteFor.species(id)],
+      [`species "${id}"`, spriteFor.speciesIcon(id)],
+    ]),
     ...users.weather.map((id): [string, string] => [`weather "${id}"`, spriteFor.weather(id)]),
     ...users.items.map((id): [string, string] => [`item "${id}"`, spriteFor.item(id)]),
   ];

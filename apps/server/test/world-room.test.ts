@@ -395,11 +395,11 @@ describe('saving positions', () => {
     const { id, token } = await profile('Team Courier');
     const progress = {
       ...emptyProgress(),
-      team: [{ species: 'rain-blob', level: 6, xp: 12, hp: 20, moves: ['rain-tap', 'gale-tap'], nickname: 'Žabica' }],
+      team: [{ species: 'puddlepip', level: 6, xp: 12, hp: 20, moves: ['rain-tap', 'gale-tap'], nickname: 'Žabica' }],
       inventory: [{ item: 'plain-treat', count: 4 }],
       lastShrine: { map: map().id, shrine: 'post-shrine' },
-      seen: ['rain-blob'],
-      befriended: ['rain-blob'],
+      seen: ['puddlepip'],
+      befriended: ['puddlepip'],
     };
     temp.services.progress.save(id, createSave({ name: 'Team Courier', language: 'sl', createdAt: '2026-05-01T09:00:00.000Z', position: null, ...progress }));
     const room = await join(token);

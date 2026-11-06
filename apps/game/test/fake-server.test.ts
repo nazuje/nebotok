@@ -48,8 +48,8 @@ describe('the fake server', () => {
     play(fake, model);
     const state = model.battle(LATER);
     expect(state?.result?.outcome).toEqual({ winner: 0, reason: 'befriended' });
-    expect(state?.befriended).toMatchObject({ species: 'gale-blob', placedIn: 'team' });
-    expect(model.progress()?.team.map((creature) => creature.species)).toEqual([STARTERS.species[0], 'gale-blob']);
+    expect(state?.befriended).toMatchObject({ species: 'pinwhirl', placedIn: 'team' });
+    expect(model.progress()?.team.map((creature) => creature.species)).toEqual([STARTERS.species[0], 'pinwhirl']);
     expect(seen.map((message) => message.type).slice(-3)).toEqual(['battle.befriend', 'battle.result', 'progress']);
     model.close();
     fake.stepped();
