@@ -2,6 +2,7 @@ import { WorldSettings, samePoint, walkMessage, type Language, type LoginRespons
 import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
 import { addPin, listProfiles, logout } from './api.ts';
+import { createBattles } from './battles.ts';
 import { connect, type ConnectionStatus, type WorldConnection, type WorldRoom } from './connection.ts';
 import { initialControls, otherControls, saveControls, type Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
@@ -41,11 +42,26 @@ let mapFailed = false;
 /** Whether the signed-in profile is known to have no PIN yet, so the settings offer to add one. */
 let canAddPin = false;
 let stopFeed: () => void = () => {};
+let stopBattles: () => void = () => {};
 
 const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
 const scene = new WorldScene({ view, frame: (now) => frame(now), labels: (labels) => names.place(inWorld ? labels : []) });
 const hud = createHud(language);
+const battles = createBattles({
+  game: () => game,
+  language: () => language,
+  toast: (id, kind) => hud.toast(id, kind),
+  changed: () => {
+    input.release();
+    showScreen();
+  },
+  battleStarted: () => {
+    // The real server stops the walk itself; it knows nothing of the fake's battles.
+    if (battles.faked) deliver({ kind: 'stop' });
+    startClean();
+  },
+});
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
@@ -106,7 +122,7 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null,
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => {
@@ -117,9 +133,10 @@ const input = createInput({
 
 function frame(now: number) {
   view.tick(now);
+  battles.frame(now, inWorld ? (view.shown(now).find((player) => player.self)?.tile ?? null) : null);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen(), controls);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null, controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -142,7 +159,7 @@ function setLanguage(next: Language) {
 }
 
 function showScreen() {
-  document.body.dataset.screen = !inWorld ? 'profiles' : pinSetup.isOpen() ? 'pinSetup' : 'world';
+  document.body.dataset.screen = !inWorld ? 'profiles' : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? 'world');
 }
 
 function setCanAddPin(next: boolean) {
@@ -198,6 +215,8 @@ function startClean() {
 function forgetRoom() {
   stopFeed();
   stopFeed = () => {};
+  stopBattles();
+  stopBattles = () => {};
   room = null;
   input.release();
   outbox.reset();
@@ -211,6 +230,7 @@ async function leaveWorld() {
   world = null;
   connection = null;
   forgetRoom();
+  battles.reset();
   await leaving?.leave();
 }
 
@@ -263,6 +283,7 @@ function enterWorld() {
     room: (joined) => {
       forgetRoom();
       room = joined;
+      stopBattles = battles.joined(joined);
       stopFeed = feedWorldView(joined, view, {
         map: (id) => {
           roomMap = id;
@@ -296,7 +317,7 @@ const game = new Game({
   // Nothing may ever play sound unasked, and there is no sound yet.
   audio: { noAudio: true },
   scale: { mode: Scale.NONE, width: initialView.width, height: initialView.height, zoom: initialView.zoom },
-  scene: [scene],
+  scene: [scene, battles.scene],
 });
 
 window.addEventListener('resize', () => {
@@ -310,7 +331,7 @@ void showMap(START_MAP);
 if (session) enterWorld();
 else showProfiles(null);
 
-const screen = (): Screen => (!inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : 'world');
+const screen = (): Screen => (!inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? 'world'));
 const round = (value: number) => Math.round(value * 100) / 100;
 const players = (): TestPlayer[] =>
   view.shown(performance.now()).map((player) => ({
@@ -318,6 +339,7 @@ const players = (): TestPlayer[] =>
     avatar: player.avatar,
     self: player.self,
     connected: player.connected,
+    inBattle: player.inBattle,
     x: player.tile.x,
     y: player.tile.y,
     moving: player.moving,
@@ -356,6 +378,7 @@ installTestHook({
       pinStep: adding.step,
       canAddPin,
       settingsOpen: settings.isOpen(),
+      ...battles.snapshot(performance.now()),
     };
   },
   isReady: () => {

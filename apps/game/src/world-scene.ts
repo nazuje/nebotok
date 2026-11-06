@@ -31,7 +31,7 @@ const AWAY_ALPHA = 0.5;
 const AWAY_TINT = 0xb8c4d0;
 
 /** A name to show above a courier, at a spot on the page in CSS pixels. */
-export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly x: number; readonly y: number };
+export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly x: number; readonly y: number };
 
 export type WorldSceneOptions = {
   readonly view: WorldView;
@@ -247,7 +247,7 @@ export class WorldScene extends Scene {
       const sprite = this.sprites.get(player.id);
       if (player.self || !sprite) return [];
       const at = this.toScreen(Math.round(sprite.x), Math.round(sprite.y) - TILE / 2);
-      return [{ id: player.id, name: player.name, away: !player.connected, x: at.x, y: at.y }];
+      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, x: at.x, y: at.y }];
     });
   }
 }

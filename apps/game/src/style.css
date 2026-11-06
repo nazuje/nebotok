@@ -173,10 +173,10 @@ body:not([data-screen='world']) #names {
   line-height: 36px;
 }
 
-body[data-screen='world'] .title,
-body:not([data-screen='world']) .badge,
+body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter']) .title,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter']) .badge,
 body:not([data-screen='world']) .welcome,
-body:not([data-screen='world']) .toast,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter']) .toast,
 body:not([data-screen='world']) .walk-hint {
   display: none;
 }
@@ -615,6 +615,7 @@ button:active {
 
 .toast {
   position: fixed;
+  z-index: 4;
   left: 50%;
   bottom: max(16px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
@@ -758,4 +759,424 @@ button:active {
   60% {
     transform: translate(30px, 0);
   }
+}
+
+/* Creatures: shared by the battle, team and starter screens */
+
+canvas.creature {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+}
+
+.creature-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.creature-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+}
+
+.creature-name {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.creature-level {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.health-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #d9e2ec;
+}
+
+.health-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ok);
+}
+
+.health-fill[data-level='mid'] {
+  background: var(--wait);
+}
+
+.health-fill[data-level='low'] {
+  background: var(--bad);
+}
+
+.health {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.health-text {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.creature-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.type-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.move-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.move-chip {
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+/* Each weather type's colour, on moves and type chips alike. */
+.type-sun {
+  background: #ffe08a;
+}
+
+.type-rain {
+  background: #a9d4ff;
+}
+
+.type-frost {
+  background: #d4f3fa;
+}
+
+.type-bloom {
+  background: #ffd0ea;
+}
+
+.type-gale {
+  background: #e3ebf3;
+}
+
+.type-storm {
+  background: #d2ccff;
+}
+
+.type-none {
+  background: #e6eef6;
+}
+
+/* The team button in the world */
+
+.hud-left {
+  margin-right: auto;
+}
+
+.team-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.team-button svg {
+  width: 30px;
+  height: 30px;
+}
+
+body:not([data-screen='world']) .team-button {
+  display: none;
+}
+
+.name-tag.battling::after {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  background:
+    linear-gradient(45deg, transparent 40%, white 40% 60%, transparent 60%),
+    linear-gradient(-45deg, transparent 40%, white 40% 60%, transparent 60%);
+}
+
+/* Battle: the Phaser field shows through the top; the words and buttons sit below it. */
+
+.battle {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding: calc(var(--top) + 56px) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.battle-field {
+  position: relative;
+  flex: 1 1 auto;
+  width: min(100%, 48rem);
+  min-height: 150px;
+  margin: 0 auto;
+}
+
+.battle-card {
+  position: absolute;
+  width: min(15rem, 52%);
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.battle-card.foe {
+  top: 0;
+  left: 0;
+}
+
+.battle-card.mine {
+  right: 0;
+  bottom: 0;
+}
+
+.battle-bottom {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 40rem);
+  min-height: min(16rem, 52%);
+  max-height: 62%;
+  margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 8px 24px rgb(16 42 67 / 0.2);
+}
+
+.battle-line {
+  margin: 0;
+  min-height: 2.6em;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.battle-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.battle-moves {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.move {
+  min-height: 56px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 14px;
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  box-shadow: var(--shadow);
+}
+
+/* The treat button has the longest words, so it gets the most room. */
+.battle-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 8px;
+}
+
+.battle-actions .secondary {
+  padding: 4px 6px;
+  font-size: 1rem;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.battle .secondary:disabled,
+.battle-choice:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.battle-heading {
+  margin: 0;
+  font-weight: 800;
+}
+
+.battle-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.battle-choice {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 2px solid #d9e2ec;
+  border-radius: 14px;
+  background: white;
+  color: var(--ink);
+  font-size: 1.05rem;
+  text-align: left;
+}
+
+.battle-choice canvas.creature {
+  width: 48px;
+  height: 48px;
+}
+
+.treat-name {
+  font-weight: 800;
+}
+
+.treat-count {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e6eef6;
+  font-weight: 800;
+}
+
+.battle-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.battle[aria-busy='true'] button,
+#starter[aria-busy='true'] button {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Team and storage */
+
+.team-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.team-pick {
+  width: 100%;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  background: white;
+  color: var(--ink);
+  text-align: left;
+}
+
+.team-pick[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: #dceafb;
+}
+
+/* Starter */
+
+.starter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.starter-choice {
+  width: 100%;
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 1.15rem;
+  box-shadow: var(--shadow);
+}
+
+.starter-choice canvas.creature {
+  width: 96px;
+  height: 96px;
+}
+
+.toast[data-kind='news'] {
+  border-color: var(--ok);
+}
+
+.toast[data-kind='news']::before {
+  display: none;
 }
