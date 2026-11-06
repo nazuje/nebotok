@@ -14,6 +14,7 @@ import {
   type BattleView,
   type BefriendResult,
   type CreatureInstance,
+  type MoveOffer,
   type Point,
   type Progress,
   type ProgressMessage,
@@ -23,7 +24,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { BATTLE_IDLE_MS } from '../src/battles.ts';
-import { REQUESTS_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
+import { OFFER_IDLE_MS, REQUESTS_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
 import type { WorldContent } from '../src/world.ts';
 import { capturedLog, freePort, repeat, tempServices, until } from './helpers.ts';
@@ -192,7 +193,7 @@ describe('winning and losing', () => {
     const who = await player('Winning Courier', { team: [{ ...strong(level), xp: xpToNextLevel(level) - 1 }] });
     const { started } = await meetWild(who);
     const result = await fight(who, started.battle, attackThenLeave);
-    expect(result).toEqual({ battle: started.battle.id, outcome: { winner: 0, reason: 'fainted' }, rewards: [{ index: 0, xp: xpForWin(WILD.level), level: level + 1 }], woke: null });
+    expect(result).toEqual({ battle: started.battle.id, outcome: { winner: 0, reason: 'fainted' }, rewards: [{ index: 0, xp: xpForWin(WILD.level), level: level + 1 }], learned: [], woke: null });
     const progress = await who.box.take<ProgressMessage>('progress');
     expect(progress.team[0]).toMatchObject({ level: level + 1, xp: xpForWin(WILD.level) - 1 });
     await until(() => me(who)?.inBattle === false, 'the battle mark to go');
@@ -350,6 +351,116 @@ describe('a battle and the connection', () => {
   });
 });
 
+/** Meets a wild creature and beats it, attacking with the first move. */
+async function winWith(who: Player): Promise<BattleResult> {
+  const { started } = await meetWild(who);
+  return fight(who, started.battle, attackThenLeave);
+}
+
+/** Answers a move offer, paced like every request. */
+async function answerOffer(who: Player, offer: number, forget: number | null) {
+  await sleep(PACE_MS);
+  who.room.send('move.choose', { offer, forget });
+}
+
+describe('learning moves at a level up', () => {
+  const level = 14;
+  /** A glowbun one experience point short of level 15, where it learns sun-wallop. */
+  const learner = (moves: string[]): CreatureInstance => ({ ...strong(level), xp: xpToNextLevel(level) - 1, moves });
+  const FULL = ['sun-ray', 'storm-tap', 'sun-call', 'heat-shimmer'];
+
+  it('learns a move at once while the creature knows fewer than four, and saves it', async () => {
+    const who = await player('Learning Courier', { team: [learner(['sun-ray', 'sun-call'])] });
+    const result = await winWith(who);
+    expect(result).toMatchObject({ rewards: [{ index: 0, level: level + 1 }], learned: [{ index: 0, move: 'sun-wallop' }] });
+    expect((await who.box.take<ProgressMessage>('progress')).team[0]?.moves).toEqual(['sun-ray', 'sun-call', 'sun-wallop']);
+    expect(who.box.has('move.offer')).toBe(false);
+    expect(saved(who.id)?.team[0]?.moves).toEqual(['sun-ray', 'sun-call', 'sun-wallop']);
+  });
+
+  it('offers the move to a creature that knows four, holds the team still, and forgets the one chosen', async () => {
+    const who = await player('Choosing Courier', { team: [learner(FULL)] });
+    const result = await winWith(who);
+    expect(result.learned).toEqual([]);
+    const offer = await who.box.take<MoveOffer>('move.offer');
+    expect(offer).toEqual({ offer: expect.any(Number), index: 0, species: 'glowbun', move: 'sun-wallop', moves: FULL });
+    expect((await who.box.take<ProgressMessage>('progress')).team[0]).toMatchObject({ level: level + 1, moves: FULL });
+
+    await sleep(PACE_MS);
+    who.room.send('team.reorder', { order: [0] });
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'team.reorder', reason: 'notNow' });
+    who.room.send('walk.to', besideGrass());
+    await until(() => me(who)?.x === besideGrass().x && me(who)?.moving === false, 'the walk out of the grass');
+    who.room.send('walk.to', intoGrass());
+    await until(() => me(who)?.x === intoGrass().x && me(who)?.moving === false, 'the walk back into the grass');
+    expect(who.box.has('battle.started')).toBe(false);
+
+    await answerOffer(who, offer.offer + 1, 1);
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'move.choose', reason: 'invalid' });
+    await answerOffer(who, offer.offer, 1);
+    const learned = ['sun-ray', 'sun-wallop', 'sun-call', 'heat-shimmer'];
+    expect((await who.box.take<ProgressMessage>('progress')).team[0]?.moves).toEqual(learned);
+    expect(saved(who.id)?.team[0]?.moves).toEqual(learned);
+    await answerOffer(who, offer.offer, 1);
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'move.choose', reason: 'notNow' });
+  });
+
+  it('keeps every move when the player skips the new one', async () => {
+    const who = await player('Skipping Courier', { team: [learner(FULL)] });
+    await winWith(who);
+    const offer = await who.box.take<MoveOffer>('move.offer');
+    await who.box.take<ProgressMessage>('progress');
+    await answerOffer(who, offer.offer, null);
+    expect((await who.box.take<ProgressMessage>('progress')).team[0]).toMatchObject({ level: level + 1, moves: FULL });
+    expect(saved(who.id)?.team[0]).toMatchObject({ level: level + 1, moves: FULL });
+    expect(who.box.has('move.offer')).toBe(false);
+  });
+
+  it('refuses an answer with no offer, and disconnects a client that names a slot past the fourth', async () => {
+    const who = await player('Muddled Courier', { team: [learner(FULL)] });
+    who.room.send('move.choose', { offer: 1, forget: 0 });
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'move.choose', reason: 'notNow' });
+    await winWith(who);
+    const offer = await who.box.take<MoveOffer>('move.offer');
+    const left = new Promise<number>((resolve) => who.room.onLeave((code) => resolve(code)));
+    await answerOffer(who, offer.offer, 4);
+    expect(await left).toBe(4002);
+  });
+
+  it(`skips an offer left unanswered for ${OFFER_IDLE_MS / 60_000} minutes, and meets wild creatures again`, async () => {
+    const who = await player('Dawdling Courier', { team: [learner(FULL)] });
+    await winWith(who);
+    const offer = await who.box.take<MoveOffer>('move.offer');
+    await who.box.take<ProgressMessage>('progress');
+    clock.offset += OFFER_IDLE_MS - 1_000;
+    roomOf(who).checkBattles();
+    await sleep(100);
+    expect(who.box.has('progress')).toBe(false);
+    clock.offset += 1_000;
+    roomOf(who).checkBattles();
+    expect((await who.box.take<ProgressMessage>('progress')).team[0]?.moves).toEqual(FULL);
+    await answerOffer(who, offer.offer, 0);
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'move.choose', reason: 'notNow' });
+    who.room.send('walk.to', besideGrass());
+    await until(() => me(who)?.x === besideGrass().x && me(who)?.moving === false, 'the walk out of the grass');
+    await meetWild(who);
+  });
+
+  it('sends the offer again on reconnecting, and takes the answer there', async () => {
+    const who = await player('Reconnecting Learner', { team: [learner(FULL)] });
+    await winWith(who);
+    const offer = await who.box.take<MoveOffer>('move.offer');
+    const { reconnectionToken } = who.room;
+    await who.room.leave(false);
+    const back = await colyseus.sdk.reconnect<WorldState>(reconnectionToken);
+    back.reconnection.enabled = false;
+    const again: Player = { ...who, room: back, box: inbox(back) };
+    await again.box.take<ProgressMessage>('progress');
+    expect(await again.box.take<MoveOffer>('move.offer')).toEqual(offer);
+    await answerOffer(again, offer.offer, 0);
+    expect((await again.box.take<ProgressMessage>('progress')).team[0]?.moves).toEqual(['sun-wallop', 'storm-tap', 'sun-call', 'heat-shimmer']);
+  });
+});
 const roomHasPlayer = (who: Player) => colyseus.getRoomById<WorldRoom>(who.room.roomId)?.state.players.has(who.room.sessionId) ?? false;
 
 describe('starters, shrines, team and storage', () => {

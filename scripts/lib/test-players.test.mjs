@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ProfileName } from '../../packages/core/src/profile.ts';
-import { botName, deviceName, isTestPlayer, lockedName, pinlessName, runTag } from './test-players.mjs';
+import { botName, deviceName, isTestPlayer, learnerName, lockedName, pinlessName, runTag } from './test-players.mjs';
 
 const BROWSER_NAMES = ['chromium', 'webkit'];
 const DEVICE_NAMES = ['iphone-portrait', 'ipad-landscape'];
@@ -9,6 +9,7 @@ const namesFor = (tag) => [
   ...BROWSER_NAMES.flatMap((browser) => ['Zaklep', 'Dvakrat'].map((lock) => lockedName(lock, browser, tag))),
   ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => deviceName(browser, device, language, tag)))),
   ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => pinlessName(browser, language, tag))),
+  ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => learnerName(browser, language, tag))),
 ];
 
 describe('test players', () => {
@@ -37,7 +38,7 @@ describe('test players', () => {
   });
 
   it('leaves every other player alone', () => {
-    for (const name of ['Ana', 'Bot', 'Bot Oblak Qeb Lum', 'Kro Tel Abc QEB', 'Kro Tel Abc Qe', 'Scena Lan', 'Zaklep', 'kro tel abc', 'Oblak Bot Qeb']) {
+    for (const name of ['Ana', 'Bot', 'Bot Oblak Qeb Lum', 'Kro Tel Abc QEB', 'Kro Tel Abc Qe', 'Scena Lan', 'Uči Kro', 'Zaklep', 'kro tel abc', 'Oblak Bot Qeb']) {
       expect(isTestPlayer(name)).toBe(false);
     }
   });

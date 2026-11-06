@@ -59,6 +59,7 @@ export function resultLines(result: BattleResult, befriended: BefriendResult | n
     if (!creature) continue;
     if (reward.xp > 0) lines.push({ id: 'battle.xp', creature: creature.id, xp: reward.xp });
     if (reward.level > creature.level) lines.push({ id: 'battle.levelUp', creature: creature.id, level: reward.level });
+    for (const { move } of result.learned.filter((learned) => learned.index === reward.index)) lines.push({ id: 'battle.learned', creature: creature.id, move });
   }
   return lines;
 }

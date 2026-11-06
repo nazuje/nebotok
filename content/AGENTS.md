@@ -58,7 +58,8 @@ A species has a name and a one-line `description` in both languages, a weather `
 `stats`, a `favouriteTreat`, and `placeholder: true` until a real design replaces it. It knows
 exactly four `moves`, and its `learnset` lists every move it learns as `{ level, move }` in rising
 level order, each move once: the four `moves` first, in order, at level 1, then the rest above
-level 1. Battles use only the four `moves` so far.
+level 1. A creature knows at most four moves; reaching a learnset level teaches that move at once
+when there is room, or asks the player which move to forget for it.
 `content:validate` also checks that every type, weather and move a file names exists. Battle
 golden replays use their own frozen copy in `packages/core/fixtures/golden/battle/content/`, so a
 change here never moves their hashes; the property tests battle on these files instead, and

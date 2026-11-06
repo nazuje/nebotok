@@ -9,6 +9,7 @@ import {
   CLOSE_CODES,
   IDLE,
   LanguageSchema,
+  MoveChooseMessage,
   PLAYER_SPAWN,
   SERVER_MESSAGES,
   StarterChooseMessage,
@@ -17,6 +18,7 @@ import {
   WalkHoldMessage,
   WalkStopMessage,
   WalkToMessage,
+  answerMove,
   battleView,
   canBattle,
   chooseStarter,
@@ -52,6 +54,8 @@ import {
   type Direction,
   type EncounterZone,
   type Language,
+  type MoveOffer,
+  type PendingMove,
   type Point,
   type Progress,
   type RefusalReason,
@@ -85,8 +89,10 @@ const MAX_PLAYERS = 16;
 export const WALK_TO_PER_SECOND = 5;
 /** Battle, team, storage and starter requests a second from one client; more are dropped. A battle needs one a turn. */
 export const REQUESTS_PER_SECOND = 5;
-/** How often battles left without input are looked for. */
+/** How often battles left without input, and offered moves left unanswered, are looked for. */
 export const BATTLE_CHECK_MS = 5_000;
+/** An offered move with no answer for this long is skipped, as an idle battle ends, connected or not. */
+export const OFFER_IDLE_MS = BATTLE_IDLE_MS;
 
 export const JoinOptions = z.object({ protocol: z.number().int(), language: LanguageSchema.optional() });
 
@@ -119,6 +125,13 @@ type Seat = {
   walker: Walker;
   /** The player's one battle, or null. While it lasts the player cannot walk. */
   battle: LiveBattle | null;
+  /**
+   * Moves levelling up offered, waiting for the one before to be answered, in order. Like a battle
+   * they live only in memory: when the seat ends they are dropped, and the creature does not learn them.
+   */
+  offers: PendingMove[];
+  /** The offer sent with `move.offer` and not answered yet. While it waits the team keeps its order and no wild creature appears. */
+  offer: OutstandingOffer | null;
   /** The shrine the player is resting at, so walking about next to it heals only once. */
   restedAt: string | null;
   dirty: boolean;
@@ -132,6 +145,8 @@ type Seat = {
   closing: boolean;
   reconnection: Deferred<Client> | null;
 };
+
+type OutstandingOffer = PendingMove & { readonly id: number; readonly sentAt: number };
 
 /** Checks a join before a seat is reserved: the protocol first, then the session token. */
 export function authorizeJoin(profiles: ProfileStore, token: unknown, options: unknown): SeatAuth {
@@ -175,6 +190,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private readonly requestLimit = createRateLimiter({ limit: REQUESTS_PER_SECOND, windowMs: 1_000, maxKeys: MAX_PLAYERS * 2 });
     /** Decides who meets a wild creature in the grass. Each battle has its own RNGs. */
     private readonly encounterRng = createRng(seed());
+    /** The id of the last move offer, counted across the room so an old answer never matches a new offer. */
+    private offerCount = 0;
 
     override messages = {
       [CLIENT_MESSAGES.ping]: validate(z.strictObject({ sentAt: z.number().finite() }), (client: Client, { sentAt }) => {
@@ -194,6 +211,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         this.progressRequest(client, CLIENT_MESSAGES.teamReorder, (seat) => reorderTeam(seat.progress, order) ?? 'invalid'),
       ),
       [CLIENT_MESSAGES.storageSwap]: validate(StorageSwapMessage, (client: Client, { team, storage }) => this.storageSwap(client, team, storage)),
+      [CLIENT_MESSAGES.moveChoose]: validate(MoveChooseMessage, (client: Client, { offer, forget }) => this.chooseMove(client, offer, forget)),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -233,6 +251,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         progress: start.progress,
         walker: start.walker,
         battle: null,
+        offers: [],
+        offer: null,
         restedAt: null,
         dirty: true,
         savedAt: Number.NEGATIVE_INFINITY,
@@ -287,6 +307,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (seat) {
         client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
         if (seat.battle) client.send(SERVER_MESSAGES.battleView, { battle: battleView(seat.battle.id, seat.battle.state) } satisfies BattleViewMessage);
+        const offer = seat.offer && this.offerMessage(seat, seat.offer);
+        if (offer) client.send(SERVER_MESSAGES.moveOffer, offer);
       }
       log.info('player reconnected', { roomId: this.roomId, sessionId: client.sessionId, inBattle: Boolean(seat?.battle) });
     }
@@ -401,7 +423,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (shrine !== null && shrine !== seat.restedAt) this.rest(sessionId, seat, shrine);
       seat.restedAt = shrine;
       // Nobody is ambushed while away: a dropped player's last step can still end in the grass.
-      if (seat.battle || seat.reconnection || !canBattle(seat.progress)) return;
+      if (seat.battle || seat.offer || seat.reconnection || !canBattle(seat.progress)) return;
       const zoneId = encounterZoneAt(map, tile);
       const zone = zoneId === null ? undefined : world.encounters.get(zoneId);
       const wild = zone ? rollEncounter(zone, this.encounterRng) : null;
@@ -496,6 +518,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const progressAfter = settled.fainted ? wakeAfterFainting(settled.progress, world.shrines.teamFainted, world.battle) : settled.progress;
       seat.progress = progressAfter;
       seat.battle = null;
+      seat.offers = [...settled.offers];
       const woke = settled.fainted ? this.wake(seat) : null;
       const player = this.state.players.get(sessionId);
       if (player) player.inBattle = false;
@@ -503,8 +526,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const outcome = battle.state.outcome ?? { winner: null, reason: 'ran' };
       const client = this.clients.get(sessionId);
       if (client && settled.befriended) client.send(SERVER_MESSAGES.battleBefriend, { battle: battle.id, ...settled.befriended } satisfies BefriendResult);
-      client?.send(SERVER_MESSAGES.battleResult, { battle: battle.id, outcome, rewards: settled.rewards, woke } satisfies BattleResult);
-      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      client?.send(SERVER_MESSAGES.battleResult, { battle: battle.id, outcome, rewards: settled.rewards, learned: settled.learned, woke } satisfies BattleResult);
+      this.offerNext(sessionId, seat);
       log.info('battle ended', {
         roomId: this.roomId,
         playerId: seat.playerId,
@@ -513,6 +536,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         winner: outcome.winner,
         turns: battle.state.turn,
         rewards: settled.rewards.length,
+        learned: settled.learned.length,
+        offers: settled.offers.length,
         befriended: settled.befriended?.placedIn ?? null,
         woke: woke !== null,
       });
@@ -527,11 +552,61 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       return { map: map.id, shrine };
     }
 
+    /** What `move.offer` says about `offer`, or null when its creature is no longer there. */
+    private offerMessage(seat: Seat, offer: OutstandingOffer): MoveOffer | null {
+      const creature = seat.progress.team[offer.index];
+      return creature ? { offer: offer.id, index: offer.index, species: creature.species, move: offer.move, moves: creature.moves } : null;
+    }
+
+    /** Sends the next waiting move offer, if there is one, and then `progress`. */
+    private offerNext(sessionId: string, seat: Seat) {
+      const client = this.clients.get(sessionId);
+      let pending = seat.offers.shift();
+      while (pending && !seat.progress.team[pending.index]) pending = seat.offers.shift();
+      if (pending) {
+        this.offerCount += 1;
+        seat.offer = { ...pending, id: this.offerCount, sentAt: now() };
+        const offer = this.offerMessage(seat, seat.offer);
+        if (offer) client?.send(SERVER_MESSAGES.moveOffer, offer);
+        log.info('move offered', { roomId: this.roomId, playerId: seat.playerId, offer: seat.offer.id, index: pending.index, move: pending.move });
+      }
+      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+    }
+
+    /** The player's answer to the outstanding move offer: forget the move in slot `forget` for it, or skip it with null. */
+    private chooseMove(client: Client, offer: number, forget: number | null) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const current = seat.offer;
+      if (!current) {
+        this.refuse(client, CLIENT_MESSAGES.moveChoose, 'notNow');
+        return;
+      }
+      const next = current.id === offer ? answerMove(seat.progress, current, forget) : null;
+      if (!next) {
+        this.refuse(client, CLIENT_MESSAGES.moveChoose, 'invalid');
+        return;
+      }
+      this.settleOffer(client.sessionId, seat, next, forget === null ? 'skipped' : 'learned');
+    }
+
+    /** Closes the outstanding offer with the progress after it, saves at once, and sends the next offer and `progress`. */
+    private settleOffer(sessionId: string, seat: Seat, next: Progress, how: 'learned' | 'skipped' | 'timedOut') {
+      const { offer } = seat;
+      if (!offer) return;
+      seat.offer = null;
+      seat.progress = next;
+      this.changed(seat);
+      log.info('move offer settled', { roomId: this.roomId, playerId: seat.playerId, offer: offer.id, index: offer.index, move: offer.move, how });
+      this.offerNext(sessionId, seat);
+    }
+
     /** Applies a team, starter or storage change the player asked for, or refuses it. Returns whether it was done. */
     private progressRequest(client: Client, request: string, change: (seat: Seat) => Progress | RefusalReason): boolean {
       const seat = this.requestingSeat(client);
       if (!seat) return false;
-      const next = seat.battle ? 'inBattle' : change(seat);
+      // Team places name the creature an offer is for, so they stay put until it is answered.
+      const next = seat.battle ? 'inBattle' : seat.offer ? 'notNow' : change(seat);
       if (typeof next === 'string') {
         this.refuse(client, request, next);
         return false;
@@ -573,11 +648,16 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       }
     }
 
-    /** Runs every BATTLE_CHECK_MS: a battle whose player has sent nothing for BATTLE_IDLE_MS ends as a run. */
+    /**
+     * Runs every BATTLE_CHECK_MS: a battle whose player has sent nothing for BATTLE_IDLE_MS ends as a
+     * run, and a move offer left unanswered for OFFER_IDLE_MS is skipped.
+     */
     checkBattles() {
       const at = now();
       for (const [sessionId, seat] of this.seats) {
-        if (seat.battle && !seat.replaced && at - seat.battle.lastInputAt >= BATTLE_IDLE_MS) this.endBattle(sessionId, seat, 'idle');
+        if (seat.replaced) continue;
+        if (seat.battle && at - seat.battle.lastInputAt >= BATTLE_IDLE_MS) this.endBattle(sessionId, seat, 'idle');
+        if (seat.offer && at - seat.offer.sentAt >= OFFER_IDLE_MS) this.settleOffer(sessionId, seat, seat.progress, 'timedOut');
       }
     }
 

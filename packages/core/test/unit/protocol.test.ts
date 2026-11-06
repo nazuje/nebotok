@@ -5,6 +5,7 @@ import {
   BattleSwitchMessage,
   BattleTreatMessage,
   CLIENT_MESSAGES,
+  MoveChooseMessage,
   PROTOCOL_VERSION,
   SERVER_MESSAGES,
   StarterChooseMessage,
@@ -83,6 +84,12 @@ describe('battle and team messages', () => {
     expect(StorageSwapMessage.safeParse({ team: null, storage: null }).success).toBe(false);
     expect(StorageSwapMessage.safeParse({ team: 0, storage: 200 }).success).toBe(false);
     expect(StarterChooseMessage.safeParse({ species: 'puddlepip' }).success).toBe(true);
+    expect(MoveChooseMessage.parse({ offer: 1, forget: 3 })).toEqual({ offer: 1, forget: 3 });
+    expect(MoveChooseMessage.parse({ offer: 2, forget: null })).toEqual({ offer: 2, forget: null });
+    expect(MoveChooseMessage.safeParse({ offer: 1, forget: 4 }).success).toBe(false);
+    expect(MoveChooseMessage.safeParse({ offer: 0, forget: 0 }).success).toBe(false);
+    expect(MoveChooseMessage.safeParse({ offer: 1 }).success).toBe(false);
+    expect(MoveChooseMessage.safeParse({ offer: 1, forget: 0, index: 2 }).success).toBe(false);
   });
 
   it('show the player their battle without anything the opponent hides', () => {
