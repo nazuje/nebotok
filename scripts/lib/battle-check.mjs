@@ -4,27 +4,26 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TURN_BUDGET_MS } from '../../apps/game/src/battle-playback.ts';
-import { readState, until } from './game-page.mjs';
+import { battleIdle, nextFrames, readState, until } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
-const SPECIES = new Map(JSON.parse(readFileSync(join(ROOT, 'content/creatures/species.json'), 'utf8')).species.map((species) => [species.id, species]));
+const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
+const SPECIES = new Map(readContent('creatures/species.json').species.map((species) => [species.id, species]));
+const STARTERS = readContent('starters.json').species;
 const MAX_TURNS = 40;
 /** Room for the page's clock, the fake's reply and the check's polling on top of a turn's playback. */
 const TURN_SLACK_MS = 700;
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
-/** The hook answers from the model at once; the page redraws its screens on the next frame. */
-const drawn = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-const idle = (state) => state.battle !== null && !state.battle.playing && !state.battle.waiting && state.battle.panel !== null;
 
 /** The page's URL with the fake server playing `scenario`. */
 export const fakeUrl = (base, scenario) => `${base}/?test=1&fake=${scenario}`;
 
 async function chooseStarter(page, { say, expect, check }) {
   await until(page, (s) => s.screen === 'starter', 'the starter choice');
-  await drawn(page);
+  await nextFrames(page);
   expect((await textOf(page, '#starter .screen-title')) === say('starter.title'), 'the starter choice has the wrong title');
-  expect((await page.locator('.starter-choice').count()) === 3, 'the starter choice does not offer three creatures');
+  expect((await page.locator('.starter-choice').count()) === STARTERS.length, `the starter choice does not offer the ${STARTERS.length} starters`);
   await check('the starter choice', 'b1-starter');
   await page.locator('.starter-choice').first().tap();
   const state = await until(page, (s) => s.screen === 'world' && s.progress?.needsStarter === false && s.progress.team.length === 1, 'the world with the starter on the team');
@@ -33,7 +32,7 @@ async function chooseStarter(page, { say, expect, check }) {
 }
 
 async function firstLook(page, state, { expect, check, prefix }) {
-  await drawn(page);
+  await nextFrames(page);
   const { battle } = (await readState(page)) ?? state;
   expect(battle.drawn?.creatures[0] === battle.team[battle.active]?.species && battle.drawn?.creatures[1] === battle.opponent?.species, `the field drew ${JSON.stringify(battle.drawn)}, not the creatures out`);
   expect((await page.locator('#battle .move').count()) === battle.menu.moves.length, 'the move buttons are not the active creature’s moves');
@@ -58,7 +57,7 @@ async function chooseOnce(page, state, { check, prefix, seen }) {
   await until(page, (s) => s.battle?.panel === 'treats', 'the treat picker');
   if (!seen.treats) {
     seen.treats = true;
-    await drawn(page);
+    await nextFrames(page);
     await check('the treat picker', `${prefix}3-treats`);
   }
   await page.locator('#battle .treat-choice').first().tap();
@@ -66,7 +65,7 @@ async function chooseOnce(page, state, { check, prefix, seen }) {
 
 /** Taps the field while the turn plays, which must jump to its end. */
 async function skipTurn(page, before, { expect, seen }) {
-  const playing = await until(page, (s) => s.battle?.playing === true || (s.battle !== null && idle(s) && s.battle.turn > before.battle.turn), 'the turn to play', 5_000);
+  const playing = await until(page, (s) => s.battle?.playing === true || (s.battle !== null && battleIdle(s) && s.battle.turn > before.battle.turn), 'the turn to play', 5_000);
   if (!playing.battle.playing) return;
   await page.locator('#battle .battle-field').tap();
   seen.skipped = true;
@@ -81,10 +80,10 @@ async function nextTurn(page, state, turn, options) {
   await chooseOnce(page, state, options);
   const sentAt = Date.now();
   if (seen.skipped) {
-    await until(page, idle, 'the turn to finish', 10_000);
+    await until(page, battleIdle, 'the turn to finish', 10_000);
     seen.longestMs = Math.max(seen.longestMs, Date.now() - sentAt);
   } else await skipTurn(page, state, options);
-  return nextTurn(page, await until(page, idle, 'the turn to finish', 10_000), turn + 1, options);
+  return nextTurn(page, await until(page, battleIdle, 'the turn to finish', 10_000), turn + 1, options);
 }
 
 /** Plays turns until the result, skipping the first by a tap and timing the others. */
@@ -104,15 +103,16 @@ function resultWanted(state, scenario, say, language) {
 
 async function teamScreen(page, { say, expect, check }) {
   await page.locator('.team-button').tap();
-  await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
-  await drawn(page);
+  const opened = await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
+  const second = opened.progress?.team[1]?.species;
+  await nextFrames(page);
   expect((await textOf(page, '#team .screen-title')) === say('team.title'), 'the team screen has the wrong title');
   expect((await page.locator('#team .team-pick').count()) === 2, 'the team screen does not list both creatures');
   await check('the team screen', 'b5-team');
   await page.locator('#team .team-pick').nth(0).tap();
   await until(page, (s) => s.teamScreen?.selected === 0, 'the first creature picked');
   await page.locator('#team .team-pick').nth(1).tap();
-  const state = await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === 'pinwhirl', 'the two creatures to swap places');
+  const state = await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === second, 'the two creatures to swap places');
   await page.locator('#team .team-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after closing the team');
   return state;
@@ -131,12 +131,12 @@ export async function playBattle(page, { scenario, language, strings, expect, ch
   else await until(page, (s) => s.screen === 'world' && (s.progress?.team.length ?? 0) > 0, 'the world with a team');
   await walk();
   await until(page, (s) => s.screen === 'battle' && s.battle !== null, 'a wild battle after a step', 10_000);
-  let state = await until(page, idle, 'the battle menu', 10_000);
+  let state = await until(page, battleIdle, 'the battle menu', 10_000);
   await firstLook(page, state, { expect, check, prefix });
   state = await playTurns(page, state, { expect, check, prefix });
   if (scenario === 'new') expect(state.battle.outcome?.reason === 'befriended', `the battle ended ${JSON.stringify(state.battle.outcome)}, not befriended`);
   else expect(state.battle.outcome?.winner === 1 && state.battle.woke !== null, `the battle ended ${JSON.stringify(state.battle.outcome)}, woke ${JSON.stringify(state.battle.woke)}`);
-  await drawn(page);
+  await nextFrames(page);
   const said = await textOf(page, '#battle .battle-result li');
   expect(said === resultWanted(state, scenario, say, language), `the result says "${said}"`);
   await check('the battle result', `${prefix}4-result`);
