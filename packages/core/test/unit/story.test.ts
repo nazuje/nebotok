@@ -167,7 +167,7 @@ describe('links between the story files', () => {
 
   it('names unknown ids, undeclared flags and a gift bigger than a stack', () => {
     const problems = withDialogue('vetrinka', (file) => {
-      file.entries = [{ if: [{ flag: 'moon-seen', set: true }, { has: 'moon-cake' }], node: 'idle' }, { node: 'idle' }];
+      file.entries = [{ if: [{ flag: 'moon-seen', set: true }, { has: 'moon-cake' }], node: 'idle' }, ...file.entries];
       file.nodes['idle']!['effects'] = [{ give: 'hello-note', count: 2 }];
     });
     expect(problems).toEqual([
@@ -180,13 +180,17 @@ describe('links between the story files', () => {
   it('needs a dialogue file for every character', () => {
     const files = copy(liveStoryFiles);
     const { mehurka: _gone, ...dialogue } = files.dialogue;
-    expect(storyContentProblems({ ...files, dialogue }, battleContent)).toEqual(['npcs.json "mehurka": has no dialogue/mehurka.json']);
+    expect(storyContentProblems({ ...files, dialogue }, battleContent)).toEqual([
+      'npcs.json "mehurka": has no dialogue/mehurka.json',
+      'quests.json "bell-for-the-shrine" step "deliver-bell": no node of dialogue/mehurka.json completes it ({ "completeStep": "bell-for-the-shrine", "step": "deliver-bell" })',
+    ]);
   });
 
   it('places each character on one map once any is placed, and finds quest marks, zones and shrines', () => {
-    const world = { zones: ['meadow'], shrines: ['shrine'] };
-    expect(storyMapProblems(storyContent, { ...world, maps: [rowMap('a', {})] })).toEqual([]);
-    expect(storyMapProblems(storyContent, { ...world, maps: [rowMap('a', { bavko: { x: 0, y: 0 }, moon: { x: 1, y: 0 } }), rowMap('b', { bavko: { x: 2, y: 0 } })] })).toEqual([
+    const world = { zones: ['post-meadow', 'windy-rise'], shrines: ['post-shrine'] };
+    const lookout = { lookout: { x: 3, y: 0 } };
+    expect(storyMapProblems(storyContent, { ...world, maps: [rowMap('a', {}, lookout)] })).toEqual([]);
+    expect(storyMapProblems(storyContent, { ...world, maps: [rowMap('a', { bavko: { x: 0, y: 0 }, moon: { x: 1, y: 0 } }, lookout), rowMap('b', { bavko: { x: 2, y: 0 } })] })).toEqual([
       'maps/b.tmj: npc "bavko" is also on another map, or twice',
       'maps/a.tmj: npc "moon" is not in npcs.json',
       'npcs.json "tobolko": is on no map\'s "npcs" layer',
@@ -272,9 +276,15 @@ describe('talking to Bavko and Tobolko', () => {
     expect(delivered.progress.inventory).toEqual([{ item: 'plain-treat', count: 3 }]);
     expect(delivered.progress.story).toEqual({ active: [], done: ['first-round'], flags: [] });
     expect(delivered.changes).toEqual([{ quest: 'first-round', change: 'done', step: 1, rewards: { items: [{ item: 'plain-treat', count: 3 }], extra: [], xp: 0, creatures: [] }, cue: null }]);
-    expect(questLog(delivered.progress, storyContent)).toEqual({ chapters: [{ chapter: 'post-training', done: true, quests: [{ quest: 'first-round', state: 'done', step: 1, count: 0, of: 0 }] }], next: null });
-    expect(npcMarks(delivered.progress, storyContent)).toEqual([]);
-    expect(openConversation('tobolko', delivered.progress, storyContent)?.conversation?.node).toBe('idle');
+    expect(questLog(delivered.progress, storyContent)).toEqual({
+      chapters: [{ chapter: 'post-training', done: false, quests: [{ quest: 'first-round', state: 'done', step: 1, count: 0, of: 0 }] }],
+      next: { kind: 'newQuest', quest: 'restless-grass', npc: 'tobolko' },
+    });
+    expect(npcMarks(delivered.progress, storyContent)).toEqual([
+      { npc: 'bavko', mark: 'newQuest' },
+      { npc: 'tobolko', mark: 'newQuest' },
+    ]);
+    expect(openConversation('tobolko', delivered.progress, storyContent)?.conversation?.node).toBe('grass-offer');
   });
 
   it('marks no new quest and asks for the starter while the player has no creature', () => {
