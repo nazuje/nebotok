@@ -327,7 +327,8 @@ async function storyRun(bot, map, tiles) {
   expect(done !== undefined, `${bot.profile.name} got no "done" quest.changed for ${STORY_QUEST}`);
   const rewarded = (done?.rewards?.items ?? []).every((reward) => bot.progress.at(-1).inventory.some((held) => held.item === reward.item && held.count >= reward.count));
   expect(rewarded, `${bot.profile.name}'s bag lacks the rewards of ${STORY_QUEST}`);
-  expect(mine(bot)?.talking === false, `${bot.profile.name} still shows the speech mark`);
+  // State patches can come a moment after talk.ended.
+  expect(await poll(() => mine(bot)?.talking === false, { deadline: Date.now() + 2_000 }), `${bot.profile.name} still shows the speech mark`);
   expect(bot.battles.refused.length === 0, `${bot.profile.name} had requests refused: ${JSON.stringify(bot.battles.refused)}`);
   return { bot: bot.profile.name, played };
 }
