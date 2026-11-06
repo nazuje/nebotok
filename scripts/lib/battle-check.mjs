@@ -1,14 +1,14 @@
 // The starter choice and the battle, team and storage screens, played the way a player would against
 // the real server. One turn is left to play at its own pace and then tapped through; every other
-// turn is tapped through at once, as a player in a hurry would. A battle's outcome is the server's dice, so each part plays until it gets what it
-// checks, within a bounded number of turns or battles: a team worn down to one point of health that
+// turn is tapped through at once, as a player in a hurry would. A battle's outcome is the server's
+// dice, so each part plays until it gets what it checks, within a bounded number of turns or battles: a team worn down to one point of health that
 // only calls the weather loses, and treats a creature loves, offered once it is tired, befriend it.
 // The player starts from a save the check prepares (scripts/lib/prepared-saves.mjs), so the team,
 // the creature waiting at the shrine and the last shrine are known before the first step.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
-import { MAX_TEAM, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
+import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
 import { battleIdle, meetWildCreature, nextFrames, readState, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
@@ -62,6 +62,7 @@ export function battleSave(world, { name, language }) {
       lastShrine: { map: world.map.id, shrine },
       seen: owned,
       befriended: owned,
+      story: emptyStory(),
     },
   };
 }

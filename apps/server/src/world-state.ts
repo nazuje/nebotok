@@ -16,6 +16,8 @@ export const Player = schema(
     connected: t.boolean().default(true),
     /** True while the player is in a battle. Everything about the battle goes only to them, as messages. */
     inBattle: t.boolean().default(false),
+    /** True while the player is talking to a character. What is said goes only to them, as messages. */
+    talking: t.boolean().default(false),
   },
   'Player',
 );

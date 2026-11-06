@@ -10,6 +10,9 @@ import {
   SERVER_MESSAGES,
   StarterChooseMessage,
   StorageSwapMessage,
+  TalkEndMessage,
+  TalkNextMessage,
+  TalkStartMessage,
   TeamReorderMessage,
   WalkHoldMessage,
   WalkStopMessage,
@@ -21,10 +24,12 @@ import {
   isCompatibleProtocol,
   progressMessage,
   startBattle,
+  talkNodeMessage,
   walkMessage,
   welcome,
 } from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
+import { storyContent } from '../support/story-content.ts';
 
 describe('welcome', () => {
   const world = { name: 'sky' };
@@ -107,5 +112,25 @@ describe('battle and team messages', () => {
     const message = progressMessage(emptyProgress());
     expect(message.needsStarter).toBe(true);
     expect('storage' in message).toBe(false);
+  });
+});
+
+describe('talk messages', () => {
+  it('accept what a client should send and refuse the rest', () => {
+    expect(TalkStartMessage.parse({ npc: 'bavko' })).toEqual({ npc: 'bavko' });
+    expect(TalkStartMessage.safeParse({ npc: 'Bavko' }).success).toBe(false);
+    expect(TalkStartMessage.safeParse({ npc: 'bavko', node: 'welcome' }).success).toBe(false);
+    expect(TalkNextMessage.parse({ conversation: 3, choice: 2 })).toEqual({ conversation: 3, choice: 2 });
+    expect(TalkNextMessage.parse({ conversation: 3, choice: null })).toEqual({ conversation: 3, choice: null });
+    for (const bad of [{ conversation: 3, choice: 3 }, { conversation: 0, choice: null }, { conversation: 3 }, { conversation: 1.5, choice: 0 }]) expect(TalkNextMessage.safeParse(bad).success).toBe(false);
+    expect(TalkEndMessage.safeParse({ conversation: 3 }).success).toBe(true);
+    expect(TalkEndMessage.safeParse({}).success).toBe(false);
+  });
+
+  it('show the node a player is at, with the choices they may pick, and keep the story out of progress', () => {
+    expect(talkNodeMessage(7, { npc: 'bavko', node: 'first-friend' }, emptyProgress(), storyContent)).toEqual({ conversation: 7, npc: 'bavko', node: 'first-friend', choices: [], cue: 'offerStarter' });
+    expect(talkNodeMessage(7, { npc: 'bavko', node: 'offer' }, emptyProgress(), storyContent)).toMatchObject({ choices: [0, 1], cue: null });
+    expect(talkNodeMessage(7, { npc: 'bavko', node: 'nowhere' }, emptyProgress(), storyContent)).toBeNull();
+    expect('story' in progressMessage(emptyProgress())).toBe(false);
   });
 });

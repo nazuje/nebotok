@@ -1,0 +1,18 @@
+{
+  "kinds": {
+    "quest": {
+      "stack": 1
+    },
+    "treat": {
+      "stack": 9
+    },
+    "material": {
+      "stack": 20
+    }
+  },
+  "order": [
+    "quest",
+    "treat",
+    "material"
+  ]
+}

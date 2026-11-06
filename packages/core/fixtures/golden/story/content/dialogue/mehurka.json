@@ -1,0 +1,44 @@
+{
+  "npc": "mehurka",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "bell",
+          "at": "deliver-bell"
+        },
+        {
+          "has": "shrine-bell"
+        }
+      ],
+      "node": "bell"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "bell": {
+      "say": {
+        "en": "The bell.",
+        "sl": "The bell."
+      },
+      "effects": [
+        {
+          "take": "shrine-bell",
+          "count": 1
+        },
+        {
+          "completeStep": "bell",
+          "step": "deliver-bell"
+        }
+      ]
+    },
+    "idle": {
+      "say": {
+        "en": "Calm.",
+        "sl": "Calm."
+      }
+    }
+  }
+}

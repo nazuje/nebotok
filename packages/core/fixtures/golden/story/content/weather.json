@@ -1,0 +1,10 @@
+{
+  "types": [
+    { "id": "sun", "name": { "en": "Sun", "sl": "Sonce" }, "strongAgainst": ["frost"], "weakAgainst": ["sun", "rain"], "field": { "boosts": ["sun", "bloom"], "weakens": ["rain", "frost"] } },
+    { "id": "frost", "name": { "en": "Frost", "sl": "Mraz" }, "strongAgainst": ["bloom"], "weakAgainst": ["frost", "sun"], "field": { "boosts": ["frost"], "weakens": ["bloom", "sun"] } },
+    { "id": "bloom", "name": { "en": "Bloom", "sl": "Cvetenje" }, "strongAgainst": ["gale"], "weakAgainst": ["bloom", "frost"], "field": { "boosts": ["bloom"], "weakens": ["gale"] } },
+    { "id": "gale", "name": { "en": "Gale", "sl": "Veter" }, "strongAgainst": ["storm"], "weakAgainst": ["gale", "bloom"], "field": { "boosts": ["gale", "storm"], "weakens": ["rain"] } },
+    { "id": "storm", "name": { "en": "Storm", "sl": "Nevihta" }, "strongAgainst": ["rain"], "weakAgainst": ["storm", "gale"], "field": { "boosts": ["storm", "rain"], "weakens": ["sun"] } },
+    { "id": "rain", "name": { "en": "Rain", "sl": "Dež" }, "strongAgainst": ["sun"], "weakAgainst": ["rain", "storm"], "field": { "boosts": ["rain", "bloom"], "weakens": ["sun"] } }
+  ]
+}

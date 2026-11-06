@@ -49,6 +49,14 @@ see `docs/protocol.md`), then the server battles (#40) and the battle screens (#
 
 Sky Post delivery quests, characters to talk to in English and Slovenian, and an inventory screen.
 
+Built as tickets: the contract (#50: protocol 6, save v4, the story content files and core rules
+for talks, quests and the bag, see `docs/protocol.md`), then the story server (#51), the talk and
+bag screens (#52, #53), the placeholder story itself (#54), its art (#55) and the storm (#56). The
+first creature now comes from Bavko, the postmaster: his first talk with a new player opens the
+starter screen. There is no job board and no discarding items yet. The Slice B story is a
+placeholder; when the real one replaces it, every player's quests reset and their creatures,
+items and levels stay.
+
 ### Slice C: Skills
 
 Foraging, fishing, cooking and building, small at first, feeding quests and befriending.

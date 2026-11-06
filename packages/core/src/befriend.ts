@@ -1,4 +1,4 @@
-import type { BefriendRules, Item, Species } from './content.ts';
+import type { BefriendRules, Species, Treat } from './content.ts';
 
 /** How much a creature wants a treat: its favourite, one its weather type likes, or neither. */
 export type TreatLiking = 'favourite' | 'liked' | 'none';
@@ -8,7 +8,7 @@ export type TreatLiking = 'favourite' | 'liked' | 'none';
  * treat names the species in `likedBy.species`; it is liked when the treat names the creature's
  * weather type in `likedBy.types`.
  */
-export function treatLiking(item: Item, species: Species): TreatLiking {
+export function treatLiking(item: Treat, species: Species): TreatLiking {
   if (species.favouriteTreat === item.id || item.likedBy.species.includes(species.id)) return 'favourite';
   if (item.likedBy.types.includes(species.type)) return 'liked';
   return 'none';

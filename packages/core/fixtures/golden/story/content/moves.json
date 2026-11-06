@@ -1,0 +1,22 @@
+{
+  "moves": [
+    { "id": "sun-tap", "name": { "en": "Sun Tap", "sl": "Sončni dotik" }, "type": "sun", "power": 40, "accuracy": 100 },
+    { "id": "sun-wallop", "name": { "en": "Sun Wallop", "sl": "Sončni udarec" }, "type": "sun", "power": 80, "accuracy": 85 },
+    { "id": "sun-call", "name": { "en": "Sun Call", "sl": "Klic sonca" }, "type": "sun", "power": 0, "accuracy": 100, "setsWeather": "sun" },
+    { "id": "frost-tap", "name": { "en": "Frost Tap", "sl": "Mrzli dotik" }, "type": "frost", "power": 40, "accuracy": 100 },
+    { "id": "frost-wallop", "name": { "en": "Frost Wallop", "sl": "Mrzli udarec" }, "type": "frost", "power": 80, "accuracy": 85 },
+    { "id": "frost-call", "name": { "en": "Frost Call", "sl": "Klic mraza" }, "type": "frost", "power": 0, "accuracy": 100, "setsWeather": "frost" },
+    { "id": "bloom-tap", "name": { "en": "Bloom Tap", "sl": "Cvetni dotik" }, "type": "bloom", "power": 40, "accuracy": 100 },
+    { "id": "bloom-wallop", "name": { "en": "Bloom Wallop", "sl": "Cvetni udarec" }, "type": "bloom", "power": 80, "accuracy": 85 },
+    { "id": "bloom-call", "name": { "en": "Bloom Call", "sl": "Klic cvetenja" }, "type": "bloom", "power": 0, "accuracy": 100, "setsWeather": "bloom" },
+    { "id": "gale-tap", "name": { "en": "Gale Tap", "sl": "Vetrni dotik" }, "type": "gale", "power": 40, "accuracy": 100 },
+    { "id": "gale-wallop", "name": { "en": "Gale Wallop", "sl": "Vetrni udarec" }, "type": "gale", "power": 80, "accuracy": 85 },
+    { "id": "gale-call", "name": { "en": "Gale Call", "sl": "Klic vetra" }, "type": "gale", "power": 0, "accuracy": 100, "setsWeather": "gale" },
+    { "id": "storm-tap", "name": { "en": "Storm Tap", "sl": "Nevihtni dotik" }, "type": "storm", "power": 40, "accuracy": 100 },
+    { "id": "storm-wallop", "name": { "en": "Storm Wallop", "sl": "Nevihtni udarec" }, "type": "storm", "power": 80, "accuracy": 85 },
+    { "id": "storm-call", "name": { "en": "Storm Call", "sl": "Klic nevihte" }, "type": "storm", "power": 0, "accuracy": 100, "setsWeather": "storm" },
+    { "id": "rain-tap", "name": { "en": "Rain Tap", "sl": "Deževni dotik" }, "type": "rain", "power": 40, "accuracy": 100 },
+    { "id": "rain-wallop", "name": { "en": "Rain Wallop", "sl": "Deževni udarec" }, "type": "rain", "power": 80, "accuracy": 85 },
+    { "id": "rain-call", "name": { "en": "Rain Call", "sl": "Klic dežja" }, "type": "rain", "power": 0, "accuracy": 100, "setsWeather": "rain" }
+  ]
+}

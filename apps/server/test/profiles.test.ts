@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { MAX_PROFILES, PIN_ATTEMPTS, PIN_LOCK_MS, SAVE_VERSION, SaveError, createSave, emptyProgress } from '@nebotok/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PIN_LOCK_MAX_MS, SESSION_MS, sessionKey } from '../src/profiles.ts';
@@ -263,9 +264,22 @@ describe('progress', () => {
   it('loads a save naming a species that was renamed as the species that replaced it', async () => {
     const { id } = await created('Blob Courier');
     const creature = { species: 'sun-blob', level: 7, xp: 40, hp: 26, moves: ['sun-tap', 'sun-wallop', 'sun-call', 'storm-tap'] };
-    const data = { name: 'Blob Courier', language: 'en', createdAt: '2026-05-02T10:00:00.000Z', position: null, ...emptyProgress(), team: [creature], seen: ['sun-blob'], befriended: ['sun-blob'] };
+    const { story: _v4Only, ...v3Progress } = emptyProgress();
+    const data = { name: 'Blob Courier', language: 'en', createdAt: '2026-05-02T10:00:00.000Z', position: null, ...v3Progress, team: [creature], seen: ['sun-blob'], befriended: ['sun-blob'] };
     temp.services.db.prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, 3, ?, 0)').run(id, JSON.stringify(data));
     expect(temp.services.progress.load(id)?.data).toMatchObject({ team: [{ species: 'glowbun', level: 7, xp: 40, hp: 26, moves: ['heat-shimmer', 'sun-ray', 'storm-tap', 'sun-call'] }], seen: ['glowbun'], befriended: ['glowbun'] });
+  });
+
+  it('keeps a saved story through the repair and drops the quests and flags the story no longer has', async () => {
+    const { id } = await created('Forgetful Courier');
+    const fixture = JSON.parse(readFileSync(new URL('../../../packages/core/fixtures/saves/v4/old-content.json', import.meta.url), 'utf8')) as { v: number; data: unknown };
+    temp.services.db.prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, ?, ?, 0)').run(id, fixture.v, JSON.stringify(fixture.data));
+    expect(temp.services.progress.load(id)?.data).toMatchObject({
+      team: [{ species: 'glowbun' }],
+      inventory: [{ item: 'hello-note', count: 1 }],
+      story: { active: [{ quest: 'first-round', step: 0, count: 0 }], done: [], flags: [] },
+    });
+    expect(logged.find((line) => line['msg'] === 'save repaired')).toMatchObject({ playerId: id, droppedCreatures: ['gone-species'], droppedQuests: ['gone-quest', 'old-round'], droppedFlags: ['gone-flag'] });
   });
 
   it('refuses a save from a newer game rather than guessing', async () => {

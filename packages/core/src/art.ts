@@ -7,7 +7,7 @@ import { z } from 'zod';
  * frames side by side. `docs/art.md` is the guide.
  */
 
-export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather'] as const;
+export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather', 'characters', 'portraits', 'effects'] as const;
 export type SpriteKind = (typeof SPRITE_KINDS)[number];
 
 /** "." is always transparent, so it can never be a palette colour. */
@@ -37,6 +37,12 @@ export const spriteFor = {
   /** The small picture of a weather type, beside its name on the battle field. */
   weatherIcon: (id: string) => `weather/${id}`,
   item: (id: string) => `items/${id}`,
+  /** A character standing on the map, `down`, `up` and `right` (left is right, mirrored). */
+  npc: (id: string) => `characters/${id}`,
+  /** A character's face beside their lines: `neutral`, and a frame per mood it has. */
+  portrait: (id: string) => `portraits/${id}`,
+  /** The picture of a story cue. */
+  cue: (id: string) => `effects/${id}`,
 } as const;
 
 type KindRule = { readonly sizes: readonly (readonly [number, number])[]; readonly frames: readonly string[]; readonly animations: readonly string[] };
@@ -54,6 +60,9 @@ export const SPRITE_RULES: Readonly<Record<SpriteKind, KindRule>> = {
   backgrounds: { sizes: [[64, 36]], frames: [], animations: [] },
   items: { sizes: [[16, 16]], frames: [], animations: [] },
   weather: { sizes: [[16, 16]], frames: [], animations: [] },
+  characters: { sizes: [[16, 16]], frames: [...COURIER_FACINGS], animations: [] },
+  portraits: { sizes: [[32, 32]], frames: ['neutral'], animations: [] },
+  effects: { sizes: [[64, 32]], frames: [], animations: [] },
 };
 
 const NAME = '[a-z][a-z0-9-]{0,31}';
@@ -275,6 +284,8 @@ export type ArtUsers = {
   readonly species: readonly string[];
   readonly weather: readonly string[];
   readonly items: readonly string[];
+  readonly npcs: readonly string[];
+  readonly cues: readonly string[];
   /** Tileset names, the map tileset image without `.png`. */
   readonly tilesets: readonly string[];
 };
@@ -293,6 +304,11 @@ export function missingArt(art: Art, users: ArtUsers): string[] {
       [`weather "${id}"`, spriteFor.weatherIcon(id)],
     ]),
     ...users.items.map((id): [string, string] => [`item "${id}"`, spriteFor.item(id)]),
+    ...users.npcs.flatMap((id): [string, string][] => [
+      [`npc "${id}"`, spriteFor.npc(id)],
+      [`npc "${id}"`, spriteFor.portrait(id)],
+    ]),
+    ...users.cues.map((id): [string, string] => [`story cue "${id}"`, spriteFor.cue(id)]),
   ];
   return [
     ...needs.flatMap(([who, id]) => (art.sprites.has(id) ? [] : [`${who} needs the sprite ${id} (content/art/${id}.json)`])),

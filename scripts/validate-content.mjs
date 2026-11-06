@@ -4,15 +4,19 @@
 // every image a map names must exist. world.json's start map must exist too. The battle files must
 // all exist and name only types, weather, moves, species and treats that the others define; so must
 // encounters.json, starters.json and creatures/renamed.json, and each map's tall grass and shrines must name a zone in
-// encounters.json and a shrine in shrines.json. Art (content/art/) must hold every sprite that
-// avatars, creatures, weather, items and maps need; each tileset image must be what `npm run tiles`
+// encounters.json and a shrine in shrines.json. The story files (npcs.json, dialogue/, quests.json,
+// story.json, inventory.json) must link up (core storyProblems) and to the maps (storyMapProblems).
+// Art (content/art/) must hold every sprite that avatars, creatures, weather, items, npcs, story
+// cues and maps need; each tileset image must be what `npm run tiles`
 // draws from its art, and each real-art PNG must be used and the right size.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   ART_PNG,
+  DIALOGUE_FILE,
   EncountersFile,
+  STORY_CUES,
   MAP_FILE,
   RenamedFile,
   ShrinesFile,
@@ -23,11 +27,14 @@ import {
   isPngSprite,
   loadArt,
   loadBattleContent,
+  loadStoryContent,
   mapLinkProblems,
   missingArt,
   readTiledMap,
   renamedProblems,
   starterProblems,
+  storyContentProblems,
+  storyMapProblems,
 } from '../packages/core/src/index.ts';
 import { artPixels, pngProblems, renderTileset } from './lib/art.mjs';
 
@@ -97,6 +104,7 @@ const BATTLE_FILES = {
   items: 'items.json',
 };
 const WORLD_FILES = ['encounters.json', 'shrines.json', 'starters.json', 'creatures/renamed.json'];
+const STORY_FILES = ['npcs.json', 'quests.json', 'story.json', 'inventory.json'];
 const missing = [...Object.values(BATTLE_FILES), ...WORLD_FILES].filter((file) => !all.includes(file));
 if (missing.length) fail('creatures/', missing.map((file) => `content/${file} is missing; the game needs it`));
 else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed.has(file))) {
@@ -113,13 +121,37 @@ else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed
     if (starterLinks.length) fail('starters.json', starterLinks);
     const renamedLinks = renamedProblems(RenamedFile.parse(parsed.get('creatures/renamed.json')), content);
     if (renamedLinks.length) fail('creatures/renamed.json', renamedLinks);
+    const maps = [];
     for (const [file, raw] of parsed) {
       const name = MAP_FILE.exec(file)?.[1];
       const read = name ? readTiledMap(name, raw) : null;
+      if (read?.ok) maps.push(read.map);
       const links = read?.ok ? mapLinkProblems(read.map, encounters, shrines) : [];
       if (links.length) fail(file, links);
     }
+    checkStory(content, maps, encounters, shrines);
   }
+}
+
+// The story: npcs.json, dialogue/, quests.json, story.json and inventory.json, linked to each other,
+// to the battle content and to the maps.
+function checkStory(battle, maps, encounters, shrines) {
+  const missingStory = STORY_FILES.filter((file) => !all.includes(file));
+  if (missingStory.length) return fail('story', missingStory.map((file) => `content/${file} is missing; the game needs it`));
+  const dialogueFiles = [...parsed.keys()].filter((file) => DIALOGUE_FILE.test(file));
+  if (!STORY_FILES.every((file) => parsed.has(file)) || dialogueFiles.length !== all.filter((file) => DIALOGUE_FILE.test(file)).length) return;
+  const storyFiles = {
+    npcs: parsed.get('npcs.json'),
+    quests: parsed.get('quests.json'),
+    story: parsed.get('story.json'),
+    inventory: parsed.get('inventory.json'),
+    dialogue: Object.fromEntries(dialogueFiles.map((file) => [DIALOGUE_FILE.exec(file)[1], parsed.get(file)])),
+  };
+  const problems = storyContentProblems(storyFiles, battle);
+  if (problems.length) return fail('story', problems);
+  const storyWorld = { maps, zones: encounters.zones.map((zone) => zone.id), shrines: shrines.shrines.map((shrine) => shrine.id) };
+  const mapProblems = storyMapProblems(loadStoryContent(storyFiles, battle), storyWorld);
+  if (mapProblems.length) fail('story', mapProblems);
 }
 
 // Art: only once every file reads on its own, so each problem below is about how the files fit.
@@ -134,6 +166,8 @@ if (artFiles.every((file) => parsed.has(file))) {
     species: ids('creatures/species.json', 'species'),
     weather: ids('creatures/weather.json', 'types'),
     items: ids('items.json', 'items'),
+    npcs: ids('npcs.json', 'npcs'),
+    cues: [...STORY_CUES],
     tilesets: [...new Set(mapTilesets.map(({ name }) => name))],
   };
   const problems = [...art.problems, ...missingArt(art, users), ...(art.problems.length ? [] : pngProblems(art, CONTENT_DIR))];

@@ -1,0 +1,47 @@
+{
+  "width": 64,
+  "height": 32,
+  "palette": {
+    "d": "#3b3f5c",
+    "m": "#14142b",
+    "w": "#e8e8f0",
+    "e": "#ffd94a",
+    "c": "#f4f8ff"
+  },
+  "frames": {
+    "still": [
+      "................................................................",
+      "................................................................",
+      "................................................................",
+      "..............................d.................................",
+      ".........................ddddddddddd............................",
+      "..............d.........ddddddddddddd...........................",
+      "..........ddddddddd...ddddddddddddddddd.........................",
+      "........dddddddddddddddddddddddddddddddd........................",
+      ".......ddddddddddddddddddddddddddddddddd........................",
+      "......dddddddddddddddddddddddddddddddddd........................",
+      "......ddddddddddddddddddddddddddddddddddd.......................",
+      "......dddddddddddddddddddddddddddddddddd........................",
+      ".....dddddddddddedddddddddddeddddddddddd........................",
+      ".....ddddddddddddddddddddddddddddddddddd........................",
+      ".....ddddddddddddddddddddddddddddddddddd............c...........",
+      ".....ddddddddddddddddddddddddddddddddddd........ccccccccc.......",
+      "....ddddddddddddddddddddddddddddddddddddd.....ccccccccccccc.....",
+      ".....dddddddddwwwwwwwwwwwwwwwwwwwwwddddd......ccccccccccccc.....",
+      ".....dddddddddmmmmmmmmmmmmmmmmmmmmmddddd.....ccccccccccccccc....",
+      ".....dddddddddmmmmmmmmmmmmmmmmmmmmmddddd......ccccccccccccc.....",
+      "......ddddddddwwwwwwwwwwwwwwwwwwwwwdddd.......ccccccccccccc.....",
+      ".......ddddddddddddddddddddddddddddddd..........ccccccccc.......",
+      "........ddddddddddddddddddddddddddddd...............c...........",
+      "..........ddddddddddddddddddddddddd.............................",
+      "............ddddddddddddddddddddd...............................",
+      "...............ddddddddddddddd..................................",
+      "......................d.........................................",
+      "................................................................",
+      "................................................................",
+      "................................................................",
+      "................................................................",
+      "................................................................"
+    ]
+  }
+}

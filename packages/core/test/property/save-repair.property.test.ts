@@ -24,11 +24,21 @@ const progress: fc.Arbitrary<Progress> = fc.record({
   lastShrine: fc.constant(null),
   seen: fc.uniqueArray(someId(speciesIds), { maxLength: 6 }),
   befriended: fc.uniqueArray(someId(speciesIds), { maxLength: 6 }),
+  // The story is pruned against the story content after the repair, not by it.
+  story: fc.constantFrom({ active: [], done: [], flags: [] }, { active: [{ quest: 'first-round', step: 0, count: 1 }], done: ['gone-quest'], flags: ['gone-flag'] }),
 });
 
 const SAVE = { name: 'Test Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null } as const;
 
 describe('save repair properties', () => {
+  it('keeps the story exactly as saved', () => {
+    fc.assert(
+      fc.property(progress, (before) => {
+        expect(sanitizeProgress(before, battleContent).progress.story).toEqual(before.story);
+      }),
+    );
+  });
+
   it('leaves only creatures, moves and items the content has, within bounds, in a save that still parses', () => {
     fc.assert(
       fc.property(progress, (before) => {

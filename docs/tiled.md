@@ -26,6 +26,15 @@ explains them in plain steps.
   `content/shrines.json`, and put it on a walkable square. A player who steps onto that square or
   one next to it rests there: their team is healed, and that shrine becomes where they wake after
   their whole team faints.
+- **npcs** (optional): an object layer of points, one per character. Name each point after a
+  character `id` in `content/npcs.json`, and put it on a walkable square with a reachable square
+  beside it. The character stands there and blocks the square; players talk from the squares
+  directly beside it, never diagonally. Each character stands on one map only, and once any map
+  places characters, every character in `npcs.json` must be placed.
+- **marks** (optional): an object layer of points that quests send players to, such as a lookout.
+  Name each point with a short lowercase id and put it on a walkable square; a quest's `reach`
+  step names it, and stepping onto that square or one next to it counts. Players do not see
+  marks; paint something on `decor` so they know where to go.
 
 ## What blocks walking
 

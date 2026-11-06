@@ -1,0 +1,114 @@
+{
+  "npc": "bavko",
+  "entries": [
+    {
+      "if": [
+        {
+          "needsStarter": true
+        }
+      ],
+      "node": "welcome"
+    },
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "is": "available"
+        }
+      ],
+      "node": "offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "at": "deliver-note"
+        }
+      ],
+      "node": "remind"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "welcome": {
+      "say": {
+        "en": "Oh! Someone new at the post! Good to have you here. I'm Bavko, the postmaster of the Sky Post.",
+        "sl": "Oh! Nekdo nov na pošti! Lepo, da si tu. Sem Bavko, poštar Nebesne pošte."
+      },
+      "mood": "surprised",
+      "next": "first-friend"
+    },
+    "first-friend": {
+      "say": {
+        "en": "Out here, nobody carries the mail alone. Pick a creature to travel with you.",
+        "sl": "Tu nihče ne nosi pošte sam. Izberi bitje, ki bo potovalo s tabo."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "offerStarter": true
+        }
+      ]
+    },
+    "offer": {
+      "say": {
+        "en": "I have a note for Tobolko, down by the meadow. Can you take it to him?",
+        "sl": "Imam sporočilo za Tobolka, tam pri travniku. Mu ga lahko neseš?"
+      },
+      "mood": "happy",
+      "choices": [
+        {
+          "say": {
+            "en": "I'll take it!",
+            "sl": "Prevzamem!"
+          },
+          "next": "accept"
+        },
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Kasneje."
+          },
+          "next": "later"
+        }
+      ]
+    },
+    "accept": {
+      "say": {
+        "en": "Wonderful! Here's the note. Tobolko is by the meadow, west of here.",
+        "sl": "Odlično! Tu je sporočilo. Tobolko je pri travniku, zahodno od tod."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "first-round"
+        },
+        {
+          "give": "hello-note",
+          "count": 1
+        }
+      ]
+    },
+    "later": {
+      "say": {
+        "en": "No hurry. Letters are patient.",
+        "sl": "Ni treba hiteti. Pisma znajo počakati."
+      }
+    },
+    "remind": {
+      "say": {
+        "en": "Tobolko is waiting for that note. He's by the meadow.",
+        "sl": "Tobolko čaka na tisto sporočilo. Najdeš ga pri travniku."
+      }
+    },
+    "idle": {
+      "say": {
+        "en": "The wind is gentle today. Good weather for letters.",
+        "sl": "Veter je danes nežen. Pravo vreme za pisma."
+      },
+      "mood": "calm"
+    }
+  }
+}

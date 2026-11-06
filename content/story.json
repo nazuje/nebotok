@@ -1,0 +1,15 @@
+{
+  "chapters": [
+    {
+      "id": "post-training",
+      "name": {
+        "en": "Training at the Sky Post",
+        "sl": "Uvajanje na Nebesni pošti"
+      },
+      "quests": [
+        "first-round"
+      ]
+    }
+  ],
+  "flags": []
+}

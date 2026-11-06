@@ -1,0 +1,62 @@
+{
+  "description": "Story golden: a new player chooses the rain starter, says \"Later\" to the first quest and comes back for it, wins a battle no quest counts yet, then the bot plays on to the end.",
+  "commands": [
+    {
+      "talk": "bavko",
+      "answers": [
+        null,
+        null
+      ],
+      "starter": "rain-blob"
+    },
+    {
+      "talk": "bavko",
+      "answers": [
+        0,
+        null
+      ]
+    },
+    {
+      "event": {
+        "kind": "battleWon",
+        "zone": "meadow"
+      }
+    },
+    {
+      "talk": "bavko",
+      "answers": [
+        1
+      ]
+    },
+    {
+      "talk": "tobolko",
+      "answers": []
+    },
+    {
+      "talk": "tobolko",
+      "answers": [
+        1
+      ]
+    },
+    {
+      "event": {
+        "kind": "battleWon",
+        "zone": "rise"
+      }
+    },
+    {
+      "event": {
+        "kind": "battleWon",
+        "zone": "meadow"
+      }
+    },
+    {
+      "event": {
+        "kind": "battleWon",
+        "zone": null
+      }
+    }
+  ],
+  "botCommands": 200,
+  "expectedHash": "125f41e2bfd005"
+}
