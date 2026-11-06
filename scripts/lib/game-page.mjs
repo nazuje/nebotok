@@ -165,10 +165,12 @@ export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) =>
 
 /**
  * Waits until the page's state passes `check`, choosing the first starter on the way when the page
- * asks a new player for one, as every player entering the world for the first time is asked.
+ * asks a new player for one, as every player entering the world for the first time is asked. The
+ * world can show before the server's progress arrives, so it counts only once the progress says
+ * there is a starter.
  */
 export async function enterWorld(page, check, what, timeoutMs = 20_000) {
-  const state = await until(page, (s) => s.screen === 'starter' || check(s), what, timeoutMs);
+  const state = await until(page, (s) => s.screen === 'starter' || (check(s) && s.progress?.needsStarter === false), what, timeoutMs);
   if (state.screen !== 'starter') return state;
   await nextFrames(page);
   await page.locator('.starter-choice').first().tap();
