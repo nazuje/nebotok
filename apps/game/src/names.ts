@@ -54,6 +54,7 @@ export function createNameTags(root: HTMLElement): NameTags {
         if (tag.textContent !== label.name) tag.textContent = label.name;
         tag.classList.toggle('away', label.away);
         tag.classList.toggle('battling', label.battling);
+        tag.classList.toggle('talking', label.talking && !label.battling);
       }
       for (const [id, tag] of tags) {
         if (seen.has(id)) continue;

@@ -26,11 +26,10 @@ import {
 export const TALK_IDLE_MS = 120_000;
 
 /**
- * Whether `starter.choose` is allowed only while talking at a node that offers the starter. False
- * while the client still opens its starter screen by itself whenever `needsStarter`; set it true
- * once the client opens that screen only from the talk that offers it.
+ * Whether `starter.choose` is allowed only while talking at a node that offers the starter. The
+ * client opens its starter screen only from that talk, so a starter chosen any other way is refused.
  */
-export const STARTER_NEEDS_TALK = false;
+export const STARTER_NEEDS_TALK = true;
 
 /**
  * A talk in progress. Like a move offer it lives only in the seat's memory and is never saved:

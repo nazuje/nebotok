@@ -20,6 +20,8 @@ import {
   type ProgressMessage,
   type Refused,
   type StorageMessage,
+  type TalkEnded,
+  type TalkNode,
 } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
@@ -28,6 +30,7 @@ import { OFFER_IDLE_MS, REQUESTS_PER_SECOND, type WorldRoom } from '../src/world
 import type { WorldState } from '../src/world-state.ts';
 import type { WorldContent } from '../src/world.ts';
 import { capturedLog, freePort, repeat, tempServices, until } from './helpers.ts';
+import { beside } from './story-server.ts';
 
 // The room's clock runs ahead of the real one by `offset`, so a test can make two minutes pass.
 const clock = { offset: 0 };
@@ -463,10 +466,22 @@ describe('learning moves at a level up', () => {
 });
 const roomHasPlayer = (who: Player) => colyseus.getRoomById<WorldRoom>(who.room.roomId)?.state.players.has(who.room.sessionId) ?? false;
 
+/** Goes on through Bavko's first talk, taking the first choice where there is one, until the node that offers the starter. */
+async function toStarterNode(who: Player, node: TalkNode, steps = 0): Promise<TalkNode> {
+  if (node.cue === 'offerStarter') return node;
+  if (steps > 10) throw new Error('Bavko never offered the starter');
+  await sleep(PACE_MS);
+  who.room.send('talk.next', { conversation: node.conversation, choice: node.choices.length > 0 ? 0 : null });
+  return toStarterNode(who, await who.box.take<TalkNode>('talk.node'), steps + 1);
+}
+
 describe('starters, shrines, team and storage', () => {
-  it('gives a new player the starter they choose, once', async () => {
-    const who = await player('New Courier');
+  it('gives a new player the starter they choose at Bavko, once', async () => {
+    const who = await player('New Courier', {}, beside(map(), map().npcs['bavko']!));
     expect(who.progress.needsStarter).toBe(true);
+    who.room.send('talk.start', { npc: 'bavko' });
+    const offered = await toStarterNode(who, await who.box.take<TalkNode>('talk.node'));
+    await sleep(PACE_MS);
     who.room.send('starter.choose', { species: 'boltkit' });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'invalid' });
     await sleep(PACE_MS);
@@ -474,6 +489,7 @@ describe('starters, shrines, team and storage', () => {
     const progress = await who.box.take<ProgressMessage>('progress');
     expect(progress).toMatchObject({ needsStarter: false, team: [{ species: 'puddlepip', level: world.starters.level }], inventory: world.starters.items, befriended: ['puddlepip'] });
     expect(saved(who.id)?.team).toHaveLength(1);
+    expect(await who.box.take<TalkEnded>('talk.ended')).toEqual({ conversation: offered.conversation });
     await sleep(PACE_MS);
     who.room.send('starter.choose', { species: 'glowbun' });
     expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'notNow' });

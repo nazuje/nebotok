@@ -1,11 +1,15 @@
 // What the browser check and the scene command (scripts/scene.mjs) share: the browsers and devices,
 // watching a page for trouble, the page's ?test=1 hook (apps/game/src/test-hook.ts), the server's
-// profile API and maps, and getting a courier into the world and around it past the tall grass.
+// profile API and maps, getting a courier into the world and around it past the tall grass, and
+// talking to characters.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { chromium, devices, webkit } from '@playwright/test';
 import { PLAYER_SPAWN, encounterZoneAt, findPath, isWalkable, readTiledMap, reachableFrom } from '../../packages/core/src/index.ts';
 import { inTurn, poll } from './in-turn.mjs';
 import { chromiumLaunchOptions, webkitLaunchOptions } from './launch-options.mjs';
 import { livePorts } from './local-stack.mjs';
+import { ROOT } from './server-process.mjs';
 
 const THIS_COMPUTER = new Set(['127.0.0.1', 'localhost']);
 
@@ -164,19 +168,20 @@ export async function servedMap(serverBase, id) {
 export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
 /**
- * Waits until the page's state passes `check`, choosing the first starter on the way when the page
- * asks a new player for one, as every player entering the world for the first time is asked. The
+ * Waits until the page's state passes `check`, getting a starter on the way when the player has
+ * none, as every player entering the world for the first time must: walking up to the character
+ * the page's hint points at, talking until they offer the starters, and taking the first. The
  * world can show before the server's progress arrives, so it counts only once the progress says
- * there is a starter.
+ * there is a starter. `world` is a servedMap.
  */
-export async function enterWorld(page, check, what, timeoutMs = 20_000) {
-  const state = await until(page, (s) => s.screen === 'starter' || (check(s) && s.progress?.needsStarter === false), what, timeoutMs);
-  if (state.screen !== 'starter') return state;
+export async function enterWorld(page, world, check, what, { notes = [], timeoutMs = 20_000 } = {}) {
+  const state = await until(page, (s) => inWorld(s) && s.progress !== null && (s.progress.needsStarter || check(s)), what, timeoutMs);
+  if (!state.progress.needsStarter) return state;
+  await talkForStarter(page, world, { notes });
   await nextFrames(page);
   await page.locator('.starter-choice').first().tap();
   return until(page, (s) => s.progress?.needsStarter === false && check(s), `${what} after choosing a starter`, timeoutMs);
 }
-
 /** Whether `tile` is tall grass, where a wild creature may appear. `world` is a servedMap. */
 export const inGrass = (world, tile) => encounterZoneAt(world.map, tile) !== null;
 /** Whether the walk the page plans from `from` to `to` (the core's path) stays out of the grass. */
@@ -332,4 +337,101 @@ export async function meetWildCreature(page, world, { notes }) {
   const pair = grassEdge(world);
   const met = await walkByTaps(page, world, pair[0], { notes, meet: true });
   return met.screen === 'battle' ? met : stepInGrass(page, pair, 1);
+}
+
+const dialogueOf = (npc) => JSON.parse(readFileSync(join(ROOT, 'content', 'dialogue', `${npc}.json`), 'utf8'));
+/** Whether the dialogue can get from node `from` to a node that passes `wanted`, by its next lines and choices. */
+function leadsTo(nodes, from, wanted, seen = new Set()) {
+  const node = nodes[from];
+  if (!node || seen.has(from)) return false;
+  seen.add(from);
+  const after = [node.next, ...(node.choices ?? []).map((choice) => choice.next)].filter((next) => next !== undefined);
+  return wanted(node) || after.some((next) => leadsTo(nodes, next, wanted, seen));
+}
+const doesEffect = (kind) => (node) => (node.effects ?? []).some((effect) => kind in effect);
+/** A dialogue node that offers the starters, or starts a quest. */
+export const offersStarter = doesEffect('offerStarter');
+export const startsQuest = doesEffect('startQuest');
+
+/** The choice on screen to answer with: the first that leads to a node passing `toward`, else the first. */
+function choiceFor(talk, toward) {
+  if (talk.choices.length === 0) return null;
+  const { nodes } = dialogueOf(talk.npc);
+  const written = nodes[talk.node]?.choices ?? [];
+  const leading = ({ index }) => toward !== null && written[index]?.next !== undefined && leadsTo(nodes, written[index].next, toward);
+  return talk.choices.find(leading) ?? talk.choices[0];
+}
+
+/** The tile beside `at` to walk to first, when the character there is off screen: out of the grass, nearest `from`. */
+function besideNpc(world, at, from) {
+  const free = (tile) => isWalkable(world.map, tile) && world.reach[tile.y * world.map.width + tile.x];
+  const [nearest] = STEPS_AROUND.map(([dx, dy]) => ({ x: at.x + dx, y: at.y + dy }))
+    .filter(free)
+    .toSorted((a, b) => Number(inGrass(world, a)) - Number(inGrass(world, b)) || apartBy(a, from) - apartBy(b, from));
+  return nearest;
+}
+
+const MAX_TALK_TRIES = 3;
+
+/**
+ * Opens a talk with `npc` as a player would: taps the character, and the page walks the courier up
+ * to them and asks to talk. Walks closer by taps first when they are off screen. A wild battle on
+ * the way is run from, noted in `notes`, and the character tapped again. Returns the state with the
+ * talk open. Where they stand comes from the served map, `world`.
+ */
+export async function openTalk(page, world, npc, { notes, tries = MAX_TALK_TRIES }) {
+  const at = world.map.npcs[npc];
+  if (!at) throw new Error(`${npc} stands nowhere on ${world.map.id}`);
+  let state = await until(page, (s) => settledOn(s) && s.talk === null, `the courier to stand still before talking to ${npc}`);
+  let [spot] = await tilesToScreen(page, [at]);
+  if (!tappable(page, spot)) {
+    state = await walkByTaps(page, world, besideNpc(world, at, selfIn(state)), { notes });
+    [spot] = await tilesToScreen(page, [at]);
+  }
+  if (!tappable(page, spot)) throw new Error(`${npc} at ${at.x},${at.y} is not on screen to tap`);
+  await page.touchscreen.tap(spot.x, spot.y);
+  const far = apartBy(selfIn(state), at);
+  state = await until(page, (s) => s.screen === 'battle' || s.talk?.npc === npc, `a talk with ${npc} to open`, far * 500 + 5_000);
+  if (state.screen !== 'battle') return state;
+  if (tries <= 1) throw new Error(`a wild battle started each of ${MAX_TALK_TRIES} times on the way to ${npc}`);
+  notes.push(`ran from a wild battle that started on the way to ${npc}`);
+  await leaveBattle(page);
+  return openTalk(page, world, npc, { notes, tries: tries - 1 });
+}
+
+const MAX_TALK_LINES = 30;
+
+/**
+ * Plays the open talk to its end as a player would, once each line is typed out: a tap on the box
+ * goes on, and of the choices the one that leads to a node passing `toward` is taken (else the
+ * first). Stops early once `stop(state)` holds, such as the starter screen showing. `seen(state)`
+ * is called on every line once it is whole, for checks and screenshots. Returns the last state.
+ */
+export async function talkThrough(page, { toward = null, stop = () => false, seen = async () => {}, lines = MAX_TALK_LINES } = {}) {
+  const state = await until(page, (s) => s.talk === null || stop(s) || (s.talk.typed && !s.talk.waiting), 'the talk line to be typed out', 15_000);
+  if (state.talk === null || stop(state)) return state;
+  if (lines === 0) throw new Error(`the talk with ${state.talk.npc} was still going after ${MAX_TALK_LINES} lines`);
+  const { talk } = state;
+  await nextFrames(page);
+  await seen(state);
+  // The node that offers the starters waits for the starter screen over it; a tap does nothing there.
+  if (talk.cue !== 'offerStarter') {
+    const choice = choiceFor(talk, toward);
+    await page.locator(choice ? `#talk .talk-choice[data-choice="${choice.index}"]` : '#talk .talk-line').tap();
+  }
+  await until(page, (s) => stop(s) || s.talk?.conversation !== talk.conversation || s.talk.node !== talk.node, `the talk with ${talk.npc} to go on from ${talk.node}`, 10_000);
+  return talkThrough(page, { toward, stop, seen, lines: lines - 1 });
+}
+
+/** The character a new player gets their first creature from: the one the hint points at, or, off screen, the only one marked. */
+const starterGiver = (state) => state.talkHint ?? state.npcs.find((npc) => npc.mark === 'newQuest')?.id ?? null;
+
+/**
+ * A new player's way to their first creature: to the character the page points them to, talking
+ * until the starter screen shows over the talk. `seen` is talkThrough's. Returns that state.
+ */
+export async function talkForStarter(page, world, { notes, seen }) {
+  const marked = await until(page, (s) => starterGiver(s) !== null && settledOn(s), 'the mark on the character who gives the first creature');
+  await openTalk(page, world, starterGiver(marked), { notes });
+  return talkThrough(page, { toward: offersStarter, stop: (s) => s.screen === 'starter', seen });
 }

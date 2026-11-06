@@ -28,6 +28,8 @@ export type BattlesOptions = {
   battleStarted(): void;
   /** The map and your own courier's tile on it, as the server last said, once both are known. */
   standing(): { map: WorldMap; tile: Point } | null;
+  /** A talk is at the node that offers the starter: only then does the starter screen open. */
+  starterOffered(): boolean;
 };
 
 export type Battles = {
@@ -37,6 +39,8 @@ export type Battles = {
   /** Called every frame. */
   frame(now: number): void;
   overlay(): BattleOverlay | null;
+  /** Your creatures, treats and whether you still need a starter, as the server last sent them. */
+  progress(): ProgressMessage | null;
   /** Forgets every battle and team, as when the player leaves the world. */
   reset(): void;
   snapshot(now: number): { battle: TestBattle | null; progress: ProgressMessage | null; storage: StorageMessage | null; teamScreen: TestTeamScreen | null; starterChosen: string | null; learning: LearnState | null };
@@ -106,7 +110,7 @@ export function createBattles(options: BattlesOptions): Battles {
     const progress = model.progress();
     const offer = battle ? null : learn.current();
     if (battle || offer) team.close();
-    starter.render(battle ? null : progress);
+    starter.render(battle || !options.starterOffered() ? null : progress);
     battleScreen.render(battle);
     learnPrompt.render(offer);
     team.render();
@@ -141,6 +145,7 @@ export function createBattles(options: BattlesOptions): Battles {
       update(now);
     },
     overlay: () => overlay,
+    progress: () => model.progress(),
     reset: () => {
       model.reset();
       learn.reset();
