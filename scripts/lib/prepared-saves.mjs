@@ -19,7 +19,7 @@ function withDatabase(dataDir, use) {
 
 /** Writes `data` (a whole save's data, checked like every save) as the save of profile `playerId`. */
 export function prepareSave(dataDir, playerId, data) {
-  withDatabase(dataDir, (db) => createProgressStore({ db, now: Date.now, rename: (same) => same }).save(playerId, createSave(data)));
+  withDatabase(dataDir, (db) => createProgressStore({ db, now: Date.now, repair: (_playerId, same) => same }).save(playerId, createSave(data)));
 }
 
 /**

@@ -74,7 +74,9 @@ throws a `ServerError`:
 | `ErrorCode.MATCHMAKE_INVALID_CRITERIA` (521) | Missing or different `protocol` | The page is out of date: reload |
 
 One profile has one character. Joining again from another device takes the character over, where it
-stands, and the older connection is closed with `CLOSE_CODES.replaced`.
+stands, and the older connection is closed with `CLOSE_CODES.replaced`. The server has exactly one
+world room: it holds `MAX_PLAYERS` (twice `MAX_PROFILES`), stays open while nobody plays, and
+refuses to open a second one, so every profile meets everyone else and holds one seat at most.
 
 ## Room state
 
@@ -286,6 +288,11 @@ treat the server state as the truth whenever they differ.
 | 4002 `WITH_ERROR` | A malformed message, or too many | No; it is a bug |
 | 4101 `CLOSE_CODES.replaced` | The same profile joined on another device | No; say so |
 | 4102 `CLOSE_CODES.signedOut` | The profile logged out, or its session ended | No; show the profile screen |
+| 4103 `CLOSE_CODES.failed` | The server hit an error with this seat alone; it was saved and ended | Join again after a pause |
+
+An error inside the room never stops the server. An error in one player's part of a tick or of the
+room's regular checks ends that player's seat with `failed` (a battle check ends only the battle);
+an error handling a message ends the sender's battle, if any, as a run. Every other player goes on.
 
 A dropped player stays in the world, standing still with `connected: false`, for three minutes
 (`RECONNECT_SECONDS`). The SDK reconnects to the same `sessionId` and position.
@@ -297,7 +304,15 @@ their seat expires, every 30 seconds for players who moved, and when it shuts do
 position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
 an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item id and count),
 `lastShrine`, and the `seen` and `befriended` species. A save from v2 or earlier has no
-creatures, so that player chooses a starter on their next visit. A player
+creatures, so that player chooses a starter on their next visit.
+
+Every save is checked against today's content as it loads: renamed species become the species
+`creatures/renamed.json` names, then core's `sanitizeProgress` drops a creature whose species is
+gone, keeps each move its species learns and fills the slots of the others from its species' moves,
+caps health at full health, and drops items and `seen`/`befriended` species that are gone. A team
+left empty takes the first stored creature that can battle; with no creature left at all the player
+chooses a starter again. The server logs a repair as `save repaired` with the player's id and the
+content ids involved, and saves the repaired data the next time it saves the player. A player
 starts at their saved tile, or at the map's `player` spawn when there is no save or the saved tile
 is no longer walkable.
 

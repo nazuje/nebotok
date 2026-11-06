@@ -1,0 +1,71 @@
+{
+  "v": 3,
+  "data": {
+    "name": "Test Courier",
+    "language": "sl",
+    "createdAt": "2026-05-03T10:00:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 12,
+      "y": 9,
+      "facing": "up"
+    },
+    "team": [
+      {
+        "species": "gone-species",
+        "level": 5,
+        "xp": 0,
+        "hp": 20,
+        "moves": [
+          "sun-tap"
+        ]
+      },
+      {
+        "species": "glowbun",
+        "level": 7,
+        "xp": 10,
+        "hp": 99,
+        "moves": [
+          "sun-ray",
+          "gone-move",
+          "drip-drop"
+        ],
+        "nickname": "Žarek"
+      }
+    ],
+    "storage": [
+      {
+        "species": "old-cloud",
+        "level": 3,
+        "xp": 0,
+        "hp": 0,
+        "moves": [
+          "gale-tap"
+        ]
+      }
+    ],
+    "inventory": [
+      {
+        "item": "plain-treat",
+        "count": 2
+      },
+      {
+        "item": "gone-treat",
+        "count": 1
+      }
+    ],
+    "lastShrine": {
+      "map": "post-island",
+      "shrine": "post-shrine"
+    },
+    "seen": [
+      "glowbun",
+      "gone-species",
+      "old-cloud"
+    ],
+    "befriended": [
+      "glowbun",
+      "gone-species"
+    ]
+  }
+}

@@ -237,6 +237,7 @@ export {
   renameSpecies,
   type Progress,
 } from './creatures.ts';
+export { isRepaired, knowableMoves, sanitizeProgress, type ProgressRepairs } from './save-repair.ts';
 export { xpForWin, xpToNextLevel, gainXp, sentOut, awardXp } from './growth.ts';
 export { learnMoves, learnTeamMoves, chooseMove, answerMove, type MoveLearning, type PendingMove } from './learning.ts';
 export {

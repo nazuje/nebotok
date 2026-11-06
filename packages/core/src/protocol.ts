@@ -99,8 +99,10 @@ export type WalkRefused = { readonly x: number; readonly y: number };
 /**
  * WebSocket close codes the server uses, in the range Colyseus leaves to applications (4011 to 4999).
  * A client that gets `replaced` must not reconnect by itself: the same profile joined elsewhere.
+ * `failed` means the server hit an error with this seat alone; the client joins again.
  */
 export const CLOSE_CODES = {
   replaced: 4101,
   signedOut: 4102,
+  failed: 4103,
 } as const;
