@@ -20,7 +20,8 @@ in the browser later.
   battle on the live `content/creatures/`, so every new creature is still played.
 - **Battles** live in `src/battle/`: `battleStep(state, actions, rng, content)` is a pure step that
   returns the next state and the events the client animates. Bots in `bots.ts` drive the tests, and
-  `node scripts/battle-sim.mjs` prints how greedy and random bots fare against each other.
+  `node scripts/battle-sim.mjs` prints how greedy and random bots fare against each other, and how
+  each species and weather type fares one on one (`roundRobin` in `simulate.ts`).
 - **Wild creatures and progress:** `rollEncounter` (`src/encounter.ts`), `befriendChance`
   (`src/befriend.ts`), team, storage, treat and shrine rules (`src/creatures.ts`, pure functions on a
   `Progress`) and experience (`src/growth.ts`). The payloads of the battle and team messages, and

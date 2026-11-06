@@ -3,7 +3,7 @@
 // not content. Tileset images (maps/*.png) are not JSON: each must be a PNG that a map uses, and
 // every image a map names must exist. world.json's start map must exist too. The battle files must
 // all exist and name only types, weather, moves, species and treats that the others define; so must
-// encounters.json and starters.json, and each map's tall grass and shrines must name a zone in
+// encounters.json, starters.json and creatures/renamed.json, and each map's tall grass and shrines must name a zone in
 // encounters.json and a shrine in shrines.json. Art (content/art/) must hold every sprite that
 // avatars, creatures, weather, items and maps need; each tileset image must be what `npm run tiles`
 // draws from its art, and each real-art PNG must be used and the right size.
@@ -14,6 +14,7 @@ import {
   ART_PNG,
   EncountersFile,
   MAP_FILE,
+  RenamedFile,
   ShrinesFile,
   StartersFile,
   battleContentProblems,
@@ -25,6 +26,7 @@ import {
   mapLinkProblems,
   missingArt,
   readTiledMap,
+  renamedProblems,
   starterProblems,
 } from '../packages/core/src/index.ts';
 import { artPixels, pngProblems, renderTileset } from './lib/art.mjs';
@@ -94,7 +96,7 @@ const BATTLE_FILES = {
   befriending: 'creatures/befriending.json',
   items: 'items.json',
 };
-const WORLD_FILES = ['encounters.json', 'shrines.json', 'starters.json'];
+const WORLD_FILES = ['encounters.json', 'shrines.json', 'starters.json', 'creatures/renamed.json'];
 const missing = [...Object.values(BATTLE_FILES), ...WORLD_FILES].filter((file) => !all.includes(file));
 if (missing.length) fail('creatures/', missing.map((file) => `content/${file} is missing; the game needs it`));
 else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed.has(file))) {
@@ -109,6 +111,8 @@ else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed
     if (encounterLinks.length) fail('encounters.json', encounterLinks);
     const starterLinks = starterProblems(StartersFile.parse(parsed.get('starters.json')), content);
     if (starterLinks.length) fail('starters.json', starterLinks);
+    const renamedLinks = renamedProblems(RenamedFile.parse(parsed.get('creatures/renamed.json')), content);
+    if (renamedLinks.length) fail('creatures/renamed.json', renamedLinks);
     for (const [file, raw] of parsed) {
       const name = MAP_FILE.exec(file)?.[1];
       const read = name ? readTiledMap(name, raw) : null;

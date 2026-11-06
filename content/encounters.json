@@ -6,28 +6,34 @@
       "weather": null,
       "creatures": [
         {
-          "species": "sun-blob",
+          "species": "petalbug",
           "minLevel": 2,
           "maxLevel": 4,
           "weight": 30
         },
         {
-          "species": "bloom-blob",
-          "minLevel": 2,
-          "maxLevel": 4,
-          "weight": 30
-        },
-        {
-          "species": "gale-blob",
+          "species": "baskit",
           "minLevel": 2,
           "maxLevel": 4,
           "weight": 25
         },
         {
-          "species": "rain-cube",
+          "species": "breezeray",
+          "minLevel": 2,
+          "maxLevel": 4,
+          "weight": 25
+        },
+        {
+          "species": "sparkhog",
           "minLevel": 3,
           "maxLevel": 5,
           "weight": 15
+        },
+        {
+          "species": "drizzlesnail",
+          "minLevel": 3,
+          "maxLevel": 5,
+          "weight": 5
         }
       ]
     },
@@ -37,25 +43,31 @@
       "weather": "gale",
       "creatures": [
         {
-          "species": "gale-blob",
-          "minLevel": 5,
-          "maxLevel": 8,
-          "weight": 35
-        },
-        {
-          "species": "storm-blob",
+          "species": "pinwhirl",
           "minLevel": 5,
           "maxLevel": 8,
           "weight": 30
         },
         {
-          "species": "frost-blob",
+          "species": "boltkit",
           "minLevel": 5,
           "maxLevel": 8,
           "weight": 25
         },
         {
-          "species": "sun-cube",
+          "species": "rimemoth",
+          "minLevel": 5,
+          "maxLevel": 8,
+          "weight": 20
+        },
+        {
+          "species": "pourpoise",
+          "minLevel": 5,
+          "maxLevel": 8,
+          "weight": 15
+        },
+        {
+          "species": "gustowl",
           "minLevel": 6,
           "maxLevel": 9,
           "weight": 10

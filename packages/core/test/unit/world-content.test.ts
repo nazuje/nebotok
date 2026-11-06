@@ -4,7 +4,7 @@ import shrines from '../../../../content/shrines.json' with { type: 'json' };
 import starters from '../../../../content/starters.json' with { type: 'json' };
 import { checkContentFile } from '../../src/index.ts';
 
-const zone = { id: 'test-grass', encounterPercent: 10, weather: null, creatures: [{ species: 'sun-blob', minLevel: 2, maxLevel: 4, weight: 1 }] };
+const zone = { id: 'test-grass', encounterPercent: 10, weather: null, creatures: [{ species: 'glowbun', minLevel: 2, maxLevel: 4, weight: 1 }] };
 
 describe('world content', () => {
   it.each([
@@ -30,7 +30,7 @@ describe('world content', () => {
   });
 
   it('rejects starters that are not three different creatures', () => {
-    expect(checkContentFile('starters.json', { ...starters, species: ['sun-blob', 'rain-blob'] }).ok).toBe(false);
-    expect(checkContentFile('starters.json', { ...starters, species: ['sun-blob', 'sun-blob', 'rain-blob'] }).ok).toBe(false);
+    expect(checkContentFile('starters.json', { ...starters, species: ['glowbun', 'puddlepip'] }).ok).toBe(false);
+    expect(checkContentFile('starters.json', { ...starters, species: ['glowbun', 'glowbun', 'puddlepip'] }).ok).toBe(false);
   });
 });

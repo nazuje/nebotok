@@ -112,7 +112,7 @@ async function teamScreen(page, { say, expect, check }) {
   await page.locator('#team .team-pick').nth(0).tap();
   await until(page, (s) => s.teamScreen?.selected === 0, 'the first creature picked');
   await page.locator('#team .team-pick').nth(1).tap();
-  const state = await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === 'gale-blob', 'the two creatures to swap places');
+  const state = await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === 'pinwhirl', 'the two creatures to swap places');
   await page.locator('#team .team-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after closing the team');
   return state;

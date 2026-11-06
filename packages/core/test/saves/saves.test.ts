@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, migrateSave, migrations } from '../../src/index.ts';
+import renamed from '../../../../content/creatures/renamed.json' with { type: 'json' };
+import { RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, maxHpOf, migrateSave, migrations, renameSpecies } from '../../src/index.ts';
+import { battleContent } from '../support/battle-content.ts';
 
 const SAVES_DIR = fileURLToPath(new URL('../../fixtures/saves/', import.meta.url));
 const versionDirs = readdirSync(SAVES_DIR).filter((name) => /^v\d+$/.test(name)).toSorted();
@@ -28,6 +30,16 @@ describe('save migrations', () => {
     const again = migrateSave(JSON.parse(JSON.stringify(latest)));
     expect(again).toEqual(latest);
     expect(createSave(latest.data)).toEqual(latest);
+  });
+
+  it.each(fixtures)('$label names only creatures and moves that exist once renamed species are replaced', ({ path }) => {
+    const data = renameSpecies(migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data, RenamedFile.parse(renamed), battleContent);
+    expect(createSave(data).data).toEqual(data);
+    const creatures = [...data.team, ...data.storage];
+    const species = [...data.seen, ...data.befriended, ...creatures.map((creature) => creature.species)];
+    expect(species.filter((id) => !battleContent.species.has(id))).toEqual([]);
+    expect(creatures.flatMap((creature) => creature.moves).filter((id) => !battleContent.moves.has(id))).toEqual([]);
+    expect(creatures.filter((creature) => creature.hp > maxHpOf(creature, battleContent))).toEqual([]);
   });
 
   it('gives a v1 player no position, so they start at the spawn', () => {

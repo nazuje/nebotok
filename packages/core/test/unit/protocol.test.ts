@@ -82,11 +82,11 @@ describe('battle and team messages', () => {
     expect(StorageSwapMessage.safeParse({ team: 0, storage: null }).success).toBe(true);
     expect(StorageSwapMessage.safeParse({ team: null, storage: null }).success).toBe(false);
     expect(StorageSwapMessage.safeParse({ team: 0, storage: 200 }).success).toBe(false);
-    expect(StarterChooseMessage.safeParse({ species: 'rain-blob' }).success).toBe(true);
+    expect(StarterChooseMessage.safeParse({ species: 'puddlepip' }).success).toBe(true);
   });
 
   it('show the player their battle without anything the opponent hides', () => {
-    const { state } = startBattle({ sides: [{ creatures: [{ species: 'storm-blob', level: 50 }] }, { creatures: [{ species: 'rain-blob', level: 3 }] }], weather: null, wild: true }, battleContent);
+    const { state } = startBattle({ sides: [{ creatures: [{ species: 'boltkit', level: 50 }] }, { creatures: [{ species: 'puddlepip', level: 3 }] }], weather: null, wild: true }, battleContent);
     const view = battleView('battle-1', state);
     expect(view).toMatchObject({ id: 'battle-1', phase: 'choose', mustSwap: false, canTreat: false, canRun: true, outcome: null });
     expect(view.team.creatures[0]!.moves).toHaveLength(4);

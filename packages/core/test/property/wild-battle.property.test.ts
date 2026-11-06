@@ -52,7 +52,7 @@ describe('wild battle properties', () => {
   it('befriends at least sometimes when the player offers treats', () => {
     let befriended = 0;
     for (let value = 0; value < 100; value += 1) {
-      const battle: BattleSetup = { sides: [{ creatures: [{ species: 'storm-blob', level: 40 }] }, { creatures: [{ species: 'rain-blob', level: 10 }] }], weather: null, wild: true };
+      const battle: BattleSetup = { sides: [{ creatures: [{ species: 'boltkit', level: 40 }] }, { creatures: [{ species: 'puddlepip', level: 10 }] }], weather: null, wild: true };
       let state = startBattle(battle, battleContent).state;
       const battleRng = createRng(value);
       const botRng = createRng(`bots:${value}`);

@@ -260,6 +260,14 @@ describe('progress', () => {
     expect(temp.services.progress.load(id)).toEqual({ v: SAVE_VERSION, data: { name: 'Old Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null, ...emptyProgress() } });
   });
 
+  it('loads a save naming a species that was renamed as the species that replaced it', async () => {
+    const { id } = await created('Blob Courier');
+    const creature = { species: 'sun-blob', level: 7, xp: 40, hp: 26, moves: ['sun-tap', 'sun-wallop', 'sun-call', 'storm-tap'] };
+    const data = { name: 'Blob Courier', language: 'en', createdAt: '2026-05-02T10:00:00.000Z', position: null, ...emptyProgress(), team: [creature], seen: ['sun-blob'], befriended: ['sun-blob'] };
+    temp.services.db.prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, 3, ?, 0)').run(id, JSON.stringify(data));
+    expect(temp.services.progress.load(id)?.data).toMatchObject({ team: [{ species: 'glowbun', level: 7, xp: 40, hp: 26, moves: ['heat-shimmer', 'sun-ray', 'storm-tap', 'sun-call'] }], seen: ['glowbun'], befriended: ['glowbun'] });
+  });
+
   it('refuses a save from a newer game rather than guessing', async () => {
     const { id } = await created('Future Courier');
     temp.services.db.prepare("INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, 99, '{}', 0)").run(id);

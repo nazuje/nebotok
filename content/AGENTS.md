@@ -51,12 +51,28 @@ them all onto `.proof/art/sheet.png` to look at.
 
 `creatures/` holds what battles read, all placeholders until the kids' creatures arrive:
 `weather.json` (the six weather types, which is strong and weak against which, and what each
-does as battlefield weather), `moves.json`, `species.json` (each knows exactly four moves) and
-`battle-rules.json` (the numbers that tune damage, weather length and the turn limit).
+does as battlefield weather), `moves.json`, `species.json` and `battle-rules.json` (the numbers
+that tune damage, weather length and the turn limit).
+
+A species has a name and a one-line `description` in both languages, a weather `type`, base
+`stats`, a `favouriteTreat`, and `placeholder: true` until a real design replaces it. It knows
+exactly four `moves`, and its `learnset` lists every move it learns as `{ level, move }` in rising
+level order, each move once: the four `moves` first, in order, at level 1, then the rest above
+level 1. Battles use only the four `moves` so far.
 `content:validate` also checks that every type, weather and move a file names exists. Battle
 golden replays use their own frozen copy in `packages/core/fixtures/golden/battle/content/`, so a
-change here never moves their hashes; the property tests battle on these files instead.
-Placeholder names stay obviously placeholder, such as "Sun Blob".
+change here never moves their hashes; the property tests battle on these files instead, and
+`node scripts/battle-sim.mjs` prints how each species and weather type fares one on one. Keep
+every species under about 65% there.
+
+Names are original and fit the creature's weather; search the web for each new name to make sure
+no game, brand or character uses it. The Slovenian name is its own playful word, not a
+translation.
+
+`creatures/renamed.json` maps each species id that was renamed or removed to the species that
+stands in for it now. The server applies it to every save it loads, because old saves keep old
+ids. Renaming or removing a species adds a line here, and its old ids stay forever; point every
+old id straight at a species in `species.json`, never at another renamed id.
 
 `creatures/befriending.json` tunes how likely a wild creature is to accept a treat (core
 `befriendChance`): tiredness, a favourite or liked treat and level. A species may name a

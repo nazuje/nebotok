@@ -3,20 +3,20 @@ import { befriendChance, treatLiking, type BefriendRules, type Item } from '../.
 import { battleContent } from '../support/battle-content.ts';
 
 const rules: BefriendRules = { basePercent: 10, tiredPercent: 50, favouritePercent: 30, likedPercent: 15, levelPenaltyPer10Levels: 5, minPercent: 5, maxPercent: 95, windowPercent: 50 };
-const sunBlob = battleContent.species.get('sun-blob')!;
+const glowbun = battleContent.species.get('glowbun')!;
 const treat = (types: string[], species: string[] = []): Item => ({ id: 'test-treat', kind: 'treat', name: { en: 'Test Treat', sl: 'Testna poslastica' }, likedBy: { species, types } });
 
 describe('treat liking', () => {
   it('knows a favourite, a treat for the weather type, and a plain treat', () => {
-    expect(treatLiking(treat([], ['sun-blob']), sunBlob)).toBe('favourite');
-    expect(treatLiking(treat(['sun']), sunBlob)).toBe('liked');
-    expect(treatLiking(treat(['rain']), sunBlob)).toBe('none');
-    expect(treatLiking(treat(['rain']), { ...sunBlob, favouriteTreat: 'test-treat' })).toBe('favourite');
+    expect(treatLiking(treat([], ['glowbun']), glowbun)).toBe('favourite');
+    expect(treatLiking(treat(['sun']), glowbun)).toBe('liked');
+    expect(treatLiking(treat(['rain']), glowbun)).toBe('none');
+    expect(treatLiking(treat(['rain']), { ...glowbun, favouriteTreat: 'test-treat' })).toBe('favourite');
   });
 
   it('gives each placeholder treat to the type it is named for', () => {
-    expect(treatLiking(battleContent.items.get('sun-treat')!, sunBlob)).toBe('liked');
-    expect(treatLiking(battleContent.items.get('plain-treat')!, sunBlob)).toBe('none');
+    expect(treatLiking(battleContent.items.get('sun-treat')!, glowbun)).toBe('liked');
+    expect(treatLiking(battleContent.items.get('plain-treat')!, glowbun)).toBe('none');
   });
 });
 

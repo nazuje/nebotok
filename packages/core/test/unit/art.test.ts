@@ -50,13 +50,13 @@ describe('art schemas', () => {
   });
 
   it('checks each kind of sprite has its size and the frames the game asks for', () => {
-    expect(problems('art/creatures/sun-blob.json', tile())).toEqual([
+    expect(problems('art/creatures/glowbun.json', tile())).toEqual([
       '(root): creatures sprites are 32×32 or 48×48, not 16×16',
       '(root): creatures sprites need a frame "front"',
       '(root): creatures sprites need a frame "back"',
     ]);
     expect(problems('art/couriers/courier.json', tile()).join()).toContain('need a frame "down-stand"');
-    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, backgrounds, items']);
+    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items']);
   });
 });
 
@@ -104,9 +104,10 @@ describe('loadArt', () => {
 
   it('lists every sprite content needs and the art lacks', () => {
     const art = loadArt({ 'art/couriers/courier.json': courier('#8a8a8a') });
-    expect(missingArt(art, { avatars: ['blue'], species: ['sun-blob'], weather: ['sun'], items: ['berry'], tilesets: ['sky-tiles'] })).toEqual([
+    expect(missingArt(art, { avatars: ['blue'], species: ['glowbun'], weather: ['sun'], items: ['berry'], tilesets: ['sky-tiles'] })).toEqual([
       'avatar "blue" needs the sprite couriers/blue (content/art/couriers/blue.json)',
-      'species "sun-blob" needs the sprite creatures/sun-blob (content/art/creatures/sun-blob.json)',
+      'species "glowbun" needs the sprite creatures/glowbun (content/art/creatures/glowbun.json)',
+      'species "glowbun" needs the sprite icons/glowbun (content/art/icons/glowbun.json)',
       'weather "sun" needs the sprite backgrounds/sun (content/art/backgrounds/sun.json)',
       'item "berry" needs the sprite items/berry (content/art/items/berry.json)',
       'tileset "sky-tiles" needs content/art/tilesets/sky-tiles.json',

@@ -7,7 +7,7 @@ const move = (slot: number) => ({ kind: 'move', slot }) as const;
 
 describe('battle playback', () => {
   it('sends both creatures out in order on a new battle, starting with nobody on the field', () => {
-    const { started } = wildBattle([{ species: 'sun-blob', level: 5 }], { species: 'gale-blob', level: 3 }, 'rain');
+    const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 3 }, 'rain');
     const steps = playback(null, started.payload.battle, started.payload.events);
     expect(steps.map((step) => step.shown.active)).toEqual([
       ['a1', null],
@@ -19,7 +19,7 @@ describe('battle playback', () => {
   });
 
   it('lowers health hit by hit, in the order of the events, and ends on the view', () => {
-    const { battle, started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     const before = started.payload.battle;
     const { payload } = turn(battle, move(0), move(0));
     const steps = playback(before, payload.battle, payload.events);
@@ -36,14 +36,14 @@ describe('battle playback', () => {
 
   it('fits every turn in the budget, however many events it has', () => {
     const many: BattleEvent[] = Array.from({ length: 30 }, () => ({ kind: 'fainted', side: 1, creature: 'b1' }));
-    const { started } = wildBattle([{ species: 'sun-blob', level: 5 }], { species: 'gale-blob', level: 3 });
+    const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 3 });
     const steps = playback(started.payload.battle, started.payload.battle, many);
     expect(playbackMs(steps)).toBeLessThanOrEqual(TURN_BUDGET_MS);
     expect(TURN_BUDGET_MS).toBeLessThan(1_500);
   });
 
   it('finds the step on screen at any moment, skipping steps that take no time, and ends after the last', () => {
-    const { battle, started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     const { payload } = turn(battle, move(0), move(0));
     const steps = playback(started.payload.battle, payload.battle, payload.events);
     expect(steps[0]?.event.kind).toBe('turnStarted');

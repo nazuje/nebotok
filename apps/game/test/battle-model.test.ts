@@ -8,19 +8,19 @@ const LATER = 1_000_000;
 
 describe('the battle menu', () => {
   it('offers the active creature’s moves, running, and no treat while the wild creature is fresh', () => {
-    const { started } = wildBattle([{ species: 'sun-blob', level: 5 }], { species: 'gale-blob', level: 30 });
-    expect(menuFor(started.payload.battle)).toEqual({ moves: ['sun-tap', 'sun-wallop', 'sun-call', 'storm-tap'], team: false, treat: false, run: true });
+    const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 30 });
+    expect(menuFor(started.payload.battle)).toEqual({ moves: ['heat-shimmer', 'sun-ray', 'storm-tap', 'sun-call'], team: false, treat: false, run: true });
   });
 
   it('offers the team only when another creature can battle', () => {
-    const { started } = wildBattle([{ species: 'sun-blob', level: 5 }, { species: 'rain-blob', level: 5 }, { species: 'frost-blob', level: 5, hp: 0 }], { species: 'gale-blob', level: 3 });
+    const { started } = wildBattle([{ species: 'glowbun', level: 5 }, { species: 'puddlepip', level: 5 }, { species: 'snowsnoot', level: 5, hp: 0 }], { species: 'pinwhirl', level: 3 });
     expect(menuFor(started.payload.battle).team).toBe(true);
-    const { started: alone } = wildBattle([{ species: 'sun-blob', level: 5 }, { species: 'frost-blob', level: 5, hp: 0 }], { species: 'gale-blob', level: 3 });
+    const { started: alone } = wildBattle([{ species: 'glowbun', level: 5 }, { species: 'snowsnoot', level: 5, hp: 0 }], { species: 'pinwhirl', level: 3 });
     expect(menuFor(alone.payload.battle).team).toBe(false);
   });
 
   it('follows canTreat and canRun, and offers only a treat or running once the wild creature faints', () => {
-    const { battle, started } = wildBattle([{ species: 'storm-blob', level: 100 }], { species: 'rain-blob', level: 3 });
+    const { battle, started } = wildBattle([{ species: 'boltkit', level: 100 }], { species: 'puddlepip', level: 3 });
     expect(menuFor({ ...started.payload.battle, canTreat: true }).treat).toBe(true);
     expect(menuFor({ ...started.payload.battle, canRun: false }).run).toBe(false);
     const { payload } = turn(battle, move(0), move(0));
@@ -29,7 +29,7 @@ describe('the battle menu', () => {
   });
 
   it('shows only the team when the active creature fainted, and nothing once the battle is over', () => {
-    const { battle } = wildBattle([{ species: 'sun-blob', level: 2 }, { species: 'rain-blob', level: 2 }], { species: 'storm-blob', level: 60 });
+    const { battle } = wildBattle([{ species: 'glowbun', level: 2 }, { species: 'puddlepip', level: 2 }], { species: 'boltkit', level: 60 });
     const { payload } = turn(battle, move(0), move(0));
     expect(payload.battle.mustSwap).toBe(true);
     expect(menuFor(payload.battle)).toEqual({ moves: [], team: true, treat: false, run: false });
@@ -43,7 +43,7 @@ describe('the battle menu', () => {
 describe('the battle model', () => {
   it('plays a turn from the view before it, then shows the menu under the line it ended on', () => {
     const model = createBattleModel();
-    const { battle, started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     model.receive(started, 0);
     expect(model.battle(0)?.playing).toBe(true);
     expect(model.battle(0)?.panel).toBeNull();
@@ -61,7 +61,7 @@ describe('the battle model', () => {
 
   it('jumps to the end of a turn when tapped', () => {
     const model = createBattleModel();
-    const { started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 }, 'sun');
+    const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 }, 'sun');
     model.receive(started, 0);
     model.skip();
     expect(model.battle(1)?.playing).toBe(false);
@@ -70,7 +70,7 @@ describe('the battle model', () => {
 
   it('draws a reconnection’s view at once, with nothing to animate', () => {
     const model = createBattleModel();
-    const { battle, started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     turn(battle, move(0), move(0));
     const missed = turn(battle, move(0), move(0));
     model.receive({ type: 'battle.view', payload: { battle: missed.payload.battle } }, 0);
@@ -83,7 +83,7 @@ describe('the battle model', () => {
 
   it('waits after a choice until the server answers, a refusal included', () => {
     const model = createBattleModel();
-    const { started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     model.receive(started, 0);
     model.sent();
     expect(model.battle(LATER)?.waiting).toBe(true);
@@ -93,7 +93,7 @@ describe('the battle model', () => {
 
   it('opens the team or the treats only while the menu allows them', () => {
     const model = createBattleModel();
-    const { started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     model.receive(started, 0);
     model.pick('treats');
     expect(model.battle(LATER)?.panel).toBe('menu');
@@ -103,7 +103,7 @@ describe('the battle model', () => {
 
   it('forces the team picker and its line when the active creature faints', () => {
     const model = createBattleModel();
-    const { battle, started } = wildBattle([{ species: 'sun-blob', level: 2 }, { species: 'rain-blob', level: 2 }], { species: 'storm-blob', level: 60 });
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 2 }, { species: 'puddlepip', level: 2 }], { species: 'boltkit', level: 60 });
     model.receive(started, 0);
     model.receive(turn(battle, move(0), move(0)), 0);
     const state = model.battle(LATER);
@@ -113,9 +113,9 @@ describe('the battle model', () => {
 
   it('keeps progress and storage, and shows the result only once its turn has played', () => {
     const model = createBattleModel();
-    model.receive(progress([{ species: 'sun-blob', level: 5 }]), 0);
+    model.receive(progress([{ species: 'glowbun', level: 5 }]), 0);
     expect(model.progress()?.needsStarter).toBe(false);
-    const { battle, started } = wildBattle([{ species: 'sun-blob', level: 20 }], { species: 'rain-blob', level: 20 });
+    const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     model.receive(started, 0);
     const last = turn(battle, { kind: 'run' });
     model.receive(last, LATER);
@@ -128,12 +128,12 @@ describe('the battle model', () => {
 });
 
 describe('the result lines', () => {
-  const { started } = wildBattle([{ species: 'sun-blob', level: 5 }, { species: 'rain-blob', level: 5 }], { species: 'gale-blob', level: 3 });
+  const { started } = wildBattle([{ species: 'glowbun', level: 5 }, { species: 'puddlepip', level: 5 }], { species: 'pinwhirl', level: 3 });
   const view = started.payload.battle;
 
   it('names a befriended creature and where it went', () => {
-    const lines = resultLines({ battle: view.id, outcome: { winner: 0, reason: 'befriended' }, rewards: [], woke: null }, { battle: view.id, species: 'gale-blob', placedIn: 'storage' }, view);
-    expect(lines).toEqual([{ id: 'battle.befriendedStored', species: 'gale-blob' }]);
+    const lines = resultLines({ battle: view.id, outcome: { winner: 0, reason: 'befriended' }, rewards: [], woke: null }, { battle: view.id, species: 'pinwhirl', placedIn: 'storage' }, view);
+    expect(lines).toEqual([{ id: 'battle.befriendedStored', species: 'pinwhirl' }]);
   });
 
   it('gives experience per creature and a level up only when the level rose', () => {

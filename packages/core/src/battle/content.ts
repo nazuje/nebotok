@@ -43,6 +43,9 @@ function linkProblems({ weather, moves, species, items }: BattleContent): string
     for (const id of entry.moves) {
       if (!moves.has(id)) problems.push(`species.json "${entry.id}": knows "${id}", which is not in moves.json`);
     }
+    for (const { move, level } of entry.learnset ?? []) {
+      if (level > 1 && !moves.has(move)) problems.push(`species.json "${entry.id}": learns "${move}" at level ${level}, which is not in moves.json`);
+    }
     if (entry.moves.every((id) => (moves.get(id)?.power ?? 0) === 0)) problems.push(`species.json "${entry.id}": knows no move that does damage`);
     if (entry.favouriteTreat !== undefined && items.get(entry.favouriteTreat)?.kind !== 'treat') {
       problems.push(`species.json "${entry.id}": favouriteTreat "${entry.favouriteTreat}" is not a treat in items.json`);

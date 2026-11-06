@@ -18,6 +18,7 @@ kind fixes its size and the frames the game asks it for:
 | `tiles` | 16×16 | any frames; the first is the still tile | the tilesets in `content/art/tilesets/` |
 | `couriers` | 16×16 | the 9 frames and 3 walk animations below | each avatar in `avatars.json` needs `couriers/<avatar id>`; `couriers/courier` is drawn for an avatar without one |
 | `creatures` | 32×32 or 48×48 | frames `front` and `back` | each species in `creatures/species.json` needs `creatures/<species id>` |
+| `icons` | 16×16 | any frames; the first is the icon | each species needs `icons/<species id>` too, its small picture for lists, menus and the world |
 | `backgrounds` | 64×36 | any frames | each weather type in `creatures/weather.json` needs `backgrounds/<weather id>`, for its battles |
 | `items` | 16×16 | any frames | each item in `items.json` needs `items/<item id>` |
 
@@ -82,7 +83,9 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   show `down-stand`. Each avatar's courier is a recolour of `couriers/courier`, whose grey cap shows
   on any avatar without a sprite of its own.
 - **Creatures** and **backgrounds** are for the battle screen. A creature shows `front` facing the
-  player and `back` as the player's own; a background is drawn behind both.
+  player and `back` as the player's own; a background is drawn behind both. A creature's icon is
+  the same creature, simplified to read at 16 by 16. Give each creature a silhouette of its own
+  and the colours of its weather, so it reads as that weather even in black and white.
 
 ## Style
 
