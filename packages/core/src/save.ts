@@ -4,7 +4,7 @@ import { DirectionSchema } from './grid.ts';
 import { MapId } from './map.ts';
 
 /** The version `createSave` writes. Raise it only together with a migration from the version before. */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** How many creatures a player's storage holds, besides the team of up to 6. */
 export const STORAGE_LIMIT = 200;
@@ -63,9 +63,44 @@ const SaveDataV3 = z.strictObject({
   befriended: z.array(ContentId).max(1_000).refine(uniqueIds, 'each species appears once'),
 });
 
+/** Quests a player can have going at once, and how many quest ids and story flags a save keeps. */
+export const MAX_ACTIVE_QUESTS = 50;
+export const MAX_STORY_IDS = 1_000;
+
+/**
+ * One quest a player is doing, as v4 saves it: `step` is the index of the current step in the
+ * quest's `steps`, and `count` the progress on it (battles won, creatures befriended) since it began.
+ */
+const QuestProgressV4 = z.strictObject({
+  quest: ContentId,
+  step: z.number().int().min(0).max(49),
+  count: z.number().int().min(0).max(999),
+});
+
+/** A player's story: the quests going on, the quests done and the story flags set. Each id once. */
+const StoryV4 = z
+  .strictObject({
+    active: z
+      .array(QuestProgressV4)
+      .max(MAX_ACTIVE_QUESTS)
+      .refine((entries) => uniqueIds(entries.map((entry) => entry.quest)), 'each quest appears once'),
+    done: z.array(ContentId).max(MAX_STORY_IDS).refine(uniqueIds, 'each quest appears once'),
+    flags: z.array(ContentId).max(MAX_STORY_IDS).refine(uniqueIds, 'each flag appears once'),
+  })
+  .refine((story) => story.active.every((entry) => !story.done.includes(entry.quest)), 'a quest is active or done, not both');
+
+/**
+ * v4 adds the story. Ids the content no longer has stay in the save until `pruneStory` drops them
+ * when it is loaded; a later version may reset the placeholder story and keep everything else.
+ */
+const SaveDataV4 = z.strictObject({ ...SaveDataV3.shape, story: StoryV4 });
+
 export const CreatureInstance = CreatureV3;
 export type CreatureInstance = z.infer<typeof CreatureInstance>;
-export const SaveData = SaveDataV3;
+export const StoryProgress = StoryV4;
+export type StoryProgress = z.infer<typeof StoryProgress>;
+export type QuestProgress = StoryProgress['active'][number];
+export const SaveData = SaveDataV4;
 export type SaveData = z.infer<typeof SaveData>;
 export type SaveFile = { readonly v: typeof SAVE_VERSION; readonly data: SaveData };
 
@@ -74,6 +109,7 @@ export const SAVE_SCHEMAS: Readonly<Record<number, z.ZodType>> = {
   1: SaveDataV1,
   2: SaveDataV2,
   3: SaveDataV3,
+  4: SaveDataV4,
 };
 
 export type Migration = (data: unknown) => unknown;
@@ -84,6 +120,8 @@ export const migrations: Readonly<Record<number, Migration>> = {
   1: (data) => ({ ...(data as z.infer<typeof SaveDataV1>), position: null }),
   // A v2 player has no creatures yet: like a new player, they choose a starter and get its treats.
   2: (data) => ({ ...(data as z.infer<typeof SaveDataV2>), team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] }),
+  // A v3 player has started no quest yet; their creatures, items and shrine stay as they are.
+  3: (data) => ({ ...(data as z.infer<typeof SaveDataV3>), story: { active: [], done: [], flags: [] } }),
 };
 
 const Envelope = z.object({ v: z.number().int().min(1), data: z.unknown() });

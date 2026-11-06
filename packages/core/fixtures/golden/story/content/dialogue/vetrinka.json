@@ -1,0 +1,95 @@
+{
+  "npc": "vetrinka",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "at": "deliver-gauge"
+        },
+        {
+          "has": "wind-gauge"
+        }
+      ],
+      "node": "gauge"
+    },
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "at": "report"
+        }
+      ],
+      "node": "wind-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "grey-letter",
+          "at": "deliver-letter"
+        },
+        {
+          "has": "grey-letter"
+        }
+      ],
+      "node": "letter"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "gauge": {
+      "say": {
+        "en": "The gauge.",
+        "sl": "The gauge."
+      },
+      "effects": [
+        {
+          "take": "wind-gauge",
+          "count": 1
+        },
+        {
+          "completeStep": "wind-readings",
+          "step": "deliver-gauge"
+        }
+      ]
+    },
+    "wind-report": {
+      "say": {
+        "en": "Mail has stopped.",
+        "sl": "Mail has stopped."
+      },
+      "mood": "worried",
+      "effects": [
+        {
+          "completeStep": "wind-readings",
+          "step": "report"
+        }
+      ]
+    },
+    "letter": {
+      "say": {
+        "en": "Something out there is hungry.",
+        "sl": "Something out there is hungry."
+      },
+      "mood": "worried",
+      "effects": [
+        {
+          "take": "grey-letter",
+          "count": 1
+        },
+        {
+          "completeStep": "grey-letter",
+          "step": "deliver-letter"
+        }
+      ]
+    },
+    "idle": {
+      "say": {
+        "en": "The wind turns.",
+        "sl": "The wind turns."
+      }
+    }
+  }
+}

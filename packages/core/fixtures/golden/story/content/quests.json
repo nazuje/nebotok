@@ -1,0 +1,320 @@
+{
+  "quests": [
+    {
+      "id": "first-round",
+      "chapter": "training",
+      "giver": "bavko",
+      "requires": [],
+      "name": {
+        "en": "first-round",
+        "sl": "first-round"
+      },
+      "summary": {
+        "en": "summary of first-round",
+        "sl": "summary of first-round"
+      },
+      "steps": [
+        {
+          "id": "deliver-note",
+          "kind": "deliver",
+          "item": "hello-note",
+          "count": 1,
+          "to": "tobolko",
+          "hint": {
+            "en": "hint for deliver-note",
+            "sl": "hint for deliver-note"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "plain-treat",
+            "count": 3
+          }
+        ],
+        "xp": 0
+      },
+      "effects": []
+    },
+    {
+      "id": "restless-grass",
+      "chapter": "training",
+      "giver": "tobolko",
+      "requires": [
+        "first-round"
+      ],
+      "name": {
+        "en": "restless-grass",
+        "sl": "restless-grass"
+      },
+      "summary": {
+        "en": "summary of restless-grass",
+        "sl": "summary of restless-grass"
+      },
+      "steps": [
+        {
+          "id": "win-two",
+          "kind": "winBattles",
+          "count": 2,
+          "zone": "meadow",
+          "hint": {
+            "en": "hint for win-two",
+            "sl": "hint for win-two"
+          }
+        },
+        {
+          "id": "report",
+          "kind": "talk",
+          "npc": "tobolko",
+          "hint": {
+            "en": "hint for report",
+            "sl": "hint for report"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "sun-treat",
+            "count": 2
+          }
+        ],
+        "xp": 20
+      },
+      "effects": []
+    },
+    {
+      "id": "bell",
+      "chapter": "training",
+      "giver": "bavko",
+      "requires": [
+        "first-round"
+      ],
+      "name": {
+        "en": "bell",
+        "sl": "bell"
+      },
+      "summary": {
+        "en": "summary of bell",
+        "sl": "summary of bell"
+      },
+      "steps": [
+        {
+          "id": "deliver-bell",
+          "kind": "deliver",
+          "item": "shrine-bell",
+          "count": 1,
+          "to": "mehurka",
+          "hint": {
+            "en": "hint for deliver-bell",
+            "sl": "hint for deliver-bell"
+          }
+        },
+        {
+          "id": "rest",
+          "kind": "visitShrine",
+          "shrine": "shrine",
+          "hint": {
+            "en": "hint for rest",
+            "sl": "hint for rest"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "rain-treat",
+            "count": 2
+          }
+        ],
+        "xp": 0
+      },
+      "effects": []
+    },
+    {
+      "id": "new-friend",
+      "chapter": "training",
+      "giver": "tobolko",
+      "requires": [
+        "restless-grass"
+      ],
+      "name": {
+        "en": "new-friend",
+        "sl": "new-friend"
+      },
+      "summary": {
+        "en": "summary of new-friend",
+        "sl": "summary of new-friend"
+      },
+      "steps": [
+        {
+          "id": "befriend-one",
+          "kind": "befriend",
+          "count": 1,
+          "type": "bloom",
+          "hint": {
+            "en": "hint for befriend-one",
+            "sl": "hint for befriend-one"
+          }
+        },
+        {
+          "id": "tell",
+          "kind": "talk",
+          "npc": "tobolko",
+          "hint": {
+            "en": "hint for tell",
+            "sl": "hint for tell"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "bloom-treat",
+            "count": 3
+          }
+        ],
+        "xp": 20
+      },
+      "effects": []
+    },
+    {
+      "id": "wind-readings",
+      "chapter": "storm",
+      "giver": "bavko",
+      "requires": [
+        "bell",
+        "new-friend"
+      ],
+      "name": {
+        "en": "wind-readings",
+        "sl": "wind-readings"
+      },
+      "summary": {
+        "en": "summary of wind-readings",
+        "sl": "summary of wind-readings"
+      },
+      "steps": [
+        {
+          "id": "deliver-gauge",
+          "kind": "deliver",
+          "item": "wind-gauge",
+          "count": 1,
+          "to": "vetrinka",
+          "hint": {
+            "en": "hint for deliver-gauge",
+            "sl": "hint for deliver-gauge"
+          }
+        },
+        {
+          "id": "gale-win",
+          "kind": "winBattles",
+          "count": 1,
+          "zone": "rise",
+          "hint": {
+            "en": "hint for gale-win",
+            "sl": "hint for gale-win"
+          }
+        },
+        {
+          "id": "report",
+          "kind": "talk",
+          "npc": "vetrinka",
+          "hint": {
+            "en": "hint for report",
+            "sl": "hint for report"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "gale-treat",
+            "count": 2
+          }
+        ],
+        "xp": 40
+      },
+      "effects": []
+    },
+    {
+      "id": "grey-letter",
+      "chapter": "storm",
+      "giver": "bavko",
+      "requires": [
+        "wind-readings"
+      ],
+      "name": {
+        "en": "grey-letter",
+        "sl": "grey-letter"
+      },
+      "summary": {
+        "en": "summary of grey-letter",
+        "sl": "summary of grey-letter"
+      },
+      "steps": [
+        {
+          "id": "deliver-letter",
+          "kind": "deliver",
+          "item": "grey-letter",
+          "count": 1,
+          "to": "vetrinka",
+          "hint": {
+            "en": "hint for deliver-letter",
+            "sl": "hint for deliver-letter"
+          },
+          "effects": [
+            {
+              "setFlag": "grey-letter-read"
+            }
+          ]
+        },
+        {
+          "id": "lookout",
+          "kind": "reach",
+          "mark": "lookout",
+          "hint": {
+            "en": "hint for lookout",
+            "sl": "hint for lookout"
+          },
+          "effects": [
+            {
+              "cue": "storm-glimpse"
+            },
+            {
+              "setFlag": "storm-seen"
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "kind": "talk",
+          "npc": "bavko",
+          "hint": {
+            "en": "hint for report",
+            "sl": "hint for report"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "storm-treat",
+            "count": 3
+          },
+          {
+            "item": "plain-treat",
+            "count": 9
+          }
+        ],
+        "xp": 50
+      },
+      "effects": [
+        {
+          "setFlag": "chapter-1-done"
+        }
+      ]
+    }
+  ]
+}

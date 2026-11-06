@@ -1,0 +1,17 @@
+{
+  "npc": "vetrinka",
+  "entries": [
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "idle": {
+      "say": {
+        "en": "Hm. The wind turns east again. I don't like it.",
+        "sl": "Hm. Veter se spet obrača proti vzhodu. To mi ni všeč."
+      },
+      "mood": "worried"
+    }
+  }
+}

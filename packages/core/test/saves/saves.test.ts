@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import renamed from '../../../../content/creatures/renamed.json' with { type: 'json' };
-import { RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, knowableMoves, maxHpOf, migrateSave, migrations, renameSpecies, sanitizeProgress } from '../../src/index.ts';
+import { MAX_ACTIVE_QUESTS, RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, knowableMoves, maxHpOf, migrateSave, migrations, pruneStory, renameSpecies, sanitizeProgress } from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
+import { storyContent } from '../support/story-content.ts';
 
 const SAVES_DIR = fileURLToPath(new URL('../../fixtures/saves/', import.meta.url));
 const versionDirs = readdirSync(SAVES_DIR).filter((name) => /^v\d+$/.test(name)).toSorted();
@@ -14,8 +15,14 @@ const fixtures = versionDirs.flatMap((dir) =>
     .map((name) => ({ label: `${dir}/${name}`, version: Number(dir.slice(1)), path: join(SAVES_DIR, dir, name) })),
 );
 
-/** What the server does to every save it loads: today's species for renamed ones, then the check against content. */
-const loaded = (path: string) => sanitizeProgress(renameSpecies(migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data, RenamedFile.parse(renamed), battleContent), battleContent);
+/**
+ * What the server does to every save it loads (apps/server/src/renamed.ts): today's species for
+ * renamed ones, then the check against content, then the story pruned to today's quests and flags.
+ */
+function loaded(path: string) {
+  const { progress, repairs } = sanitizeProgress(renameSpecies(migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data, RenamedFile.parse(renamed), battleContent), battleContent);
+  return { progress: { ...progress, story: pruneStory(progress.story, storyContent) }, repairs };
+}
 
 describe('save migrations', () => {
   it('keeps fixtures, schemas and migrations for every version', () => {
@@ -67,6 +74,19 @@ describe('save migrations', () => {
     });
   });
 
+  it('keeps the story through the repair and drops only the quests and flags the story no longer has', () => {
+    const path = join(SAVES_DIR, 'v4', 'old-content.json');
+    const raw = migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data;
+    const repaired = sanitizeProgress(raw, battleContent);
+    expect(repaired.repairs).toMatchObject({ droppedCreatures: ['gone-species'], droppedItems: ['gone-treat'] });
+    expect(repaired.progress.story).toEqual(raw.story);
+    const { progress: data } = loaded(path);
+    expect(data.story).toEqual({ active: [{ quest: 'first-round', step: 0, count: 0 }], done: [], flags: [] });
+    expect(data.inventory).toEqual([{ item: 'hello-note', count: 1 }]);
+    expect(data.team.map((creature) => creature.species)).toEqual(['glowbun']);
+    expect(createSave(data).data).toEqual(data);
+  });
+
   it('gives a v1 player no position, so they start at the spawn', () => {
     const v1 = { v: 1, data: { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z' } };
     expect(migrateSave(v1).data.position).toBeNull();
@@ -109,5 +129,40 @@ describe('save migrations', () => {
   it('refuses damaged data', () => {
     expect(() => migrateSave({ v: 1, data: { name: '', language: 'en', createdAt: '2026-01-01T00:00:00Z' } })).toThrow(SaveError);
     expect(() => migrateSave({ v: 1, data: { name: 'A', language: 'de', createdAt: '2026-01-01T00:00:00Z' } })).toThrow(SaveError);
+  });
+});
+
+const active = (quest: string, step = 0, count = 0) => ({ quest, step, count });
+
+describe('the story in a save', () => {
+  const base = { name: 'Test Courier', language: 'en', createdAt: '2026-01-01T09:00:00Z', position: null, team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] };
+  const withStory = (story: unknown) => ({ v: 4, data: { ...base, story } });
+
+  it('gives a v3 player an empty story, so the story starts for them as for a new player', () => {
+    expect(migrateSave({ v: 3, data: base }).data.story).toEqual({ active: [], done: [], flags: [] });
+  });
+
+  it('refuses a quest twice, a quest both active and done, a repeated flag, and numbers out of range', () => {
+    expect(migrateSave(withStory({ active: [active('first-round')], done: ['old-round'], flags: ['met-bavko'] })).data.story.active).toHaveLength(1);
+    for (const story of [
+      { active: [active('first-round'), active('first-round', 1)], done: [], flags: [] },
+      { active: [active('first-round')], done: ['first-round'], flags: [] },
+      { active: [], done: ['first-round', 'first-round'], flags: [] },
+      { active: [], done: [], flags: ['met-bavko', 'met-bavko'] },
+      { active: [active('first-round', 50)], done: [], flags: [] },
+      { active: [active('first-round', 0, 1000)], done: [], flags: [] },
+      { active: Array.from({ length: MAX_ACTIVE_QUESTS + 1 }, (_, at) => active(`quest-${at}`)), done: [], flags: [] },
+      { active: [active('First Round')], done: [], flags: [] },
+      { active: [], done: [] },
+    ]) {
+      expect(() => migrateSave(withStory(story))).toThrow(SaveError);
+    }
+  });
+
+  it.each(fixtures)('$label keeps a valid save once its story is pruned to the real content', ({ path }) => {
+    const data = migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data;
+    const story = pruneStory(data.story, storyContent);
+    expect(createSave({ ...data, story }).data.story).toEqual(story);
+    expect(story.active.every((entry) => storyContent.quests.has(entry.quest))).toBe(true);
   });
 });

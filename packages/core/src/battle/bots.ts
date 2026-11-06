@@ -79,6 +79,7 @@ function bestTreat(state: BattleState, side: SideIndex, content: BattleContent):
   let best: string | null = null;
   let bestRank = -1;
   for (const item of [...content.items.values()].toSorted((a, b) => (a.id < b.id ? -1 : 1))) {
+    if (item.kind !== 'treat') continue;
     const rank = LIKING_RANK[treatLiking(item, species)];
     if (rank > bestRank) {
       best = item.id;

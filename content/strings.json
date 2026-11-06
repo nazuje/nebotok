@@ -83,6 +83,8 @@
   "refused.notAtShrine": { "en": "Go to a shrine first.", "sl": "Najprej pojdi do svetišča." },
   "refused.full": { "en": "There is no more room.", "sl": "Ni več prostora." },
   "refused.invalid": { "en": "That doesn't work. Try again.", "sl": "To ne gre. Poskusi znova." },
+  "refused.tooFar": { "en": "Walk up to them first.", "sl": "Najprej stopi do njih." },
+  "refused.notTalking": { "en": "You're not talking to anyone.", "sl": "Z nikomer se ne pogovarjaš." },
   "battle.go": { "en": "{creature}, go!", "sl": "{creature}, naprej!" },
   "battle.used": { "en": "{creature} uses {move}!", "sl": "{creature} uporabi potezo {move}!" },
   "battle.missed": { "en": "It misses!", "sl": "Zgreši!" },

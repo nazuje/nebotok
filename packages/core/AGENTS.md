@@ -28,7 +28,14 @@ in the browser later.
   (`src/learning.ts`). The payloads of the battle and team messages, and
   `battleView`, are in `src/messages.ts`; `docs/protocol.md` explains the flow.
 - **Saves** live in `src/save.ts`. Changing their shape follows the `change-save-format` skill.
-- **Content schemas** live in `src/content.ts`. Adding a kind of content follows the `add-content`
-  skill.
+- **Story:** talks (`src/dialogue.ts`), quests (`src/quests.ts`), the bag (`src/inventory.ts`) and
+  the links between the story files (`src/story.ts`), pure functions on a `Progress`; their
+  messages are in `src/story-messages.ts`. `playStory` (`src/story-bot.ts`) plays the story by
+  `nextGoal`. Story goldens (`fixtures/golden/story/`) replay against their own frozen content in
+  `fixtures/golden/story/content/`; `npm run golden:update` does not record them yet, so take the
+  new hash from the failing test, after the same check as above.
+- **Content schemas** live in `src/content.ts` (battle and world) and `src/story-content.ts`
+  (story), registered by file name in `src/content-files.ts`. Adding a kind of content follows the
+  `add-content` skill.
 - Tests: `test/unit` (level 0), `test/property` with fast-check and `test/golden` (level 1),
   `test/saves` (level 2).

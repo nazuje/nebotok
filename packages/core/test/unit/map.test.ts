@@ -14,6 +14,9 @@ import {
   isWalkable,
   mapFromRows,
   mapLinkProblems,
+  marksAt,
+  npcInReach,
+  npcsInReach,
   playabilityProblems,
   readTiledMap,
   reachableFrom,
@@ -234,5 +237,46 @@ describe('tall grass and shrines', () => {
 
   it('gives a map drawn from rows no grass and no shrines', () => {
     expect(mapFromRows('rows', ['..'])).toMatchObject({ shrines: {}, encounterAreas: [] });
+  });
+});
+
+/** The tiny map's layers with nothing on decor, so every tile is walkable. */
+function openLayers() {
+  const [ground, decor, ...rest] = tinyMap().layers;
+  return [ground, { ...decor, data: [0, 0, 0, 0, 0, 0] }, ...rest];
+}
+
+function npcs(x: number, y: number) {
+  return { type: 'objectgroup', name: 'npcs', objects: [{ id: 4, name: 'bavko', x, y, point: true }] };
+}
+
+describe('characters and marks', () => {
+  const marks = { type: 'objectgroup', name: 'marks', objects: [{ id: 5, name: 'lookout', x: 8, y: 8, point: true }] };
+
+  it('blocks the tile a character stands on and talks from the tiles next to it, never diagonally', () => {
+    const result = readTiledMap('tiny', tinyMap({ layers: [...openLayers(), npcs(40, 8), marks] }));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    expect(result.map.npcs).toEqual({ bavko: { x: 2, y: 0 } });
+    expect(result.map.marks).toEqual({ lookout: { x: 0, y: 0 } });
+    expect(isWalkable(result.map, { x: 2, y: 0 })).toBe(false);
+    expect(playabilityProblems(result.map)).toEqual([]);
+    expect([npcInReach(result.map, { x: 1, y: 0 }, 'bavko'), npcInReach(result.map, { x: 2, y: 1 }, 'bavko'), npcInReach(result.map, { x: 1, y: 1 }, 'bavko')]).toEqual([true, true, false]);
+    expect(npcsInReach(result.map, { x: 0, y: 1 })).toEqual([]);
+    expect([marksAt(result.map, { x: 0, y: 0 }), marksAt(result.map, { x: 1, y: 0 }), marksAt(result.map, { x: 1, y: 1 })]).toEqual([['lookout'], ['lookout'], []]);
+  });
+
+  it('refuses a character on a blocked tile, or twice on a map', () => {
+    expect(readTiledMap('tiny', tinyMap(layers([npcs(24, 8)])))).toEqual({ ok: false, problems: ['npc "bavko" at 1,0 stands on a tile nobody can walk to'] });
+    const twice = { ...npcs(40, 8), objects: [...npcs(40, 8).objects, { id: 6, name: 'bavko', x: 8, y: 8, point: true }] };
+    expect(readTiledMap('tiny', tinyMap({ layers: [...openLayers(), twice] }))).toMatchObject({ ok: false, problems: ['npc "bavko" appears twice'] });
+  });
+
+  it('finds a character nobody can reach to talk to, and a mark on a blocked tile', () => {
+    const map = { ...mapFromRows('rows', ['..##']), npcs: { bavko: { x: 3, y: 0 } }, marks: { lookout: { x: 2, y: 0 } } };
+    expect(playabilityProblems(map)).toEqual(['mark "lookout" at 2,0 is not walkable', 'npc "bavko" at 3,0 has no tile next to it that players can reach']);
+  });
+
+  it('gives a map drawn from rows no characters and no marks', () => {
+    expect(mapFromRows('rows', ['..'])).toMatchObject({ npcs: {}, marks: {} });
   });
 });
