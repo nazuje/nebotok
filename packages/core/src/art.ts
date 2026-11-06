@@ -7,7 +7,7 @@ import { z } from 'zod';
  * frames side by side. `docs/art.md` is the guide.
  */
 
-export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'characters', 'portraits', 'effects'] as const;
+export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather', 'characters', 'portraits', 'effects'] as const;
 export type SpriteKind = (typeof SPRITE_KINDS)[number];
 
 /** "." is always transparent, so it can never be a palette colour. */
@@ -34,6 +34,8 @@ export const spriteFor = {
   /** The small picture of a species for the world, lists and menus. */
   speciesIcon: (id: string) => `icons/${id}`,
   weather: (id: string) => `backgrounds/${id}`,
+  /** The small picture of a weather type, beside its name on the battle field. */
+  weatherIcon: (id: string) => `weather/${id}`,
   item: (id: string) => `items/${id}`,
   /** A character standing on the map, `down`, `up` and `right` (left is right, mirrored). */
   npc: (id: string) => `characters/${id}`,
@@ -57,6 +59,7 @@ export const SPRITE_RULES: Readonly<Record<SpriteKind, KindRule>> = {
   icons: { sizes: [[16, 16]], frames: [], animations: [] },
   backgrounds: { sizes: [[64, 36]], frames: [], animations: [] },
   items: { sizes: [[16, 16]], frames: [], animations: [] },
+  weather: { sizes: [[16, 16]], frames: [], animations: [] },
   characters: { sizes: [[16, 16]], frames: [...COURIER_FACINGS], animations: [] },
   portraits: { sizes: [[32, 32]], frames: ['neutral'], animations: [] },
   effects: { sizes: [[64, 32]], frames: [], animations: [] },
@@ -296,7 +299,10 @@ export function missingArt(art: Art, users: ArtUsers): string[] {
       [`species "${id}"`, spriteFor.species(id)],
       [`species "${id}"`, spriteFor.speciesIcon(id)],
     ]),
-    ...users.weather.map((id): [string, string] => [`weather "${id}"`, spriteFor.weather(id)]),
+    ...users.weather.flatMap((id): [string, string][] => [
+      [`weather "${id}"`, spriteFor.weather(id)],
+      [`weather "${id}"`, spriteFor.weatherIcon(id)],
+    ]),
     ...users.items.map((id): [string, string] => [`item "${id}"`, spriteFor.item(id)]),
     ...users.npcs.flatMap((id): [string, string][] => [
       [`npc "${id}"`, spriteFor.npc(id)],

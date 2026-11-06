@@ -29,6 +29,7 @@ import {
   servedMap,
   settledOn,
   until,
+  untilTappingThrough,
   walkByTaps,
   watch,
 } from './lib/game-page.mjs';
@@ -142,7 +143,7 @@ async function battleTurn(page, world) {
   await nextFrames(page);
   const slot = Math.min(3, before.battle.menu.moves.length - 1);
   await page.locator('#battle .move').nth(slot).tap();
-  const turned = await until(page, (s) => battleIdle(s) && (s.battle.turn > before.battle.turn || s.battle.panel === 'result'), 'the first turn to play', 15_000);
+  const turned = await untilTappingThrough(page, (s) => battleIdle(s) && (s.battle.turn > before.battle.turn || s.battle.panel === 'result'), 'the first turn to play', 15_000);
   if (turned.battle.panel === 'result') throw new Error('the first turn ended the battle, so there was no battle to restart in');
   await nextFrames(page);
   return turned;

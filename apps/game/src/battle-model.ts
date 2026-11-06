@@ -1,14 +1,18 @@
-import { SERVER_MESSAGES, samePoint, shrineAt, type BattleResult, type BattleView, type BefriendResult, type Point, type ProgressMessage, type StorageMessage, type WorldMap } from '@nebotok/core';
+import { SERVER_MESSAGES, samePoint, shrineAt, type BattleResult, type BattleView, type BefriendResult, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
+import { isTreat } from './battle-content.ts';
 import type { ServerMessage } from './battle-link.ts';
-import { lineAt, playback, playbackMs, shownOf, stepAt, type Effect, type Line, type Shown, type Step } from './battle-playback.ts';
+import { QUICK_TAP_MS, TAP_GRACE_MS, lineAt, nextLineAt, playback, playbackMs, shownOf, stepAt, type Effect, type Line, type Shown, type Step } from './battle-playback.ts';
 
 /** What the menu under the field offers. Moves are listed by slot. */
 export type Menu = {
   readonly moves: readonly string[];
   readonly team: boolean;
   readonly treat: boolean;
+  /** Why a treat cannot be offered now, said under the buttons, or null. */
+  readonly treatReason: StringId | null;
   readonly run: boolean;
 };
+
 
 /** The part of the battle screen below the field: the menu, a picker, or how the battle went. */
 export type Panel = 'menu' | 'team' | 'treats' | 'result';
@@ -31,18 +35,31 @@ export type BattleScreenState = {
   readonly result: BattleResult | null;
 };
 
-const NO_MENU: Menu = { moves: [], team: false, treat: false, run: false };
+const NO_MENU: Menu = { moves: [], team: false, treat: false, treatReason: null, run: false };
 
-/** Which buttons the view allows: moves and switching only while choosing, a treat from `canTreat`, running from `canRun`. */
-export function menuFor(view: BattleView): Menu {
+/** While choosing, `canTreat` is false only until the wild creature is worn down. */
+function treatReasonOf(view: BattleView, treats: boolean): StringId | null {
+  if (!view.canTreat) return view.phase === 'choose' ? 'battle.treatLater' : null;
+  return treats ? null : 'battle.noTreats';
+}
+
+/**
+ * Which buttons the view allows: moves and switching only while choosing, a treat from `canTreat`
+ * when the player has `treats`, running (or leaving a fainted wild creature) from `canRun`.
+ */
+export function menuFor(view: BattleView, treats: boolean): Menu {
   if (view.phase === 'over' || view.outcome !== null) return NO_MENU;
   if (view.mustSwap) return { ...NO_MENU, team: true };
-  if (view.phase === 'befriend') return { ...NO_MENU, treat: view.canTreat, run: view.canRun };
+  const treat = { treat: view.canTreat && treats, treatReason: treatReasonOf(view, treats) };
+  if (view.phase === 'befriend') return { ...NO_MENU, ...treat, run: view.canRun };
   if (view.phase !== 'choose') return NO_MENU;
   const { active, creatures } = view.team;
   const others = creatures.some((creature, at) => at !== active && creature.hp > 0);
-  return { moves: creatures[active]?.moves ?? [], team: others, treat: view.canTreat, run: view.canRun };
+  return { moves: creatures[active]?.moves ?? [], team: others, ...treat, run: view.canRun };
 }
+
+/** Whether the progress lists a treat; before any progress arrives, it is assumed so. */
+const hasTreats = (progress: ProgressMessage | null): boolean => progress === null || progress.inventory.some((entry) => isTreat(entry.item) && entry.count > 0);
 
 /** What the screen says once a battle is over, in order: how it ended, then each creature's experience and level. */
 export function resultLines(result: BattleResult, befriended: BefriendResult | null, view: BattleView): Line[] {
@@ -64,7 +81,8 @@ export function resultLines(result: BattleResult, befriended: BefriendResult | n
   return lines;
 }
 
-type Playing = { readonly steps: readonly Step[]; readonly startedAt: number; readonly update: number };
+/** `startedAt` is where the playback's clock starts, moved back when a tap jumps ahead; `began` is when it really began. */
+type Playing = { readonly steps: readonly Step[]; readonly startedAt: number; readonly began: number; readonly tappedAt: number | null; readonly update: number };
 
 type Battle = {
   view: BattleView;
@@ -86,8 +104,11 @@ export type BattleModel = {
   sent(): void;
   /** Opens the menu, the team or the treats under the field. */
   pick(picker: Picker): void;
-  /** Jumps to the end of the turn on screen. */
-  skip(): void;
+  /**
+   * A tap at page time `now` while a turn plays: moves on to its next line, or to its end after
+   * the last line or when it comes quickly after a tap that moved on.
+   */
+  advance(now: number): void;
   /** Puts the battle screen away after its result. */
   close(): void;
   /** Forgets everything, as when the world is left. */
@@ -104,12 +125,16 @@ export type BattleModel = {
   battle(now: number): BattleScreenState | null;
 };
 
+/** How many characters a line has in the words the player sees now. */
+export type LineLength = (line: Line, view: BattleView) => number;
+
 /**
  * The battle screen's state, fed by the server's messages. It always draws from the latest
  * `BattleView` and uses a message's events only to animate the way there, so a lost message or a
- * reconnection (`battle.view`) still ends on the truth.
+ * reconnection (`battle.view`) still ends on the truth. Each line plays for as long as
+ * `lineLength` says it takes to read.
  */
-export function createBattleModel(): BattleModel {
+export function createBattleModel(lineLength: LineLength): BattleModel {
   let progress: ProgressMessage | null = null;
   let storage: StorageMessage | null = null;
   // The tile the courier stood on when storage last arrived, or since; the message can come before
@@ -138,15 +163,15 @@ export function createBattleModel(): BattleModel {
     next.view = view;
     next.picker = 'menu';
     next.waiting = false;
-    const steps = playback(before, view, events);
-    next.playing = steps.length > 0 ? { steps, startedAt: now, update: updates } : null;
+    const steps = playback(before, view, events, (line) => lineLength(line, view));
+    next.playing = steps.length > 0 ? { steps, startedAt: now, began: now, tappedAt: null, update: updates } : null;
     battle = next;
   };
 
   const followingLine = (current: Battle): Line | null => {
     if (current.result) return null;
     if (current.view.mustSwap) return { id: 'battle.chooseNext' };
-    if (current.view.phase === 'befriend') return { id: 'battle.canBefriend' };
+    if (current.view.phase === 'befriend') return { id: 'battle.treatOrDone' };
     return current.line;
   };
 
@@ -206,8 +231,13 @@ export function createBattleModel(): BattleModel {
     pick: (picker) => {
       if (battle) battle.picker = picker;
     },
-    skip: () => {
-      if (battle) finish(battle);
+    advance: (now) => {
+      settle(now);
+      const playing = battle?.playing;
+      if (!battle || !playing || now - playing.began < TAP_GRACE_MS) return;
+      const next = playing.tappedAt !== null && now - playing.tappedAt < QUICK_TAP_MS ? null : nextLineAt(playing.steps, now - playing.startedAt);
+      if (next === null) finish(battle);
+      else battle.playing = { ...playing, startedAt: now - next, tappedAt: now };
     },
     close: () => {
       if (battle?.result) battle = null;
@@ -230,7 +260,7 @@ export function createBattleModel(): BattleModel {
       settle(now);
       if (!battle) return null;
       const current = battle;
-      const menu = menuFor(current.view);
+      const menu = menuFor(current.view, hasTreats(progress));
       const playing = current.playing;
       const index = playing ? stepAt(playing.steps, now - playing.startedAt) : null;
       const step = playing && index !== null ? playing.steps[index] : undefined;

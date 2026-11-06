@@ -33,8 +33,8 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 | `{ "do": "waitFor", "player": "lan", "until": { ... }, "ms": 15000 }` | Waits until the player's page shows everything in `until`, and fails after `ms` (15 s when left out). |
 | `{ "do": "reload", "player": "lan" }` | Reloads the page and waits until the player is back in the world. |
 | `{ "do": "drop", "player": "lan", "ms": 3000 }` | Cuts the page's game connection and refuses new ones for `ms`; then the page reconnects by itself. Returns at once, so the next steps run during the outage. |
-| `{ "do": "meet", "player": "lan" }` | Walks to the tall grass nearest the spawn and steps about in it until the server sends a wild creature, then waits until the battle offers a choice. |
-| `{ "do": "fight", "player": "lan", "slot": 3 }` | In a battle, taps the move in `slot` (0 to 3, the first when left out) and waits until the turn has played. Slot 3 is each starter's weather call, which does no damage, so the battle goes on. |
+| `{ "do": "meet", "player": "lan" }` | Walks to the tall grass nearest the spawn and steps about in it until the server sends a wild creature, then waits until the battle offers a choice, tapping the field to move its lines on. |
+| `{ "do": "fight", "player": "lan", "slot": 3 }` | In a battle, taps the move in `slot` (0 to 3, the first when left out) and waits until the turn has played, tapping the field to move its lines on. Slot 3 is each starter's weather call, which does no damage, so the battle goes on. |
 | `{ "do": "run", "player": "lan" }` | Runs from the battle (or plays on when running is not allowed), continues past the result and waits until the player is back in the world. |
 
 `until` takes any of these:

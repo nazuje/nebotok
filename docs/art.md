@@ -21,6 +21,7 @@ kind fixes its size and the frames the game asks it for:
 | `icons` | 16×16 | any frames; the first is the icon | each species needs `icons/<species id>` too, its small picture for lists, menus and the world |
 | `backgrounds` | 64×36 | any frames | each weather type in `creatures/weather.json` needs `backgrounds/<weather id>`, for its battles |
 | `items` | 16×16 | any frames | each item in `items.json` needs `items/<item id>` |
+| `weather` | 16×16 | any frames; the first is the icon | each weather type needs `weather/<weather id>` too, the icon beside its name on the battle field |
 
 A new kind is one line in `SPRITE_RULES` (`packages/core/src/art.ts`).
 
@@ -86,6 +87,8 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   player and `back` as the player's own; a background is drawn behind both. A creature's icon is
   the same creature, simplified to read at 16 by 16. Give each creature a silhouette of its own
   and the colours of its weather, so it reads as that weather even in black and white.
+- **Weather icons** sit beside the weather's name on the battle field while that weather lasts:
+  one simple shape each (a sun, a cloud with drops), in the weather's colours.
 
 ## Style
 
