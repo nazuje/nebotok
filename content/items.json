@@ -7,6 +7,9 @@
     { "id": "frost-treat", "kind": "treat", "name": { "en": "Frost Treat", "sl": "Mrzla poslastica" }, "likedBy": { "species": [], "types": ["frost"] } },
     { "id": "storm-treat", "kind": "treat", "name": { "en": "Storm Treat", "sl": "Nevihtna poslastica" }, "likedBy": { "species": [], "types": ["storm"] } },
     { "id": "bloom-treat", "kind": "treat", "name": { "en": "Bloom Treat", "sl": "Cvetna poslastica" }, "likedBy": { "species": [], "types": ["bloom"] } },
-    { "id": "hello-note", "kind": "quest", "quest": "first-round", "name": { "en": "Hello Note", "sl": "Pozdravno sporočilo" }, "description": { "en": "A short note from Bavko to Tobolko.", "sl": "Kratko sporočilo od Bavka za Tobolka." } }
+    { "id": "hello-note", "kind": "quest", "quest": "first-round", "name": { "en": "Hello Note", "sl": "Pozdravno sporočilo" }, "description": { "en": "A short note from Bavko to Tobolko.", "sl": "Kratko sporočilo od Bavka za Tobolka." } },
+    { "id": "shrine-bell", "kind": "quest", "quest": "bell-for-the-shrine", "name": { "en": "Mehurka's Bell", "sl": "Mehurkin zvonec" }, "description": { "en": "A new bell for the shrine. It rings like a popping bubble.", "sl": "Nov zvonec za svetišče. Zazvoni kot mehurček, ki poči." } },
+    { "id": "wind-gauge", "kind": "quest", "quest": "wind-readings", "name": { "en": "Wind Gauge", "sl": "Vetromer" }, "description": { "en": "Its little cups spin in the wind. Vetrinka asked for it.", "sl": "Njegove skodelice se vrtijo v vetru. Vetrinka ga je naročila." } },
+    { "id": "grey-letter", "kind": "quest", "quest": "the-grey-letter", "name": { "en": "Grey Letter", "sl": "Sivo pismo" }, "description": { "en": "Soaked and cold, with no sender. It came on the wind.", "sl": "Premočeno in hladno, brez pošiljatelja. Prinesel ga je veter." } }
   ]
 }
