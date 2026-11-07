@@ -10,11 +10,14 @@
 // then signs in as a player whose save the check prepared in its own server's database
 // (scripts/lib/battle-check.mjs): their worn-out team faints and wakes at the shrine, a wild
 // creature is befriended onto the team, the team screen shows it, and storage at the shrine takes
-// one along and leaves one there. At 360px wide it also checks the lock messages (a first and a
+// one along and leaves one there. Four device runs (each device in each language, the browsers
+// sharing them) then sign in as a player whose save has a quest at a step done by resting at a
+// shrine (scripts/lib/story-check.mjs): they open the bag and the journal, ask "Where next?", walk
+// to the shrine for the quest toast and see the journal move on. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
 // from the settings, then signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px and answers the offer of
-// a new move (scripts/lib/learn-check.mjs). Fails on any console
+// a new move (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
@@ -58,10 +61,11 @@ import {
 } from './lib/game-page.mjs';
 import { battleSave, chooseStarter, playBattles } from './lib/battle-check.mjs';
 import { learnerSave, playLearning } from './lib/learn-check.mjs';
+import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
-import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag } from './lib/test-players.mjs';
+import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, storyName } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
 let given = null;
@@ -388,6 +392,33 @@ async function preparedBattles(page, battler, { language, expect, check, notes }
   }
 }
 
+/** The device runs that play the story part: each device in each language, with the browsers taking turns. */
+const STORY_RUNS = new Set(['chromium-iphone-portrait-en', 'chromium-ipad-landscape-sl', 'webkit-iphone-portrait-sl', 'webkit-ipad-landscape-en']);
+
+/** Like prepareBattler, for the story part (storySave). */
+async function prepareStoryPlayer(browserName, device, language, bot) {
+  if (!dataDir) return null;
+  const name = storyName(browserName, device.name, language, TAG);
+  const made = await api('/profiles', { body: { name, avatar: 'blue' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { plan, data } = storySave(bot, { name, language });
+  prepareSave(dataDir, made.data.id, data);
+  return { id: made.data.id, name, plan };
+}
+
+/** From the profile list: signs in as the story player, plays the story part, signs out, and deletes the player. */
+async function preparedStory(page, player, { language, expect, check, notes }) {
+  try {
+    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    const state = await enterWorld(page, inWorld, 'the world as the story player');
+    expect(state.profile?.name === player.name, `signed in as ${state.profile?.name}, not ${player.name}`);
+    await playStory(page, bot, player.plan, { language, strings: STRINGS, expect, check, notes });
+    await signOut(page);
+  } finally {
+    deleteProfile(dataDir, player.id);
+  }
+}
+
 /** The bot joins, walks past the page's courier while the page is sampled, then drops. */
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
@@ -570,10 +601,13 @@ async function checkDevice(browser, browserName, device, language, bot) {
     }
     // Made before signing out, so the profile list the page shows next has the prepared player on it.
     const battler = await prepareBattler(browserName, device, language, bot);
+    const storyPlayer = STORY_RUNS.has(label) ? await prepareStoryPlayer(browserName, device, language, bot) : null;
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
     await signOut(page);
     if (battler) await preparedBattles(page, battler, { language, expect, check, notes });
     else notes.push('the battles from a prepared save need the database of a server the check started, so they were skipped');
+    if (storyPlayer) await preparedStory(page, storyPlayer, { language, expect, check, notes });
+    else if (STORY_RUNS.has(label) && !dataDir) notes.push('the story part needs a prepared save, so it was skipped');
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, notes, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -816,6 +850,7 @@ async function checkLearn(browser, browserName, bot) {
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
     await until(page, (s) => inWorld(s) && s.progress?.team.length === 1, 'the world with the learner');
+    await storyScreensFit(page, { noSideways, check });
     await meetWildCreature(page, bot, { notes });
     await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
     await signOut(page);
