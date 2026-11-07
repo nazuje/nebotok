@@ -175,7 +175,7 @@ A future duel (Slice D) uses the same messages: each player gets their own view,
 
 | Type | Payload | When | Effect |
 | --- | --- | --- | --- |
-| `starter.choose` | `{ species }` | `progress.needsStarter` (since protocol 6, also at Bavko's starter node: see "The starter") | The starter from `content/starters.json` joins the team, with the starting treats (core `chooseStarter`) |
+| `starter.choose` | `{ species }` | `progress.needsStarter`, while talking at Bavko's starter node (see "The starter") | The starter from `content/starters.json` joins the team, with the starting treats (core `chooseStarter`) |
 | `battle.move` | `{ slot }`, 0 to 3 | In a battle | Use the active creature's move in that slot |
 | `battle.switch` | `{ index }`, 0 to 5 | In a battle | Send out the team creature at that place; also the answer to `mustSwap` |
 | `battle.treat` | `{ itemId }` | `canTreat`, with that treat in the inventory | Offer one; it is used up whether or not it is accepted |
@@ -332,11 +332,9 @@ character marks a new quest. Bavko's first talk with them ends at a node with th
 starter screen over the talk. The player picks with `starter.choose` as before, and the server
 answers with `progress`. `starter.choose` is allowed only while the player is talking at a node
 that offers the starter (core `offersStarter`) and still has no creature; otherwise it is refused
-with `notTalking` or `notNow`. The server holds that rule behind `STARTER_NEEDS_TALK` in
-`apps/server/src/talk.ts`. While it is `false` (until the client's talk screen can reach the
-starter node), `starter.choose` is also allowed with no talk open, as in protocol 5, whenever
-`needsStarter`; it is still refused with `notNow` once the player has a creature. Either way, a
-chosen starter ends any open talk (`talk.ended`), since what the dialogue checks has changed. A
+with `notTalking` or `notNow` (the rule is `STARTER_NEEDS_TALK` in `apps/server/src/talk.ts`). The
+client never opens the starter screen by itself: a new player finds Bavko by his mark and a hint,
+and talks to him. A chosen starter ends the open talk (`talk.ended`), since what the dialogue checks has changed. A
 player who already has a creature never meets the starter node: the dialogue's `needsStarter`
 condition skips it, and an `offerStarter` effect for them ends the talk instead.
 

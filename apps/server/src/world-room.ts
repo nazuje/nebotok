@@ -83,7 +83,7 @@ import type { Log } from './log.ts';
 import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
 import { createRateLimiter } from './rate-limit.ts';
-import { STARTER_NEEDS_TALK, TALK_IDLE_MS, battleEvents, continueTalk, countEvents, openTalk, starterRefusal, storyChange, talkStartRefusal, type LiveTalk, type StoryResult } from './talk.ts';
+import { TALK_IDLE_MS, battleEvents, continueTalk, countEvents, openTalk, starterRefusal, storyChange, talkStartRefusal, type LiveTalk, type StoryResult } from './talk.ts';
 import type { WorldContent } from './world.ts';
 import { Player, WorldState } from './world-state.ts';
 
@@ -122,8 +122,6 @@ export type WorldServices = {
   readonly now: () => number;
   /** A fresh 32-bit seed from the server's randomness, for the encounter RNG and each battle. */
   readonly seed?: () => number;
-  /** Whether `starter.choose` needs a talk at a node that offers the starter (`STARTER_NEEDS_TALK`). */
-  readonly starterNeedsTalk?: boolean | undefined;
 };
 
 const cryptoSeed = (): number => randomInt(0, 2 ** 32);
@@ -195,7 +193,7 @@ function arrivedAt(before: Walker, after: Walker): Point | null {
  * The one shared family world, wired to its services. Colyseus builds rooms itself, so the
  * services ride on the class.
  */
-export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed, starterNeedsTalk = STARTER_NEEDS_TALK }: WorldServices) {
+export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed }: WorldServices) {
   const { map, stepMs, story } = world;
   const spawn = spawnOf(world);
 
@@ -746,7 +744,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const done = this.progressRequest(
         client,
         CLIENT_MESSAGES.starterChoose,
-        (seat) => starterRefusal(seat.progress, seat.talk?.conversation ?? null, story, starterNeedsTalk) ?? chooseStarter(seat.progress, species, world.starters, world.battle) ?? 'invalid',
+        (seat) => starterRefusal(seat.progress, seat.talk?.conversation ?? null, story) ?? chooseStarter(seat.progress, species, world.starters, world.battle) ?? 'invalid',
       );
       const seat = this.seats.get(client.sessionId);
       if (done && seat) this.endTalk(client.sessionId, seat, 'starter');

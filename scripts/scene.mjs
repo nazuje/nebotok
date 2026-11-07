@@ -5,7 +5,7 @@
 // from a wild creature in the tall grass. After each step with a "shot"
 // it saves every joined player's screenshot and test-hook state in .proof/scenes/<name>/. Fails on
 // a console error, page error, failed or outside request, or a step that cannot be done. A new
-// player takes the first starter; a wild battle met outside a "meet" step is run from and noted,
+// player walks up to the character who gives the starters, talks and takes the first; a wild battle met outside a "meet" step is run from and noted,
 // so scenes that are not about battles are not stopped by the tall grass. Every test player is signed out at
 // the end, pass or fail.
 // Without --url it plays this worktree's `npm run dev`, found through .proof/dev.json.
@@ -23,12 +23,14 @@ import {
   leaveBattle,
   meetWildCreature,
   nextFrames,
+  openTalk,
   readState,
   reportCspViolations,
   screenshot,
   servedMap,
   settledOn,
   signOut,
+  talkThrough,
   tappable,
   testBase,
   tilesToScreen,
@@ -169,7 +171,7 @@ async function joinWorld(player) {
   player.page = await player.context.newPage();
   watch(player.context, player.page, player.problems, { allowedHost });
   await player.page.goto(`${base}/?test=1`);
-  const state = await enterWorld(player.page, (s) => inWorld(s) && settledOn(s), `${player.id} to stand in the world`);
+  const state = await enterWorld(player.page, world, (s) => inWorld(s) && settledOn(s), `${player.id} to stand in the world`, { notes });
   if (state.profile?.name !== player.name) throw new Error(`${player.id} is signed in as ${state.profile?.name}, not ${player.name}`);
 }
 
@@ -199,6 +201,9 @@ function shows(state, wanted, self) {
     (!wanted.sameBattle || (state.battle !== null && state.battle.id === self.battleId)) &&
     (wanted.battling ?? []).every((id) => other(id)?.inBattle === true) &&
     (wanted.calm ?? []).every((id) => other(id) !== undefined && !other(id).inBattle) &&
+    (wanted.talking ?? []).every((id) => other(id)?.talking === true) &&
+    (wanted.quiet ?? []).every((id) => other(id) !== undefined && !other(id).talking) &&
+    (!wanted.talk || (wanted.talk === 'open') === (state.talk !== null)) &&
     shownInWorld(state, wanted, other)
   );
 }
@@ -229,16 +234,16 @@ async function waitFor(entry) {
   const what = `${entry.player} to show ${JSON.stringify(entry.until)}`;
   if (aboutBattles(entry.until)) await until(player.page, check, what, entry.ms, { ready: false });
   else await untilPastBattles(player.page, check, what, notes, entry.ms, { ready: false });
-  // The mark is drawn on the name tag in HTML, so check the page itself too.
-  const marked = (id) =>
+  // The marks are drawn on the name tags in HTML, so check the page itself too.
+  const marked = (mark, named) => (id) =>
     player.page
-      .locator('.name-tag.battling', { hasText: nameOf(id) })
+      .locator(`.name-tag.${mark}`, { hasText: nameOf(id) })
       .first()
       .waitFor({ state: 'visible', timeout: entry.ms })
       .catch(() => {
-        throw new Error(`${entry.player}'s page shows no battle mark on ${id}'s name tag`);
+        throw new Error(`${entry.player}'s page shows no ${named} on ${id}'s name tag`);
       });
-  await Promise.all((entry.until.battling ?? []).map(marked));
+  await Promise.all([...(entry.until.battling ?? []).map(marked('battling', 'battle mark')), ...(entry.until.talking ?? []).map(marked('talking', 'speech mark'))]);
 }
 
 const STEPS = {
@@ -264,7 +269,7 @@ const STEPS = {
   waitFor,
   reload: async (entry) => {
     await pageOf(entry.player).reload();
-    await enterWorld(pageOf(entry.player), inWorld, `${entry.player} back in the world after a reload`);
+    await enterWorld(pageOf(entry.player), world, inWorld, `${entry.player} back in the world after a reload`, { notes });
   },
   drop: async (entry) => {
     const player = players.get(entry.player);
@@ -286,6 +291,17 @@ const STEPS = {
     if ((await move.count()) === 0) throw new Error(`${entry.player}'s creature has no move in slot ${entry.slot}`);
     await move.tap();
     await untilTappingThrough(page, (s) => battleIdle(s) && (s.battle.turn > before.battle.turn || s.battle.panel === 'result'), `${entry.player}'s turn to play`, 15_000);
+    await nextFrames(page);
+  },
+  talk: async (entry) => {
+    const { page } = players.get(entry.player);
+    const state = await readState(page);
+    if (state.talk?.npc !== entry.npc) await openTalk(page, world, entry.npc, { notes });
+    if (entry.open) {
+      await until(page, (s) => s.talk?.npc === entry.npc && s.talk.typed, `${entry.player}'s first line from ${entry.npc} to be typed out`);
+      return;
+    }
+    await talkThrough(page);
     await nextFrames(page);
   },
   run: async (entry) => {

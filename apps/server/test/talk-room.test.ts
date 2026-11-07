@@ -151,10 +151,23 @@ describe('the starter from Bavko', () => {
     expect((await talk(who, 'bavko')).node).toBe('offer');
   });
 
-  it('still lets a player choose without talking while STARTER_NEEDS_TALK is off', async () => {
-    const who = await server.player('Hurried Courier', besideNpc('bavko'));
+  it('refuses starter.choose until the player is at the node that offers it', async () => {
+    const who = await server.player('Patient Courier', besideNpc('bavko'));
+    await send(who, 'starter.choose', { species: 'puddlepip' });
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'notTalking' });
+    const welcome = await talk(who, 'bavko');
+    expect(welcome.node).toBe('welcome');
+    await send(who, 'starter.choose', { species: 'puddlepip' });
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'notTalking' });
+    await send(who, 'talk.next', { conversation: welcome.conversation, choice: null });
+    expect((await who.box.take<TalkNode>('talk.node')).cue).toBe('offerStarter');
+    await send(who, 'starter.choose', { species: 'boltkit' });
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'invalid' });
+    await send(who, 'starter.choose', { species: 'puddlepip' });
+    expect((await who.box.take<ProgressMessage>('progress')).team).toMatchObject([{ species: 'puddlepip' }]);
+    expect(await who.box.take<TalkEnded>('talk.ended')).toEqual({ conversation: welcome.conversation });
     await send(who, 'starter.choose', { species: 'glowbun' });
-    expect((await who.box.take<ProgressMessage>('progress')).needsStarter).toBe(false);
+    expect(await who.box.take<Refused>('refused')).toEqual({ request: 'starter.choose', reason: 'notNow' });
   });
 });
 

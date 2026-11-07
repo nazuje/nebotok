@@ -4,9 +4,11 @@
 // and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), tap a
 // far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
 // and come straight back, switch player, get the PIN wrong, then right. A new player takes the
-// first starter on the way into the world, walks keep out of the tall grass, and each device run
-// also walks into the grass until a wild creature appears on the real server, attacks once and
-// runs. A wild battle met where none was meant is run from and noted, not failed. Every device run
+// hint to the character who gives the starters, taps them and talks until they offer them, and
+// takes the first; walks keep out of the tall grass, and each device run also walks into the grass
+// until a wild creature appears on the real server, attacks once and runs. Once on each device in
+// each language it also takes a quest by talking (a choice) and delivers its note to the
+// character marked for it. A wild battle met where none was meant is run from and noted, not failed. Every device run
 // then signs in as a player whose save the check prepared in its own server's database
 // (scripts/lib/battle-check.mjs): their worn-out team faints and wakes at the shrine, a wild
 // creature is befriended onto the team, the team screen shows it, and storage at the shrine takes
@@ -39,6 +41,7 @@ import {
   leaveBattle,
   meetWildCreature,
   nextFrames,
+  openTalk,
   presetLanguage,
   readState,
   reportCspViolations,
@@ -47,6 +50,8 @@ import {
   servedMap,
   settledOn,
   signOut,
+  startsQuest,
+  talkThrough,
   tappable,
   testBase,
   tilesToScreen,
@@ -182,6 +187,7 @@ async function joinBot(bot) {
 }
 
 const botIn = (state) => state.players.find((player) => player.name === BOT.name);
+const apart = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const standsOn = (player, tile) => player?.x === tile.x && player.y === tile.y && !player.moving && player.drawn.x === tile.x && player.drawn.y === tile.y;
 
 const OFFSETS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -302,6 +308,45 @@ async function moveAround(page, browserName, bot, language, { expect, shot, note
   await until(page, (s) => !s.settingsOpen, 'the settings to close');
 }
 
+// A quest is taken and delivered once on each device in each language, the two browsers sharing
+// the four runs, so the whole check keeps inside its time.
+const questRun = (browserName, device, language) => (BROWSERS.findIndex((browser) => browser.name === browserName) + DEVICES.indexOf(device) + LANGUAGES.indexOf(language)) % 2 === 0;
+const QUEST_ITEMS = new Set(JSON.parse(readFileSync(join(ROOT, 'content/items.json'), 'utf8')).items.filter((item) => item.kind === 'quest').map((item) => item.id));
+const questItems = (state) => (state.progress?.inventory ?? []).filter((entry) => QUEST_ITEMS.has(entry.item)).reduce((sum, entry) => sum + entry.count, 0);
+
+/**
+ * A quest by talking, against the real server: the character marked with a new quest is tapped,
+ * their choices show and the one that takes the quest is tapped; the quest item they give is
+ * carried to the character marked to take it, who takes it, and their mark goes.
+ */
+async function questTalk(page, bot, { expect, check, notes }) {
+  const offered = await until(page, (s) => settledOn(s) && s.talk === null && s.npcs.some((npc) => npc.mark === 'newQuest'), 'a character with a quest to give');
+  const giver = offered.npcs.find((npc) => npc.mark === 'newQuest').id;
+  await openTalk(page, bot, giver, { notes });
+  let choices = 0;
+  const seenChoices = async (s) => {
+    if (choices > 0 || s.talk.choices.length === 0) return;
+    choices = s.talk.choices.length;
+    expect((await page.locator('#talk .talk-choice:visible').count()) === choices, `the talk box shows ${await page.locator('#talk .talk-choice:visible').count()} choices, not the ${choices} the talk has`);
+    await check('choices in the talk box', 't1-choices');
+  };
+  await talkThrough(page, { toward: startsQuest, seen: seenChoices });
+  expect(choices > 0, `${giver} gave a quest without a choice to take it`);
+  const carrying = await until(page, (s) => s.talk === null && s.npcs.some((npc) => npc.mark === 'turnIn'), `a character to take ${giver}'s quest to`);
+  const to = carrying.npcs.find((npc) => npc.mark === 'turnIn').id;
+  expect(questItems(carrying) > questItems(offered), `${giver}'s quest gave no quest item to deliver: ${JSON.stringify(carrying.progress?.inventory)}`);
+  await openTalk(page, bot, to, { notes });
+  let shown = false;
+  await talkThrough(page, {
+    seen: async () => {
+      if (shown) return;
+      shown = true;
+      await check('handing a delivery over', 't2-deliver');
+    },
+  });
+  const after = await until(page, (s) => s.talk === null && s.npcs.find((npc) => npc.id === to)?.mark !== 'turnIn', `${to} to take the delivery`);
+  expect(questItems(after) < questItems(carrying), `${to} took nothing: the bag still holds ${JSON.stringify(after.progress?.inventory)}`);
+}
 /** Runs once the first turn is played, unless that turn ended the battle; returns the state on the result. */
 async function runAfterTurn(page, state, expect) {
   if (state.battle.panel === 'result') return state;
@@ -379,7 +424,7 @@ async function prepareBattler(browserName, device, language, bot) {
 async function preparedBattles(page, battler, { language, expect, check, notes }) {
   try {
     await page.locator(`.profile-card[data-profile-id="${battler.id}"]`).tap();
-    const state = await enterWorld(page, inWorld, 'the world as the prepared player');
+    const state = await enterWorld(page, bot, inWorld, 'the world as the prepared player', { notes });
     expect(state.profile?.name === battler.name, `signed in as ${state.profile?.name}, not ${battler.name}`);
     await playBattles(page, bot, { shrine: battler.shrine, language, strings: STRINGS, expect, check, notes });
     await signOut(page);
@@ -393,11 +438,13 @@ async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
   try {
     const landed = botIn(await until(page, (s) => botIn(s)?.connected === true, 'the page to see the bot'));
-    // The first run's courier is new and alone, so it stands on the spawn; the bot, new too, must take a tile beside it.
+    // The first run's courier is new and alone. The bot, new too, arrives on the spawn, or on a
+    // free tile beside it when the courier stands there.
     if (bot.fresh) {
       bot.fresh = false;
-      const apart = Math.abs(landed.x - self.x) + Math.abs(landed.y - self.y);
-      expect(apart === 1, `a new player arrived on ${landed.x},${landed.y}, not on a free tile beside the courier at ${self.x},${self.y}`);
+      const spawn = bot.map.spawns[PLAYER_SPAWN];
+      const wanted = apart(self, spawn) === 0 ? 'a free tile beside the courier on the spawn' : 'the free spawn';
+      expect(apart(self, spawn) === 0 ? apart(landed, self) === 1 : apart(landed, spawn) === 0, `a new player arrived on ${landed.x},${landed.y}, not on ${wanted} at ${spawn.x},${spawn.y}`);
     }
     const seesPage = await poll(() => [...(room.state.players?.values() ?? [])].some((player) => player.name === self.name && player.x === self.x && player.y === self.y), {
       deadline: Date.now() + 5_000,
@@ -502,8 +549,8 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await shot('3-new-player');
 
     await page.locator('.create').tap();
-    await chooseStarter(page, { say, expect, check });
-    state = await enterWorld(page, inWorld, 'the world after making a player');
+    await chooseStarter(page, bot, { say, expect, check, notes });
+    state = await enterWorld(page, bot, inWorld, 'the world after making a player', { notes });
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
     expect(state.playerCount >= 1, `player count is ${state.playerCount}`);
     expect(state.protocol === PROTOCOL_VERSION, `protocol is ${state.protocol}`);
@@ -520,6 +567,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     if (self) await meetBot(bot, page, self, { expect, shot });
     if (self) await moveAround(page, browserName, bot, language, { expect, shot, notes });
     if (self) await wildBattle(page, bot, { expect, check, notes });
+    if (self && questRun(browserName, device, language)) await questTalk(page, bot, { expect, check, notes });
 
     await page.reload();
     state = await until(page, inWorld, 'the world straight after a reload');
@@ -716,7 +764,7 @@ async function checkAddPin(browser, browserName, language, bot) {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    let state = await enterWorld(page, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add');
+    let state = await enterWorld(page, bot, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add', { notes });
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
 
     await page.locator('.settings-button').tap();

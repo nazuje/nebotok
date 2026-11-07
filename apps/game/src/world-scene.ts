@@ -1,8 +1,9 @@
-import { PLAYER_SPAWN, type Point } from '@nebotok/core';
+import { PLAYER_SPAWN, spriteFor, type Direction, type Point, type WorldMap } from '@nebotok/core';
 import { Scale, Scene, Scenes, Tilemaps, type GameObjects, type Time, type Tweens } from 'phaser';
 import { courierTexture, frameName, walkAnimation } from './couriers.ts';
 import type { LoadedMap } from './map-loader.ts';
-import { loadArtImages } from './sprites.ts';
+import { loadArtImages, spriteTexture } from './sprites.ts';
+import type { HeadMark } from './talk.ts';
 import { tilesetArt, type TilesetArt } from './tileset-art.ts';
 import type { ShownPlayer, WorldView } from './world-view.ts';
 import { TILE } from './zoom.ts';
@@ -29,9 +30,27 @@ const SELF_RING = [
 const SELF_RING_TOP = 12;
 const AWAY_ALPHA = 0.5;
 const AWAY_TINT = 0xb8c4d0;
+const HEAD_MARK_INK = 0x1b1b2f;
+/** A mark's pixels, one string per row: `o` outline, `f` fill, `i` ink. */
+const HEAD_MARKS: Readonly<Record<HeadMark, { readonly fill: number; readonly rows: readonly string[] }>> = {
+  // "!": this character has something new for you.
+  newQuest: { fill: 0xffd43b, rows: ['.ooooo.', 'offfffo', 'offiffo', 'offiffo', 'offiffo', 'offfffo', 'offiffo', 'offfffo', '.ooooo.', '...o...'] },
+  // A speech bubble: this character is waiting to hear from you.
+  turnIn: { fill: 0xffffff, rows: ['.ooooooo.', 'offfffffo', 'ofifififo', 'offfffffo', '.ooooooo.', '..oo.....', '..o......'] },
+};
+const HEAD_MARK_BOB_PX = 2;
+const HEAD_MARK_BOB_MS = 600;
 
 /** A name to show above a courier, at a spot on the page in CSS pixels. */
-export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly x: number; readonly y: number };
+export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly talking: boolean; readonly x: number; readonly y: number };
+
+/** How a character looks this frame: the way they face, and the mark over their head. */
+export type NpcLook = { readonly facing: Direction; readonly mark: HeadMark | null };
+
+/** A character as drawn last frame, for the test hook. */
+export type DrawnNpc = { readonly id: string; readonly x: number; readonly y: number; readonly facing: Direction; readonly mark: HeadMark | null };
+
+type Npc = { readonly id: string; readonly tile: Point; readonly sprite: GameObjects.Sprite; readonly mark: GameObjects.Graphics; look: NpcLook | null; bob: Tweens.Tween | null };
 
 export type WorldSceneOptions = {
   readonly view: WorldView;
@@ -39,6 +58,8 @@ export type WorldSceneOptions = {
   frame(now: number): void;
   /** Called after every frame is drawn, with where the other players' names go. */
   labels(labels: readonly NameLabel[]): void;
+  /** How the character `npc`, standing on `at`, looks this frame. */
+  npcLook(npc: string, at: Point): NpcLook;
 };
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -51,6 +72,7 @@ export class WorldScene extends Scene {
   readonly booted: Promise<void>;
   private readonly options: WorldSceneOptions;
   private readonly sprites = new Map<string, GameObjects.Sprite>();
+  private readonly npcs = new Map<string, Npc>();
   private shownPlayers: readonly ShownPlayer[] = [];
   private followed: GameObjects.Sprite | null = null;
   private currentMap: Tilemaps.Tilemap | null = null;
@@ -101,6 +123,7 @@ export class WorldScene extends Scene {
     this.currentMap = tilemap;
     this.tiles = tiles;
     this.spawnTile = map.world.spawns[PLAYER_SPAWN] ?? { x: 0, y: 0 };
+    this.placeNpcs(map.world);
     this.mapId = map.id;
     if (!this.followed) this.centreOnSpawn();
   }
@@ -122,6 +145,7 @@ export class WorldScene extends Scene {
       this.sprites.delete(id);
     }
     this.shownPlayers = shown;
+    for (const npc of this.npcs.values()) this.drawNpc(npc);
     const self = shown.find((player) => player.self);
     const selfSprite = self ? this.sprites.get(self.id) : undefined;
     this.ring(selfSprite);
@@ -170,6 +194,64 @@ export class WorldScene extends Scene {
     for (const [x, y] of [[0, 0], [TILE - 5, 0], [0, TILE - 2], [TILE - 5, TILE - 2]] as const) marker.fillRect(x, y, 5, 2);
     for (const [x, y] of [[0, 0], [TILE - 2, 0], [0, TILE - 5], [TILE - 2, TILE - 5]] as const) marker.fillRect(x, y, 2, 5);
     if (!reducedMotion()) this.markerPulse = this.tweens.add({ targets: marker, alpha: 0.45, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  /** Where a character stands on the page, in CSS pixels: the centre of their tile, or null when it is off the canvas. */
+  npcOnScreen(npc: string): Point | null {
+    const tile = this.npcs.get(npc)?.tile;
+    if (!tile) return null;
+    const at = this.tileToScreen(tile.x, tile.y);
+    const canvas = this.game.canvas.getBoundingClientRect();
+    return at.x >= canvas.left && at.x <= canvas.right && at.y >= canvas.top && at.y <= canvas.bottom ? at : null;
+  }
+
+  /** Every character on the map, as drawn last frame. */
+  drawnNpcs(): DrawnNpc[] {
+    return [...this.npcs.values()].map(({ id, tile, look }) => ({ id, x: tile.x, y: tile.y, facing: look?.facing ?? 'down', mark: look?.mark ?? null }));
+  }
+
+  private placeNpcs(map: WorldMap): void {
+    for (const npc of this.npcs.values()) {
+      npc.bob?.remove();
+      npc.sprite.destroy();
+      npc.mark.destroy();
+    }
+    this.npcs.clear();
+    for (const [id, tile] of Object.entries(map.npcs)) {
+      const x = tile.x * TILE + TILE / 2;
+      const y = tile.y * TILE + TILE / 2;
+      // Characters stand still, so they are placed once, at the depth couriers on their row get.
+      const sprite = this.add.sprite(x, y, spriteTexture(this, spriteFor.npc(id)), 'down').setDepth(PLAYER_DEPTH + y);
+      // A courier's depth grows with its row, so marks over heads go above the lowest row of the map.
+      const mark = this.add.graphics().setDepth(PLAYER_DEPTH + map.height * TILE + 1).setVisible(false);
+      this.npcs.set(id, { id, tile, sprite, mark, look: null, bob: null });
+    }
+  }
+
+  private drawNpc(npc: Npc): void {
+    const look = this.options.npcLook(npc.id, npc.tile);
+    if (look.facing !== npc.look?.facing) npc.sprite.setFrame(look.facing === 'left' ? 'right' : look.facing).setFlipX(look.facing === 'left');
+    if (look.mark !== (npc.look?.mark ?? null)) this.drawHeadMark(npc, look.mark);
+    npc.look = look;
+  }
+
+  /** The mark over a character's head, bobbing gently unless motion is reduced. */
+  private drawHeadMark(npc: Npc, mark: HeadMark | null): void {
+    npc.bob?.remove();
+    npc.bob = null;
+    npc.mark.clear().setVisible(mark !== null);
+    if (mark === null) return;
+    const { fill, rows } = HEAD_MARKS[mark];
+    const width = Math.max(...rows.map((row) => row.length));
+    rows.forEach((row, y) => {
+      [...row].forEach((pixel, x) => {
+        if (pixel === '.') return;
+        npc.mark.fillStyle(pixel === 'f' ? fill : HEAD_MARK_INK, 1).fillRect(x, y, 1, 1);
+      });
+    });
+    const top = npc.tile.y * TILE - rows.length - 1;
+    npc.mark.setPosition(npc.tile.x * TILE + Math.floor((TILE - width) / 2), top);
+    if (!reducedMotion()) npc.bob = this.tweens.add({ targets: npc.mark, y: top - HEAD_MARK_BOB_PX, duration: HEAD_MARK_BOB_MS, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   private toScreen(worldX: number, worldY: number): Point {
@@ -247,7 +329,7 @@ export class WorldScene extends Scene {
       const sprite = this.sprites.get(player.id);
       if (player.self || !sprite) return [];
       const at = this.toScreen(Math.round(sprite.x), Math.round(sprite.y) - TILE / 2);
-      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, x: at.x, y: at.y }];
+      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, talking: player.talking, x: at.x, y: at.y }];
     });
   }
 }
