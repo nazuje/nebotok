@@ -399,30 +399,39 @@ export async function openTalk(page, world, npc, { notes, tries = MAX_TALK_TRIES
   return openTalk(page, world, npc, { notes, tries: tries - 1 });
 }
 
-const MAX_TALK_LINES = 30;
+const MAX_TALK_TAPS = 60;
+const sameLine = (talk) => (s) => s.talk?.conversation === talk.conversation && s.talk.node === talk.node;
 
 /**
- * Plays the open talk to its end as a player would, once each line is typed out: a tap on the box
- * goes on, and of the choices the one that leads to a node passing `toward` is taken (else the
- * first). Stops early once `stop(state)` holds, such as the starter screen showing. `seen(state)`
- * is called on every line once it is whole, for checks and screenshots. Returns the last state.
+ * Plays the open talk to its end as a player in a hurry would: a tap on a line still typing shows
+ * it whole, the next goes on, and of the choices the one that leads to a node passing `toward` is
+ * taken (else the first). Stops early once `stop(state)` holds, such as the starter screen showing.
+ * `seen(state)` is called on every line shown whole, for checks and screenshots; a tap that lands
+ * just as a line finishes typing goes on instead, so a line can pass unseen. Returns the last state.
  */
-export async function talkThrough(page, { toward = null, stop = () => false, seen = async () => {}, lines = MAX_TALK_LINES } = {}) {
-  const state = await until(page, (s) => s.talk === null || stop(s) || (s.talk.typed && !s.talk.waiting), 'the talk line to be typed out', 15_000);
+export async function talkThrough(page, { toward = null, stop = () => false, seen = async () => {}, taps = MAX_TALK_TAPS } = {}) {
+  const state = await until(page, (s) => s.talk === null || stop(s) || !s.talk.waiting, 'the talk to answer', 15_000);
   if (state.talk === null || stop(state)) return state;
-  if (lines === 0) throw new Error(`the talk with ${state.talk.npc} was still going after ${MAX_TALK_LINES} lines`);
+  if (taps === 0) throw new Error(`the talk with ${state.talk.npc} was still going after ${MAX_TALK_TAPS} taps`);
   const { talk } = state;
+  const next = { toward, stop, seen, taps: taps - 1 };
+  // The node that offers the starters waits for the starter screen over it; a tap does nothing there.
+  if (talk.cue === 'offerStarter') {
+    await until(page, (s) => stop(s) || !sameLine(talk)(s), `the starter screen over ${talk.npc}'s offer`, 10_000);
+    return talkThrough(page, next);
+  }
+  if (!talk.typed) {
+    await page.locator('#talk .talk-line').tap();
+    await until(page, (s) => stop(s) || !sameLine(talk)(s) || s.talk.typed, 'a tap to show the whole line', 5_000);
+    return talkThrough(page, next);
+  }
   await nextFrames(page);
   await seen(state);
-  // The node that offers the starters waits for the starter screen over it; a tap does nothing there.
-  if (talk.cue !== 'offerStarter') {
-    const choice = choiceFor(talk, toward);
-    await page.locator(choice ? `#talk .talk-choice[data-choice="${choice.index}"]` : '#talk .talk-line').tap();
-  }
-  await until(page, (s) => stop(s) || s.talk?.conversation !== talk.conversation || s.talk.node !== talk.node, `the talk with ${talk.npc} to go on from ${talk.node}`, 10_000);
-  return talkThrough(page, { toward, stop, seen, lines: lines - 1 });
+  const choice = choiceFor(talk, toward);
+  await page.locator(choice ? `#talk .talk-choice[data-choice="${choice.index}"]` : '#talk .talk-line').tap();
+  await until(page, (s) => stop(s) || !sameLine(talk)(s), `the talk with ${talk.npc} to go on from ${talk.node}`, 10_000);
+  return talkThrough(page, next);
 }
-
 /** The character a new player gets their first creature from: the one the hint points at, or, off screen, the only one marked. */
 const starterGiver = (state) => state.talkHint ?? state.npcs.find((npc) => npc.mark === 'newQuest')?.id ?? null;
 

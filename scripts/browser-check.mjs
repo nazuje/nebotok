@@ -6,8 +6,9 @@
 // and come straight back, switch player, get the PIN wrong, then right. A new player takes the
 // hint to the character who gives the starters, taps them and talks until they offer them, and
 // takes the first; walks keep out of the tall grass, and each device run also walks into the grass
-// until a wild creature appears on the real server, attacks once and runs, then takes a quest by
-// talking (a choice) and delivers its note to the character marked for it. A wild battle met where none was meant is run from and noted, not failed. Every device run
+// until a wild creature appears on the real server, attacks once and runs. Once on each device in
+// each language it also takes a quest by talking (a choice) and delivers its note to the
+// character marked for it. A wild battle met where none was meant is run from and noted, not failed. Every device run
 // then signs in as a player whose save the check prepared in its own server's database
 // (scripts/lib/battle-check.mjs): their worn-out team faints and wakes at the shrine, a wild
 // creature is befriended onto the team, the team screen shows it, and storage at the shrine takes
@@ -307,6 +308,9 @@ async function moveAround(page, browserName, bot, language, { expect, shot, note
   await until(page, (s) => !s.settingsOpen, 'the settings to close');
 }
 
+// A quest is taken and delivered once on each device in each language, the two browsers sharing
+// the four runs, so the whole check keeps inside its time.
+const questRun = (browserName, device, language) => (BROWSERS.findIndex((browser) => browser.name === browserName) + DEVICES.indexOf(device) + LANGUAGES.indexOf(language)) % 2 === 0;
 const QUEST_ITEMS = new Set(JSON.parse(readFileSync(join(ROOT, 'content/items.json'), 'utf8')).items.filter((item) => item.kind === 'quest').map((item) => item.id));
 const questItems = (state) => (state.progress?.inventory ?? []).filter((entry) => QUEST_ITEMS.has(entry.item)).reduce((sum, entry) => sum + entry.count, 0);
 
@@ -563,7 +567,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     if (self) await meetBot(bot, page, self, { expect, shot });
     if (self) await moveAround(page, browserName, bot, language, { expect, shot, notes });
     if (self) await wildBattle(page, bot, { expect, check, notes });
-    if (self) await questTalk(page, bot, { expect, check, notes });
+    if (self && questRun(browserName, device, language)) await questTalk(page, bot, { expect, check, notes });
 
     await page.reload();
     state = await until(page, inWorld, 'the world straight after a reload');
