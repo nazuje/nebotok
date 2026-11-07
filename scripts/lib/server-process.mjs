@@ -20,11 +20,11 @@ export function freePort(preferred = 0) {
 }
 
 /**
- * Runs `node apps/server/src/index.ts` on a free local port. `lines` collects stdout as parsed JSON
- * where possible; `problems()` lists error lines, non-JSON output and anything on stderr.
+ * Runs `node apps/server/src/index.ts` on `port`, or a free local port. `lines` collects stdout as
+ * parsed JSON where possible; `problems()` lists error lines, non-JSON output and anything on stderr.
  */
-export async function startServer({ env = {}, logFile } = {}) {
-  const port = await freePort();
+export async function startServer({ env = {}, logFile, port: given } = {}) {
+  const port = given ?? (await freePort());
   const child = spawn(process.execPath, ['apps/server/src/index.ts'], {
     cwd: ROOT,
     env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', LOG_LEVEL: 'info', ...env },
@@ -82,6 +82,11 @@ export async function startServer({ env = {}, logFile } = {}) {
         return { code: null, signal: 'SIGKILL', timedOut: true };
       }
       return { ...result, timedOut: false };
+    },
+    /** SIGKILL, as a crash or a power cut stops it: nothing is saved on the way out. */
+    kill: () => {
+      child.kill('SIGKILL');
+      return exited;
     },
     saveLog: () => {
       if (logFile) writeFileSync(logFile, `${raw.join('\n')}\n`);

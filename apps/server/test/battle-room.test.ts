@@ -177,6 +177,14 @@ describe('meeting wild creatures', () => {
     expect(who.box.has('walk.refused')).toBe(false);
   });
 
+  it('saves where a battle starts, the creature seen and the team as it was, so a restart puts the player back there', async () => {
+    const who = await player('Saved Courier', { team: [strong()] });
+    // On through the grass without stopping, so only the battle's start can save this step.
+    who.room.send('walk.to', { x: intoGrass().x - 1, y: intoGrass().y });
+    await who.box.take<BattleUpdate>('battle.started');
+    expect(saved(who.id)).toMatchObject({ position: { ...intoGrass() }, seen: [WILD.species], team: [{ species: 'glowbun', hp: strong().hp }] });
+  });
+
   it('never ambushes a player without a creature that can battle', async () => {
     const who = await player('Starterless Courier');
     expect(who.progress.needsStarter).toBe(true);
