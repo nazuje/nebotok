@@ -306,8 +306,6 @@ function enterWorld() {
     },
     welcome: (welcome) => {
       protocol = welcome.protocol;
-      // The count the line was chosen by, so the next frame does not judge it by an older room's.
-      playerCount = welcome.playerCount;
       hud.setWelcome(welcome);
     },
     players: (count) => {
@@ -315,6 +313,10 @@ function enterWorld() {
     },
     room: (joined) => {
       forgetRoom();
+      // The count comes from the room's state alone. `welcome` carries the count from when the
+      // server seated this page, but it arrives after the state, which another player joining in
+      // between may already have raised: taking it would set the count back for good.
+      playerCount = null;
       room = joined;
       stopBattles = battles.joined(joined);
       stopTalks = talks.joined(joined);

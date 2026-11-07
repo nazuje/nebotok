@@ -386,10 +386,19 @@ an error handling a message ends the sender's battle, if any, as a run. Every ot
 A dropped player stays in the world, standing still with `connected: false`, for three minutes
 (`RECONNECT_SECONDS`). The SDK reconnects to the same `sessionId` and position.
 
+Any other join, such as one after the server restarted or after `failed`, is a new seat. Battles
+and move offers live only in the server's memory, so a new seat has none: the client forgets any
+battle, offer or open team screen it was showing, and shows a battle again only when the server
+sends one. The player stands where their save says, with the team as saved; a battle's start is
+saved, so that is where the battle began, with the team as it was before it. A `refused` with
+`notInBattle` while the client still shows a battle without its result also puts that battle away.
+The player count comes from the room state, never from `welcome`: the state reaches a new seat
+before `welcome` does, and may already count a player who joined in between.
+
 ## Saves
 
 The server saves each player (save format v4, `packages/core/src/save.ts`) when they leave or
-their seat expires, every 30 seconds for players who moved, and when it shuts down. A save holds the
+their seat expires, every 30 seconds for players who moved, when a battle starts, and when it shuts down. A save holds the
 position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
 an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item id and count),
 `lastShrine`, and the `seen` and `befriended` species. A save from v2 or earlier has no

@@ -34,7 +34,7 @@ export type BattlesOptions = {
 
 export type Battles = {
   readonly scene: BattleScene;
-  /** Listens to a joined room. Returns a function that stops. */
+  /** Listens to a room joined afresh, forgetting every battle, offer and team screen first. Returns a function that stops. */
   joined(room: WorldRoom): () => void;
   /** Called every frame. */
   frame(now: number): void;
@@ -96,11 +96,28 @@ export function createBattles(options: BattlesOptions): Battles {
     update();
   });
 
+  /** A battle on screen that has not had its result, which a server that no longer knows it cannot finish. */
+  const unfinished = (now = performance.now()) => {
+    const battle = model.battle(now);
+    return battle !== null && battle.result === null;
+  };
+
+  function forgetEverything() {
+    model.reset();
+    learn.reset();
+    team.close();
+    update();
+  }
+
   function receive(message: ServerMessage) {
+    const wasFighting = unfinished();
     const restedAt = model.storage()?.shrine;
     model.receive(message, performance.now());
     learn.receive(message);
-    if (message.type === SERVER_MESSAGES.refused) options.toast(`refused.${message.payload.reason}`);
+    if (message.type === SERVER_MESSAGES.refused) {
+      if (wasFighting && !unfinished()) options.toast('battle.interrupted', 'news');
+      else options.toast(`refused.${message.payload.reason}`);
+    }
     // Storage comes again after every swap at the shrine; only arriving there is news, and a toast then would cover Close.
     if (message.type === SERVER_MESSAGES.storage && message.payload.shrine !== restedAt) options.toast('shrine.rested', 'news');
   }
@@ -131,6 +148,11 @@ export function createBattles(options: BattlesOptions): Battles {
   return {
     scene,
     joined: (room) => {
+      // A room joined afresh (a new room after a restart, or a new seat after an error) holds no
+      // battle, offer or team change of this page's: only the messages it sends from now on count.
+      const interrupted = unfinished();
+      forgetEverything();
+      if (interrupted) options.toast('battle.interrupted', 'news');
       const roomSide = roomLink(room);
       link = roomSide;
       const stop = roomSide.listen(receive);
@@ -146,12 +168,7 @@ export function createBattles(options: BattlesOptions): Battles {
     },
     overlay: () => overlay,
     progress: () => model.progress(),
-    reset: () => {
-      model.reset();
-      learn.reset();
-      team.close();
-      update();
-    },
+    reset: forgetEverything,
     snapshot: (now) => {
       const state = model.battle(now);
       const language = options.language();
