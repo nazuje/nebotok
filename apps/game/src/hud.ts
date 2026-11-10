@@ -114,3 +114,27 @@ export function createHud(language: Language): Hud {
     state: () => ({ welcome, toast }),
   };
 }
+
+export type StoryButtons = {
+  /** Shows the bag and journal buttons while `shown`, the journal's dot while it has `news`. */
+  render(shown: boolean, news: boolean, language: Language): void;
+};
+
+/** The bag and journal buttons beside the team button. The world's screens hide all three. */
+export function createStoryButtons(open: { bag(): void; journal(): void }): StoryButtons {
+  const bag = element<HTMLButtonElement>('.bag-button');
+  const journal = element<HTMLButtonElement>('.journal-button');
+  const dot = element<HTMLElement>('.journal-dot');
+  bag.addEventListener('click', () => open.bag());
+  journal.addEventListener('click', () => open.journal());
+  return {
+    render: (shown, news, language) => {
+      bag.hidden = !shown;
+      journal.hidden = !shown;
+      dot.hidden = !news;
+      journal.dataset.news = String(news);
+      bag.setAttribute('aria-label', text('bag.title', language));
+      journal.setAttribute('aria-label', text(news ? 'journal.news' : 'journal.title', language));
+    },
+  };
+}

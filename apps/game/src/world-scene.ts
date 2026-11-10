@@ -30,6 +30,13 @@ const SELF_RING = [
 const SELF_RING_TOP = 12;
 const AWAY_ALPHA = 0.5;
 const AWAY_TINT = 0xb8c4d0;
+/** "Where next?": the camera pans to the goal, stays while its ring pulses, then glides back. */
+const LOOK_PAN_MS = 700;
+const LOOK_HOLD_MS = 1_800;
+const GOAL_COLOUR = 0xffd43b;
+const GOAL_OUTLINE = 0x1b1b2f;
+/** How far the goal ring reaches out of its tile, in pixels. */
+const GOAL_REACH = 3;
 const HEAD_MARK_INK = 0x1b1b2f;
 /** A mark's pixels, one string per row: `o` outline, `f` fill, `i` ink. */
 const HEAD_MARKS: Readonly<Record<HeadMark, { readonly fill: number; readonly rows: readonly string[] }>> = {
@@ -86,6 +93,11 @@ export class WorldScene extends Scene {
   private markerTimer: Time.TimerEvent | null = null;
   /** The tile the marker shows, unless it is only a short "can't go there". */
   markerTile: Point | null = null;
+  /** The tile the camera was sent to show, while it is on its way there or showing it. */
+  lookingAt: Point | null = null;
+  private goalRing: GameObjects.Graphics | null = null;
+  private goalPulse: Tweens.Tween | null = null;
+  private lookTimer: Time.TimerEvent | null = null;
 
   constructor(options: WorldSceneOptions) {
     super(WORLD_SCENE);
@@ -149,6 +161,8 @@ export class WorldScene extends Scene {
     const self = shown.find((player) => player.self);
     const selfSprite = self ? this.sprites.get(self.id) : undefined;
     this.ring(selfSprite);
+    // Walking off while the camera looks elsewhere brings it straight back.
+    if (this.lookingAt && self?.walking) this.endLook();
     this.follow(selfSprite);
   }
 
@@ -194,6 +208,57 @@ export class WorldScene extends Scene {
     for (const [x, y] of [[0, 0], [TILE - 5, 0], [0, TILE - 2], [TILE - 5, TILE - 2]] as const) marker.fillRect(x, y, 5, 2);
     for (const [x, y] of [[0, 0], [TILE - 2, 0], [0, TILE - 5], [TILE - 2, TILE - 5]] as const) marker.fillRect(x, y, 2, 5);
     if (!reducedMotion()) this.markerPulse = this.tweens.add({ targets: marker, alpha: 0.45, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  /** Pans the camera to a tile and pulses a ring on it, then glides back to your courier. */
+  lookAt(tile: Point): void {
+    this.endLook();
+    const camera = this.cameras.main;
+    camera.stopFollow();
+    this.lookingAt = tile;
+    this.drawGoal(tile);
+    const hold = () => {
+      this.lookTimer = this.time.delayedCall(LOOK_HOLD_MS, () => this.endLook());
+    };
+    const x = tile.x * TILE + TILE / 2;
+    const y = tile.y * TILE + TILE / 2;
+    if (reducedMotion()) {
+      camera.centerOn(x, y);
+      hold();
+      return;
+    }
+    camera.pan(x, y, LOOK_PAN_MS, 'Sine.easeInOut', true, (_camera: unknown, progress: number) => {
+      if (progress === 1) hold();
+    });
+  }
+
+  private endLook(): void {
+    this.lookTimer?.remove();
+    this.lookTimer = null;
+    this.goalPulse?.remove();
+    this.goalPulse = null;
+    this.goalRing?.clear();
+    if (!this.lookingAt) return;
+    this.lookingAt = null;
+    const camera = this.cameras.main;
+    camera.panEffect.reset();
+    if (!this.followed) {
+      this.centreOnSpawn();
+      return;
+    }
+    // Following again from where the camera stands glides it home; reduced motion jumps.
+    const lerp = reducedMotion() ? 1 : FOLLOW_LERP;
+    camera.startFollow(this.followed, true, lerp, lerp);
+  }
+
+  /** A ring of whole pixels just outside the goal's tile, pulsing unless motion is reduced. */
+  private drawGoal(tile: Point): void {
+    const ring = (this.goalRing ??= this.add.graphics().setDepth(MARKER_DEPTH));
+    const size = TILE + GOAL_REACH * 2;
+    ring.clear().setAlpha(1).setPosition(tile.x * TILE - GOAL_REACH, tile.y * TILE - GOAL_REACH);
+    ring.fillStyle(GOAL_OUTLINE, 0.6).fillRect(-1, -1, size + 2, 4).fillRect(-1, size - 3, size + 2, 4).fillRect(-1, -1, 4, size + 2).fillRect(size - 3, -1, 4, size + 2);
+    ring.fillStyle(GOAL_COLOUR, 1).fillRect(0, 0, size, 2).fillRect(0, size - 2, size, 2).fillRect(0, 0, 2, size).fillRect(size - 2, 0, 2, size);
+    if (!reducedMotion()) this.goalPulse = this.tweens.add({ targets: ring, alpha: 0.35, duration: 380, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   /** Where a character stands on the page, in CSS pixels: the centre of their tile, or null when it is off the canvas. */
@@ -311,7 +376,7 @@ export class WorldScene extends Scene {
 
   private follow(sprite: GameObjects.Sprite | undefined): void {
     const camera = this.cameras.main;
-    if (sprite === this.followed) return;
+    if (sprite === this.followed || this.lookingAt) return;
     if (!sprite) {
       camera.stopFollow();
       this.followed = null;
