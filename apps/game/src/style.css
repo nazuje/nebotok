@@ -173,10 +173,11 @@ body:not([data-screen='world']) #names {
   line-height: 36px;
 }
 
-body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn']) .title,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn']) .badge,
+body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal']) .title,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal']) .badge,
 body:not([data-screen='world']) .welcome,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn']) .toast,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal']) .toast,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal']) .quest-toast,
 body:not([data-screen='world']) .walk-hint {
   display: none;
 }

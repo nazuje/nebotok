@@ -16,7 +16,7 @@
 
 body:not([data-screen='world']) .talk,
 body:not([data-screen='world']) .talk-hint,
-body:has(.talk:not([hidden])) :is(.team-button, .welcome) {
+body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .welcome) {
   display: none;
 }
 
