@@ -26,8 +26,8 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      // A separate registerSW.js file, so the page needs no inline script.
-      injectRegister: 'script',
+      // src/updates.ts registers the worker itself, to check for and take new builds.
+      injectRegister: false,
       includeAssets: ['icons/*.png'],
       manifest: {
         name: 'Nebotok',
@@ -47,11 +47,32 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,webmanifest}'],
-        navigateFallback: 'index.html',
-        // Server endpoints must always reach the network. WebSockets never pass through a service worker.
-        navigateFallbackDenylist: [/^\/healthz/, /^\/matchmake/, /^\/colyseus/, /^\/api\//, /^\/maps\//],
+        // index.html stays out of the precache: served cache-first, it kept old builds alive after a
+        // deploy. Every other file is named by content hash or changes with the build, so cache-first
+        // is right for those.
+        globPatterns: ['**/*.{js,css,png,webmanifest}'],
+        // vite-plugin-pwa sets these for autoUpdate only when it writes the registration itself.
+        // Without them a new worker waits behind the old one while any page is open, which on an
+        // iPad Home Screen app can be for ever.
+        skipWaiting: true,
+        clientsClaim: true,
         cleanupOutdatedCaches: true,
+        // The page itself comes from the network, and from the cache only when the network is down
+        // or slow. Every other navigation (the API, /healthz, /maps) never touches the worker, and
+        // WebSockets never pass through one.
+        navigateFallback: null,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url }) => request.mode === 'navigate' && (url.pathname === '/' || url.pathname === '/index.html'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'nebotok-pages',
+              networkTimeoutSeconds: 3,
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 4 },
+            },
+          },
+        ],
       },
       devOptions: { enabled: false },
     }),

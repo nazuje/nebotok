@@ -7,6 +7,8 @@
   "connection.replaced": { "en": "You're playing on another device now.", "sl": "Zdaj igraš na drugi napravi." },
   "connection.signedOut": { "en": "Your session ended. Pick your profile again.", "sl": "Seja se je končala. Znova izberi svoj profil." },
   "connection.outdated": { "en": "This page is out of date. Reload it.", "sl": "Stran je zastarela. Znova jo naloži." },
+  "update.reload": { "en": "Reload", "sl": "Znova naloži" },
+  "update.available": { "en": "New version: tap to update", "sl": "Nova različica: dotakni se za posodobitev" },
   "language.en": { "en": "English", "sl": "angleščina" },
   "language.sl": { "en": "Slovenian", "sl": "slovenščina" },
   "language.switch": { "en": "Switch language", "sl": "Zamenjaj jezik" },
