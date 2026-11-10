@@ -319,11 +319,33 @@ const QUEST_ITEMS = new Set(JSON.parse(readFileSync(join(ROOT, 'content/items.js
 const questItems = (state) => (state.progress?.inventory ?? []).filter((entry) => QUEST_ITEMS.has(entry.item)).reduce((sum, entry) => sum + entry.count, 0);
 
 /**
+ * With a talk's choices up: a tap on the map above the talk box leaves the talk where it is, and,
+ * where Tab moves between buttons (Chromium), the first Tab lands on the first choice, not on close.
+ */
+async function talkIgnoresMapAndTabsToChoice(page, talk, { expect, tabs }) {
+  const box = await page.locator('#talk .talk-box').boundingBox();
+  if (box && box.y > 40) {
+    await page.touchscreen.tap(box.x + box.width / 2, box.y - 20);
+    await nextFrames(page);
+    const after = await readState(page);
+    expect(after.talk?.conversation === talk.conversation && after.talk.node === talk.node, `a tap on the map above the talk box moved the talk from ${talk.node} to ${after.talk?.node ?? 'its end'}`);
+  }
+  if (!tabs) return;
+  await page.keyboard.press('Tab');
+  const focused = await page.evaluate(() => {
+    const at = document.activeElement;
+    return { first: at === document.querySelector('#talk .talk-choice'), className: at?.className ?? null };
+  });
+  expect(focused.first, `the first Tab in the talk box focused ${focused.className}, not the first choice`);
+  await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+}
+
+/**
  * A quest by talking, against the real server: the character marked with a new quest is tapped,
  * their choices show and the one that takes the quest is tapped; the quest item they give is
  * carried to the character marked to take it, who takes it, and their mark goes.
  */
-async function questTalk(page, bot, { expect, check, notes }) {
+async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const offered = await until(page, (s) => settledOn(s) && s.talk === null && s.npcs.some((npc) => npc.mark === 'newQuest'), 'a character with a quest to give');
   const giver = offered.npcs.find((npc) => npc.mark === 'newQuest').id;
   await openTalk(page, bot, giver, { notes });
@@ -333,6 +355,7 @@ async function questTalk(page, bot, { expect, check, notes }) {
     choices = s.talk.choices.length;
     expect((await page.locator('#talk .talk-choice:visible').count()) === choices, `the talk box shows ${await page.locator('#talk .talk-choice:visible').count()} choices, not the ${choices} the talk has`);
     await check('choices in the talk box', 't1-choices');
+    await talkIgnoresMapAndTabsToChoice(page, s.talk, { expect, tabs });
   };
   await talkThrough(page, { toward: startsQuest, seen: seenChoices });
   expect(choices > 0, `${giver} gave a quest without a choice to take it`);
@@ -598,7 +621,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     if (self) await meetBot(bot, page, self, { expect, shot });
     if (self) await moveAround(page, browserName, bot, language, { expect, shot, notes });
     if (self) await wildBattle(page, bot, { expect, check, notes });
-    if (self && questRun(browserName, device, language)) await questTalk(page, bot, { expect, check, notes });
+    if (self && questRun(browserName, device, language)) await questTalk(page, bot, { expect, check, notes, tabs: browserName === 'chromium' });
 
     await page.reload();
     state = await until(page, inWorld, 'the world straight after a reload');

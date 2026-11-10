@@ -29,8 +29,9 @@ export type TalkBox = { render(view: TalkBoxView | null): void };
 
 /**
  * The talk box at the bottom of the screen: the speaker's portrait and name, their line typed
- * letter by letter, up to three choices and a close button. The whole screen above it is a tap
- * target, so walking stays paused while it is open.
+ * letter by letter, up to three choices and a close button. The whole screen above it takes taps
+ * and ignores them, so walking stays paused and a tap on the map neither goes on nor ends the talk;
+ * only a tap on the box goes on.
  */
 export function createTalkBox(root: HTMLElement, options: TalkBoxOptions): TalkBox {
   const portrait = el('canvas', { className: 'talk-portrait', attrs: { 'aria-hidden': 'true' } });
@@ -44,10 +45,12 @@ export function createTalkBox(root: HTMLElement, options: TalkBoxOptions): TalkB
   const more = el('span', { className: 'talk-more', attrs: { 'aria-hidden': 'true' } });
   const line = el('p', { className: 'talk-line' }, [said, unsaid, more]);
   const choices = el('div', { className: 'talk-choices' });
-  const box = el('div', { className: 'talk-box', attrs: { role: 'dialog' } }, [el('div', { className: 'talk-head' }, [portrait, name, close]), line, choices]);
+  // The close button comes last so Tab reaches the choices, or the line, before it; the
+  // stylesheet still draws it in the top corner.
+  const box = el('div', { className: 'talk-box', attrs: { role: 'dialog' } }, [el('div', { className: 'talk-head' }, [portrait, name]), line, choices, close]);
   root.replaceChildren(box);
   root.addEventListener('click', (event) => {
-    if (event.target instanceof Element && event.target.closest('button')) return;
+    if (!(event.target instanceof Element) || !box.contains(event.target) || event.target.closest('button')) return;
     options.tap();
   });
 
@@ -95,6 +98,9 @@ export function createTalkBox(root: HTMLElement, options: TalkBoxOptions): TalkB
       const done = view.typed >= say.length;
       choices.hidden = !done || view.line.choices.length === 0;
       more.hidden = !done || view.line.choices.length > 0 || view.waiting;
+      // While no choice is up, the line is what Space or Enter goes on with, so it takes focus.
+      if (choices.hidden) line.tabIndex = 0;
+      else line.removeAttribute('tabindex');
       root.setAttribute('aria-busy', String(view.waiting));
     },
   };

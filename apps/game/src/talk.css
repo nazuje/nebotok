@@ -9,7 +9,6 @@
   flex-direction: column;
   justify-content: flex-end;
   padding: calc(var(--top) + 60px) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -20,9 +19,11 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
   display: none;
 }
 
+/* A grid, so the close button sits beside the head while coming last in the tab order. */
 .talk-box {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 10px;
   width: min(100%, 40rem);
   max-height: 100%;
@@ -33,9 +34,17 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
   border-radius: 18px;
   background: white;
   box-shadow: 0 8px 24px rgb(16 42 67 / 0.2);
+  cursor: pointer;
+}
+
+.talk-line,
+.talk-choices {
+  grid-column: 1 / -1;
 }
 
 .talk-head {
+  grid-row: 1;
+  grid-column: 1;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -61,12 +70,12 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
 }
 
 .talk-close {
-  flex: none;
+  grid-row: 1;
+  grid-column: 2;
   display: grid;
   place-items: center;
   width: var(--tap);
   height: var(--tap);
-  margin-left: auto;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -86,6 +95,12 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
   font-weight: 700;
   line-height: 1.4;
   overflow-wrap: break-word;
+}
+
+.talk-line:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Laid out but not yet seen, so the box keeps its size while the line types on. */

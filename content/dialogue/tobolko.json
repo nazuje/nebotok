@@ -151,8 +151,8 @@
     },
     "grass-accept": {
       "say": {
-        "en": "Splendid! The tall grass is right here. Come back when it's done.",
-        "sl": "Krasno! Visoka trava je kar tu. Vrni se, ko bo opravljeno."
+        "en": "Great! The tall grass is right here. Come back when you're done.",
+        "sl": "Super! Visoka trava je kar tu. Vrni se, ko končaš."
       },
       "mood": "happy",
       "effects": [
@@ -177,8 +177,8 @@
     },
     "grass-report": {
       "say": {
-        "en": "Listen! The meadow has calmed down. That was splendid work.",
-        "sl": "Poslušaj! Travnik se je umiril. To je bilo krasno delo."
+        "en": "Listen! The meadow has calmed down. Great work!",
+        "sl": "Poslušaj! Travnik se je umiril. Odlično opravljeno!"
       },
       "mood": "happy",
       "effects": [
@@ -191,8 +191,8 @@
     },
     "friend-offer": {
       "say": {
-        "en": "Now for my favourite part. Offer a treat to a wild creature in battle. If it takes a liking to you, it joins your team!",
-        "sl": "Zdaj pa moj najljubši del. V boju ponudi poslastico divjemu bitju. Če te vzljubi, se pridruži tvoji ekipi!"
+        "en": "Now for my favourite part. Offer a treat to a wild creature in battle. If it likes you, it joins your team!",
+        "sl": "Zdaj pa moj najljubši del. V boju ponudi poslastico divjemu bitju. Če te ima rado, se pridruži tvoji ekipi!"
       },
       "mood": "happy",
       "choices": [

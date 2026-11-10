@@ -11,7 +11,7 @@ describe('the words of a battle', () => {
     expect(lineText({ id: 'battle.used', creature: 'a1', move: 'sun-tap' }, view, 'en')).toBe('Glowbun uses Sun Tap!');
     expect(lineText({ id: 'battle.weather', weather: 'rain' }, view, 'sl')).toBe('Vreme: Dež');
     expect(lineText({ id: 'battle.befriended', species: 'pinwhirl' }, view, 'en')).toBe('Pinwhirl joins your team!');
-    expect(lineText({ id: 'battle.xp', creature: 'a1', xp: 18 }, view, 'sl')).toBe('Sončni zajček dobi 18 XP.');
+    expect(lineText({ id: 'battle.xp', creature: 'a1', xp: 18 }, view, 'sl')).toBe('Sončni zajček dobi 18 točk izkušenj.');
   });
 });
 

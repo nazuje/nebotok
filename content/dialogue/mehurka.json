@@ -65,15 +65,15 @@
     },
     "try-it": {
       "say": {
-        "en": "Rest now. Try it. Bubbles help.",
-        "sl": "Zdaj počij. Poskusi. Mehurčki pomagajo."
+        "en": "Step onto the shrine to rest. Try it now. Bubbles help.",
+        "sl": "Stopi do svetišča, da počiješ. Poskusi zdaj. Mehurčki pomagajo."
       },
       "mood": "calm"
     },
     "rest-remind": {
       "say": {
-        "en": "Rest at the shrine. Breathe. Watch the bubbles.",
-        "sl": "Počij v svetišču. Dihaj. Glej mehurčke."
+        "en": "Step onto the shrine to rest. Breathe. Watch the bubbles.",
+        "sl": "Stopi do svetišča, da počiješ. Dihaj. Glej mehurčke."
       },
       "mood": "calm"
     },
