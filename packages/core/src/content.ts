@@ -24,6 +24,8 @@ export const REQUIRED_STRING_IDS = [
   'connection.replaced',
   'connection.signedOut',
   'connection.outdated',
+  'update.reload',
+  'update.available',
   'language.en',
   'language.sl',
   'language.switch',

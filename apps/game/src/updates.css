@@ -1,0 +1,28 @@
+/* The offer to take a new build: Reload on a refused page, or a tap to update. */
+
+.update-button {
+  position: fixed;
+  z-index: 5;
+  left: 50%;
+  top: calc(var(--top) + var(--tap) + 12px);
+  transform: translateX(-50%);
+  max-width: min(90vw, 24rem);
+  min-height: var(--tap);
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+  overflow-wrap: anywhere;
+}
+
+.update-button:active {
+  transform: translateX(-50%) translateY(1px);
+}
+
+.update-button:disabled {
+  opacity: 0.7;
+}

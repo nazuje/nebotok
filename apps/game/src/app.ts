@@ -23,6 +23,7 @@ import { createStory } from './story-link.ts';
 import { talkControls } from './talk-controls.ts';
 import { createTalkHint } from './talk-hint.ts';
 import { createTalks } from './talks.ts';
+import { createUpdates } from './updates.ts';
 import { createWalkHint } from './walk-hint.ts';
 import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
 import { feedWorldView } from './world-feed.ts';
@@ -106,6 +107,7 @@ const story = createStory({
     showScreen();
   },
 });
+const updates = createUpdates({ language, busy: () => battles.overlay() !== null || talks.isOpen() });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
 const settings = createSettings(language, controls, {
@@ -216,6 +218,7 @@ function setLanguage(next: Language) {
   settings.setLanguage(next);
   profiles.setLanguage(next);
   pinSetup.setLanguage(next);
+  updates.setLanguage(next);
 }
 
 function showScreen() {
@@ -337,6 +340,7 @@ function enterWorld() {
       // sent no longer holds: the same walk asked again is a new request, not a repeat to swallow.
       if (status !== was) startClean();
       hud.setStatus(status);
+      updates.connection(status);
       if (status === 'signedOut') sessionEnded('connection.signedOut');
       else if (status === 'replaced') sessionEnded('profile.takenOver');
     },
