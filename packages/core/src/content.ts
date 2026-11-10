@@ -165,6 +165,7 @@ export const REQUIRED_STRING_IDS = [
   'storage.keepOne',
   'storage.pickFirst',
   'starter.hint',
+  'talk.close',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 

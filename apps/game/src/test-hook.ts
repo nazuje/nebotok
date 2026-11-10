@@ -8,7 +8,9 @@ import type { Input } from './input.ts';
 import type { LearnState } from './learn-prompt.ts';
 import type { TagBox } from './names.ts';
 import type { StoryOverlay, TestStory } from './story-link.ts';
+import type { TestTalk } from './talks.ts';
 import type { TeamTab } from './team-screen.ts';
+import type { DrawnNpc } from './world-scene.ts';
 import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
@@ -55,6 +57,8 @@ export type TestPlayer = {
   connected: boolean;
   /** In a battle, so the world marks them. */
   inBattle: boolean;
+  /** Talking to a character, so the world shows a speech mark on their name. */
+  talking: boolean;
   x: number;
   y: number;
   moving: boolean;
@@ -79,6 +83,12 @@ export type TestSnapshot = TestStory & {
   toast: StringId | null;
   /** The first-visit walking hint, for the controls it shows, if it is up. */
   hint: Controls | null;
+  /** The character the new player's hint points at, if it is up. */
+  talkHint: string | null;
+  /** The characters on the map, the way each faces and the mark over their head. */
+  npcs: DrawnNpc[];
+  /** The talk box, if a talk is open. */
+  talk: TestTalk | null;
   scene: string | null;
   /** The map whose tiles are drawn, if any. */
   map: string | null;

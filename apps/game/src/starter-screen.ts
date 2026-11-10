@@ -7,7 +7,7 @@ import { button, el } from './dom.ts';
 import { text } from './strings.ts';
 
 export type StarterScreen = {
-  /** Shows the choice while `progress` says the player needs a starter. */
+  /** Shows the choice while `progress` says the player needs a starter; null hides it. */
   render(progress: ProgressMessage | null): void;
   isOpen(): boolean;
   /** The species chosen and not yet confirmed by the server, if any. */

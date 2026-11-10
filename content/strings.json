@@ -149,5 +149,6 @@
   "storage.store": { "en": "Leave here", "sl": "Pusti tukaj" },
   "storage.keepOne": { "en": "Keep at least one creature with you.", "sl": "Vsaj eno bitje naj ostane s tabo." },
   "storage.pickFirst": { "en": "Your team is full. First pick a creature to swap on the Team tab.", "sl": "Tvoja ekipa je polna. Najprej v zavihku Ekipa izberi bitje za zamenjavo." },
-  "starter.hint": { "en": "Your first creature goes everywhere with you.", "sl": "Tvoje prvo bitje gre povsod s tabo." }
+  "starter.hint": { "en": "Your first creature goes everywhere with you.", "sl": "Tvoje prvo bitje gre povsod s tabo." },
+  "talk.close": { "en": "Stop talking", "sl": "Končaj pogovor" }
 }

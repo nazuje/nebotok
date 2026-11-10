@@ -12,6 +12,7 @@ export type PlayerFacts = {
   readonly moving: boolean;
   readonly connected: boolean;
   readonly inBattle: boolean;
+  readonly talking: boolean;
 };
 
 /** One player as the world should draw them right now. */
@@ -22,6 +23,7 @@ export type ShownPlayer = {
   readonly self: boolean;
   readonly connected: boolean;
   readonly inBattle: boolean;
+  readonly talking: boolean;
   /** The tile the server last gave, and whether it said the player is moving. */
   readonly tile: Point;
   readonly moving: boolean;
@@ -61,8 +63,8 @@ export type WorldView = {
   refused(): void;
   /** The map shown and your own courier's tile on it as the server last gave it, once both are known. */
   standing(): { map: WorldMap; tile: Point } | null;
-  /** Your own courier's predicted tile and plan, once it is known. */
-  predicted(): { tile: Point; intent: 'idle' | 'hold' | 'path'; moving: boolean } | null;
+  /** Your own courier's predicted tile, plan and facing, once it is known. */
+  predicted(): { tile: Point; intent: 'idle' | 'hold' | 'path'; moving: boolean; facing: ServerSelf['facing'] } | null;
   shown(now: number): ShownPlayer[];
 };
 
@@ -148,13 +150,13 @@ export function createWorldView(): WorldView {
       return map && facts ? { map, tile: { x: facts.x, y: facts.y } } : null;
     },
     predicted: () =>
-      prediction && { tile: { x: prediction.walker.x, y: prediction.walker.y }, intent: prediction.walker.intent.kind, moving: prediction.walker.moving },
+      prediction && { tile: { x: prediction.walker.x, y: prediction.walker.y }, intent: prediction.walker.intent.kind, moving: prediction.walker.moving, facing: prediction.walker.facing },
     shown: (now) =>
       [...players].map(([id, { facts, track }]) => {
         const self = id === selfId;
         const motion = self && prediction ? predictedMotion(prediction, now) : trackedMotion(track, facts, now);
         const { at, facing, walking } = motion;
-        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, inBattle: facts.inBattle, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
+        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, inBattle: facts.inBattle, talking: facts.talking, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
       }),
   };
   return view;

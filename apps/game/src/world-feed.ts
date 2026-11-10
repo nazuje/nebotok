@@ -13,6 +13,7 @@ const factsOf = (player: Player): PlayerFacts => ({
   moving: player.moving,
   connected: player.connected,
   inBattle: player.inBattle,
+  talking: player.talking,
 });
 
 export type FeedEvents = {

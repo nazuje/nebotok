@@ -104,7 +104,7 @@ const PLAYERS = [
 ];
 
 const browsers = [];
-async function enter(player) {
+async function enter(player, world) {
   const api = (path, body) => apiCall(base, path, { body, headers: { 'x-forwarded-for': player.address } });
   const made = await api('/profiles', { name: player.name, avatar: player.avatar });
   if (made.status !== 201) throw new Error(`making ${player.id} answered ${made.status}`);
@@ -121,7 +121,7 @@ async function enter(player) {
   const page = await context.newPage();
   watch(context, page, sinkFor(player.id), { allowedHost });
   await page.goto(`${base}/?test=1`);
-  await enterWorld(page, (s) => inWorld(s) && settledOn(s), `${player.id} to stand in the world`);
+  await enterWorld(page, world, (s) => inWorld(s) && settledOn(s), `${player.id} to stand in the world`, { notes });
   return { ...player, page, joinedAt: Date.now() };
 }
 
@@ -181,7 +181,7 @@ async function countsTwo(players) {
 const started = Date.now();
 try {
   const world = await servedMap(base, START_MAP);
-  const [lan, zarja] = await inTurn(PLAYERS, enter);
+  const [lan, zarja] = await inTurn(PLAYERS, (player) => enter(player, world));
   await sleep(Math.max(0, lan.joinedAt + SDK_MIN_UPTIME_MS - Date.now()));
 
   const inBattle = await battleTurn(lan.page, world);

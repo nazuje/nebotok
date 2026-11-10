@@ -1,0 +1,19 @@
+{
+  "name": "talk-together",
+  "about": "Two couriers talk to Postmaster Bavko at once, one on a phone in English, one on a tablet in Slovenian: each sees the other's speech mark, and Bavko turns to whoever talks to him on their own screen.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "ipad-landscape", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "talk", "player": "lan", "npc": "bavko", "open": true },
+    { "do": "waitFor", "player": "zarja", "until": { "talking": ["lan"], "talk": "none" }, "shot": "lan-talks" },
+    { "do": "talk", "player": "zarja", "npc": "bavko", "open": true },
+    { "do": "waitFor", "player": "lan", "until": { "talking": ["zarja"], "talk": "open" }, "shot": "both-talk" },
+    { "do": "talk", "player": "lan", "npc": "bavko" },
+    { "do": "talk", "player": "zarja", "npc": "bavko" },
+    { "do": "waitFor", "player": "lan", "until": { "quiet": ["zarja"], "talk": "none" }, "shot": "done" }
+  ]
+}
