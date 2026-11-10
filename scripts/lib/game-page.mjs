@@ -43,7 +43,8 @@ export async function screenshot(page, path) {
   shooting.add(page);
   try {
     await page.screenshot({ path, caret: 'initial' });
-    await page.waitForTimeout(100);
+    // The refusal arrives a moment after the screenshot. Chromium injects no stylesheet, so it waits for nothing.
+    if (page.context().browser()?.browserType().name() === 'webkit') await page.waitForTimeout(100);
   } finally {
     shooting.delete(page);
   }

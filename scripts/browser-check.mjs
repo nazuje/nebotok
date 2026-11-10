@@ -22,8 +22,10 @@
 // a new move (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
-//   node scripts/browser-check.mjs [--out <dir>] [--url <base>]
-// With --url it plays a game that is already running there (the container check) instead.
+//   node scripts/browser-check.mjs [--out <dir>] [--url <base>] [--part <name>]
+// With --url it plays a game that is already running there (the container check) instead. With
+// --part it plays one part of scripts/lib/browser-check-parts.mjs, as each level 4 verify step
+// does; without it, every part in turn on one server.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -70,9 +72,16 @@ import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
+import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
 import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, storyName } from './lib/test-players.mjs';
 
-const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' } } });
+const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
+const parts = values.part === undefined ? BROWSER_CHECK_PARTS : BROWSER_CHECK_PARTS.filter((part) => part.name === values.part);
+if (parts.length === 0) {
+  console.error(`browser-check: --part must be one of ${BROWSER_CHECK_PARTS.map((part) => part.name).join(', ')}, got "${values.part}"`);
+  process.exit(2);
+}
+const logName = values.part === undefined ? 'browser-check' : `browser-check-${values.part}`;
 let given = null;
 if (values.url) {
   try {
@@ -105,7 +114,7 @@ const WRONG_PIN = '1111';
 const dataDir = values.url ? null : mkdtempSync(join(tmpdir(), 'nebotok-browser-check-'));
 const server = given
   ? { base: given, external: true }
-  : await startServer({ env: { NODE_ENV: 'production', DATA_DIR: dataDir }, logFile: join(out, 'logs', 'browser-check-server.log') });
+  : await startServer({ env: { NODE_ENV: 'production', DATA_DIR: dataDir }, logFile: join(out, 'logs', `${logName}-server.log`) });
 const allowedHost = new URL(server.base).host;
 const results = [];
 
@@ -969,34 +978,50 @@ async function checkFull(browser, browserName, language) {
   results.push({ label: `${label} (full list)`, ok: problems.length === 0, problems, screenshots });
 }
 
+/** Runs one check and notes on the result it adds how long it took. */
+async function timed(check) {
+  const started = performance.now();
+  const from = results.length;
+  await check();
+  for (const result of results.slice(from)) result.durationMs = Math.round(performance.now() - started);
+}
+
+/** A part's device runs (each device in each language), then its 360px runs. */
+async function playPart(browser, part, bot) {
+  const name = part.browser;
+  // A lock lasts a minute and needs five logins at once, which only our own server can spare.
+  // The second lock waits for the first to end, so it starts before the device runs.
+  const relock = part.narrow && LOCAL ? await lockedTwiceLater(name) : null;
+  const runs = DEVICES.filter((device) => part.devices.includes(device.name)).flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
+  await inTurn(runs, ({ device, language }) => timed(() => checkDevice(browser, name, device, language, bot)));
+  if (!part.narrow) return;
+  const lockedId = LOCAL ? await lockedProfile(name) : null;
+  const twiceId = relock ? await relock() : null;
+  await inTurn(LANGUAGES, (language) => timed(() => checkNarrow(browser, name, language, { lockedId, twiceId })));
+  await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
+  if (LOCAL) await timed(() => checkLearn(browser, name, bot));
+}
+
 let bot = null;
 try {
   // One browser and one page at a time, so screenshots and timings are not fighting for the GPU.
-  const runs = DEVICES.flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
   bot = await prepareBot();
-  await inTurn(BROWSERS, async ({ name, type, options }) => {
+  await inTurn(BROWSERS.filter((browser) => parts.some((part) => part.browser === browser.name)), async ({ name, type, options }) => {
     const browser = await type.launch(options);
     try {
-      // A lock lasts a minute and needs five logins at once, which only our own server can spare.
-      // The second lock waits for the first to end, so it starts before the device runs.
-      const relock = LOCAL ? await lockedTwiceLater(name) : null;
-      await inTurn(runs, ({ device, language }) => checkDevice(browser, name, device, language, bot));
-      const lockedId = LOCAL ? await lockedProfile(name) : null;
-      const twiceId = relock ? await relock() : null;
-      await inTurn(LANGUAGES, (language) => checkNarrow(browser, name, language, { lockedId, twiceId }));
-      await inTurn(LANGUAGES, (language) => checkAddPin(browser, name, language, bot));
-      if (LOCAL) await checkLearn(browser, name, bot);
+      await inTurn(parts.filter((part) => part.browser === name), (part) => playPart(browser, part, bot));
     } finally {
       await browser.close();
     }
   });
   // Last of all, since a full list stops every run after it from making a player.
-  if (LOCAL) {
+  const full = parts.find((part) => part.fullList);
+  if (LOCAL && full) {
     await fillProfiles();
-    const [{ name, type, options }] = BROWSERS;
+    const { name, type, options } = BROWSERS.find((browser) => browser.name === full.browser);
     const browser = await type.launch(options);
     try {
-      await inTurn(LANGUAGES, (language) => checkFull(browser, name, language));
+      await inTurn(LANGUAGES, (language) => timed(() => checkFull(browser, name, language)));
     } finally {
       await browser.close();
     }
@@ -1018,9 +1043,10 @@ try {
   }
 }
 
-writeFileSync(join(out, 'logs', 'browser-check.json'), `${JSON.stringify(results, null, 2)}\n`);
+writeFileSync(join(out, 'logs', `${logName}.json`), `${JSON.stringify(results, null, 2)}\n`);
 for (const result of results) {
-  console.log(`${result.ok ? 'ok  ' : 'FAIL'} ${result.label}${result.serviceWorkerReload ? ' (+ reload under service worker)' : ''}`);
+  const took = result.durationMs === undefined ? '' : ` ${(result.durationMs / 1000).toFixed(1)}s`;
+  console.log(`${result.ok ? 'ok  ' : 'FAIL'} ${result.label}${result.serviceWorkerReload ? ' (+ reload under service worker)' : ''}${took}`);
   for (const problem of result.problems) console.log(`       - ${problem}`);
   for (const note of result.notes ?? []) console.log(`       note: ${note}`);
 }

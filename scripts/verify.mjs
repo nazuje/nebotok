@@ -8,9 +8,9 @@
 // 1  core property tests and golden replays
 // 2  save migration round-trips over every fixture version
 // 3  server room tests, and a bot run against the real server process
-// 4  game build, then Chromium and WebKit against the real server serving it, including a server
-//    restart in the middle of a battle and an update to a build with a bumped protocol under the
-//    service worker
+// 4  game build, then Chromium and WebKit against the real server serving it (a step for each part
+//    of scripts/lib/browser-check-parts.mjs), including a server restart in the middle of a battle
+//    and an update to a build with a bumped protocol under the service worker
 //    --container (level 4 only): also build the production image, run it sealed, check it from
 //    outside and inside, and play it in both browsers (needs Docker)
 import { spawn, spawnSync } from 'node:child_process';
@@ -18,6 +18,7 @@ import { createWriteStream, mkdirSync, readFileSync, readdirSync, rmSync, writeF
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
 import { inTurn } from './lib/in-turn.mjs';
 import { runName, runSummaries, standingSummary } from './lib/proof.mjs';
 
@@ -62,13 +63,14 @@ const STEPS = [
   { level: 3, name: 'server-tests', run: vitest('server') },
   { level: 3, name: 'bot-run', run: [process.execPath, ['scripts/bot-run.mjs', '--out', proof]], timeoutMs: 60_000 },
   { level: 4, name: 'build', run: ['npm', ['run', 'build']] },
-  { level: 4, name: 'browser-check', run: [process.execPath, ['scripts/browser-check.mjs', '--out', proof]], needs: 'build', timeoutMs: 600_000 },
+  ...BROWSER_CHECK_PARTS.map((part) => ({ level: 4, name: `browser-check-${part.name}`, run: [process.execPath, ['scripts/browser-check.mjs', '--part', part.name, '--out', proof]], needs: 'build', timeoutMs: 300_000 })),
   { level: 4, name: 'restart-check', run: [process.execPath, ['scripts/restart-check.mjs', '--out', proof]], needs: 'build', timeoutMs: 180_000 },
   { level: 4, name: 'update-check', run: [process.execPath, ['scripts/update-check.mjs', '--out', proof]], needs: 'build', timeoutMs: 300_000 },
   { level: 4, container: true, name: 'container-check', run: [process.execPath, ['scripts/container-check.mjs', '--out', proof]], timeoutMs: 1_500_000 },
 ];
 
 const DEFAULT_TIMEOUT_MS = 300_000;
+const NAME_WIDTH = Math.max(...STEPS.map((step) => step.name.length));
 
 // Warnings are reported but never fail the run. CI has no use for local git hooks.
 const warnings = [];
@@ -157,7 +159,7 @@ writeFileSync(standingPath, `${JSON.stringify(standing, null, 2)}\n`);
 console.log('');
 for (const result of results) {
   const mark = result.skipped ? 'skip' : result.exitCode === 0 ? ' ok ' : 'FAIL';
-  console.log(`  [${mark}] L${result.level} ${result.name.padEnd(18)} ${result.skipped ?? `${(result.durationMs / 1000).toFixed(1)}s`}`);
+  console.log(`  [${mark}] L${result.level} ${result.name.padEnd(NAME_WIDTH)} ${result.skipped ?? `${(result.durationMs / 1000).toFixed(1)}s`}`);
   if (result.exitCode !== 0 && result.log) console.log(`         see ${result.log}`);
 }
 for (const warning of warnings) console.log(`\nverify: warning: ${warning}`);
