@@ -113,8 +113,8 @@
     },
     "gale-remind": {
       "say": {
-        "en": "The windy grass is in the south-west. Win one battle there, then come back.",
-        "sl": "Vetrovna trava je na jugozahodu. Tam zmagaj v enem boju, nato se vrni."
+        "en": "The windy grass is in the south-west. Win one battle there, then come back. Too hard? Train in the meadow first.",
+        "sl": "Vetrovna trava je na jugozahodu. Tam zmagaj v enem boju, nato se vrni. Pretežko? Najprej treniraj na travniku."
       },
       "mood": "worried"
     },

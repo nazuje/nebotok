@@ -196,8 +196,8 @@
     },
     "later": {
       "say": {
-        "en": "No hurry. Letters are patient.",
-        "sl": "Ni treba hiteti. Pisma znajo počakati."
+        "en": "No hurry. The letters can wait.",
+        "sl": "Ni treba hiteti. Pisma lahko počakajo."
       }
     },
     "remind": {
@@ -260,8 +260,8 @@
     },
     "wind-offer": {
       "say": {
-        "en": "Vetrinka at the east lookout asked for this wind gauge. The winds have been odd lately. Will you take it?",
-        "sl": "Vetrinka pri vzhodnem razgledišču je prosila za ta vetromer. Vetrovi so zadnje čase čudni. Ga odneseš?"
+        "en": "Vetrinka at the east lookout asked for this wind gauge. It shows how strong the wind is. Will you take it?",
+        "sl": "Vetrinka pri vzhodnem razgledišču je prosila za ta vetromer. Kaže, kako močno piha veter. Ga odneseš?"
       },
       "mood": "worried",
       "choices": [
@@ -305,16 +305,16 @@
     },
     "grey-offer": {
       "say": {
-        "en": "This came on the wind this morning. A grey envelope, soaked through, and no sender.",
-        "sl": "Tole je zjutraj prinesel veter. Sivo pismo, čisto premočeno, brez pošiljatelja."
+        "en": "This came on the wind this morning. A grey envelope, all wet, and no sender.",
+        "sl": "Tole je zjutraj prinesel veter. Sivo pismo, čisto mokro, brez pošiljatelja."
       },
       "mood": "worried",
       "next": "grey-ask"
     },
     "grey-ask": {
       "say": {
-        "en": "Vetrinka reads the weather like a book. Maybe she can read this too. Will you take it to her?",
-        "sl": "Vetrinka bere vreme kot knjigo. Morda bo prebrala tudi tole. Ji ga odneseš?"
+        "en": "Vetrinka knows all about the weather. Maybe she can work this out too. Will you take it to her?",
+        "sl": "Vetrinka ve vse o vremenu. Morda bo razumela tudi tole. Ji ga odneseš?"
       },
       "mood": "worried",
       "choices": [
@@ -336,8 +336,8 @@
     },
     "grey-accept": {
       "say": {
-        "en": "Thank you. Hurry, but mind the wind.",
-        "sl": "Hvala. Pohiti, a pazi na veter."
+        "en": "Thank you. Hurry, and watch out for the strong wind.",
+        "sl": "Hvala. Pohiti in pazi, ker močno piha."
       },
       "effects": [
         {
