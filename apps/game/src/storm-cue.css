@@ -51,6 +51,6 @@
 }
 
 /* While a cue plays only the world and the badge show: no names, hints, joystick or talk box over it. */
-body:has(.storm-cue:not([hidden])) :is(#names, .talk, .welcome, .walk-hint, .talk-hint, .joystick, .team-button) {
+body:has(.storm-cue:not([hidden])) :is(#names, .talk, .welcome, .walk-hint, .talk-hint, .joystick, .team-button, .bag-button, .journal-button, .quest-toast) {
   display: none;
 }

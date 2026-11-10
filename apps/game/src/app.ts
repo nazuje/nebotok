@@ -19,6 +19,7 @@ import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { createSpeech } from './speech.ts';
 import { createStoryCues } from './storm-cue.ts';
+import { createStory } from './story-link.ts';
 import { talkControls } from './talk-controls.ts';
 import { createTalkHint } from './talk-hint.ts';
 import { createTalks } from './talks.ts';
@@ -48,6 +49,7 @@ let mapFailed = false;
 let canAddPin = false;
 let stopFeed: () => void = () => {};
 let stopBattles: () => void = () => {};
+let stopStory: () => void = () => {};
 let stopTalks: () => void = () => {};
 let stopCues: () => void = () => {};
 
@@ -77,7 +79,7 @@ const storyCues = createStoryCues({
   scene,
   speech,
   language: () => language,
-  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null,
+  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null,
   changed: () => {
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
@@ -93,6 +95,16 @@ const talks = createTalks({
   },
   speech,
   cue: (cue, key) => storyCues.fromTalk(cue, key),
+});
+const story = createStory({
+  language: () => language,
+  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing(),
+  standing: () => view.standing(),
+  lookAt: (tile) => scene.lookAt(tile),
+  changed: () => {
+    input.release();
+    showScreen();
+  },
 });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
@@ -155,7 +167,7 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && !talks.isOpen() && !storyCues.playing(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && !talks.isOpen() && !storyCues.playing(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => {
@@ -168,7 +180,7 @@ const input = createInput({
 /** Where the new player's hint points: at the character who gives the first creature, while nothing else is up. */
 function talkHintSpot(): { npc: string; at: Point } | null {
   const npc = talks.starterNpc();
-  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
+  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || story.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
   const at = scene.npcOnScreen(npc);
   return at ? { npc, at } : null;
 }
@@ -177,13 +189,14 @@ function frame(now: number) {
   view.tick(now);
   battles.frame(now);
   talks.frame(now);
+  story.frame();
   storyCues.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   const pointing = talkHintSpot();
   talkHint.update(pointing?.at ?? null);
   // A new player is shown whom to tap first; the walking hint waits until then.
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -206,7 +219,7 @@ function setLanguage(next: Language) {
 }
 
 function showScreen() {
-  document.body.dataset.screen = !inWorld ? 'profiles' : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? 'world');
+  document.body.dataset.screen = !inWorld ? 'profiles' : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? 'world');
 }
 
 function setCanAddPin(next: boolean) {
@@ -264,6 +277,8 @@ function forgetRoom() {
   stopFeed = () => {};
   stopBattles();
   stopBattles = () => {};
+  stopStory();
+  stopStory = () => {};
   stopTalks();
   stopTalks = () => {};
   stopCues();
@@ -282,6 +297,7 @@ async function leaveWorld() {
   connection = null;
   forgetRoom();
   battles.reset();
+  story.reset();
   talks.reset();
   storyCues.reset();
   await leaving?.leave();
@@ -339,6 +355,7 @@ function enterWorld() {
       playerCount = null;
       room = joined;
       stopBattles = battles.joined(joined);
+      stopStory = story.joined(joined);
       stopTalks = talks.joined(joined);
       stopCues = storyCues.joined(joined);
       stopFeed = feedWorldView(joined, view, {
@@ -388,7 +405,7 @@ void showMap(START_MAP);
 if (session) enterWorld();
 else showProfiles(null);
 
-const screen = (): Screen => (!inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? 'world'));
+const screen = (): Screen => (!inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? 'world'));
 const round = (value: number) => Math.round(value * 100) / 100;
 const players = (): TestPlayer[] =>
   view.shown(performance.now()).map((player) => ({
@@ -441,6 +458,8 @@ installTestHook({
       canAddPin,
       settingsOpen: settings.isOpen(),
       ...battles.snapshot(performance.now()),
+      ...story.snapshot(),
+      looking: scene.lookingAt,
     };
   },
   isReady: () => {

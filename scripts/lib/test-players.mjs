@@ -25,6 +25,9 @@ export const learnerName = (browserName, language, tag) => `Uči ${browserName =
 /** A profile the check starts from a prepared save, to play the battles: "Boj" with the browser and device in two letters. */
 export const battlerName = (browserName, device, language, tag) => `Boj ${browserName === 'chromium' ? 'K' : 'W'}${device.startsWith('iphone') ? 'T' : 'P'} ${language === 'sl' ? 'Čž' : 'Ab'} ${tag}`;
 
+/** A profile the check starts from a prepared save with a quest under way: "Pot" with the browser and device in two letters. */
+export const storyName = (browserName, device, language, tag) => `Pot ${browserName === 'chromium' ? 'K' : 'W'}${device.startsWith('iphone') ? 'T' : 'P'} ${language === 'sl' ? 'Čž' : 'Ab'} ${tag}`;
+
 // Without a tag too: runs before tags left their players under the bare names.
-const TEST_PLAYER = /^(?:Bot Oblak|(?:Kro|Web) (?:Tel|Tab) (?:Abc|Čšž)|(?:Zaklep|Dvakrat) (?:Kro|Web)|Dodaj (?:Kro|Web) (?:Abc|Čšž|Ab|Čž)|Boj [KW][TP] (?:Ab|Čž)|Uči (?:Kro|Web) (?:Ab|Čž))(?: [A-Z][a-z]{2})?$/;
+const TEST_PLAYER = /^(?:Bot Oblak|(?:Kro|Web) (?:Tel|Tab) (?:Abc|Čšž)|(?:Zaklep|Dvakrat) (?:Kro|Web)|Dodaj (?:Kro|Web) (?:Abc|Čšž|Ab|Čž)|(?:Boj|Pot) [KW][TP] (?:Ab|Čž)|Uči (?:Kro|Web) (?:Ab|Čž))(?: [A-Z][a-z]{2})?$/;
 export const isTestPlayer = (name) => TEST_PLAYER.test(name);

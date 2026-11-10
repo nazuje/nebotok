@@ -7,6 +7,7 @@ import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { LearnState } from './learn-prompt.ts';
 import type { TagBox } from './names.ts';
+import type { StoryOverlay, TestStory } from './story-link.ts';
 import type { TestTalk } from './talks.ts';
 import type { TeamTab } from './team-screen.ts';
 import type { TestStorm } from './storm-cue.ts';
@@ -15,7 +16,7 @@ import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
-export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay;
+export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay | StoryOverlay;
 
 type TestCreature = { species: string; level: number; hp: number; maxHp: number };
 
@@ -68,7 +69,9 @@ export type TestPlayer = {
   walking: boolean;
 };
 
-export type TestSnapshot = {
+export type TestSnapshot = TestStory & {
+  /** The tile the camera went to show for "Where next?", while it shows it. */
+  looking: Point | null;
   /** Which screen is up: the profile list, the new-player form, the PIN pad, the world, or adding a PIN over it. */
   screen: Screen;
   connection: ConnectionStatus | null;
