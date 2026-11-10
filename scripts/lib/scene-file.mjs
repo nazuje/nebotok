@@ -8,6 +8,7 @@ import { BROWSERS, DEVICES } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const AVATARS = JSON.parse(readFileSync(join(ROOT, 'content/avatars.json'), 'utf8')).avatars.map((avatar) => avatar.id);
+const NPCS = JSON.parse(readFileSync(join(ROOT, 'content/npcs.json'), 'utf8')).npcs.map((npc) => npc.id);
 
 const Id = z.string().regex(/^[a-z][a-z0-9-]{0,15}$/, 'a lower-case id such as "lan"');
 const Label = z.string().regex(/^[a-z0-9-]{1,40}$/, 'lower-case letters, digits and dashes');
@@ -41,6 +42,9 @@ const Until = z
     sameBattle: z.literal(true).optional(),
     battling: z.array(Id).min(1).optional(),
     calm: z.array(Id).min(1).optional(),
+    talking: z.array(Id).min(1).optional(),
+    quiet: z.array(Id).min(1).optional(),
+    talk: z.enum(['open', 'none']).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 
@@ -57,11 +61,12 @@ const Step = z.discriminatedUnion('do', [
   step('meet', { player: Id }),
   step('fight', { player: Id, slot: z.number().int().min(0).max(3).default(0) }),
   step('run', { player: Id }),
+  step('talk', { player: Id, npc: z.enum(NPCS), open: z.literal(true).optional() }),
 ]);
 
 /** Every player a step names, so a typo is caught before any browser starts. */
 const named = (entry) =>
-  [entry.player, ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? [])].filter(Boolean);
+  [entry.player, ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? []), ...(entry.until?.talking ?? []), ...(entry.until?.quiet ?? [])].filter(Boolean);
 
 export const Scene = z
   .strictObject({ name: Label, about: z.string().min(1), players: z.array(Player).min(1).max(6), steps: z.array(Step).min(1) })

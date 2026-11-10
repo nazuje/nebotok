@@ -1,4 +1,4 @@
-// The starter choice and the battle, team and storage screens, played the way a player would against
+// The way to the starter choice, and the starter choice and the battle, team and storage screens, played the way a player would against
 // the real server. One turn is left to play at its own pace and then tapped through; every other
 // turn is tapped through at once, as a player in a hurry would. A battle's outcome is the server's
 // dice, so each part plays until it gets what it checks, within a bounded number of turns or battles: a team worn down to one point of health that
@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
 import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
-import { battleIdle, meetWildCreature, nextFrames, readState, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
+import { battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -67,19 +67,39 @@ export function battleSave(world, { name, language }) {
   };
 }
 
-/** The starter choice a new player sees on the way into the world: checks it and takes the first. */
-export async function chooseStarter(page, { say, expect, check }) {
+/**
+ * A new player's way to the starter choice: the hint points at the character who gives it, who
+ * stands marked; tapping them walks up and opens the talk, where a tap shows the whole line at
+ * once; talking on brings up the starter choice, which is checked, and the first starter taken.
+ */
+export async function chooseStarter(page, world, { say, expect, check, notes }) {
+  const hinted = await until(page, (s) => inWorld(s) && s.progress?.needsStarter === true && s.talkHint !== null && settledOn(s), 'the hint to the character who gives the first creature');
+  const giver = hinted.talkHint;
+  expect(hinted.npcs.find((npc) => npc.id === giver)?.mark === 'newQuest', `${giver}, who gives the first creature, carries the mark ${JSON.stringify(hinted.npcs.find((npc) => npc.id === giver)?.mark)}`);
+  await nextFrames(page);
+  expect(await page.locator('.talk-hint').isVisible(), `no hint points a new player at ${giver}`);
+  await check('the hint to the character with the first creature', 'b0-hint');
+  const opened = await openTalk(page, world, giver, { notes });
+  if (opened.talk.typed) notes.push(`the first line of ${giver} was typed out before a tap could show it whole`);
+  else {
+    await page.locator('#talk .talk-line').tap();
+    const tapped = await readState(page);
+    expect(tapped.talk?.node === opened.talk.node && tapped.talk.typed, `a tap on a line still typing did not show it whole: ${JSON.stringify(tapped.talk)}`);
+  }
+  await nextFrames(page);
+  await check('the talk box', 'b0-talk');
+  await talkThrough(page, { toward: offersStarter, stop: (s) => s.screen === 'starter' });
   await until(page, (s) => s.screen === 'starter', 'the starter choice');
   await nextFrames(page);
   expect((await textOf(page, '#starter .screen-title')) === say('starter.title'), 'the starter choice has the wrong title');
   expect((await page.locator('.starter-choice').count()) === STARTERS.species.length, `the starter choice does not offer the ${STARTERS.species.length} starters`);
   await check('the starter choice', 'b1-starter');
   await page.locator('.starter-choice').first().tap();
-  const state = await until(page, (s) => s.screen === 'world' && s.progress?.needsStarter === false && s.progress.team.length === 1, 'the world with the starter on the team');
+  const state = await until(page, (s) => s.screen === 'world' && s.progress?.needsStarter === false && s.progress.team.length === 1 && s.talk === null, 'the world with the starter on the team and the talk over');
+  expect(state.talkHint === null, `the hint still points at ${state.talkHint} once there is a starter`);
   expect(await page.locator('.team-button').isVisible(), 'the world shows no team button once there is a team');
   return state;
 }
-
 /** The weather badge on the field: shown with the weather's name while there is weather, hidden without. */
 async function weatherShown(page, battle, { language, expect }) {
   const badge = page.locator('#battle .battle-weather');

@@ -61,6 +61,11 @@ describe('parseScene', () => {
     expect(read({ ...base, steps: [...base.steps, { do: 'waitFor', player: 'lan', until: {} }] }).problems).toContain('say what to wait for');
   });
 
+  it('refuses a talk to a character who is not in the story', () => {
+    expect(read({ ...base, steps: [...base.steps, { do: 'talk', player: 'lan', npc: 'bavko', open: true }] }).ok).toBe(true);
+    expect(read({ ...base, steps: [...base.steps, { do: 'talk', player: 'lan', npc: 'nobody' }] }).ok).toBe(false);
+  });
+
   it('says when the file is not JSON', () => {
     expect(parseScene('{').problems).toMatch(/^not JSON/);
   });

@@ -126,7 +126,7 @@ export type Player = { id: number; room: Room<unknown, WorldState>; box: Inbox; 
  * A real server whose world has the test story, wild creatures that appear at every step in the
  * grass and always take their favourite treat, and a clock tests can move on with `clock.offset`.
  */
-export async function storyServer(starterNeedsTalk?: boolean) {
+export async function storyServer() {
   const clock = { offset: 0 };
   const logged = capturedLog('info');
   const temp = tempServices(() => Date.now() + clock.offset);
@@ -142,7 +142,7 @@ export async function storyServer(starterNeedsTalk?: boolean) {
       befriending: { basePercent: 0, tiredPercent: 0, favouritePercent: 100, likedPercent: 0, levelPenaltyPer10Levels: 0, minPercent: 0, maxPercent: 100, windowPercent: 100 },
     },
   };
-  const server = createGameServer(temp.config, logged.log, { ...temp.services, world, ...(starterNeedsTalk === undefined ? {} : { starterNeedsTalk }) });
+  const server = createGameServer(temp.config, logged.log, { ...temp.services, world });
   await server.listen(await freePort(), '127.0.0.1');
   const colyseus = new ColyseusTestServer(server);
 

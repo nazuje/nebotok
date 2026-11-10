@@ -1,4 +1,4 @@
-import { WorldSettings, samePoint, walkMessage, type Language, type LoginResponse, type StringId } from '@nebotok/core';
+import { WorldSettings, samePoint, walkMessage, type Language, type LoginResponse, type Point, type StringId } from '@nebotok/core';
 import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
 import { addPin, listProfiles, logout } from './api.ts';
@@ -17,6 +17,9 @@ import { createProfileScreen } from './profile-screen.ts';
 import { forgetSession, saveSession, storedSession, type StoredSession } from './session.ts';
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
+import { talkControls } from './talk-controls.ts';
+import { createTalkHint } from './talk-hint.ts';
+import { createTalks } from './talks.ts';
 import { createWalkHint } from './walk-hint.ts';
 import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
 import { feedWorldView } from './world-feed.ts';
@@ -43,10 +46,16 @@ let mapFailed = false;
 let canAddPin = false;
 let stopFeed: () => void = () => {};
 let stopBattles: () => void = () => {};
+let stopTalks: () => void = () => {};
 
 const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
-const scene = new WorldScene({ view, frame: (now) => frame(now), labels: (labels) => names.place(inWorld ? labels : []) });
+const scene = new WorldScene({
+  view,
+  frame: (now) => frame(now),
+  labels: (labels) => names.place(inWorld ? labels : []),
+  npcLook: (npc, at) => talks.look(npc, at, view.predicted()?.tile ?? null),
+});
 const hud = createHud(language);
 const battles = createBattles({
   game: () => game,
@@ -58,8 +67,19 @@ const battles = createBattles({
   },
   battleStarted: () => startClean(),
   standing: () => view.standing(),
+  starterOffered: () => talks.offersStarter(),
+});
+const talks = createTalks({
+  language: () => language,
+  progress: () => battles.progress(),
+  changed: () => {
+    input.release();
+    if (scene.mapId !== null) scene.setMarker(null);
+    showScreen();
+  },
 });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
+const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
@@ -119,21 +139,34 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null,
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && !talks.isOpen(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => {
     scene.setMarker(tile, refused);
     if (refused) hud.toast('walk.blocked');
   },
+  ...talkControls(view, talks),
 });
+
+/** Where the new player's hint points: at the character who gives the first creature, while nothing else is up. */
+function talkHintSpot(): { npc: string; at: Point } | null {
+  const npc = talks.starterNpc();
+  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen()) return null;
+  const at = scene.npcOnScreen(npc);
+  return at ? { npc, at } : null;
+}
 
 function frame(now: number) {
   view.tick(now);
   battles.frame(now);
+  talks.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null, controls);
+  const pointing = talkHintSpot();
+  talkHint.update(pointing?.at ?? null);
+  // A new player is shown whom to tap first; the walking hint waits until then.
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && !talks.isOpen() && pointing === null, controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -214,6 +247,8 @@ function forgetRoom() {
   stopFeed = () => {};
   stopBattles();
   stopBattles = () => {};
+  stopTalks();
+  stopTalks = () => {};
   room = null;
   input.release();
   outbox.reset();
@@ -228,6 +263,7 @@ async function leaveWorld() {
   connection = null;
   forgetRoom();
   battles.reset();
+  talks.reset();
   await leaving?.leave();
 }
 
@@ -283,6 +319,7 @@ function enterWorld() {
       playerCount = null;
       room = joined;
       stopBattles = battles.joined(joined);
+      stopTalks = talks.joined(joined);
       stopFeed = feedWorldView(joined, view, {
         map: (id) => {
           roomMap = id;
@@ -339,6 +376,7 @@ const players = (): TestPlayer[] =>
     self: player.self,
     connected: player.connected,
     inBattle: player.inBattle,
+    talking: player.talking,
     x: player.tile.x,
     y: player.tile.y,
     moving: player.moving,
@@ -361,6 +399,9 @@ installTestHook({
       welcome: hud.state().welcome,
       toast: hud.state().toast,
       hint: hint.shown(),
+      talkHint: talkHint.shown() ? talks.starterNpc() : null,
+      npcs: scene.drawnNpcs(),
+      talk: talks.snapshot(performance.now()),
       scene: game.scene.getScenes(true)[0]?.scene.key ?? null,
       map: scene.mapId,
       players: players(),

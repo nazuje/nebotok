@@ -25,7 +25,7 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 
 | Step | What it does |
 | --- | --- |
-| `{ "do": "join", "player": "lan" }` | Opens the player's page signed in, and waits until their courier stands in the world. |
+| `{ "do": "join", "player": "lan" }` | Opens the player's page signed in, and waits until their courier stands in the world. A player with no creature yet first walks to the character the page points them to, talks until the starters are offered, and takes the first. |
 | `{ "do": "walk", "player": "lan", "to": { "x": 19, "y": 10 } }` | Taps the on-screen tile nearest the target on foot, waits for the courier to stop, and repeats until it stands there. |
 | `{ "do": "tap", "player": "lan", "tile": { "x": 19, "y": 17 } }` | One tap on a tile that is on screen, without waiting for the walk. The tile may be one no courier can stand on, to see the refusal. |
 | `{ "do": "hold", "player": "lan", "direction": "right", "ms": 600 }` | Holds an arrow key that long. |
@@ -36,6 +36,7 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 | `{ "do": "meet", "player": "lan" }` | Walks to the tall grass nearest the spawn and steps about in it until the server sends a wild creature, then waits until the battle offers a choice, tapping the field to move its lines on. |
 | `{ "do": "fight", "player": "lan", "slot": 3 }` | In a battle, taps the move in `slot` (0 to 3, the first when left out) and waits until the turn has played, tapping the field to move its lines on. Slot 3 is each starter's weather call, which does no damage, so the battle goes on. |
 | `{ "do": "run", "player": "lan" }` | Runs from the battle (or plays on when running is not allowed), continues past the result and waits until the player is back in the world. |
+| `{ "do": "talk", "player": "lan", "npc": "bavko" }` | Taps the character (an id from `content/npcs.json`; the page walks up to them, walking closer by taps first when they are off screen) and plays the talk to its end: each line is waited for until it is typed out, then a tap goes on, taking the first choice. With `"open": true` it stops once the first line is typed out and leaves the talk open; a later `talk` to the same character goes on from there. |
 
 `until` takes any of these:
 
@@ -57,6 +58,9 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 - `"sameBattle": true`: the battle shown is the one their last `meet` started, as after a reconnect.
 - `"battling": ["zarja"]` / `"calm": ["zarja"]`: those players' name tags carry the battle mark /
   do not.
+- `"talking": ["zarja"]` / `"quiet": ["zarja"]`: those players' name tags carry the speech mark of
+  someone talking to a character / do not.
+- `"talk": "open"` / `"none"`: the player's own talk box is open / closed.
 
 A wild battle that starts outside a `meet` is run from and noted, so a scene about walking is not
 stopped by the tall grass. A `waitFor` with `battle` or `sameBattle` waits in the battle instead.

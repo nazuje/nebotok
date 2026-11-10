@@ -6,8 +6,9 @@
 //   4. all four walk to the same tile and all arrive, since players never block each other;
 //   5. they spread out, every view must agree, and the server is stopped with SIGTERM while they
 //      are still connected; a fresh server on the same folder must start each bot where it stood;
-//   6. two bots choose a starter, step about in the tall grass until a wild creature appears, and
-//      play their battles to the end at the same time, never refused a request;
+//   6. two bots talk to the starter's character for a starter, step about in the tall grass until
+//      a wild creature appears, and play their battles to the end at the same time, never refused
+//      a request;
 //   7. the other two play the story at the same time, by what core's nextGoal asks, until the
 //      first quest is done: the starter from its character, the quest, its steps and its rewards.
 //   node scripts/bot-run.mjs [--out <dir>]
@@ -183,9 +184,12 @@ async function playBattle(bot, battle, turns = 0) {
   return playBattle(bot, bot.battles.turns.at(-1).battle, turns + 1);
 }
 
-/** Chooses a starter, paces in the tall grass until a wild creature appears, and plays the battle out. */
-async function battleInGrass(bot, area, index) {
-  bot.room.send('starter.choose', { species: STARTERS[index % STARTERS.length] });
+/** Gets a starter from the character who offers it, paces in the tall grass until a wild creature appears, and plays the battle out. */
+async function battleInGrass(bot, { map, tiles }, area, index) {
+  await until(() => bot.story.messages.length > 0 && bot.progress.length > 0, `${bot.profile.name}'s story`);
+  const command = storyBotCommand(storyProgress(bot), STORY_RULES);
+  if (command?.starter === undefined) throw new Error(`${bot.profile.name} has no starter to talk for: ${JSON.stringify(command)}`);
+  await talkTo(bot, map, tiles, { ...command, starter: STARTERS[index % STARTERS.length] });
   await until(() => bot.progress.at(-1)?.needsStarter === false, `${bot.profile.name} to get a starter`);
   await playBattle(bot, await pace(bot, [{ x: area.x, y: area.y }, { x: area.x + 1, y: area.y }]));
   await until(() => bot.battles.results.length === 1 && mine(bot)?.inBattle === false, `${bot.profile.name}'s battle result`);
@@ -420,9 +424,9 @@ try {
 
   const fighters = back.slice(0, 2);
   const meadow = map.encounterAreas[0];
-  const outcomes = await Promise.all(fighters.map((bot, index) => battleInGrass(bot, meadow, index)));
+  const outcomes = await Promise.all(fighters.map((bot, index) => battleInGrass(bot, { map, tiles }, meadow, index)));
   battles.push(...outcomes.map((outcome) => outcome.reason));
-  step(`two bots chose a starter, met wild creatures in the grass at once and finished their battles: ${battles.join(', ')}`);
+  step(`two bots got a starter from its character, met wild creatures in the grass at once and finished their battles: ${battles.join(', ')}`);
   stories.push(...(await Promise.all(back.slice(2).map((bot) => storyRun(bot, map, tiles)))));
   for (const story of stories) step(`${story.bot} played the story through ${STORY_QUEST}: ${story.played.join(', ')}`);
   await Promise.all(back.map((bot) => bot.room.leave()));
