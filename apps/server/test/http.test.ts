@@ -14,6 +14,7 @@ describe('cache rules', () => {
     expect(cacheControlFor('assets/index-3f9a1c.js')).toBe('public, max-age=31536000, immutable');
     expect(cacheControlFor('index.html')).toBe('no-cache');
     expect(cacheControlFor('sw.js')).toBe('no-cache');
+    expect(cacheControlFor('workbox-10b91a2a.js')).toBe('no-cache');
     expect(cacheControlFor('manifest.webmanifest')).toBe('no-cache');
   });
 });
