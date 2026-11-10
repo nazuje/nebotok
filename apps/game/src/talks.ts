@@ -1,7 +1,8 @@
 import { CLIENT_MESSAGES, SERVER_MESSAGES, type Direction, type Language, type Point, type ProgressMessage, type StoryMessage, type TalkCue, type TalkNode } from '@nebotok/core';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
-import { createSpeech } from './speech.ts';
+import type { Speech } from './speech.ts';
+import { talkCueKey } from './storm-plan.ts';
 import { text } from './strings.ts';
 import { createTalkBox } from './talk-box.ts';
 import { STORY } from './talk-content.ts';
@@ -34,6 +35,10 @@ export type TalksOptions = {
   progress(): ProgressMessage | null;
   /** A talk opened or closed, so the page shows another screen and input may change. */
   changed(): void;
+  /** Says each line as it starts. */
+  speech: Speech;
+  /** A node with a cue opened (`talkCueKey` is its key): the starter screen, or a story cue to play. */
+  cue(cue: TalkCue, key: string): void;
 };
 
 export type Talks = {
@@ -57,7 +62,7 @@ export type Talks = {
 
 /** Talking to characters: the server's talk messages, the talk box, and the marks over heads. */
 export function createTalks(options: TalksOptions): Talks {
-  const speech = createSpeech();
+  const { speech } = options;
   let link: TalkLink | null = null;
   let talk: TalkNode | null = null;
   let story: StoryMessage | null = null;
@@ -91,7 +96,7 @@ export function createTalks(options: TalksOptions): Talks {
       const shown = line();
       const voice = shown?.speaker ? (STORY.npcs.get(shown.speaker)?.voice ?? null) : null;
       if (shown) speech.onLine(voice, shown.say, shown.mood);
-      if (next.cue !== null) speech.onCue(next.cue);
+      if (next.cue !== null) options.cue(next.cue, talkCueKey(next));
     }
     if (opened) options.changed();
   }

@@ -3,7 +3,7 @@
 // on 2567 when those are free; otherwise (another worktree's dev, say) on free ports, printed below.
 import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve as resolvePath } from 'node:path';
 import { ROOT, freePort } from './lib/server-process.mjs';
 
 const serverPort = await freePort(2567);
@@ -35,7 +35,10 @@ console.log(`dev: the game is at http://127.0.0.1:${gamePort}/ and the server on
 // Where `npm run scene` finds this worktree's dev server; gone again when dev stops.
 const DEV_FILE = join(ROOT, '.proof', 'dev.json');
 mkdirSync(join(ROOT, '.proof'), { recursive: true });
-writeFileSync(DEV_FILE, `${JSON.stringify({ game: `http://127.0.0.1:${gamePort}`, serverPort, pid: process.pid }, null, 2)}\n`);
+// dataDir is the server's database folder, where a scene writes the saves its players start from.
+// The server runs in apps/server, so a relative DATA_DIR is from there.
+const dataDir = process.env.DATA_DIR ? resolvePath(ROOT, 'apps/server', process.env.DATA_DIR) : join(ROOT, '.local-data');
+writeFileSync(DEV_FILE, `${JSON.stringify({ game: `http://127.0.0.1:${gamePort}`, serverPort, pid: process.pid, dataDir }, null, 2)}\n`);
 
 const exited = children.map((child) => new Promise((resolve) => child.once('exit', resolve)));
 let stopping = false;

@@ -40,6 +40,20 @@ const HEAD_MARKS: Readonly<Record<HeadMark, { readonly fill: number; readonly ro
 };
 const HEAD_MARK_BOB_PX = 2;
 const HEAD_MARK_BOB_MS = 600;
+/**
+ * The storm band: once a player has seen the storm, a dim bank of cloud hangs along the top of their
+ * screen, with a puffy lower edge and a haze fading below it. Drawn once per screen size; the puffs
+ * are half discs side by side, so no two shapes overlap and darken each other.
+ */
+const STORM_BAND_COLOUR = 0x2a2c45;
+const STORM_BAND_ALPHA = 0.42;
+const STORM_BAND_HAZE_ALPHA = 0.22;
+const STORM_BAND_SHARE = 0.12;
+const STORM_BAND_PX = { min: 20, max: 44 } as const;
+const STORM_BAND_PUFF_SHARE = 0.4;
+const STORM_BAND_ROW_PX = 2;
+/** Over every courier and head mark, under a story cue. */
+const STORM_BAND_DEPTH = 9_000;
 
 /** A name to show above a courier, at a spot on the page in CSS pixels. */
 export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly talking: boolean; readonly x: number; readonly y: number };
@@ -86,6 +100,12 @@ export class WorldScene extends Scene {
   private markerTimer: Time.TimerEvent | null = null;
   /** The tile the marker shows, unless it is only a short "can't go there". */
   markerTile: Point | null = null;
+  /** A story cue has the camera, so it does not follow your courier. */
+  cameraHeld = false;
+  /** Whether the storm band is on this player's horizon. */
+  stormBandShown = false;
+  private stormBand: GameObjects.Graphics | null = null;
+  private created = false;
 
   constructor(options: WorldSceneOptions) {
     super(WORLD_SCENE);
@@ -99,8 +119,11 @@ export class WorldScene extends Scene {
     this.cameras.main.setBackgroundColor(SKY);
     this.scale.on(Scale.Events.RESIZE, () => {
       if (!this.followed) this.centreOnSpawn();
+      this.drawStormBand();
     });
     this.events.on(Scenes.Events.RENDER, () => this.options.labels(this.labels()));
+    this.created = true;
+    this.drawStormBand();
     this.markBooted();
   }
 
@@ -311,6 +334,10 @@ export class WorldScene extends Scene {
 
   private follow(sprite: GameObjects.Sprite | undefined): void {
     const camera = this.cameras.main;
+    if (this.cameraHeld) {
+      this.followed = sprite ?? null;
+      return;
+    }
     if (sprite === this.followed) return;
     if (!sprite) {
       camera.stopFollow();
@@ -322,6 +349,47 @@ export class WorldScene extends Scene {
     camera.startFollow(sprite, true, lerp, lerp);
     camera.centerOn(sprite.x, sprite.y);
     this.followed = sprite;
+  }
+
+  /** While held, the camera stops following your courier so a story cue can move it; letting go glides it back. */
+  holdCamera(held: boolean): void {
+    this.cameraHeld = held;
+    const camera = this.cameras.main;
+    if (held) {
+      camera.stopFollow();
+      return;
+    }
+    if (!this.followed) {
+      this.centreOnSpawn();
+      return;
+    }
+    const lerp = reducedMotion() ? 1 : FOLLOW_LERP;
+    camera.startFollow(this.followed, true, lerp, lerp);
+  }
+
+  /** Shows or hides the storm band along the top of the screen. */
+  showStormBand(shown: boolean): void {
+    if (shown === this.stormBandShown) return;
+    this.stormBandShown = shown;
+    this.drawStormBand();
+  }
+
+  private drawStormBand(): void {
+    if (!this.created) return;
+    const band = (this.stormBand ??= this.add.graphics().setScrollFactor(0).setDepth(STORM_BAND_DEPTH));
+    band.clear().setVisible(this.stormBandShown);
+    if (!this.stormBandShown) return;
+    const { width, height } = this.cameras.main;
+    const bank = Math.round(Math.min(STORM_BAND_PX.max, Math.max(STORM_BAND_PX.min, height * STORM_BAND_SHARE)));
+    const puff = Math.round(bank * STORM_BAND_PUFF_SHARE);
+    band.fillStyle(STORM_BAND_COLOUR, STORM_BAND_ALPHA).fillRect(0, 0, width, bank);
+    for (let x = puff; x - puff < width; x += puff * 2) {
+      band.beginPath().arc(x, bank, puff, 0, Math.PI).closePath().fillPath();
+    }
+    const haze = bank + puff;
+    for (let y = 0; y < bank; y += STORM_BAND_ROW_PX) {
+      band.fillStyle(STORM_BAND_COLOUR, STORM_BAND_HAZE_ALPHA * (1 - y / bank)).fillRect(0, haze + y, width, STORM_BAND_ROW_PX);
+    }
   }
 
   private labels(): NameLabel[] {

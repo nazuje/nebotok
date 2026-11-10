@@ -20,6 +20,11 @@ schema; the scene is refused, before any browser starts, when it does not fit.
 runs and logged in by `name` after that. `avatar` is an id from `content/avatars.json` and `pin`
 four digits; both are optional. `browser` is `chromium` or `webkit`, `device` is `iphone-portrait`
 or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
+`"reducedMotion": true` makes the player's device ask for reduced motion. `"prepared": { "quest":
+"the-grey-letter", "step": "lookout", "at": { "x": 33, "y": 14 } }` starts the player part way
+through the story: before they join, their save is replaced by one the story bot played until that
+quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs this worktree's
+`npm run dev`, not `--url`, because the save is written into the dev server's database.
 
 **Steps** run in order, each finished before the next starts. A player's first step is their `join`.
 
@@ -61,6 +66,12 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 - `"talking": ["zarja"]` / `"quiet": ["zarja"]`: those players' name tags carry the speech mark of
   someone talking to a character / do not.
 - `"talk": "open"` / `"none"`: the player's own talk box is open / closed.
+- `"cue": "playing"` / `"none"`: a story cue such as the storm glimpse is playing on the player's
+  screen / none is, and the camera follows their courier again.
+- `"cues": 1`: how many story cues the page has played since it loaded.
+- `"band": "shown"` / `"hidden"`: the storm band is on the player's horizon / is not.
+- `"flags": ["storm-seen"]` / `"lacksFlags": ["storm-seen"]`: the player's story has / lacks those
+  flags.
 
 A wild battle that starts outside a `meet` is run from and noted, so a scene about walking is not
 stopped by the tall grass. A `waitFor` with `battle` or `sameBattle` waits in the battle instead.

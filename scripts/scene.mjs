@@ -41,8 +41,10 @@ import {
   watch,
 } from './lib/game-page.mjs';
 import { inTurn, sleep } from './lib/in-turn.mjs';
+import { prepareSave } from './lib/prepared-saves.mjs';
 import { parseScene } from './lib/scene-file.mjs';
 import { ROOT } from './lib/server-process.mjs';
+import { storySaveAt } from './lib/story-saves.mjs';
 
 const KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
 // The close code the Colyseus client answers by reconnecting (MAY_TRY_RECONNECT), as after a real
@@ -65,12 +67,15 @@ if (!read.ok) fail(`${relative(ROOT, sceneFile)} is not a scene:\n${read.problem
 const scene = read.scene;
 
 if (!values.url && !existsSync(DEV_FILE)) fail('no `npm run dev` is running in this worktree (.proof/dev.json is missing). Start it, or pass --url.');
+const dev = values.url ? null : JSON.parse(readFileSync(DEV_FILE, 'utf8'));
 let base;
 try {
-  base = testBase(values.url ?? JSON.parse(readFileSync(DEV_FILE, 'utf8')).game);
+  base = testBase(values.url ?? dev.game);
 } catch (error) {
   fail(error.message);
 }
+// A prepared player's save is written into the server's database, which only this worktree's dev server shares.
+if (scene.players.some((player) => player.prepared) && !dev?.dataDir) fail('a player with "prepared" needs this worktree\'s `npm run dev` (restart it if it is older than .proof/dev.json\'s dataDir), not --url');
 const allowedHost = new URL(base).host;
 
 const health = (url) =>
@@ -163,8 +168,10 @@ function routeSockets(player) {
 async function joinWorld(player) {
   const login = await signIn(player);
   player.token = login.token;
+  if (player.prepared) prepareSave(dev.dataDir, login.profile.id, storySaveAt({ name: player.name, language: player.language, ...player.prepared }));
   const { descriptor } = DEVICES.find((device) => device.name === player.device);
-  player.context = await (await browserFor(player.browser)).newContext({ ...descriptor, extraHTTPHeaders: { 'x-forwarded-for': player.address } });
+  const motion = player.reducedMotion ? { reducedMotion: 'reduce' } : {};
+  player.context = await (await browserFor(player.browser)).newContext({ ...descriptor, ...motion, extraHTTPHeaders: { 'x-forwarded-for': player.address } });
   await player.context.addInitScript(seed, [player.language, { token: login.token, profile: { id: login.profile.id, name: login.profile.name, avatar: login.profile.avatar } }]);
   await player.context.addInitScript(reportCspViolations);
   await routeSockets(player);
@@ -204,7 +211,19 @@ function shows(state, wanted, self) {
     (wanted.talking ?? []).every((id) => other(id)?.talking === true) &&
     (wanted.quiet ?? []).every((id) => other(id) !== undefined && !other(id).talking) &&
     (!wanted.talk || (wanted.talk === 'open') === (state.talk !== null)) &&
+    shownOfStory(state.storm, wanted) &&
     shownInWorld(state, wanted, other)
+  );
+}
+
+/** The story cue, the storm band and the story's flags. A cue that is over has given the camera back too. */
+function shownOfStory(storm, wanted) {
+  return (
+    (!wanted.cue || (wanted.cue === 'playing' ? storm.cue !== null : storm.cue === null && !storm.cameraHeld)) &&
+    (wanted.cues === undefined || storm.played === wanted.cues) &&
+    (!wanted.band || (wanted.band === 'shown') === storm.band) &&
+    (wanted.flags ?? []).every((flag) => storm.flags.includes(flag)) &&
+    (wanted.lacksFlags ?? []).every((flag) => !storm.flags.includes(flag))
   );
 }
 
