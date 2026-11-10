@@ -1,0 +1,26 @@
+{
+  "name": "storm-glimpse",
+  "about": "Lan, on a phone in English, reaches the lookout in The grey letter and sees the storm glimpse; Zarja, beside him on a tablet in Slovenian, sees nothing change until she reaches it herself with reduced motion, as a still picture and a caption, which her tap skips. Each keeps the storm band on their own horizon after, and a reload does not play the cue again.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en", "prepared": { "quest": "the-grey-letter", "step": "lookout", "at": { "x": 33, "y": 14 } } },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "ipad-landscape", "language": "sl", "reducedMotion": true, "prepared": { "quest": "the-grey-letter", "step": "lookout", "at": { "x": 32, "y": 13 } } }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "waitFor", "player": "lan", "until": { "band": "hidden", "lacksFlags": ["storm-seen"], "sees": ["zarja"] } },
+    { "do": "walk", "player": "lan", "to": { "x": 37, "y": 14 } },
+    { "do": "waitFor", "player": "lan", "until": { "cue": "playing" }, "ms": 3000 },
+    { "do": "wait", "ms": 1500, "shot": "storm-bites" },
+    { "do": "waitFor", "player": "zarja", "until": { "cue": "none", "cues": 0, "band": "hidden", "lacksFlags": ["storm-seen"] } },
+    { "do": "waitFor", "player": "lan", "until": { "cue": "none", "cues": 1, "band": "shown", "flags": ["storm-seen"] }, "ms": 8000, "shot": "band" },
+    { "do": "reload", "player": "lan" },
+    { "do": "wait", "ms": 2000 },
+    { "do": "waitFor", "player": "lan", "until": { "cue": "none", "cues": 0, "band": "shown" } },
+    { "do": "walk", "player": "zarja", "to": { "x": 37, "y": 14 } },
+    { "do": "waitFor", "player": "zarja", "until": { "cue": "playing" }, "ms": 3000, "shot": "still" },
+    { "do": "tap", "player": "zarja", "tile": { "x": 37, "y": 14 } },
+    { "do": "waitFor", "player": "zarja", "until": { "cue": "none", "cues": 1, "band": "shown", "flags": ["storm-seen"] }, "ms": 1500, "shot": "both-seen" },
+    { "do": "waitFor", "player": "lan", "until": { "cue": "none", "cues": 0 } }
+  ]
+}
