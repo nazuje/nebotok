@@ -168,6 +168,8 @@ export const REQUIRED_STRING_IDS = [
   'storage.pickFirst',
   'starter.hint',
   'talk.close',
+  'storm.skip',
+  'storm.caption',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 

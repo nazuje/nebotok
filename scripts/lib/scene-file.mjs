@@ -23,6 +23,10 @@ const Player = z.strictObject({
   browser: z.enum(BROWSERS.map((browser) => browser.name)).default(BROWSERS[0].name),
   device: z.enum(DEVICES.map((device) => device.name)).default(DEVICES[0].name),
   language: LanguageSchema.default('en'),
+  /** The device asks for reduced motion. */
+  reducedMotion: z.literal(true).optional(),
+  /** Starts the player part way through the story: at a quest's step, standing on a tile (scripts/lib/story-saves.mjs). */
+  prepared: z.strictObject({ quest: z.string().min(1), step: z.string().min(1), at: Tile }).optional(),
 });
 
 const Until = z
@@ -45,6 +49,11 @@ const Until = z
     talking: z.array(Id).min(1).optional(),
     quiet: z.array(Id).min(1).optional(),
     talk: z.enum(['open', 'none']).optional(),
+    cue: z.enum(['playing', 'none']).optional(),
+    cues: z.number().int().min(0).max(100).optional(),
+    band: z.enum(['shown', 'hidden']).optional(),
+    flags: z.array(z.string().min(1)).min(1).optional(),
+    lacksFlags: z.array(z.string().min(1)).min(1).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 

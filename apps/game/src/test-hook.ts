@@ -10,6 +10,7 @@ import type { TagBox } from './names.ts';
 import type { StoryOverlay, TestStory } from './story-link.ts';
 import type { TestTalk } from './talks.ts';
 import type { TeamTab } from './team-screen.ts';
+import type { TestStorm } from './storm-cue.ts';
 import type { DrawnNpc } from './world-scene.ts';
 import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
@@ -89,6 +90,8 @@ export type TestSnapshot = TestStory & {
   npcs: DrawnNpc[];
   /** The talk box, if a talk is open. */
   talk: TestTalk | null;
+  /** The story cue playing, how many have played, and whether the storm band shows. */
+  storm: TestStorm;
   scene: string | null;
   /** The map whose tiles are drawn, if any. */
   map: string | null;
