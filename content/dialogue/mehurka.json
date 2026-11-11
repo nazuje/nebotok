@@ -26,6 +26,22 @@
     {
       "if": [
         {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
           "flag": "storm-seen",
           "set": true
         }
@@ -90,6 +106,24 @@
         "sl": "Mehurčki se dvigajo. Počitek pride. Svetišče je mirno."
       },
       "mood": "calm"
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
     }
   }
 }

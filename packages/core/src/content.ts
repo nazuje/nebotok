@@ -85,6 +85,7 @@ export const REQUIRED_STRING_IDS = [
   'bag.empty',
   'bag.kind.quest',
   'bag.kind.treat',
+  'bag.kind.ingredient',
   'bag.kind.material',
   'bag.count',
   'bag.forQuest',
@@ -127,6 +128,9 @@ export const REQUIRED_STRING_IDS = [
   'refused.invalid',
   'refused.tooFar',
   'refused.notTalking',
+  'refused.resting',
+  'refused.needsLevel',
+  'refused.bagFull',
   'battle.go',
   'battle.used',
   'battle.missed',
@@ -366,15 +370,20 @@ export const BefriendRules = z
   .refine((rules) => rules.likedPercent <= rules.favouritePercent, 'a liked treat must not beat a favourite one');
 export type BefriendRules = z.infer<typeof BefriendRules>;
 
+/** The most a treat's `strength` adds to the chance of befriending, in whole percent. */
+export const MAX_TREAT_STRENGTH = 30;
+
 /**
  * A treat to offer a wild creature. `likedBy.species` are creatures that love it (as their
- * favourite), `likedBy.types` are weather types whose creatures like it.
+ * favourite), `likedBy.types` are weather types whose creatures like it. `strength` (0 when
+ * missing) adds to the chance after the liking bonus, so a cooked dish helps with any creature.
  */
 export const Treat = z.strictObject({
   id: ContentId,
   kind: z.literal('treat'),
   name: LocalizedText,
   description: LocalizedText.optional(),
+  strength: z.number().int().min(0).max(MAX_TREAT_STRENGTH).optional(),
   likedBy: z.strictObject({ species: z.array(ContentId).max(100), types: z.array(ContentId).max(12) }),
 });
 export type Treat = z.infer<typeof Treat>;
@@ -386,16 +395,20 @@ export type Treat = z.infer<typeof Treat>;
 export const QuestItem = z.strictObject({ id: ContentId, kind: z.literal('quest'), name: LocalizedText, description: LocalizedText, quest: ContentId });
 export type QuestItem = z.infer<typeof QuestItem>;
 
-/** Something gathered for crafting. Nothing uses materials yet; Slice C (skills) does. */
+/** Something gathered at a spot (foraging, fishing) and cooked into a dish. It never goes into battle. */
+export const Ingredient = z.strictObject({ id: ContentId, kind: z.literal('ingredient'), name: LocalizedText, description: LocalizedText });
+export type Ingredient = z.infer<typeof Ingredient>;
+
+/** Something for building. Nothing uses materials yet; building comes in Slice D. */
 export const Material = z.strictObject({ id: ContentId, kind: z.literal('material'), name: LocalizedText, description: LocalizedText });
 export type Material = z.infer<typeof Material>;
 
 /** The kinds of things a player can carry. `content/inventory.json` sets how many of each fit in one stack. */
-export const ITEM_KINDS = ['quest', 'treat', 'material'] as const;
+export const ITEM_KINDS = ['quest', 'treat', 'ingredient', 'material'] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
 /** Everything a player can carry, by `kind`. */
-export const Item = z.discriminatedUnion('kind', [Treat, QuestItem, Material]);
+export const Item = z.discriminatedUnion('kind', [Treat, QuestItem, Ingredient, Material]);
 export type Item = z.infer<typeof Item>;
 
 export const ItemsFile = z.strictObject({ items: z.array(Item).min(1).max(1_000) }).superRefine(({ items }, ctx) => noRepeatedIds(items, 'items', ctx));

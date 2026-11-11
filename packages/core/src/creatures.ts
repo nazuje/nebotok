@@ -7,24 +7,25 @@ import { STORAGE_LIMIT, type CreatureInstance, type SaveData } from './save.ts';
 import { emptyStory } from './story.ts';
 
 /**
- * The part of a save that play changes: creatures, items, the last shrine and the story. Every
+ * The part of a save that play changes: creatures, items, the last shrine, the story, skills and
+ * the job board. Every
  * function here, and in inventory.ts, quests.ts and dialogue.ts, is pure: it returns a new Progress
  * and never changes the one passed in. A function a player's request drives returns null when the
  * request is not allowed, so the server can refuse it.
  */
-export type Progress = Pick<SaveData, 'team' | 'storage' | 'inventory' | 'lastShrine' | 'seen' | 'befriended' | 'story'>;
+export type Progress = Pick<SaveData, 'team' | 'storage' | 'inventory' | 'lastShrine' | 'seen' | 'befriended' | 'story' | 'skills' | 'jobs'>;
 
 /** Most of one item a player can carry; extra is lost. */
 export const MAX_ITEM_COUNT = 999;
 
 export function emptyProgress(): Progress {
-  return { team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [], story: emptyStory() };
+  return { team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [], story: emptyStory(), skills: [], jobs: null };
 }
 
 /** The part of a save that is Progress. */
 export function progressOf(data: SaveData): Progress {
-  const { team, storage, inventory, lastShrine, seen, befriended, story } = data;
-  return { team, storage, inventory, lastShrine, seen, befriended, story };
+  const { team, storage, inventory, lastShrine, seen, befriended, story, skills, jobs } = data;
+  return { team, storage, inventory, lastShrine, seen, befriended, story, skills, jobs };
 }
 
 /** A player with no creature at all has not chosen their starter yet. */

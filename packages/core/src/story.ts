@@ -1,14 +1,17 @@
 /**
  * The story as the rules read it: the content of npcs.json, dialogue/, quests.json, story.json and
- * inventory.json looked up by id (`loadStoryContent`), a player's empty story, `pruneStory` for
- * saves that name ids the content no longer has, and `storyProblems` / `storyMapProblems`, the
- * links between those files that no single schema can check.
+ * inventory.json, with the skill files when given, looked up by id (`loadStoryContent`), a
+ * player's empty story, `pruneStory` for saves that name ids the content no longer has, and
+ * `storyProblems` / `storyMapProblems`, the links between those files that no single schema can
+ * check (with `skillProblems` / `skillMapProblems` in skill-links.ts for the skill files).
  */
 import type { ZodType } from 'zod';
 import type { BattleContent } from './battle/content.ts';
 import type { Item } from './content.ts';
 import type { WorldMap } from './map.ts';
 import type { StoryProgress } from './save.ts';
+import { JobsFile, RecipesFile, SkillsFile, SpotsFile, StationsFile, skillContentOf, type SkillContent, type SkillContentFiles } from './skill-content.ts';
+import { skillMapProblems, skillProblems } from './skill-links.ts';
 import {
   DialogueFile,
   InventoryFile,
@@ -32,6 +35,8 @@ export type StoryContentFiles = {
   readonly quests: unknown;
   readonly story: unknown;
   readonly inventory: unknown;
+  /** skills.json, spots.json, recipes.json, stations.json and jobs.json; without them nothing can be gathered, cooked or delivered. */
+  readonly skills?: SkillContentFiles;
 };
 
 /** Everything the story rules read, looked up by id, with the battle content they also need. */
@@ -46,6 +51,8 @@ export type StoryContent = {
   readonly inventory: InventoryFile;
   readonly items: ReadonlyMap<string, Item>;
   readonly battle: BattleContent;
+  /** The skills, spots, recipes, stations and job templates, or null when the content has none. */
+  readonly skills: SkillContent | null;
 };
 
 export class StoryContentError extends Error {
@@ -76,6 +83,16 @@ function analyse(files: StoryContentFiles, battle: BattleContent): { content: St
     if (parsed && parsed.npc !== npc) problems.push(`dialogue/${npc}.json: its npc must be "${npc}"`);
     if (parsed) dialogue.set(npc, parsed);
   }
+  const skillFiles = files.skills;
+  const skills = skillFiles
+    ? {
+        skills: parse('skills.json', SkillsFile, skillFiles.skills),
+        spots: parse('spots.json', SpotsFile, skillFiles.spots),
+        recipes: parse('recipes.json', RecipesFile, skillFiles.recipes),
+        stations: parse('stations.json', StationsFile, skillFiles.stations),
+        jobs: parse('jobs.json', JobsFile, skillFiles.jobs),
+      }
+    : null;
   if (!npcs || !quests || !story || !inventory || problems.length > 0) return { content: null, problems };
   const content: StoryContent = {
     npcs: new Map(npcs.npcs.map((npc) => [npc.id, npc])),
@@ -86,8 +103,9 @@ function analyse(files: StoryContentFiles, battle: BattleContent): { content: St
     inventory,
     items: battle.items,
     battle,
+    skills: skills && skills.skills && skills.spots && skills.recipes && skills.stations && skills.jobs ? skillContentOf({ skills: skills.skills, spots: skills.spots, recipes: skills.recipes, stations: skills.stations, jobs: skills.jobs }) : null,
   };
-  return { content, problems: storyProblems(content) };
+  return { content, problems: [...storyProblems(content), ...skillProblems(content)] };
 }
 
 /** Every problem in the story content: each file's own, then the links between them. Empty means valid. */
@@ -154,7 +172,12 @@ function conditionProblems(label: string, condition: Condition, content: StoryCo
   if ('has' in condition) return itemProblems(label, condition.has, content);
   if ('lacks' in condition) return itemProblems(label, condition.lacks, content);
   if ('flag' in condition) return flagProblems(label, condition.flag, content);
+  if ('skill' in condition) return skillIdProblems(label, condition.skill, content);
   return [];
+}
+
+function skillIdProblems(label: string, skill: string, content: StoryContent): string[] {
+  return content.skills?.skills.has(skill) ? [] : [`${label}: skill "${skill}" is not in skills.json`];
 }
 
 function effectProblems(label: string, npc: string, effect: Effect, content: StoryContent): string[] {
@@ -190,14 +213,21 @@ function arrivals(dialogue: DialogueFile): Map<string, Arrival[]> {
   return into;
 }
 
-/** A node that takes an item is only reached by an entry or choice that checks the player has enough of it. */
+/**
+ * A node that takes an item is only reached by an entry or choice that checks the player has enough
+ * of it, and a node that delivers a job only by one that checks a delivery is ready.
+ */
 function takeGuardProblems(label: string, id: string, node: DialogueNode, into: readonly Arrival[]): string[] {
   const problems: string[] = [];
   for (const effect of node.effects ?? []) {
-    if (!('take' in effect)) continue;
     for (const arrival of into) {
-      const guarded = (arrival.if ?? []).some((condition) => 'has' in condition && condition.has === effect.take && (condition.count ?? 1) >= effect.count);
-      if (!guarded) problems.push(`${label} node "${id}": takes ${effect.count} "${effect.take}", so ${arrival.label} must lead here only with { "has": "${effect.take}", "count": ${effect.count} } (a "next" cannot check it)`);
+      if ('take' in effect) {
+        const guarded = (arrival.if ?? []).some((condition) => 'has' in condition && condition.has === effect.take && (condition.count ?? 1) >= effect.count);
+        if (!guarded) problems.push(`${label} node "${id}": takes ${effect.count} "${effect.take}", so ${arrival.label} must lead here only with { "has": "${effect.take}", "count": ${effect.count} } (a "next" cannot check it)`);
+      }
+      if ('deliverJob' in effect && !(arrival.if ?? []).some((condition) => 'jobReady' in condition)) {
+        problems.push(`${label} node "${id}": delivers a job, so ${arrival.label} must lead here only with { "jobReady": true } (a "next" cannot check it)`);
+      }
     }
   }
   return problems;
@@ -242,6 +272,9 @@ function stepProblems(quest: Quest, step: QuestStep, content: StoryContent, effe
   }
   if (step.kind === 'befriend' && step.species !== undefined && !content.battle.species.has(step.species)) problems.push(`${label}: species "${step.species}" is not in species.json`);
   if (step.kind === 'befriend' && step.type !== undefined && !content.battle.weather.has(step.type)) problems.push(`${label}: type "${step.type}" is not a weather type`);
+  if (step.kind === 'gather' && ![...(content.skills?.spots.values() ?? [])].some((spot) => spot.item === step.item)) problems.push(`${label}: no spot in spots.json gives "${step.item}"`);
+  if (step.kind === 'cook' && ![...(content.skills?.recipes.values() ?? [])].some((recipe) => recipe.makes === step.treat)) problems.push(`${label}: no recipe in recipes.json makes "${step.treat}"`);
+  if (step.kind === 'finishJobs' && (content.skills?.templates.size ?? 0) === 0) problems.push(`${label}: jobs.json has no jobs to finish`);
   return problems;
 }
 
@@ -257,6 +290,7 @@ function questProblems(quest: Quest, content: StoryContent, effects: ReturnType<
   }
   for (const step of quest.steps) problems.push(...stepProblems(quest, step, content, effects));
   for (const { item, count } of quest.rewards.items) problems.push(...itemProblems(`${label} rewards`, item, content), ...stackProblems(`${label} rewards`, item, count, content));
+  for (const { skill } of quest.rewards.skills ?? []) problems.push(...skillIdProblems(`${label} rewards`, skill, content));
   for (const effect of quest.effects) if ('setFlag' in effect) problems.push(...flagProblems(label, effect.setFlag, content));
   const last = quest.steps.at(-1);
   if (quest.effects.some((effect) => 'cue' in effect) && (last?.effects ?? []).some((effect) => 'cue' in effect)) problems.push(`${label}: its last step and the quest both play a cue; finishing a quest plays one`);
@@ -294,7 +328,7 @@ export function storyProblems(content: StoryContent): string[] {
   return problems;
 }
 
-/** What the story's map links are checked against: every map, and the zone and shrine ids. */
+/** What the story's map links are checked against: every map, and the zone and shrine ids. Spots and stations are checked by `skillMapProblems`. */
 export type StoryWorld = { readonly maps: readonly WorldMap[]; readonly zones: readonly string[]; readonly shrines: readonly string[] };
 
 /**
@@ -322,5 +356,5 @@ export function storyMapProblems(content: StoryContent, world: StoryWorld): stri
       if (step.kind === 'visitShrine' && !world.shrines.includes(step.shrine)) problems.push(`${label}: shrine "${step.shrine}" is not in shrines.json`);
     }
   }
-  return problems;
+  return [...problems, ...skillMapProblems(content, world.maps)];
 }

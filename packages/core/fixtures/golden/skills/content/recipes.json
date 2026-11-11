@@ -1,0 +1,110 @@
+{
+  "recipes": [
+    {
+      "id": "berry-bun",
+      "makes": "berry-bun",
+      "level": 1,
+      "xp": 14,
+      "difficulty": 1,
+      "ingredients": [
+        {
+          "item": "cloudberry",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "fish-biscuit",
+      "makes": "fish-biscuit",
+      "level": 3,
+      "xp": 21,
+      "difficulty": 1,
+      "ingredients": [
+        {
+          "item": "pebblefish",
+          "count": 1
+        },
+        {
+          "item": "cloudberry",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "mint-dumpling",
+      "makes": "mint-dumpling",
+      "level": 6,
+      "xp": 35,
+      "difficulty": 2,
+      "ingredients": [
+        {
+          "item": "skymint",
+          "count": 2
+        },
+        {
+          "item": "pebblefish",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "cloud-soup",
+      "makes": "cloud-soup",
+      "level": 10,
+      "xp": 53,
+      "difficulty": 2,
+      "ingredients": [
+        {
+          "item": "breezefin",
+          "count": 1
+        },
+        {
+          "item": "skymint",
+          "count": 1
+        },
+        {
+          "item": "cloudberry",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "sunroot-bake",
+      "makes": "sunroot-bake",
+      "level": 14,
+      "xp": 70,
+      "difficulty": 3,
+      "ingredients": [
+        {
+          "item": "sunroot",
+          "count": 2
+        },
+        {
+          "item": "breezefin",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "frost-pudding",
+      "makes": "frost-pudding",
+      "level": 18,
+      "xp": 98,
+      "difficulty": 3,
+      "ingredients": [
+        {
+          "item": "frostcap",
+          "count": 1
+        },
+        {
+          "item": "glimmercarp",
+          "count": 1
+        },
+        {
+          "item": "cloudberry",
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

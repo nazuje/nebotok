@@ -31,8 +31,10 @@ is their guide. Keep to these conventions or validation fails:
 - **Optional object layers:** `encounters`, rectangles of tall grass each named by a zone id in
   `encounters.json`, and `shrines`, points each named by a shrine id in `shrines.json` on a
   walkable tile. `npcs`, points each named by a character id in `npcs.json` on a walkable tile with
-  a reachable neighbour, and `marks`, points that quests' `reach` steps name. `content:validate`
-  checks that the names exist.
+  a reachable neighbour, and `marks`, points that quests' `reach` steps name. `spots` and
+  `stations`, points each named by a spot or station id, blocked like characters and used from a
+  neighbouring tile; a spot may stand on water or the island's edge. `content:validate` checks
+  that the names exist.
 - **Collision is a tile property, not a layer:** a tileset tile with the boolean property
   `collides` set to true blocks its square on every layer it is placed on. An empty `ground` square
   is blocked too.
@@ -46,7 +48,7 @@ is their guide. Keep to these conventions or validation fails:
 
 `art/` holds every sprite as JSON, one character per pixel, and `art/png/` the real art that
 replaces them. `docs/art.md` is the format and style guide. `content:validate` fails while any
-avatar, species, weather type, item, character, story cue or map lacks the sprite it needs; `npm run art:sheet` draws
+avatar, species, weather type, item, character, story cue, spot, station, skill or map lacks the sprite it needs; `npm run art:sheet` draws
 them all onto `.proof/art/sheet.png` to look at.
 
 ## Creatures and battles
@@ -87,7 +89,8 @@ item that is gone without a line here is dropped or replaced as a save loads (`s
 
 - `items.json`: everything a player carries, by `kind`: `treat` (a treat's `likedBy` lists the
   species that love it and the weather types whose creatures like it), `quest` (an item for one
-  quest, named in its `quest`, kept in full when the team faints) and `material`.
+  quest, named in its `quest`, kept in full when the team faints), `ingredient` (gathered for
+  cooking, see below) and `material`.
 - `encounters.json`: encounter zones. Each has the chance per step in its tall grass, the
   battlefield weather (or null) and the creatures, with level ranges and weights.
 - `shrines.json`: the shrines maps may place, and `teamFainted`: whether waking heals the team
@@ -97,6 +100,51 @@ item that is gone without a line here is dropped or replaced as a save loads (`s
 
 `content:validate` checks that every species, type, weather and item these files name exists.
 
+## Skills, spots, recipes and jobs
+
+Skills are foraging, fishing and cooking (Slice C). Every gather or cook is a tiny game the server
+judges (`docs/protocol.md`, "Skills and the job board"). All of it is placeholder content, for the
+kids to change.
+
+- `skills.json`: `maxLevel`, `levelCosts` (the XP from each level to the next, `maxLevel - 1`
+  entries, each more than the one before), the `skills` (each `uses: "spots"` with a
+  `restSeconds`, or `uses: "recipes"`, and the tiny `game` it plays: `dip`, `sparkle` or `marker`)
+  and the `games`' timings, one entry per `difficulty` 1 to 3. The schema keeps every game fair:
+  a dip window of at least 500 ms, a sparkle shown at least 800 ms, a sweep of at least 900 ms, a
+  game at most 6 s. `node scripts/skill-sim.mjs` prints the minutes of steady play to each level;
+  keep the top level between 120 and 180 minutes, which a property test checks.
+- `spots.json`: where players gather: the `skill`, the `ingredient` `item` it gives (1 a success,
+  2 a perfect), the `level` it needs, the `xp` per success, its game's `difficulty`, its picture
+  `look` (`art/spots/<look>`) and its `name`. A map's `spots` layer places each one
+  (`docs/tiled.md`).
+- `recipes.json`: what the cooking skill makes: the treat it `makes`, the `level` and
+  `ingredients` it needs, `xp` and `difficulty`. The recipe book is every recipe at or below the
+  player's cooking level, plus the next locked one.
+- `stations.json`: things players use on the map: a `cookingPot` or a `jobBoard`, with a `look`
+  (`art/stations/<look>`) and a `name`. A map's `stations` layer places each one.
+- `jobs.json`: the board's `slots` and the job `templates`: `gather` (an item gathered), `cook` (a
+  dish cooked) or `deliver` (items handed to one of the characters `to`), a `count` range, what
+  the player `needs` (a skill level), a draw `weight` and `rewards`: items, and skill XP `perItem`.
+  A job is done the moment its count is reached; its rewards go in at once.
+- `items.json` kinds `ingredient` (gathered, never offered in battle) and `treat` with an optional
+  `strength` (0 to 30, added to the befriending chance). `inventory.json` stacks ingredients too.
+- Quest steps `gather` (an `item`, a perfect counts 2), `cook` (a `treat`) and `finishJobs` (any
+  job), and quest `rewards.skills` (skill XP). A `side: true` chapter in `story.json` comes after
+  the main chapters, and `nextGoal` offers its quests only when the main story has nothing to do.
+- Dialogue conditions `{ "jobReady": true }` (a delivery to this character is on the board and the
+  player carries all of it), `{ "jobWaiting": true }` (one is on the board and they do not) and
+  `{ "skill": id, "level": n }`, and the effect `{ "deliverJob": true }`, which hands over the
+  first ready delivery. A node with it is reached only through an entry or choice whose `if` holds
+  `jobReady`, as `take` needs `has`. Put job entries after the quest entries, so a quest turn-in
+  comes first.
+
+`content:validate` checks every link: each spot gives an ingredient and each recipe makes a treat
+from ingredients, at levels up to `maxLevel`; recipes need a `cookingPot` and jobs a `jobBoard`; a
+job's item comes from a spot or recipe its `needs` reach, so every job the board draws is
+doable; counts and rewards fit a stack; each `to` character has a `jobReady` dialogue entry; at
+least `slots` templates need only level 1. Once any map places a spot (or station), every one must
+stand on exactly one point. Skills golden replays use their own frozen copy in
+`packages/core/fixtures/golden/skills/content/`, so editing these files never moves them.
 ## The story: characters, dialogue, quests and the bag
 
 The Slice B story is a placeholder: every character and quest has `placeholder: true`, and the

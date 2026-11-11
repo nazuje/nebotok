@@ -1,0 +1,405 @@
+{
+  "quests": [
+    {
+      "id": "first-round",
+      "chapter": "post-training",
+      "giver": "bavko",
+      "requires": [],
+      "placeholder": true,
+      "name": {
+        "en": "First Round",
+        "sl": "Prvi obhod"
+      },
+      "summary": {
+        "en": "Take Bavko's note to Tobolko by the meadow.",
+        "sl": "Odnesi Bavkovo sporočilo Tobolku pri travniku."
+      },
+      "steps": [
+        {
+          "id": "deliver-note",
+          "kind": "deliver",
+          "item": "hello-note",
+          "count": 1,
+          "to": "tobolko",
+          "hint": {
+            "en": "Bring the note to Tobolko by the meadow.",
+            "sl": "Prinesi sporočilo Tobolku pri travniku."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "plain-treat",
+            "count": 3
+          }
+        ],
+        "xp": 0
+      },
+      "effects": []
+    },
+    {
+      "id": "restless-grass",
+      "chapter": "post-training",
+      "giver": "tobolko",
+      "requires": [
+        "first-round"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "Jumpy Grass",
+        "sl": "Poskočna trava"
+      },
+      "summary": {
+        "en": "The meadow creatures are jumpy. Win 2 battles in the meadow grass, then tell Tobolko.",
+        "sl": "Bitja na travniku so nemirna. Zmagaj v 2 bojih v travi na travniku, nato povej Tobolku."
+      },
+      "steps": [
+        {
+          "id": "win-two",
+          "kind": "winBattles",
+          "count": 2,
+          "zone": "post-meadow",
+          "hint": {
+            "en": "Win 2 battles in the tall grass of the meadow.",
+            "sl": "Zmagaj v 2 bojih v visoki travi na travniku."
+          }
+        },
+        {
+          "id": "report",
+          "kind": "talk",
+          "npc": "tobolko",
+          "hint": {
+            "en": "Tell Tobolko how it went.",
+            "sl": "Povej Tobolku, kako je šlo."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "sun-treat",
+            "count": 2
+          }
+        ],
+        "xp": 20
+      },
+      "effects": []
+    },
+    {
+      "id": "bell-for-the-shrine",
+      "chapter": "post-training",
+      "giver": "bavko",
+      "requires": [
+        "first-round"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "A Bell for Mehurka",
+        "sl": "Zvonec za Mehurko"
+      },
+      "summary": {
+        "en": "Take the new bell to Mehurka at the shrine, then rest there.",
+        "sl": "Odnesi nov zvonec Mehurki v svetišče, nato tam počij."
+      },
+      "steps": [
+        {
+          "id": "deliver-bell",
+          "kind": "deliver",
+          "item": "shrine-bell",
+          "count": 1,
+          "to": "mehurka",
+          "hint": {
+            "en": "Bring the bell to Mehurka at the shrine.",
+            "sl": "Prinesi zvonec Mehurki v svetišče."
+          }
+        },
+        {
+          "id": "rest",
+          "kind": "visitShrine",
+          "shrine": "post-shrine",
+          "hint": {
+            "en": "Rest at the shrine.",
+            "sl": "Počij v svetišču."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "rain-treat",
+            "count": 2
+          }
+        ],
+        "xp": 0
+      },
+      "effects": []
+    },
+    {
+      "id": "a-new-friend",
+      "chapter": "post-training",
+      "giver": "tobolko",
+      "requires": [
+        "restless-grass"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "A New Teammate",
+        "sl": "Novo bitje v ekipi"
+      },
+      "summary": {
+        "en": "Befriend a wild creature with a treat, then tell Tobolko.",
+        "sl": "S poslastico se spoprijatelji z divjim bitjem, nato povej Tobolku."
+      },
+      "steps": [
+        {
+          "id": "befriend-one",
+          "kind": "befriend",
+          "count": 1,
+          "hint": {
+            "en": "Offer a treat to a wild creature in battle.",
+            "sl": "V boju ponudi poslastico divjemu bitju."
+          }
+        },
+        {
+          "id": "tell",
+          "kind": "talk",
+          "npc": "tobolko",
+          "hint": {
+            "en": "Tell Tobolko about your new teammate.",
+            "sl": "Povej Tobolku o novem bitju v ekipi."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "bloom-treat",
+            "count": 3
+          }
+        ],
+        "xp": 40
+      },
+      "effects": []
+    },
+    {
+      "id": "wind-readings",
+      "chapter": "quiet-clouds",
+      "giver": "bavko",
+      "requires": [
+        "bell-for-the-shrine",
+        "a-new-friend"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "Wind Readings",
+        "sl": "Merjenje vetra"
+      },
+      "summary": {
+        "en": "Take the wind gauge to Vetrinka, win a battle in the windy grass, then go back to her.",
+        "sl": "Odnesi vetromer Vetrinki, zmagaj v boju v vetrovni travi, nato se vrni k njej."
+      },
+      "steps": [
+        {
+          "id": "deliver-gauge",
+          "kind": "deliver",
+          "item": "wind-gauge",
+          "count": 1,
+          "to": "vetrinka",
+          "hint": {
+            "en": "Bring the wind gauge to Vetrinka at the east lookout.",
+            "sl": "Prinesi vetromer Vetrinki pri vzhodnem razgledišču."
+          }
+        },
+        {
+          "id": "gale-win",
+          "kind": "winBattles",
+          "count": 1,
+          "zone": "windy-rise",
+          "hint": {
+            "en": "Win a battle in the windy grass in the south-west.",
+            "sl": "Zmagaj v boju v vetrovni travi na jugozahodu."
+          }
+        },
+        {
+          "id": "report",
+          "kind": "talk",
+          "npc": "vetrinka",
+          "hint": {
+            "en": "Go back to Vetrinka.",
+            "sl": "Vrni se k Vetrinki."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "gale-treat",
+            "count": 2
+          }
+        ],
+        "xp": 40
+      },
+      "effects": []
+    },
+    {
+      "id": "the-grey-letter",
+      "chapter": "quiet-clouds",
+      "giver": "bavko",
+      "requires": [
+        "wind-readings"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "The Grey Letter",
+        "sl": "Sivo pismo"
+      },
+      "summary": {
+        "en": "A grey letter with no sender came on the wind. Take it to Vetrinka.",
+        "sl": "Veter je prinesel sivo pismo brez pošiljatelja. Odnesi ga Vetrinki."
+      },
+      "steps": [
+        {
+          "id": "deliver-letter",
+          "kind": "deliver",
+          "item": "grey-letter",
+          "count": 1,
+          "to": "vetrinka",
+          "hint": {
+            "en": "Bring the grey letter to Vetrinka.",
+            "sl": "Prinesi sivo pismo Vetrinki."
+          },
+          "effects": [
+            {
+              "setFlag": "grey-letter-read"
+            }
+          ]
+        },
+        {
+          "id": "lookout",
+          "kind": "reach",
+          "mark": "lookout",
+          "hint": {
+            "en": "Look out over the clouds from the lookout, east of Vetrinka.",
+            "sl": "Poglej čez oblake z razgledišča vzhodno od Vetrinke."
+          },
+          "effects": [
+            {
+              "cue": "storm-glimpse"
+            },
+            {
+              "setFlag": "storm-seen"
+            }
+          ]
+        },
+        {
+          "id": "tell-vetrinka",
+          "kind": "talk",
+          "npc": "vetrinka",
+          "hint": {
+            "en": "Tell Vetrinka what happened.",
+            "sl": "Povej Vetrinki, kaj se je zgodilo."
+          }
+        },
+        {
+          "id": "back-to-bavko",
+          "kind": "deliver",
+          "item": "grey-letter",
+          "count": 1,
+          "to": "bavko",
+          "hint": {
+            "en": "Bring the letter back to Bavko.",
+            "sl": "Odnesi pismo nazaj Bavku."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "storm-treat",
+            "count": 3
+          }
+        ],
+        "xp": 50
+      },
+      "effects": [
+        {
+          "setFlag": "chapter-1-done"
+        }
+      ]
+    },
+    {
+      "id": "treats-from-scratch",
+      "chapter": "odd-jobs",
+      "giver": "tobolko",
+      "requires": [
+        "a-new-friend"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "Treats from Scratch",
+        "sl": "Domače poslastice"
+      },
+      "summary": {
+        "en": "Pick cloudberries, cook a Berry Bun, then ask Bavko about the job board.",
+        "sl": "Naberi oblačnice, skuhaj jagodno žemljico, nato Bavka povprašaj o oglasni deski."
+      },
+      "steps": [
+        {
+          "id": "pick-berries",
+          "kind": "gather",
+          "item": "cloudberry",
+          "count": 3,
+          "hint": {
+            "en": "Pick 3 cloudberries from the bushes.",
+            "sl": "Z grmov naberi 3 oblačnice."
+          }
+        },
+        {
+          "id": "bake-a-bun",
+          "kind": "cook",
+          "treat": "berry-bun",
+          "count": 1,
+          "hint": {
+            "en": "Cook a Berry Bun at the pot by Tobolko.",
+            "sl": "V loncu pri Tobolku skuhaj jagodno žemljico."
+          }
+        },
+        {
+          "id": "meet-the-board",
+          "kind": "talk",
+          "npc": "bavko",
+          "hint": {
+            "en": "Talk to Bavko by the job board.",
+            "sl": "Pogovori se z Bavkom pri oglasni deski."
+          }
+        },
+        {
+          "id": "one-job",
+          "kind": "finishJobs",
+          "count": 1,
+          "hint": {
+            "en": "Finish a job from the board.",
+            "sl": "Opravi eno delo z deske."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "berry-bun",
+            "count": 2
+          }
+        ],
+        "xp": 0,
+        "skills": [
+          {
+            "skill": "cooking",
+            "xp": 20
+          }
+        ]
+      },
+      "effects": []
+    }
+  ]
+}

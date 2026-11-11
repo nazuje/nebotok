@@ -1,0 +1,128 @@
+{
+  "v": 5,
+  "data": {
+    "name": "Test Courier",
+    "language": "en",
+    "createdAt": "2026-05-02T10:00:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 12,
+      "y": 9,
+      "facing": "left"
+    },
+    "team": [
+      {
+        "species": "sun-blob",
+        "level": 7,
+        "xp": 40,
+        "hp": 26,
+        "moves": [
+          "sun-tap",
+          "sun-wallop",
+          "sun-call",
+          "storm-tap"
+        ]
+      },
+      {
+        "species": "gale-blob",
+        "level": 3,
+        "xp": 0,
+        "hp": 0,
+        "moves": [
+          "gale-tap",
+          "gale-wallop",
+          "gale-call",
+          "frost-tap"
+        ]
+      }
+    ],
+    "storage": [],
+    "inventory": [
+      {
+        "item": "plain-treat",
+        "count": 3
+      },
+      {
+        "item": "gale-treat",
+        "count": 1
+      },
+      {
+        "item": "cloudberry",
+        "count": 4
+      },
+      {
+        "item": "berry-bun",
+        "count": 1
+      }
+    ],
+    "lastShrine": {
+      "map": "post-island",
+      "shrine": "post-shrine"
+    },
+    "seen": [
+      "sun-blob",
+      "gale-blob",
+      "bloom-blob"
+    ],
+    "befriended": [
+      "sun-blob",
+      "gale-blob"
+    ],
+    "story": {
+      "active": [
+        {
+          "quest": "restless-grass",
+          "step": 0,
+          "count": 1
+        }
+      ],
+      "done": [
+        "first-round"
+      ],
+      "flags": []
+    },
+    "skills": [
+      {
+        "skill": "foraging",
+        "level": 3,
+        "xp": 20
+      },
+      {
+        "skill": "cooking",
+        "level": 2,
+        "xp": 5
+      }
+    ],
+    "jobs": {
+      "seed": 1234567,
+      "drawn": 3,
+      "done": 0,
+      "board": [
+        {
+          "job": 1,
+          "template": "berries-for-the-post",
+          "item": "cloudberry",
+          "count": 4,
+          "to": "bavko",
+          "progress": 0
+        },
+        {
+          "job": 2,
+          "template": "bun-batch",
+          "item": "berry-bun",
+          "count": 2,
+          "to": null,
+          "progress": 0
+        },
+        {
+          "job": 3,
+          "template": "pebble-catch",
+          "item": "pebblefish",
+          "count": 2,
+          "to": null,
+          "progress": 0
+        }
+      ]
+    }
+  }
+}

@@ -81,7 +81,7 @@ export function testStory(battle: BattleContent): StoryContent {
       ],
     },
     story: { chapters: [{ id: 'test-chapter', name: text('Tests'), quests: ['test-delivery', 'test-walk', 'test-rounds'] }], flags: [] },
-    inventory: { kinds: { quest: { stack: 1 }, treat: { stack: 99 }, material: { stack: 99 } }, order: ['quest', 'treat', 'material'] },
+    inventory: { kinds: { quest: { stack: 1 }, treat: { stack: 99 }, ingredient: { stack: 99 }, material: { stack: 99 } }, order: ['quest', 'treat', 'ingredient', 'material'] },
   };
   return loadStoryContent(files, { ...battle, items: new Map(items.map((item) => [item.id, item])) });
 }

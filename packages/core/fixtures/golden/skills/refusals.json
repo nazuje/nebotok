@@ -1,0 +1,61 @@
+{
+  "description": "Skills golden: every start the rules refuse (too low a level, a resting spot, missing ingredients, an unknown spot), a rushed finish and a game left untapped, which use and rest nothing.",
+  "seed": 11,
+  "commands": [
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "skymint-patch-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "rushed"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "miss"
+    },
+    {
+      "kind": "cook",
+      "recipe": "fish-biscuit",
+      "play": "perfect"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "miss"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "moon-bush",
+      "play": "perfect"
+    }
+  ],
+  "expectedHash": "18d746ce66006d"
+}

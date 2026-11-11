@@ -214,7 +214,7 @@ async function request(bot, type, payload) {
 /** The bot's progress as its own messages tell it; storage comes only at shrines, and no bot keeps any. */
 function storyProgress(bot) {
   const { team, inventory, lastShrine, seen, befriended } = bot.progress.at(-1);
-  return { team, storage: [], inventory, lastShrine, seen, befriended, story: bot.story.messages.at(-1) };
+  return { team, storage: [], inventory, lastShrine, seen, befriended, story: bot.story.messages.at(-1), skills: [], jobs: null };
 }
 
 /** The reachable tiles next to `point`, out of the tall grass first. */

@@ -3,7 +3,24 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import renamed from '../../../../content/creatures/renamed.json' with { type: 'json' };
-import { MAX_ACTIVE_QUESTS, RenamedFile, SAVE_SCHEMAS, SAVE_VERSION, SaveError, createSave, knowableMoves, maxHpOf, migrateSave, migrations, pruneStory, renameSpecies, sanitizeProgress } from '../../src/index.ts';
+import {
+  MAX_ACTIVE_QUESTS,
+  RenamedFile,
+  SAVE_SCHEMAS,
+  SAVE_VERSION,
+  SaveError,
+  createSave,
+  jobReady,
+  knowableMoves,
+  maxHpOf,
+  migrateSave,
+  migrations,
+  pruneJobs,
+  pruneSkills,
+  pruneStory,
+  renameSpecies,
+  sanitizeProgress,
+} from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
 import { storyContent } from '../support/story-content.ts';
 
@@ -21,7 +38,8 @@ const fixtures = versionDirs.flatMap((dir) =>
  */
 function loaded(path: string) {
   const { progress, repairs } = sanitizeProgress(renameSpecies(migrateSave(JSON.parse(readFileSync(path, 'utf8'))).data, RenamedFile.parse(renamed), battleContent), battleContent);
-  return { progress: { ...progress, story: pruneStory(progress.story, storyContent) }, repairs };
+  const skills = storyContent.skills!;
+  return { progress: { ...progress, story: pruneStory(progress.story, storyContent), skills: pruneSkills(progress.skills, skills).skills, jobs: pruneJobs(progress.jobs, storyContent).jobs }, repairs };
 }
 
 describe('save migrations', () => {
@@ -85,6 +103,38 @@ describe('save migrations', () => {
     expect(data.inventory).toEqual([{ item: 'hello-note', count: 1 }]);
     expect(data.team.map((creature) => creature.species)).toEqual(['glowbun']);
     expect(createSave(data).data).toEqual(data);
+  });
+
+  it('gives a v4 player no skills and an unopened board', () => {
+    const data = migrateSave(JSON.parse(readFileSync(join(SAVES_DIR, 'v4', 'basic.json'), 'utf8'))).data;
+    expect(data).toMatchObject({ skills: [], jobs: null });
+  });
+
+  it('keeps v5 skills and the board through the repair, with a delivery still ready to hand over', () => {
+    const { progress: basic } = loaded(join(SAVES_DIR, 'v5', 'basic.json'));
+    expect(basic.skills).toEqual([{ skill: 'foraging', level: 3, xp: 20 }, { skill: 'cooking', level: 2, xp: 5 }]);
+    expect(basic.jobs?.board).toHaveLength(3);
+    const { progress: ready } = loaded(join(SAVES_DIR, 'v5', 'delivery-ready.json'));
+    const delivery = ready.jobs?.board.find((job) => job.to !== null);
+    expect(delivery && jobReady(ready, delivery.to!)).toBe(true);
+    const { progress: top } = loaded(join(SAVES_DIR, 'v5', 'max-level.json'));
+    expect(top.skills[0]).toEqual({ skill: 'cooking', level: storyContent.skills!.maxLevel, xp: 0 });
+  });
+
+  it('refuses a skill twice, a job past its count, a repeated job and a job never drawn', () => {
+    const data = migrateSave(JSON.parse(readFileSync(join(SAVES_DIR, 'v5', 'basic.json'), 'utf8'))).data;
+    const jobs = data.jobs!;
+    const [first] = jobs.board;
+    for (const bad of [
+      { skills: [...data.skills, data.skills[0]] },
+      { skills: [{ skill: 'cooking', level: 100, xp: 0 }] },
+      { jobs: { ...jobs, board: [{ ...first!, progress: first!.count + 1 }] } },
+      { jobs: { ...jobs, board: [first, first] } },
+      { jobs: { ...jobs, drawn: 0 } },
+      { jobs: { ...jobs, board: Array.from({ length: 6 }, (_, at) => ({ ...first!, job: at + 1 })), drawn: 6 } },
+    ]) {
+      expect(() => migrateSave({ v: 5, data: { ...data, ...bad } })).toThrow(SaveError);
+    }
   });
 
   it('gives a v1 player no position, so they start at the spawn', () => {

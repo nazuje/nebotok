@@ -1,0 +1,251 @@
+{
+  "description": "Skills golden: the board opened, then rounds of berries, fish and buns that count for its jobs, with every character asked for a delivery after each round.",
+  "seed": 23,
+  "commands": [
+    {
+      "kind": "openBoard",
+      "seed": 7
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "pebble-cove",
+      "play": "perfect"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "tobolko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "mehurka"
+    },
+    {
+      "kind": "deliver",
+      "npc": "vetrinka"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "pebble-cove",
+      "play": "perfect"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "tobolko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "mehurka"
+    },
+    {
+      "kind": "deliver",
+      "npc": "vetrinka"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "pebble-cove",
+      "play": "miss"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "tobolko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "mehurka"
+    },
+    {
+      "kind": "deliver",
+      "npc": "vetrinka"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "pebble-cove",
+      "play": "perfect"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "tobolko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "mehurka"
+    },
+    {
+      "kind": "deliver",
+      "npc": "vetrinka"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "pebble-cove",
+      "play": "perfect"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "tobolko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "mehurka"
+    },
+    {
+      "kind": "deliver",
+      "npc": "vetrinka"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "pebble-cove",
+      "play": "miss"
+    },
+    {
+      "kind": "cook",
+      "recipe": "berry-bun",
+      "play": "perfect"
+    },
+    {
+      "kind": "deliver",
+      "npc": "bavko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "tobolko"
+    },
+    {
+      "kind": "deliver",
+      "npc": "mehurka"
+    },
+    {
+      "kind": "deliver",
+      "npc": "vetrinka"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    }
+  ],
+  "expectedHash": "06f623cd52c251"
+}

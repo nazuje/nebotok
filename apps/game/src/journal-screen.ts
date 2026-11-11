@@ -18,7 +18,8 @@ export function stepHint(entry: QuestLogEntry, language: Language): string | nul
 
 /** Whether the player has done the last chapter there is, so the journal says the story goes on later. */
 export function toBeContinued(log: QuestLog): boolean {
-  const last = STORY.chapters.at(-1)?.id;
+  // Side chapters stand beside the main story, so only the last main chapter decides this.
+  const last = STORY.chapters.findLast((chapter) => !chapter.side)?.id;
   return last !== undefined && log.chapters.some((chapter) => chapter.chapter === last && chapter.done);
 }
 

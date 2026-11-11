@@ -34,6 +34,11 @@ in the browser later.
   `nextGoal`. Story goldens (`fixtures/golden/story/`) replay against their own frozen content in
   `fixtures/golden/story/content/`; `npm run golden:update` does not record them yet, so take the
   new hash from the failing test, after the same check as above.
+- **Skills:** levels (`src/skills.ts`), the tiny games and their judging (`src/attempts.ts`),
+  gathering and cooking (`src/gathering.ts`) and the job board (`src/jobs.ts`); their messages are
+  in `src/skill-messages.ts`. `node scripts/skill-sim.mjs` prints the minutes to each level.
+  Skills goldens (`fixtures/golden/skills/`) replay against their own frozen content in
+  `fixtures/golden/skills/content/`; like story goldens, take a new hash from the failing test.
 - **Content schemas** live in `src/content.ts` (battle and world) and `src/story-content.ts`
   (story), registered by file name in `src/content-files.ts`. Adding a kind of content follows the
   `add-content` skill.

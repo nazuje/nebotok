@@ -1,0 +1,68 @@
+{
+  "npcs": [
+    {
+      "id": "bavko",
+      "name": {
+        "en": "Postmaster Bavko",
+        "sl": "Poštar Bavko"
+      },
+      "role": {
+        "en": "Runs the Sky Post",
+        "sl": "Vodi Nebesno pošto"
+      },
+      "voice": {
+        "pitch": 2,
+        "pace": 2
+      },
+      "placeholder": true
+    },
+    {
+      "id": "tobolko",
+      "name": {
+        "en": "Tobolko",
+        "sl": "Tobolko"
+      },
+      "role": {
+        "en": "Keeper of bags and treats",
+        "sl": "Varuh torb in poslastic"
+      },
+      "voice": {
+        "pitch": 3,
+        "pace": 1
+      },
+      "placeholder": true
+    },
+    {
+      "id": "mehurka",
+      "name": {
+        "en": "Mehurka",
+        "sl": "Mehurka"
+      },
+      "role": {
+        "en": "Keeper of the shrine",
+        "sl": "Varuhinja svetišča"
+      },
+      "voice": {
+        "pitch": 4,
+        "pace": 1
+      },
+      "placeholder": true
+    },
+    {
+      "id": "vetrinka",
+      "name": {
+        "en": "Vetrinka",
+        "sl": "Vetrinka"
+      },
+      "role": {
+        "en": "Weather-watcher at the lookout",
+        "sl": "Opazovalka vremena na razgledišču"
+      },
+      "voice": {
+        "pitch": 4,
+        "pace": 3
+      },
+      "placeholder": true
+    }
+  ]
+}

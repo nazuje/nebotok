@@ -17,6 +17,7 @@ import {
   type QuestChange,
   type QuestEvent,
   type RefusalReason,
+  type SpotRest,
   type StoryContent,
   type TalkStep,
   type WorldMap,
@@ -127,4 +128,27 @@ export type StoryChange = { readonly progress: Progress; readonly offers: readon
 export function storyChange(before: Progress, result: StoryResult, content: BattleContent): StoryChange {
   const taught = learnTeamMoves(before.team, result.progress.team, content);
   return { progress: { ...result.progress, team: taught.team }, offers: taught.offers, changes: result.changes, storyChanged: result.progress.story !== before.story };
+}
+
+/** A message to send, by its type. */
+export type Outgoing = { readonly type: string; readonly message: unknown };
+
+/**
+ * Messages a story change sends besides `quest.changed`, `progress` and `story`, in protocol order:
+ * `first` before any `quest.changed` (`skill.result`, `job.changed`), `beforeStory` after
+ * `progress` (`skills`), and `last` after `story` (`jobs`).
+ */
+export type StoryExtras = { readonly first: readonly Outgoing[]; readonly beforeStory: readonly Outgoing[]; readonly last: readonly Outgoing[] };
+
+export const NO_EXTRAS: StoryExtras = { first: [], beforeStory: [], last: [] };
+
+/** What the seat's skill rules say a delivery needs for the `skills` message: the time and the spots resting for this player. */
+export type DeliveryContext = { readonly now: number; readonly rests: readonly SpotRest[] };
+
+/**
+ * The `deliverJob` hook: the messages a talk step that finished jobs (`step.jobs`) sends around its
+ * story change, before the `talk.node`. Jobs are not served yet, so none.
+ */
+export function deliveredJobs(_step: TalkStep, _before: Progress, _context: DeliveryContext, _content: StoryContent): StoryExtras {
+  return NO_EXTRAS;
 }

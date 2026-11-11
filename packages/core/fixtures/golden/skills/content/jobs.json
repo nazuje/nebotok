@@ -1,0 +1,244 @@
+{
+  "slots": 3,
+  "templates": [
+    {
+      "id": "berries-please",
+      "kind": "gather",
+      "item": "cloudberry",
+      "count": [
+        4,
+        6
+      ],
+      "needs": {
+        "skill": "foraging",
+        "level": 1
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "plain-treat",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "foraging",
+            "perItem": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "pebble-catch",
+      "kind": "gather",
+      "item": "pebblefish",
+      "count": [
+        2,
+        3
+      ],
+      "needs": {
+        "skill": "fishing",
+        "level": 1
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "fish-biscuit",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "fishing",
+            "perItem": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "bun-batch",
+      "kind": "cook",
+      "item": "berry-bun",
+      "count": [
+        2,
+        3
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 1
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "cloudberry",
+            "count": 2
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
+            "perItem": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "berries-for-the-post",
+      "kind": "deliver",
+      "item": "cloudberry",
+      "count": [
+        3,
+        5
+      ],
+      "to": [
+        "bavko",
+        "tobolko"
+      ],
+      "needs": {
+        "skill": "foraging",
+        "level": 1
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "berry-bun",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "foraging",
+            "perItem": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "fish-for-friends",
+      "kind": "deliver",
+      "item": "pebblefish",
+      "count": [
+        2,
+        3
+      ],
+      "to": [
+        "mehurka",
+        "vetrinka"
+      ],
+      "needs": {
+        "skill": "fishing",
+        "level": 1
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "skymint",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "fishing",
+            "perItem": 14
+          }
+        ]
+      }
+    },
+    {
+      "id": "minty-errand",
+      "kind": "deliver",
+      "item": "skymint",
+      "count": [
+        2,
+        3
+      ],
+      "to": [
+        "mehurka",
+        "tobolko"
+      ],
+      "needs": {
+        "skill": "foraging",
+        "level": 5
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "mint-dumpling",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "foraging",
+            "perItem": 15
+          }
+        ]
+      }
+    },
+    {
+      "id": "breezy-catch",
+      "kind": "gather",
+      "item": "breezefin",
+      "count": [
+        2,
+        3
+      ],
+      "needs": {
+        "skill": "fishing",
+        "level": 6
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "sunroot",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "fishing",
+            "perItem": 18
+          }
+        ]
+      }
+    },
+    {
+      "id": "soup-for-the-lookout",
+      "kind": "deliver",
+      "item": "cloud-soup",
+      "count": [
+        1,
+        2
+      ],
+      "to": [
+        "vetrinka"
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 10
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "frostcap",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
+            "perItem": 40
+          }
+        ]
+      }
+    }
+  ]
+}

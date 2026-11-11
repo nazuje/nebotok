@@ -53,8 +53,8 @@ describe('the journal', () => {
     expect(stepProgress(undefined, 0, 2, 'en')).toBeNull();
   });
 
-  it('says the story goes on later only once the last chapter is done', () => {
-    const last = STORY.chapters.at(-1)?.id ?? '';
+  it('says the story goes on later only once the last main chapter is done', () => {
+    const last = STORY.chapters.findLast((chapter) => !chapter.side)?.id ?? '';
     const log = (done: boolean) => ({ chapters: [{ chapter: last, done, quests: [] }], next: null });
     expect(toBeContinued(log(true))).toBe(true);
     expect(toBeContinued(log(false))).toBe(false);
@@ -88,7 +88,7 @@ describe('quest toasts', () => {
       quest: 'first-round',
       change: 'done',
       step: 1,
-      rewards: { items: [{ item: 'plain-treat', count: 3 }], extra: [{ item: 'sun-treat', count: 1 }], xp: 20, creatures: [] },
+      rewards: { items: [{ item: 'plain-treat', count: 3 }], extra: [{ item: 'sun-treat', count: 1 }], xp: 20, creatures: [], skills: [] },
       cue: null,
     };
     expect(questToastLines(change, 'en')).toEqual([`Quest done: ${name}`, 'Plain Treat ×3, 20 XP for each creature', 'No room in the bag for: Sun Treat ×1']);

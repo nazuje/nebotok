@@ -110,7 +110,7 @@ export type HeadMark = NpcMark['mark'];
 export function headMarks(progress: ProgressMessage | null, story: StoryProgress | null, content: StoryContent): ReadonlyMap<string, HeadMark> {
   if (!progress || !story) return new Map();
   // Storage comes only at a shrine; the marks look only at the team and the story.
-  const full = { ...progress, storage: [], story };
+  const full = { ...progress, storage: [], story, skills: [], jobs: null };
   if (progress.needsStarter) {
     const goal = nextGoal(full, content);
     return new Map(goal?.kind === 'starter' ? [[goal.npc, 'newQuest' as const]] : []);
@@ -121,6 +121,6 @@ export function headMarks(progress: ProgressMessage | null, story: StoryProgress
 /** The character a new player should go to for their first creature, or null once they have one. */
 export function starterNpc(progress: ProgressMessage | null, story: StoryProgress | null, content: StoryContent): string | null {
   if (!progress?.needsStarter || !story) return null;
-  const goal = nextGoal({ ...progress, storage: [], story }, content);
+  const goal = nextGoal({ ...progress, storage: [], story, skills: [], jobs: null }, content);
   return goal?.kind === 'starter' ? goal.npc : null;
 }

@@ -7,7 +7,7 @@ import { z } from 'zod';
  * frames side by side. `docs/art.md` is the guide.
  */
 
-export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather', 'characters', 'portraits', 'effects'] as const;
+export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather', 'characters', 'portraits', 'effects', 'spots', 'stations', 'actions', 'games', 'skills'] as const;
 export type SpriteKind = (typeof SPRITE_KINDS)[number];
 
 /** "." is always transparent, so it can never be a palette colour. */
@@ -43,7 +43,22 @@ export const spriteFor = {
   portrait: (id: string) => `portraits/${id}`,
   /** The picture of a story cue. */
   cue: (id: string) => `effects/${id}`,
+  /** A gathering spot on the map, by its `look`: `ready`, and `resting` while it rests for you. */
+  spot: (look: string) => `spots/${look}`,
+  /** A station on the map (a cooking pot, the job board), by its `look`. */
+  station: (look: string) => `stations/${look}`,
+  /** What a courier doing a skill shows beside them, by skill id: an animation `play`. */
+  action: (skill: string) => `actions/${skill}`,
+  /** A skill's icon, by skill id. */
+  skill: (skill: string) => `skills/${skill}`,
 } as const;
+
+/** The pictures of each tiny game, and the frames each needs beyond its kind's own. */
+export const GAME_SPRITES: Readonly<Record<'dip' | 'sparkle' | 'marker', readonly { readonly id: string; readonly frames: readonly string[] }[]>> = {
+  dip: [{ id: 'games/float', frames: ['still', 'dip'] }],
+  sparkle: [{ id: 'games/sparkle', frames: [] }],
+  marker: [{ id: 'games/marker', frames: [] }],
+};
 
 type KindRule = { readonly sizes: readonly (readonly [number, number])[]; readonly frames: readonly string[]; readonly animations: readonly string[] };
 
@@ -63,6 +78,11 @@ export const SPRITE_RULES: Readonly<Record<SpriteKind, KindRule>> = {
   characters: { sizes: [[16, 16]], frames: [...COURIER_FACINGS], animations: [] },
   portraits: { sizes: [[32, 32]], frames: ['neutral'], animations: [] },
   effects: { sizes: [[64, 32]], frames: [], animations: [] },
+  spots: { sizes: [[16, 16]], frames: ['ready', 'resting'], animations: [] },
+  stations: { sizes: [[16, 16]], frames: [], animations: [] },
+  actions: { sizes: [[16, 16]], frames: [], animations: ['play'] },
+  games: { sizes: [[32, 32]], frames: [], animations: [] },
+  skills: { sizes: [[16, 16]], frames: [], animations: [] },
 };
 
 const NAME = '[a-z][a-z0-9-]{0,31}';
@@ -288,6 +308,12 @@ export type ArtUsers = {
   readonly cues: readonly string[];
   /** Tileset names, the map tileset image without `.png`. */
   readonly tilesets: readonly string[];
+  /** Every `look` of the spots, once each. */
+  readonly spots: readonly string[];
+  /** Every `look` of the stations, once each. */
+  readonly stations: readonly string[];
+  /** Every skill id, and the tiny game each plays. */
+  readonly skills: readonly { readonly id: string; readonly game: keyof typeof GAME_SPRITES }[];
 };
 
 /** Every sprite or tileset that some content needs and the art lacks. */
@@ -309,9 +335,21 @@ export function missingArt(art: Art, users: ArtUsers): string[] {
       [`npc "${id}"`, spriteFor.portrait(id)],
     ]),
     ...users.cues.map((id): [string, string] => [`story cue "${id}"`, spriteFor.cue(id)]),
+    ...users.spots.map((look): [string, string] => [`spot look "${look}"`, spriteFor.spot(look)]),
+    ...users.stations.map((look): [string, string] => [`station look "${look}"`, spriteFor.station(look)]),
+    ...users.skills.flatMap(({ id }): [string, string][] => [
+      [`skill "${id}"`, spriteFor.action(id)],
+      [`skill "${id}"`, spriteFor.skill(id)],
+    ]),
   ];
+  const games = [...new Set(users.skills.map((skill) => skill.game))].flatMap((game) => GAME_SPRITES[game].map(({ id, frames }) => ({ game, id, frames })));
   return [
     ...needs.flatMap(([who, id]) => (art.sprites.has(id) ? [] : [`${who} needs the sprite ${id} (content/art/${id}.json)`])),
+    ...games.flatMap(({ game, id, frames }) => {
+      const sprite = art.sprites.get(id);
+      if (!sprite) return [`the ${game} game needs the sprite ${id} (content/art/${id}.json)`];
+      return frames.filter((frame) => !frameNames(sprite).includes(frame)).map((frame) => `the ${game} game needs a frame "${frame}" in ${id}`);
+    }),
     ...users.tilesets.flatMap((name) => (art.tilesets.has(name) ? [] : [`tileset "${name}" needs content/art/tilesets/${name}.json`])),
   ];
 }

@@ -1,0 +1,104 @@
+{
+  "maxLevel": 20,
+  "levelCosts": [
+    35,
+    55,
+    85,
+    115,
+    155,
+    195,
+    245,
+    295,
+    355,
+    415,
+    485,
+    555,
+    635,
+    715,
+    805,
+    895,
+    995,
+    1095,
+    1205
+  ],
+  "skills": [
+    {
+      "id": "foraging",
+      "name": {
+        "en": "Foraging",
+        "sl": "Nabiranje"
+      },
+      "uses": "spots",
+      "game": "sparkle",
+      "restSeconds": 40
+    },
+    {
+      "id": "fishing",
+      "name": {
+        "en": "Fishing",
+        "sl": "Ribolov"
+      },
+      "uses": "spots",
+      "game": "dip",
+      "restSeconds": 30
+    },
+    {
+      "id": "cooking",
+      "name": {
+        "en": "Cooking",
+        "sl": "Kuhanje"
+      },
+      "uses": "recipes",
+      "game": "marker"
+    }
+  ],
+  "games": {
+    "dip": {
+      "waitMs": [
+        1200,
+        3000
+      ],
+      "windowMs": [
+        900,
+        750,
+        600
+      ],
+      "perfectMs": [
+        400,
+        330,
+        270
+      ]
+    },
+    "sparkle": {
+      "count": 3,
+      "gapMs": [
+        700,
+        1000
+      ],
+      "showMs": [
+        1500,
+        1300,
+        1100
+      ],
+      "need": 2
+    },
+    "marker": {
+      "sweepMs": [
+        1600,
+        1300,
+        1050
+      ],
+      "zone": [
+        260,
+        200,
+        150
+      ],
+      "perfect": [
+        80,
+        60,
+        50
+      ],
+      "timeoutMs": 5000
+    }
+  }
+}

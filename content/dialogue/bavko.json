@@ -25,6 +25,15 @@
     {
       "if": [
         {
+          "quest": "treats-from-scratch",
+          "at": "meet-the-board"
+        }
+      ],
+      "node": "board-intro"
+    },
+    {
+      "if": [
+        {
           "quest": "first-round",
           "is": "available"
         }
@@ -102,6 +111,31 @@
         }
       ],
       "node": "grey-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "one-job"
+        }
+      ],
+      "node": "board-remind"
+    },
+    {
+      "if": [
+        {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
     },
     {
       "if": [
@@ -409,6 +443,43 @@
         "sl": "Veter je danes nežen. Pravo vreme za pisma."
       },
       "mood": "calm"
+    },
+    "board-intro": {
+      "say": {
+        "en": "Odd jobs pile up here. Take any you like!",
+        "sl": "Tu se nabirajo priložnostna dela. Izberi katero koli!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "completeStep": "treats-from-scratch",
+          "step": "meet-the-board"
+        }
+      ]
+    },
+    "board-remind": {
+      "say": {
+        "en": "Finish any job from the board. Its reward comes to you at once.",
+        "sl": "Opravi katero koli delo z deske. Nagrado dobiš takoj."
+      }
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
     }
   }
 }

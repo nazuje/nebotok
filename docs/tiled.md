@@ -35,6 +35,16 @@ explains them in plain steps.
   Name each point with a short lowercase id and put it on a walkable square; a quest's `reach`
   step names it, and stepping onto that square or one next to it counts. Players do not see
   marks; paint something on `decor` so they know where to go.
+- **spots** (optional): an object layer of points, one per gathering spot. Name each point after a
+  spot `id` in `content/spots.json`, such as `cloudberry-bush-a`. The spot blocks its square, and
+  players gather from the squares directly beside it, never diagonally. A spot may sit on a square
+  nobody can walk on anyway, such as water or the island's edge for fishing in the clouds, as long
+  as a square beside it can be reached. Once any map places spots, every spot in `spots.json` must
+  be placed, on one map only.
+- **stations** (optional): an object layer of points for things players use, such as the cooking
+  pot and the job board. Name each point after a station `id` in `content/stations.json` and put
+  it on a walkable square with a reachable square beside it. Like spots, a station blocks its
+  square, is used from beside it, and once any map places stations, every station must be placed.
 
 ## What blocks walking
 
@@ -48,7 +58,8 @@ Properties.
 - Keep **Tile Layer Format** on CSV (Map > Map Properties). Base64 is refused.
 - Keep the tileset **embedded** in the map. If Tiled asks to export it as a separate file, say no.
 - Then run `npm run content:validate`. It fails if the spawn or a shrine is blocked, if a grass
-  rectangle or shrine names a zone or shrine the content files do not have, or if some walkable square
+  rectangle, shrine, spot or station names one the content files do not have, if two of the
+  characters, spots and stations share a square, or if some walkable square
   cannot be reached from the spawn (a pocket closed in by trees, say). The message names the first
   such squares as `x,y`; fill them with a bush or open a way in.
 

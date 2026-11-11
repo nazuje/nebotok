@@ -63,6 +63,8 @@ export function battleSave(world, { name, language }) {
       seen: owned,
       befriended: owned,
       story: emptyStory(),
+      skills: [],
+      jobs: null,
     },
   };
 }

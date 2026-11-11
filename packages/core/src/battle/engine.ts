@@ -185,7 +185,7 @@ function offerTreat(draft: Draft, side: SideIndex, itemId: string, rng: Rng, con
   if (item?.kind !== 'treat') throw new BattleError(`"${itemId}" is not a treat`);
   const species = content.species.get(target.species);
   if (!species) throw new BattleError(`unknown species "${target.species}"`);
-  const chance = befriendChance({ hp: target.hp, maxHp: target.maxHp, level: target.level, liking: treatLiking(item, species) }, content.befriending);
+  const chance = befriendChance({ hp: target.hp, maxHp: target.maxHp, level: target.level, liking: treatLiking(item, species), strength: item.strength ?? 0 }, content.befriending);
   const accepted = rng.int(1, 100) <= chance;
   events.push({ kind: 'treatOffered', side, item: item.id, target: target.id, chance, accepted });
   if (accepted) end(draft, { winner: side, reason: 'befriended' }, events);

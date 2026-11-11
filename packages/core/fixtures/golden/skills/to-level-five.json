@@ -1,0 +1,432 @@
+{
+  "description": "Skills golden: two cloudberry bushes picked perfectly, waiting out their rests, until foraging reaches level 5 and the berries fill a stack; then the first sky mint.",
+  "seed": 5,
+  "commands": [
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-a",
+      "play": "perfect"
+    },
+    {
+      "kind": "gather",
+      "spot": "cloudberry-bush-b",
+      "play": "perfect"
+    },
+    {
+      "kind": "wait",
+      "ms": 40000
+    },
+    {
+      "kind": "gather",
+      "spot": "skymint-patch-a",
+      "play": "perfect"
+    }
+  ],
+  "expectedHash": "1b77e1736f3221"
+}

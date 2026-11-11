@@ -1,0 +1,22 @@
+{
+  "stations": [
+    {
+      "id": "post-pot",
+      "kind": "cookingPot",
+      "look": "pot",
+      "name": {
+        "en": "Cooking Pot",
+        "sl": "Kuhalni lonec"
+      }
+    },
+    {
+      "id": "post-board",
+      "kind": "jobBoard",
+      "look": "board",
+      "name": {
+        "en": "Job Board",
+        "sl": "Oglasna deska"
+      }
+    }
+  ]
+}

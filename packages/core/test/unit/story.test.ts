@@ -183,6 +183,8 @@ describe('links between the story files', () => {
     expect(storyContentProblems({ ...files, dialogue }, battleContent)).toEqual([
       'npcs.json "mehurka": has no dialogue/mehurka.json',
       'quests.json "bell-for-the-shrine" step "deliver-bell": no node of dialogue/mehurka.json completes it ({ "completeStep": "bell-for-the-shrine", "step": "deliver-bell" })',
+      'jobs.json "fish-for-friends": dialogue/mehurka.json has no entry with { "jobReady": true } to take the delivery',
+      'jobs.json "minty-errand": dialogue/mehurka.json has no entry with { "jobReady": true } to take the delivery',
     ]);
   });
 
@@ -242,14 +244,14 @@ describe('talking to Bavko and Tobolko', () => {
     expect(conversationView(fresh.conversation!, fresh.progress, storyContent)).toEqual({ npc: 'bavko', node: 'first-friend', speaker: 'bavko', choices: [], cue: 'offerStarter', ends: true });
     expect(offersStarter(fresh.conversation!, storyContent)).toBe(true);
     expect(offersStarter({ npc: 'bavko', node: 'welcome' }, storyContent)).toBe(false);
-    expect(advanceConversation(fresh.conversation!, null, fresh.progress, storyContent)).toEqual({ conversation: null, progress: fresh.progress, changes: [], extra: [] });
+    expect(advanceConversation(fresh.conversation!, null, fresh.progress, storyContent)).toEqual({ conversation: null, progress: fresh.progress, changes: [], jobs: [], extra: [] });
     expect(openConversation('bavko', courier(), storyContent)?.conversation?.node).toBe('offer');
   });
 
   it('ends the talk and changes nothing when a node\'s effect cannot happen', () => {
-    expect(advanceConversation({ npc: 'bavko', node: 'welcome' }, null, courier(), storyContent)).toEqual({ conversation: null, progress: courier(), changes: [], extra: [] });
+    expect(advanceConversation({ npc: 'bavko', node: 'welcome' }, null, courier(), storyContent)).toEqual({ conversation: null, progress: courier(), changes: [], jobs: [], extra: [] });
     const busy = talk('bavko', [0], courier());
-    expect(advanceConversation({ npc: 'bavko', node: 'offer' }, 0, busy.progress, storyContent)).toEqual({ conversation: null, progress: busy.progress, changes: [], extra: [] });
+    expect(advanceConversation({ npc: 'bavko', node: 'offer' }, 0, busy.progress, storyContent)).toEqual({ conversation: null, progress: busy.progress, changes: [], jobs: [], extra: [] });
   });
 
   it('refuses an answer the node does not take', () => {
@@ -275,7 +277,7 @@ describe('talking to Bavko and Tobolko', () => {
     expect(delivered.nodes).toEqual(['note', 'bag']);
     expect(delivered.progress.inventory).toEqual([{ item: 'plain-treat', count: 3 }]);
     expect(delivered.progress.story).toEqual({ active: [], done: ['first-round'], flags: [] });
-    expect(delivered.changes).toEqual([{ quest: 'first-round', change: 'done', step: 1, rewards: { items: [{ item: 'plain-treat', count: 3 }], extra: [], xp: 0, creatures: [] }, cue: null }]);
+    expect(delivered.changes).toEqual([{ quest: 'first-round', change: 'done', step: 1, rewards: { items: [{ item: 'plain-treat', count: 3 }], extra: [], xp: 0, creatures: [], skills: [] }, cue: null }]);
     expect(questLog(delivered.progress, storyContent)).toEqual({
       chapters: [{ chapter: 'post-training', done: false, quests: [{ quest: 'first-round', state: 'done', step: 1, count: 0, of: 0 }] }],
       next: { kind: 'newQuest', quest: 'restless-grass', npc: 'tobolko' },

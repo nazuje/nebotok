@@ -200,7 +200,7 @@ describe('a delivery', () => {
       quest: 'test-delivery',
       change: 'done',
       step: 1,
-      rewards: { items: [{ item: 'plain-treat', count: 2 }], extra: [], xp: 0, creatures: [] },
+      rewards: { items: [{ item: 'plain-treat', count: 2 }], extra: [], xp: 0, creatures: [], skills: [] },
       cue: null,
     });
     expect((await who.box.take<ProgressMessage>('progress')).inventory).toEqual([{ item: 'plain-treat', count: 2 }]);
