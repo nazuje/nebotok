@@ -16,4 +16,7 @@ messages.
   run (`node scripts/bot-run.mjs`) starts the real process with four bots and a reconnect. Both run
   at verify level 3.
 - **Wire changes.** A message or state shape the client relies on changes `PROTOCOL_VERSION` in
-  `packages/core/src/protocol.ts`, so old clients get a clear refusal instead of a broken game.
+  `packages/core/src/protocol.ts`, so old clients get a clear refusal instead of a broken game. So
+  does any change to what the server accepts or requires from a client, even with the same message
+  shapes (a switch like `STARTER_NEEDS_TALK`); add such a switch to
+  `scripts/lib/protocol-contract.test.mjs`, which fails when the contract moves without a bump.

@@ -3,7 +3,11 @@
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, and `src/messages.ts` for battles and teams), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **5**).
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **7**),
+including a change to what the server accepts or requires with the same messages: protocol 7 is
+protocol 6 with the starter only through a talk. `scripts/lib/protocol-contract.test.mjs` hashes the
+message names, the client message schemas and server switches such as `STARTER_NEEDS_TALK`, and
+fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
 
 Everything is same-origin: the page, the API, the maps and the WebSocket all come from the server
 that served the page. In development Vite proxies `/colyseus/*` to the server and strips the prefix,

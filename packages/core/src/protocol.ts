@@ -2,8 +2,22 @@ import { z } from 'zod';
 import { DirectionSchema, type Point } from './grid.ts';
 import type { WalkCommand } from './movement.ts';
 
-/** Bumped whenever a client and server of different versions could misunderstand each other. */
-export const PROTOCOL_VERSION = 6;
+/**
+ * Bumped whenever a client and server of different versions could misunderstand each other,
+ * including when the server starts to accept or require something different with the same messages.
+ * 7: the starter comes only through a talk (`STARTER_NEEDS_TALK`), so clients from before it, which
+ * open the starter screen by themselves, are refused at the join instead of getting stuck.
+ */
+export const PROTOCOL_VERSION = 7;
+
+/**
+ * The client-server contract each protocol version stands for, as hashed by
+ * scripts/lib/protocol-contract.test.mjs. When that test fails, the contract changed: raise
+ * PROTOCOL_VERSION and add a line for it with the new hash. Never change an older line.
+ */
+export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
+  7: '153c0d940d945b',
+};
 
 export type WorldInfo = {
   readonly name: string;
