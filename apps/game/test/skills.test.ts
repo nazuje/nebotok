@@ -74,12 +74,16 @@ describe('foraging (sparkle)', () => {
     for (const plan of plans('sparkle')) {
       const hit = new Set<number>();
       const taps: Tap[] = [];
-      let seenSince: { sparkle: number; ms: number } | null = null;
+      let seen = -1;
+      let seenAt = 0;
       for (let ms = 0; ms <= sparkleEndsMs(plan.params); ms += 10) {
         const shown = shownSparkle(plan.params, hit, ms);
         if (shown === null) continue;
-        if (seenSince?.sparkle !== shown) seenSince = { sparkle: shown, ms };
-        if (ms - seenSince.ms < 300) continue;
+        if (seen !== shown) {
+          seen = shown;
+          seenAt = ms;
+        }
+        if (ms - seenAt < 300) continue;
         const place = plan.params.sparkles[shown]!.place;
         const counted = sparkleHit(plan.params, hit, place, ms);
         expect(counted).toBe(shown);
