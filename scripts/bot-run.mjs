@@ -10,7 +10,10 @@
 //      a wild creature appears, and play their battles to the end at the same time, never refused
 //      a request;
 //   7. the other two play the story at the same time, by what core's nextGoal asks, until the
-//      first quest is done: the starter from its character, the quest, its steps and its rewards.
+//      first quest is done: the starter from its character, the quest, its steps and its rewards;
+//   8. meanwhile a fifth, courier bot, whose save was given a delivery job and its items while the
+//      server was stopped, gets its board on joining, opens the job board when the map places one
+//      (which draws the empty slots), and delivers the job to its character in a talk.
 //   node scripts/bot-run.mjs [--out <dir>]
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +21,23 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Callbacks, Client } from '@colyseus/sdk';
 import { loadWorld } from '../apps/server/src/world.ts';
-import { DIRECTIONS, PLAYER_SPAWN, PROTOCOL_VERSION, createRng, encounterZoneAt, isWalkable, nextGoal, reachableFrom, readTiledMap, storyBotCommand } from '../packages/core/src/index.ts';
+import { DATABASE_FILE, openDatabase } from '../apps/server/src/db.ts';
+import { createProgressStore } from '../apps/server/src/progress.ts';
+import {
+  DIRECTIONS,
+  PLAYER_SPAWN,
+  PROTOCOL_VERSION,
+  createRng,
+  createSave,
+  emptyProgress,
+  encounterZoneAt,
+  isWalkable,
+  newCreature,
+  nextGoal,
+  reachableFrom,
+  readTiledMap,
+  storyBotCommand,
+} from '../packages/core/src/index.ts';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 
@@ -31,6 +50,7 @@ const PROFILES = [
   { name: 'Bot Blue', avatar: 'blue' },
   { name: 'Bot Green', avatar: 'green' },
 ];
+const COURIER = { name: 'Bot Courier', avatar: 'green' };
 const { values } = parseArgs({ options: { out: { type: 'string' } } });
 const out = values.out ?? join(ROOT, '.proof', 'bot-run');
 mkdirSync(join(out, 'logs'), { recursive: true });
@@ -79,6 +99,7 @@ async function joinWorld(base, profile, token) {
     progress: [],
     battles: { started: [], turns: [], results: [], refused: [] },
     story: { messages: [], nodes: [], ended: [], changes: [], offers: [] },
+    jobs: { boards: [], changes: [] },
     drops: 0,
     reconnects: 0,
     refusals: 0,
@@ -96,6 +117,9 @@ async function joinWorld(base, profile, token) {
   room.onMessage('talk.ended', (message) => bot.story.ended.push(message));
   room.onMessage('quest.changed', (message) => bot.story.changes.push(message));
   room.onMessage('move.offer', (message) => bot.story.offers.push(message));
+  room.onMessage('skills', () => {});
+  room.onMessage('jobs', (message) => bot.jobs.boards.push(message));
+  room.onMessage('job.changed', (message) => bot.jobs.changes.push(message));
   room.onMessage('walk.refused', () => {
     bot.refusals += 1;
   });
@@ -336,6 +360,66 @@ async function storyRun(bot, map, tiles) {
   expect(bot.battles.refused.length === 0, `${bot.profile.name} had requests refused: ${JSON.stringify(bot.battles.refused)}`);
   return { bot: bot.profile.name, played };
 }
+/** The courier's job: the first delivery a new player can be given, to the first of its characters. */
+function courierJob() {
+  const template = [...WORLD.story.skills.templates.values()].find((each) => each.kind === 'deliver' && each.needs.level === 1);
+  if (!template) throw new Error('jobs.json has no delivery a new player can be given');
+  return { job: 1, template: template.id, item: template.item, count: template.count[0], to: template.to[0], progress: 0 };
+}
+
+/**
+ * Writes the courier's save while no server runs: a creature, every quest done (so its character's
+ * first dialogue entry that holds is the delivery), a board holding only `job`, and the items for
+ * it, which only gathering could give otherwise.
+ */
+function seedCourier(profile, job, at) {
+  const db = openDatabase(join(dataDir, DATABASE_FILE));
+  try {
+    const store = createProgressStore({ db, now: Date.now, repair: (_id, data) => data });
+    const progress = {
+      ...emptyProgress(),
+      team: [newCreature(STARTERS[0], 5, WORLD.battle)],
+      inventory: [{ item: job.item, count: job.count }],
+      story: { active: [], done: [...WORLD.story.quests.keys()], flags: [] },
+      jobs: { seed: 1, drawn: job.job, done: 0, board: [job] },
+    };
+    store.save(profile.id, createSave({ name: profile.name, language: 'en', createdAt: new Date().toISOString(), position: { map: WORLD.map.id, ...at, facing: 'down' }, ...progress }));
+  } finally {
+    db.close();
+  }
+}
+
+/** Opens the job board if the map places one, then delivers `job` to its character and checks what the server sent. */
+async function courierRun(bot, map, tiles, job) {
+  const name = bot.profile.name;
+  await until(() => bot.jobs.boards.length > 0, `${name}'s board on joining`);
+  expect(bot.jobs.boards[0].board.map((each) => each.job).join() === String(job.job), `${name} joined with the board ${JSON.stringify(bot.jobs.boards[0])}`);
+  const board = Object.entries(map.stations).find(([id]) => WORLD.story.skills.stations.get(id)?.kind === 'jobBoard');
+  let opened = 'the map places no job board yet';
+  if (board) {
+    await goTo(bot, besideTiles(map, tiles, board[1])[0]);
+    const seen = bot.jobs.boards.length;
+    await request(bot, 'board.open', { station: board[0] });
+    await until(() => bot.jobs.boards.length > seen, `${name}'s board to open`);
+    const shown = bot.jobs.boards.at(-1).board;
+    expect(shown.length === WORLD.story.skills.slots && shown[0]?.job === job.job, `${name}'s opened board is ${JSON.stringify(shown)}`);
+    opened = `opened ${board[0]}: ${shown.map((each) => each.template).join(', ')}`;
+  }
+  await goTo(bot, besideTiles(map, tiles, map.npcs[job.to])[0]);
+  const nodes = bot.story.nodes.length;
+  await request(bot, 'talk.start', { npc: job.to });
+  await until(() => bot.story.nodes.length > nodes, `${name}'s talk with ${job.to} to open`);
+  const node = bot.story.nodes.at(-1);
+  const done = bot.jobs.changes.find((change) => change.job === job.job && change.change === 'done');
+  expect(done?.next != null, `${name} got no "done" job.changed with a next job: ${JSON.stringify(bot.jobs.changes)}`);
+  expect(!bot.jobs.boards.at(-1).board.some((each) => each.job === job.job), `${name}'s delivered job is still on the board`);
+  expect(!bot.progress.at(-1).inventory.some((held) => held.item === job.item), `${name} still carries ${job.item}`);
+  await request(bot, 'talk.end', { conversation: node.conversation });
+  await until(() => bot.story.ended.some((end) => end.conversation === node.conversation), `${name}'s talk to end`);
+  expect(bot.battles.refused.length === 0, `${name} had requests refused: ${JSON.stringify(bot.battles.refused)}`);
+  return { bot: name, opened, delivered: `${job.count} ${job.item} to ${job.to}`, next: done?.next?.template ?? null };
+}
+
 async function dropMidWalk(bot, tiles) {
   bot.room.reconnection.minUptime = 0;
   const sessionBefore = bot.room.sessionId;
@@ -355,6 +439,7 @@ const eventCounts = (server) => Object.fromEntries(EVENTS.map((event) => [event,
 const intents = { to: 0, hold: 0 };
 const battles = [];
 const stories = [];
+let courier = null;
 let tally = null;
 
 try {
@@ -365,6 +450,7 @@ try {
   });
   const listed = await api(first.base, 'GET', '/api/profiles');
   expect(listed.length === PROFILES.length && listed.every((row) => !('pin' in row)), 'the profile list is wrong or shows a PIN');
+  COURIER.id = (await api(first.base, 'POST', '/api/profiles', COURIER)).id;
 
   // One at a time, so each bot's welcome carries a known player count.
   const bots = await inTurn(PROFILES, async (profile) => joinWorld(first.base, profile, (await login(first.base, profile)).token));
@@ -410,6 +496,8 @@ try {
   const stopped = await first.stop();
   expect(stopped.code === 0 && !stopped.timedOut, `server exited with code ${stopped.code} (${stopped.signal ?? 'no signal'})`);
   expect(first.lines.some((line) => line.msg === 'shutdown complete'), 'server did not log "shutdown complete"');
+  const job = courierJob();
+  seedCourier(COURIER, job, besideTiles(map, tiles, map.npcs[job.to])[0]);
 
   const second = await startServer({ env: { NODE_ENV: 'test', DATA_DIR: dataDir }, logFile: join(out, 'logs', 'bot-run-restart.log') });
   servers.push(second);
@@ -427,10 +515,15 @@ try {
   const outcomes = await Promise.all(fighters.map((bot, index) => battleInGrass(bot, { map, tiles }, meadow, index)));
   battles.push(...outcomes.map((outcome) => outcome.reason));
   step(`two bots got a starter from its character, met wild creatures in the grass at once and finished their battles: ${battles.join(', ')}`);
-  stories.push(...(await Promise.all(back.slice(2).map((bot) => storyRun(bot, map, tiles)))));
+  const courierBot = await joinWorld(second.base, COURIER, (await login(second.base, COURIER)).token);
+  const [played, delivered] = await Promise.all([Promise.all(back.slice(2).map((bot) => storyRun(bot, map, tiles))), courierRun(courierBot, map, tiles, job)]);
+  stories.push(...played);
+  courier = delivered;
   for (const story of stories) step(`${story.bot} played the story through ${STORY_QUEST}: ${story.played.join(', ')}`);
-  await Promise.all(back.map((bot) => bot.room.leave()));
-  await until(() => second.lines.filter((line) => line.msg === 'player left').length === back.length, 'the restarted server to log every leave');
+  step(`${courier.bot} ${courier.opened}; delivered ${courier.delivered}, and ${courier.next} took its place`);
+  const everyone = [...back, courierBot];
+  await Promise.all(everyone.map((bot) => bot.room.leave()));
+  await until(() => second.lines.filter((line) => line.msg === 'player left').length === everyone.length, 'the restarted server to log every leave');
 } catch (error) {
   failures.push(error.message);
 } finally {
@@ -451,6 +544,7 @@ const summary = {
   intents,
   battles,
   stories,
+  courier,
   sampledPositions: tally?.samples ?? 0,
   blockedPositions: tally?.blocked ?? 0,
   positionsChecked: Object.keys(positions).length,
