@@ -52,6 +52,43 @@ Names have no č, š or ž so English readers can say them too.
 
 The cloud creature has no name yet. It is spooky, but nothing gets hurt.
 
+## Side chapter: Odd Jobs
+
+A side chapter sits after the main story in the journal. It never blocks anything: skills and the
+job board work without it, and the journal's "Where next?" offers it only when the main story has
+nothing to do.
+
+7. **Treats from Scratch** (from Tobolko, after 4). "Treats you make yourself work even better!"
+   Pick 3 cloudberries from the bushes by the meadow, then cook a Berry Bun in the pot beside
+   Tobolko. Tobolko sends the courier to Bavko, who shows the job board by the post office door,
+   then finish any one job from the board. *Teaches foraging, cooking and the job board.* Reward:
+   2 Berry Buns and 20 cooking XP.
+
+Every step works from level 1: the two cloudberry bushes and the Berry Bun need no levels, and the
+board always holds three jobs a level 1 courier can do.
+
+### Jobs and the characters
+
+The board's delivery jobs go to the four characters. Each has two lines for them, in their own
+voice: one when the courier brings everything (`job-thanks`, which hands it over) and one when
+the courier has not got it all yet (`job-waiting`). These come after the quest lines, so a quest
+always goes first.
+
+### Cooked treats
+
+Every creature's favourite treat is now a dish from the pot, three creatures for each dish. The
+weather treats from quests are still liked by their weather type, and Tobolko's Plain Treats stay
+as the fallback when the courier runs out.
+
+| Dish | Cooking level | Favourite of |
+| --- | --- | --- |
+| Berry Bun | 1 | Petalbug, Baskit, Glowbun |
+| Fish Biscuit | 3 | Drizzlesnail, Sparkhog, Puddlepip |
+| Mint Dumpling | 6 | Breezeray, Pinwhirl, Bloomlet |
+| Cloud Soup | 10 | Pourpoise, Rimemoth, Snowsnoot |
+| Sunroot Bake | 14 | Boltkit, Dawnshell, Rumblejelly |
+| Frost Pudding | 18 | Gustowl, Glaciyak, Blossomcub |
+
 ## Story flags
 
 - `grey-letter-read`: Vetrinka read the grey letter.
@@ -64,11 +101,14 @@ The cloud creature has no name yet. It is spooky, but nothing gets hurt.
 - What is the hungry cloud? What should it be called?
 - What is on the outer islands, and who lives there?
 - What should Bavko, Tobolko, Mehurka and Vetrinka really be called, and what do they look like?
-- Which jobs should a courier do next?
+- Which jobs should a courier do next, and which treats should each creature love?
 
 ## Where the story lives
 
 - Characters: `content/npcs.json`. What they say: `content/dialogue/<character>.json`.
 - Quests: `content/quests.json`. Chapters and flags: `content/story.json`.
+- Gathering spots, recipes, the pot and the board, and the job templates: `content/spots.json`,
+  `content/recipes.json`, `content/stations.json` and `content/jobs.json`. Favourite treats:
+  `content/creatures/species.json`.
 - Quest items (hello note, Mehurka's bell, wind gauge, grey letter): `content/items.json`.
 - How the files fit together: "The story" in `content/AGENTS.md`.

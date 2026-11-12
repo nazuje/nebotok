@@ -116,6 +116,15 @@
     {
       "if": [
         {
+          "quest": "treats-from-scratch",
+          "at": "meet-the-board"
+        }
+      ],
+      "node": "scratch-board"
+    },
+    {
+      "if": [
+        {
           "jobReady": true
         }
       ],
@@ -338,8 +347,8 @@
     },
     "scratch-accept": {
       "say": {
-        "en": "The berry bushes are near the post, and the pot is right here by me.",
-        "sl": "Grmi z jagodami so blizu pošte, lonec pa je kar tu ob meni."
+        "en": "The cloudberry bushes are by the meadow, and the pot is right here next to me.",
+        "sl": "Grmi oblačnic so ob travniku, lonec pa je kar tu ob meni."
       },
       "mood": "happy",
       "effects": [
@@ -355,10 +364,17 @@
       },
       "mood": "happy"
     },
+    "scratch-board": {
+      "say": {
+        "en": "A Berry Bun! It smells wonderful. Now go and see Bavko. His job board is by the post office door.",
+        "sl": "Jagodna žemljica! Čudovito diši. Zdaj pojdi k Bavku. Njegova oglasna deska je ob vratih pošte."
+      },
+      "mood": "happy"
+    },
     "job-thanks": {
       "say": {
-        "en": "For me? Thank you!",
-        "sl": "Zame? Hvala lepa!"
+        "en": "Oh, for me? How lovely, how lovely! Thank you!",
+        "sl": "Oh, zame? Kako lepo, kako lepo! Hvala!"
       },
       "mood": "happy",
       "effects": [
@@ -369,8 +385,8 @@
     },
     "job-waiting": {
       "say": {
-        "en": "A job from the board? Bring it all when you have it.",
-        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+        "en": "Oh dear, is that job on the board for me? No rush. Bring it all when you have it.",
+        "sl": "Ojej, je tisto delo na deski zame? Ni treba hiteti. Prinesi vse, ko zbereš."
       }
     }
   }

@@ -109,8 +109,8 @@
     },
     "job-thanks": {
       "say": {
-        "en": "For me? Thank you!",
-        "sl": "Zame? Hvala lepa!"
+        "en": "For me. Kind. Thank you.",
+        "sl": "Zame. Prijazno. Hvala."
       },
       "mood": "happy",
       "effects": [
@@ -121,8 +121,8 @@
     },
     "job-waiting": {
       "say": {
-        "en": "A job from the board? Bring it all when you have it.",
-        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+        "en": "A job from the board. Bring all of it. No hurry.",
+        "sl": "Delo z deske. Prinesi vse. Brez naglice."
       }
     }
   }
