@@ -1,7 +1,34 @@
 {
-  "recolour": "stations/pot",
+  "width": 16,
+  "height": 16,
   "palette": {
-    "b": "#a8794a",
-    "l": "#f3e6c8"
+    "k": "#1b1b2f",
+    "l": "#b8844f",
+    "o": "#9a6a3f",
+    "d": "#6b4329",
+    "p": "#f3e6c8",
+    "q": "#d9c9a0",
+    "t": "#9a9aa8",
+    "r": "#d0574a"
+  },
+  "frames": {
+    "still": [
+      "................",
+      "kkkkkkkkkkkkkkkk",
+      "klllllllllllllok",
+      "kkkkkkkkkkkkkkkk",
+      ".koroooooooroodk",
+      ".kpppqoroopppqdk",
+      ".kpttqpppqpttqdk",
+      ".kpppqpttqpppqdk",
+      ".kptqqpppqptqqdk",
+      ".kqqqqptqqqqqqdk",
+      ".kddddqqqqdddddk",
+      ".kkkkkkkkkkkkkkk",
+      "..kok......kok..",
+      "..kok......kok..",
+      "..kok......kok..",
+      "..kkk......kkk.."
+    ]
   }
 }
