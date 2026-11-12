@@ -18,7 +18,7 @@
         { "level": 24, "move": "storm-wallop" },
         { "level": 33, "move": "noon-blaze" }
       ],
-      "favouriteTreat": "bloom-treat"
+      "favouriteTreat": "berry-bun"
     },
     {
       "id": "baskit",
@@ -38,7 +38,7 @@
         { "level": 22, "move": "gale-wallop" },
         { "level": 31, "move": "noon-blaze" }
       ],
-      "favouriteTreat": "sun-treat"
+      "favouriteTreat": "berry-bun"
     },
     {
       "id": "dawnshell",
@@ -58,7 +58,7 @@
         { "level": 27, "move": "storm-wallop" },
         { "level": 38, "move": "noon-blaze" }
       ],
-      "favouriteTreat": "rain-treat"
+      "favouriteTreat": "sunroot-bake"
     },
     {
       "id": "puddlepip",
@@ -78,7 +78,7 @@
         { "level": 24, "move": "gale-wallop" },
         { "level": 33, "move": "downpour" }
       ],
-      "favouriteTreat": "rain-treat"
+      "favouriteTreat": "fish-biscuit"
     },
     {
       "id": "drizzlesnail",
@@ -98,7 +98,7 @@
         { "level": 26, "move": "bloom-wallop" },
         { "level": 37, "move": "downpour" }
       ],
-      "favouriteTreat": "bloom-treat"
+      "favouriteTreat": "fish-biscuit"
     },
     {
       "id": "pourpoise",
@@ -118,7 +118,7 @@
         { "level": 23, "move": "gale-wallop" },
         { "level": 32, "move": "downpour" }
       ],
-      "favouriteTreat": "gale-treat"
+      "favouriteTreat": "cloud-soup"
     },
     {
       "id": "snowsnoot",
@@ -138,7 +138,7 @@
         { "level": 24, "move": "rain-wallop" },
         { "level": 33, "move": "big-freeze" }
       ],
-      "favouriteTreat": "frost-treat"
+      "favouriteTreat": "cloud-soup"
     },
     {
       "id": "rimemoth",
@@ -158,7 +158,7 @@
         { "level": 22, "move": "gale-wallop" },
         { "level": 31, "move": "big-freeze" }
       ],
-      "favouriteTreat": "storm-treat"
+      "favouriteTreat": "cloud-soup"
     },
     {
       "id": "glaciyak",
@@ -178,7 +178,7 @@
         { "level": 27, "move": "rain-wallop" },
         { "level": 38, "move": "big-freeze" }
       ],
-      "favouriteTreat": "sun-treat"
+      "favouriteTreat": "frost-pudding"
     },
     {
       "id": "boltkit",
@@ -198,7 +198,7 @@
         { "level": 22, "move": "bloom-wallop" },
         { "level": 31, "move": "sky-crackle" }
       ],
-      "favouriteTreat": "storm-treat"
+      "favouriteTreat": "sunroot-bake"
     },
     {
       "id": "sparkhog",
@@ -218,7 +218,7 @@
         { "level": 25, "move": "sun-wallop" },
         { "level": 34, "move": "sky-crackle" }
       ],
-      "favouriteTreat": "sun-treat"
+      "favouriteTreat": "fish-biscuit"
     },
     {
       "id": "rumblejelly",
@@ -238,7 +238,7 @@
         { "level": 27, "move": "bloom-wallop" },
         { "level": 38, "move": "sky-crackle" }
       ],
-      "favouriteTreat": "rain-treat"
+      "favouriteTreat": "sunroot-bake"
     },
     {
       "id": "breezeray",
@@ -258,7 +258,7 @@
         { "level": 22, "move": "frost-wallop" },
         { "level": 31, "move": "sky-sweep" }
       ],
-      "favouriteTreat": "gale-treat"
+      "favouriteTreat": "mint-dumpling"
     },
     {
       "id": "pinwhirl",
@@ -278,7 +278,7 @@
         { "level": 24, "move": "storm-wallop" },
         { "level": 33, "move": "sky-sweep" }
       ],
-      "favouriteTreat": "frost-treat"
+      "favouriteTreat": "mint-dumpling"
     },
     {
       "id": "gustowl",
@@ -298,7 +298,7 @@
         { "level": 27, "move": "frost-wallop" },
         { "level": 38, "move": "sky-sweep" }
       ],
-      "favouriteTreat": "storm-treat"
+      "favouriteTreat": "frost-pudding"
     },
     {
       "id": "bloomlet",
@@ -318,7 +318,7 @@
         { "level": 24, "move": "sun-wallop" },
         { "level": 33, "move": "pollen-burst" }
       ],
-      "favouriteTreat": "sun-treat"
+      "favouriteTreat": "mint-dumpling"
     },
     {
       "id": "petalbug",
@@ -338,7 +338,7 @@
         { "level": 22, "move": "rain-wallop" },
         { "level": 31, "move": "pollen-burst" }
       ],
-      "favouriteTreat": "bloom-treat"
+      "favouriteTreat": "berry-bun"
     },
     {
       "id": "blossomcub",
@@ -358,7 +358,7 @@
         { "level": 27, "move": "sun-wallop" },
         { "level": 38, "move": "pollen-burst" }
       ],
-      "favouriteTreat": "plain-treat"
+      "favouriteTreat": "frost-pudding"
     }
   ]
 }
