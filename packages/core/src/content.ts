@@ -203,6 +203,19 @@ export const REQUIRED_STRING_IDS = [
   'skills.top',
   'skills.next',
   'skills.empty',
+  'jobs.verb.gather',
+  'jobs.verb.catch',
+  'jobs.verb.cook',
+  'jobs.verb.deliver',
+  'jobs.count',
+  'jobs.to',
+  'jobs.progress',
+  'jobs.inBag',
+  'jobs.rewards',
+  'jobs.rewardXp',
+  'jobs.hint',
+  'jobs.toastProgress',
+  'jobs.toastDone',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 

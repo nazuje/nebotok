@@ -18,7 +18,7 @@ const KIND_VERBS: Readonly<Record<JobView['kind'], StringId>> = { gather: 'jobs.
 export function jobVerb(job: Pick<JobView, 'kind' | 'item'>): StringId {
   if (job.kind !== 'gather') return KIND_VERBS[job.kind];
   const skill = [...(STORY.skills?.spots.values() ?? [])].find((spot) => spot.item === job.item)?.skill;
-  return (skill && GATHER_VERBS[skill]) ?? KIND_VERBS.gather;
+  return (skill === undefined ? undefined : GATHER_VERBS[skill]) ?? KIND_VERBS.gather;
 }
 
 const skillName = (skill: string, language: Language) => STORY.skills?.skills.get(skill)?.name[language] ?? skill;

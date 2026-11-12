@@ -197,7 +197,7 @@
   "journal.quests": { "en": "Quests", "sl": "Naloge" },
   "journal.skills": { "en": "Skills", "sl": "Veščine" },
   "skills.level": { "en": "Level {level}", "sl": "Raven {level}" },
-  "skills.xp": { "en": "{xp} / {of} XP", "sl": "{xp} / {of} XP" },
+  "skills.xp": { "en": "{xp} / {of} XP", "sl": "{xp} / {of} točk izkušenj" },
   "skills.top": { "en": "Top level!", "sl": "Najvišja raven!" },
   "skills.next": { "en": "Level {level}: {names}", "sl": "Raven {level}: {names}" },
   "skills.empty": { "en": "Your skills show up here.", "sl": "Tu so tvoje veščine." }

@@ -149,7 +149,7 @@ export function headMarks(progress: ProgressMessage | null, story: StoryProgress
   if (!progress || !story) return new Map();
   // Storage comes only at a shrine; the marks look only at the team, the story and the board's
   // jobs, so the board's seed and counts, which the client never gets, can be anything.
-  const full = { ...progress, storage: [], story, skills: [], jobs: board ? { seed: 0, drawn: 0, done: 0, board } : null };
+  const full = { ...progress, storage: [], story, skills: [], jobs: board ? { seed: 0, drawn: 0, done: 0, board: [...board] } : null };
   if (progress.needsStarter) {
     const goal = nextGoal(full, content);
     return new Map(goal?.kind === 'starter' ? [[goal.npc, 'newQuest' as const]] : []);

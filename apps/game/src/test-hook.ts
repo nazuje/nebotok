@@ -5,6 +5,7 @@ import type { BattleOverlay } from './battles.ts';
 import type { ConnectionStatus } from './connection.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
+import type { JobsOverlay, TestJobs } from './jobs-link.ts';
 import type { LearnState } from './learn-prompt.ts';
 import type { TagBox } from './names.ts';
 import type { SkillOverlay, TestSkills } from './skills-link.ts';
@@ -17,7 +18,7 @@ import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
-export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay | StoryOverlay | SkillOverlay;
+export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay | StoryOverlay | SkillOverlay | JobsOverlay;
 
 type TestCreature = { species: string; level: number; hp: number; maxHp: number };
 
@@ -73,7 +74,8 @@ export type TestPlayer = {
 };
 
 export type TestSnapshot = TestStory &
-  TestSkills & {
+  TestSkills &
+  TestJobs & {
   /** The gathering spots on the map, and whether each shows resting for you. */
   spots: DrawnSpot[];
   /** The tile the camera went to show for "Where next?", while it shows it. */

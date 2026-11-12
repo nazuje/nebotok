@@ -1,10 +1,11 @@
 // A save beside the gathering spots, for the browser check's skill part, its 360px runs and the
 // scenes (scripts/lib/prepared-saves.mjs writes it). The player has the first starter, every skill
 // at level 1, and one stack nearly full: the fish a level 1 fishing spot gives, one short of a
-// stack, so a perfect catch (two fish) fits one and toasts that the other had no room.
-import { readFileSync } from 'node:fs';
+// stack, so a perfect catch (two fish) fits one and toasts that the other had no room. A board save
+// (boardSave) stands beside the job board instead, with a delivery ready to hand over.
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { encounterZoneAt, isWalkable, loadBattleContent, newCreature } from '../../packages/core/src/index.ts';
+import { encounterZoneAt, isWalkable, loadBattleContent, loadStoryContent, newCreature, openConversation } from '../../packages/core/src/index.ts';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -98,6 +99,96 @@ export function skillSave(world, { name, language, where = 'fish' }) {
       story: { active: [], done: [], flags: [] },
       skills: [],
       jobs: null,
+    },
+  };
+}
+
+const dialogue = Object.fromEntries(
+  readdirSync(join(ROOT, 'content/dialogue'))
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => [file.slice(0, -'.json'.length), readContent(`dialogue/${file}`)]),
+);
+const STORY = loadStoryContent(
+  {
+    npcs: readContent('npcs.json'), dialogue, quests: readContent('quests.json'), story: readContent('story.json'), inventory: readContent('inventory.json'),
+    skills: { skills: readContent('skills.json'), spots: readContent('spots.json'), recipes: readContent('recipes.json'), stations: readContent('stations.json'), jobs: readContent('jobs.json') },
+  },
+  CONTENT,
+);
+const TEMPLATES = readContent('jobs.json').templates.filter((template) => template.needs.level === 1);
+const SLOTS = readContent('jobs.json').slots;
+/** Any fixed seed: the board part only needs the job drawn after a delivery to be new. */
+const BOARD_SEED = 86;
+
+/** A board job straight from a template, at its smallest count. */
+const boardJob = (template, job, to = null) => ({ job, template: template.id, item: template.item, count: template.count[0], to, progress: 0 });
+
+/** The Progress of a board player: the first starter, `inventory`, no quests or skills, and `jobs`. */
+function boardProgress(inventory, jobs) {
+  const starter = STARTERS.species[0];
+  return {
+    team: [newCreature(starter, STARTERS.level, CONTENT)],
+    storage: [],
+    inventory,
+    lastShrine: null,
+    seen: [starter],
+    befriended: [starter],
+    story: { active: [], done: [], flags: [] },
+    skills: [],
+    jobs,
+  };
+}
+
+/**
+ * What the board part plays on `map`: the job board and a tile beside it, and a board of `slots`
+ * level 1 jobs whose first is a delivery to a character on the map who, with no quest under way,
+ * takes it the moment the talk opens (core openConversation), its items in the bag. Throws when
+ * the map has no such board, since the part cannot be played there.
+ */
+export function boardPlan(map) {
+  const station = STATIONS.find((each) => each.kind === 'jobBoard' && map.stations[each.id]);
+  const tile = station && map.stations[station.id];
+  const stand = tile && besideOf(map, tile)[0];
+  if (!stand) throw new Error(`${map.id} has no job board with open ground beside it`);
+  const others = ['gather', 'cook'].map((kind) => TEMPLATES.find((template) => template.kind === kind)).filter(Boolean);
+  for (const template of TEMPLATES.filter((each) => each.kind === 'deliver')) {
+    for (const to of template.to.filter((npc) => map.npcs[npc])) {
+      const jobs = [boardJob(template, 1, to), ...others.map((other, at) => boardJob(other, at + 2))].slice(0, SLOTS);
+      const inventory = [{ item: template.item, count: template.count[0] }];
+      const opened = openConversation(to, boardProgress(inventory, { seed: BOARD_SEED, drawn: jobs.length, done: 0, board: jobs }), STORY);
+      if (jobs.length === SLOTS && opened?.jobs.some((change) => change.job === 1 && change.change === 'done')) {
+        return {
+          board: { station: station.id, tile },
+          stand,
+          facing: facingTo(stand, tile),
+          jobs,
+          drawn: jobs.length,
+          slots: SLOTS,
+          inventory,
+          deliver: { job: 1, to, item: template.item, count: template.count[0] },
+        };
+      }
+    }
+  }
+  throw new Error(`${map.id} has no character a level 1 delivery job goes to who takes it as a talk opens`);
+}
+
+/**
+ * The whole save data of a player named `name` for the board part, standing beside the board and
+ * facing it: with the planned board and the delivery's items when `opened`, or never having opened
+ * the board, for the first visit at 360px.
+ */
+export function boardSave(world, { name, language, opened = true }) {
+  const plan = boardPlan(world.map);
+  const jobs = opened ? { seed: BOARD_SEED, drawn: plan.drawn, done: 0, board: plan.jobs } : null;
+  return {
+    plan,
+    data: {
+      name,
+      language,
+      createdAt: new Date().toISOString(),
+      position: { map: world.map.id, x: plan.stand.x, y: plan.stand.y, facing: plan.facing },
+      ...boardProgress(opened ? plan.inventory : [], jobs),
     },
   };
 }
