@@ -446,8 +446,8 @@
     },
     "board-intro": {
       "say": {
-        "en": "Odd jobs pile up here. Take any you like!",
-        "sl": "Tu se nabirajo priložnostna dela. Izberi katero koli!"
+        "en": "This is the job board, where odd jobs pile up. Do any you like! Finish one and a new one appears.",
+        "sl": "To je oglasna deska, kjer se nabirajo priložnostna dela. Opravi katero koli! Ko eno končaš, se pojavi novo."
       },
       "mood": "happy",
       "effects": [
@@ -465,8 +465,8 @@
     },
     "job-thanks": {
       "say": {
-        "en": "For me? Thank you!",
-        "sl": "Zame? Hvala lepa!"
+        "en": "Just what the post needed! Thank you, thank you.",
+        "sl": "Prav to je pošta potrebovala! Hvala, hvala."
       },
       "mood": "happy",
       "effects": [
@@ -477,8 +477,8 @@
     },
     "job-waiting": {
       "say": {
-        "en": "A job from the board? Bring it all when you have it.",
-        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+        "en": "A job for me on the board? Wonderful. Bring it all once you have it. I'll try not to forget!",
+        "sl": "Delo zame z deske? Čudovito. Prinesi vse, ko zbereš. Potrudil se bom, da ne pozabim!"
       }
     }
   }

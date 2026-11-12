@@ -158,5 +158,18 @@
   "starter.hint": { "en": "Your first creature goes everywhere with you.", "sl": "Tvoje prvo bitje gre povsod s tabo." },
   "talk.close": { "en": "Stop talking", "sl": "Končaj pogovor" },
   "storm.skip": { "en": "Skip", "sl": "Preskoči" },
-  "storm.caption": { "en": "Far out over the sea of clouds, a dark cloud swallows a little one.", "sl": "Daleč nad morjem oblakov temen oblak pogoltne majhnega." }
+  "storm.caption": { "en": "Far out over the sea of clouds, a dark cloud swallows a little one.", "sl": "Daleč nad morjem oblakov temen oblak pogoltne majhnega." },
+  "jobs.verb.gather": { "en": "Gather", "sl": "Naberi" },
+  "jobs.verb.catch": { "en": "Catch", "sl": "Ulovi" },
+  "jobs.verb.cook": { "en": "Cook", "sl": "Skuhaj" },
+  "jobs.verb.deliver": { "en": "Deliver", "sl": "Dostavi" },
+  "jobs.count": { "en": "× {count}", "sl": "× {count}" },
+  "jobs.to": { "en": "→ {npc}", "sl": "→ {npc}" },
+  "jobs.progress": { "en": "{count} / {of}", "sl": "{count} / {of}" },
+  "jobs.inBag": { "en": "In your bag: {count} / {of}", "sl": "V torbi: {count} / {of}" },
+  "jobs.rewards": { "en": "Rewards", "sl": "Nagrade" },
+  "jobs.rewardXp": { "en": "+{xp} {skill} XP", "sl": "{skill}: +{xp} XP" },
+  "jobs.hint": { "en": "Finish a job and a new one appears.", "sl": "Opravi delo in pojavi se novo." },
+  "jobs.toastProgress": { "en": "{item} {count} / {of}", "sl": "{item} {count} / {of}" },
+  "jobs.toastDone": { "en": "Job done!", "sl": "Delo opravljeno!" }
 }
