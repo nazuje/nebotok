@@ -60,6 +60,7 @@ const facts = (x: number, y: number, extra: Partial<PlayerFacts> = {}): PlayerFa
   connected: true,
   inBattle: false,
   talking: false,
+  skill: '',
   ...extra,
 });
 

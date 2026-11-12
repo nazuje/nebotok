@@ -55,6 +55,9 @@ export function createNameTags(root: HTMLElement): NameTags {
         tag.classList.toggle('away', label.away);
         tag.classList.toggle('battling', label.battling);
         tag.classList.toggle('talking', label.talking && !label.battling);
+        const skill = label.battling || label.talking ? '' : label.skill;
+        tag.classList.toggle('skilling', skill !== '');
+        if ((tag.dataset.skill ?? '') !== skill) tag.dataset.skill = skill;
       }
       for (const [id, tag] of tags) {
         if (seen.has(id)) continue;

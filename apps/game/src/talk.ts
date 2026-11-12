@@ -68,14 +68,40 @@ export function typedLength(length: number, elapsedMs: number, pace: number): nu
   return Math.min(length, Math.max(0, Math.floor((elapsedMs * perSecond) / 1_000)));
 }
 
+/** Something on the map a courier walks up to and uses: a character, a gathering spot or a station. */
+export type Target = { readonly kind: 'npc' | 'spot' | 'station'; readonly id: string };
+
+const idAt = (points: Readonly<Record<string, Point>>, tile: Point): string | null => Object.entries(points).find(([, at]) => samePoint(at, tile))?.[0] ?? null;
+
 /** The character standing on `tile`, if any. */
 export function npcAt(map: WorldMap, tile: Point): string | null {
-  return Object.entries(map.npcs).find(([, at]) => samePoint(at, tile))?.[0] ?? null;
+  return idAt(map.npcs, tile);
+}
+
+/** The character, gathering spot or station on `tile`, if any. */
+export function targetAt(map: WorldMap, tile: Point): Target | null {
+  const npc = idAt(map.npcs, tile);
+  if (npc !== null) return { kind: 'npc', id: npc };
+  const spot = idAt(map.spots, tile);
+  if (spot !== null) return { kind: 'spot', id: spot };
+  const station = idAt(map.stations, tile);
+  return station === null ? null : { kind: 'station', id: station };
+}
+
+/** Where a target stands on `map`, or null when it is not on it. */
+export function targetTile(map: WorldMap, target: Target): Point | null {
+  const points = target.kind === 'npc' ? map.npcs : target.kind === 'spot' ? map.spots : map.stations;
+  return points[target.id] ?? null;
 }
 
 /** The character on the tile your courier faces from `tile`, if any. */
 export function facedNpc(map: WorldMap, tile: Point, facing: Direction): string | null {
   return npcAt(map, stepFrom(tile, facing));
+}
+
+/** The character, spot or station on the tile your courier faces from `tile`, if any. */
+export function facedTarget(map: WorldMap, tile: Point, facing: Direction): Target | null {
+  return targetAt(map, stepFrom(tile, facing));
 }
 
 /**
@@ -86,6 +112,16 @@ export function talkSpot(map: WorldMap, from: Point, npc: string, canReach: (til
   const at = map.npcs[npc];
   if (!at) return null;
   if (npcInReach(map, from, npc)) return from;
+  return standBeside(map, from, at, canReach);
+}
+
+/**
+ * Where to stand to use what is on `at` from `from`: `from` itself when it is next to `at`, not
+ * diagonally, else the free neighbour of `at` with the shortest walk that `canReach` accepts.
+ * Null when none is.
+ */
+export function standBeside(map: WorldMap, from: Point, at: Point, canReach: (tile: Point) => boolean): Point | null {
+  if (Math.abs(from.x - at.x) + Math.abs(from.y - at.y) === 1) return from;
   const spots = DIRECTIONS.map((direction) => stepFrom(at, direction)).flatMap((tile) => {
     if (!isWalkable(map, tile) || !canReach(tile)) return [];
     const path = findPath(map, from, tile);

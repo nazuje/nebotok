@@ -1,0 +1,535 @@
+/* A tiny game: a card centred over the world, with a big play area. */
+
+.skill-game {
+  position: fixed;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgb(16 42 67 / 0.35);
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.skill-card {
+  width: min(100%, 26rem);
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 16px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 10px 30px rgb(16 42 67 / 0.3);
+}
+
+.skill-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skill-picture {
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+
+.skill-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.skill-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #e6eef6;
+  color: var(--ink);
+}
+
+.skill-close svg {
+  width: 26px;
+  height: 26px;
+}
+
+.skill-hint {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.skill-card[data-phase='starting'] .skill-hint,
+.skill-card[data-phase='result'] .skill-hint {
+  visibility: hidden;
+}
+
+.skill-play:empty {
+  display: none;
+}
+
+.skill-area {
+  position: relative;
+  width: 100%;
+  height: clamp(12rem, 40vh, 17rem);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  color: var(--ink);
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.skill-result {
+  min-height: 1.6em;
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.skill-card:is([data-outcome='perfect'], [data-outcome='success']) .skill-result {
+  color: var(--ok);
+}
+
+.skill-card:is([data-outcome='miss'], [data-outcome='late']) .skill-result {
+  color: #b34700;
+}
+
+.skill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skill-actions button {
+  flex: 1 1 8rem;
+  min-height: var(--tap);
+}
+
+/* Fishing: the float on the cloud water, red with a "!" when it dips. */
+
+.dip {
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(#d8f0ff, #a9dcff);
+}
+
+.dip-water {
+  position: absolute;
+  inset: 55% 0 0;
+  background: linear-gradient(rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.4));
+  border-top: 4px solid white;
+}
+
+.dip-bobber {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-top: 8%;
+}
+
+canvas.dip-float {
+  width: 112px;
+  height: 112px;
+  image-rendering: pixelated;
+}
+
+.dip-mark {
+  position: absolute;
+  top: -1.2em;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--bad);
+  -webkit-text-stroke: 2px white;
+  visibility: hidden;
+}
+
+.dip[data-phase='dip'] {
+  background: linear-gradient(#ffe3e3, #ffb3b3);
+}
+
+.dip[data-phase='dip'] .dip-mark {
+  visibility: visible;
+}
+
+.dip[data-phase='dip'] canvas.dip-float {
+  filter: drop-shadow(0 0 6px var(--bad));
+}
+
+/* Foraging: a bush with a place above, left, right and below it. */
+
+.sparkle {
+  display: grid;
+  grid-template: 1fr 1fr 1fr / 1fr 1fr 1fr;
+  grid-template-areas: '. up .' 'left middle right' '. down .';
+  place-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: linear-gradient(#e6f7e9, #c3ebc9);
+}
+
+.sparkle-middle {
+  grid-area: middle;
+}
+
+canvas.sparkle-bush {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+}
+
+.sparkle-place {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  min-width: 64px;
+  min-height: 64px;
+  padding: 0;
+  border: 3px dashed rgb(16 42 67 / 0.2);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.45);
+}
+
+.sparkle-place[data-place='up'] {
+  grid-area: up;
+}
+
+.sparkle-place[data-place='left'] {
+  grid-area: left;
+}
+
+.sparkle-place[data-place='right'] {
+  grid-area: right;
+}
+
+.sparkle-place[data-place='down'] {
+  grid-area: down;
+}
+
+canvas.sparkle-gem {
+  width: 56px;
+  height: 56px;
+  image-rendering: pixelated;
+  visibility: hidden;
+}
+
+.sparkle-place[data-on='true'] {
+  border: 3px solid #f59f00;
+  background: #fff3bf;
+}
+
+.sparkle-place[data-on='true'] canvas.sparkle-gem {
+  visibility: visible;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sparkle-place[data-on='true'] canvas.sparkle-gem {
+    animation: sparkle-in 0.18s ease-out;
+  }
+
+  .skill-game:not([hidden]) .skill-card {
+    animation: skill-card-in 0.2s ease-out;
+  }
+}
+
+@keyframes sparkle-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes skill-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Cooking: the marker sweeps the bar; stop it in the green. */
+
+.marker {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px 20px;
+  background: linear-gradient(#fff4e5, #ffe0b8);
+}
+
+.marker-bar {
+  position: relative;
+  height: 56px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: #e6eef6;
+}
+
+.marker-zone,
+.marker-perfect {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.marker-zone {
+  background: var(--ok);
+}
+
+.marker-perfect {
+  background: #b2f2bb;
+}
+
+.marker-head {
+  position: absolute;
+  top: -14px;
+  bottom: -14px;
+  width: 8px;
+  transform: translateX(-50%);
+  border-radius: 4px;
+  background: var(--ink);
+}
+
+canvas.marker-gem {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+}
+
+.marker-stop {
+  min-height: 72px;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+/* The recipe book at a cooking pot. */
+
+#recipe-book {
+  display: flex;
+  flex-direction: column;
+}
+
+#recipe-book[hidden] {
+  display: none;
+}
+
+.recipe-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.recipe-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recipe-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.recipe-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  width: 16px;
+  height: 16px;
+  background: #f59f00;
+  clip-path: polygon(50% 0, 62% 35%, 100% 38%, 70% 60%, 80% 100%, 50% 77%, 20% 100%, 30% 60%, 0 38%, 38% 35%);
+}
+
+.star.empty {
+  background: #c5ced8;
+}
+
+.recipe-needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-need {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e6eef6;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.recipe-need.short {
+  background: #ffe3e3;
+  color: #a61e1e;
+}
+
+.recipe-cook {
+  min-height: var(--tap);
+}
+
+.recipe-why {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.recipe.locked canvas.item-icon {
+  filter: grayscale(1) opacity(0.5);
+}
+
+/* The journal's Skills tab. */
+
+.skill-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.skill-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+canvas.skill-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+}
+
+.skill-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.skill-row-level {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-weight: 800;
+}
+
+.skill-xp-bar {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: #e6eef6;
+  overflow: hidden;
+}
+
+.skill-xp-fill {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+  background: var(--ok);
+}
+
+.skill-row-xp,
+.skill-row-next {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.skill-row-next {
+  color: var(--muted);
+}
+
+/* Someone else is gathering or cooking: a small coloured gem after their name. */
+.name-tag.skilling::after {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  vertical-align: 0;
+  transform: rotate(45deg);
+  border: 2px solid white;
+  background: #f59f00;
+}
+
+.name-tag[data-skill='fishing']::after {
+  background: #4dabf7;
+}
+
+.name-tag[data-skill='foraging']::after {
+  background: #51cf66;
+}
+
+/* News after a skill: green for something gained, red for a start turned down. */
+.quest-toast[data-change='good'] {
+  border-color: var(--ok);
+}
+
+.quest-toast[data-change='refused'] {
+  border-color: var(--bad);
+}

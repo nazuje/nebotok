@@ -15,7 +15,10 @@
 // one along and leaves one there. Four device runs (each device in each language, the browsers
 // sharing them) then sign in as a player whose save has a quest at a step done by resting at a
 // shrine (scripts/lib/story-check.mjs): they open the bag and the journal, ask "Where next?", walk
-// to the shrine for the quest toast and see the journal move on. At 360px wide it also checks the lock messages (a first and a
+// to the shrine for the quest toast and see the journal move on. Four more (the other language on
+// each device) sign in beside a fishing spot (scripts/lib/skill-check.mjs): they fish, see the catch
+// and a full stack toasted, are told the spot rests, miss and then win a foraging game, cook from
+// the recipe book and read the Skills tab; at 360px a player opens the book, a game and the tab. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
 // from the settings, then signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px and answers the offer of
@@ -69,11 +72,13 @@ import {
 import { battleSave, chooseStarter, playBattles } from './lib/battle-check.mjs';
 import { learnerSave, playLearning } from './lib/learn-check.mjs';
 import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
+import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
+import { skillSave } from './lib/skill-saves.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
-import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, storyName } from './lib/test-players.mjs';
+import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
 const parts = values.part === undefined ? BROWSER_CHECK_PARTS : BROWSER_CHECK_PARTS.filter((part) => part.name === values.part);
@@ -496,6 +501,33 @@ async function preparedStory(page, player, { language, expect, check, notes }) {
   }
 }
 
+/** The device runs that play the skill part: each device in each language, the other way round from the story part. */
+const SKILL_RUNS = new Set(['chromium-iphone-portrait-sl', 'chromium-ipad-landscape-en', 'webkit-iphone-portrait-en', 'webkit-ipad-landscape-sl']);
+
+/** Like prepareBattler, for the skill part (skillSave): a player beside the gathering spots, standing at `where`. */
+async function prepareSkillPlayer(browserName, device, language, bot, where = 'fish') {
+  if (!dataDir) return null;
+  const name = skillerName(browserName, device, language, TAG);
+  const made = await api('/profiles', { body: { name, avatar: 'purple' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { plan, data } = skillSave(bot, { name, language, where });
+  prepareSave(dataDir, made.data.id, data);
+  return { id: made.data.id, name, plan };
+}
+
+/** From the profile list: signs in as the skill player, plays the skill part, signs out, and deletes the player. */
+async function preparedSkills(page, player, { language, expect, check, notes }) {
+  try {
+    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    const state = await enterWorld(page, bot, inWorld, 'the world as the skill player', { notes });
+    expect(state.profile?.name === player.name, `signed in as ${state.profile?.name}, not ${player.name}`);
+    await playSkills(page, bot, player.plan, { language, strings: STRINGS, expect, check, notes });
+    await signOut(page);
+  } finally {
+    deleteProfile(dataDir, player.id);
+  }
+}
+
 /** The bot joins, walks past the page's courier while the page is sampled, then drops. */
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
@@ -682,12 +714,15 @@ async function checkDevice(browser, browserName, device, language, bot) {
     // Made before signing out, so the profile list the page shows next has the prepared player on it.
     const battler = await prepareBattler(browserName, device, language, bot);
     const storyPlayer = STORY_RUNS.has(label) ? await prepareStoryPlayer(browserName, device, language, bot) : null;
+    const skillPlayer = SKILL_RUNS.has(label) ? await prepareSkillPlayer(browserName, device.name, language, bot) : null;
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
     await signOut(page);
     if (battler) await preparedBattles(page, battler, { language, expect, check, notes });
     else notes.push('the battles from a prepared save need the database of a server the check started, so they were skipped');
     if (storyPlayer) await preparedStory(page, storyPlayer, { language, expect, check, notes });
     else if (STORY_RUNS.has(label) && !dataDir) notes.push('the story part needs a prepared save, so it was skipped');
+    if (skillPlayer) await preparedSkills(page, skillPlayer, { language, expect, check, notes });
+    else if (SKILL_RUNS.has(label) && !dataDir) notes.push('the skill part needs a prepared save, so it was skipped');
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, notes, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -943,6 +978,39 @@ async function checkLearn(browser, browserName, bot) {
   results.push({ label: `${label} (learn a move)`, ok: problems.length === 0, problems, screenshots, notes });
 }
 
+/**
+ * At 360px wide, a player prepared beside a bush and a cooking pot (scripts/lib/skill-saves.mjs)
+ * opens the recipe book, a tiny game's card and the Skills tab, which must fit without scrolling
+ * sideways. Chromium plays it in Slovenian, WebKit in English.
+ */
+async function checkSkillsNarrow(browser, browserName, bot) {
+  const language = browserName === 'chromium' ? 'sl' : 'en';
+  const label = `${browserName}-360px-${language}`;
+  const problems = [];
+  const screenshots = [];
+  const notes = [];
+  const player = await prepareSkillPlayer(browserName, '360px', language, bot, 'bush');
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
+  const check = async (where, step) => {
+    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await shot(step);
+  };
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    await enterWorld(page, bot, inWorld, 'the world as the skill player at 360px', { notes });
+    await skillScreensFit(page, player.plan, { noSideways, check });
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+    deleteProfile(dataDir, player.id);
+  }
+  results.push({ label: `${label} (skills)`, ok: problems.length === 0, problems, screenshots, notes });
+}
+
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
 async function fillProfiles() {
   const listed = await api('/profiles', { address: nextAddress() });
@@ -1000,6 +1068,7 @@ async function playPart(browser, part, bot) {
   await inTurn(LANGUAGES, (language) => timed(() => checkNarrow(browser, name, language, { lockedId, twiceId })));
   await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
   if (LOCAL) await timed(() => checkLearn(browser, name, bot));
+  if (LOCAL) await timed(() => checkSkillsNarrow(browser, name, bot));
 }
 
 let bot = null;

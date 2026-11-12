@@ -2,7 +2,7 @@
 // Plays a scene (scripts/scenes/README.md): several players at once, each in its own headless,
 // muted browser page against a running game, doing what the scene's steps say the way a player
 // would: taps, held keys, waits, reloads, a dropped connection, and meeting, fighting and running
-// from a wild creature in the tall grass. After each step with a "shot"
+// from a wild creature in the tall grass, and a tiny game at a spot or pot. After each step with a "shot"
 // it saves every joined player's screenshot and test-hook state in .proof/scenes/<name>/. Fails on
 // a console error, page error, failed or outside request, or a step that cannot be done. A new
 // player walks up to the character who gives the starters, talks and takes the first; a wild battle met outside a "meet" step is run from and noted,
@@ -43,6 +43,7 @@ import {
 import { inTurn, sleep } from './lib/in-turn.mjs';
 import { prepareSave } from './lib/prepared-saves.mjs';
 import { parseScene } from './lib/scene-file.mjs';
+import { playGame } from './lib/skill-check.mjs';
 import { ROOT } from './lib/server-process.mjs';
 import { storySaveAt } from './lib/story-saves.mjs';
 
@@ -210,9 +211,20 @@ function shows(state, wanted, self) {
     (wanted.calm ?? []).every((id) => other(id) !== undefined && !other(id).inBattle) &&
     (wanted.talking ?? []).every((id) => other(id)?.talking === true) &&
     (wanted.quiet ?? []).every((id) => other(id) !== undefined && !other(id).talking) &&
+    (wanted.skilling ?? []).every((id) => (other(id)?.skill ?? '') !== '') &&
+    (wanted.idle ?? []).every((id) => other(id) !== undefined && other(id).skill === '') &&
     (!wanted.talk || (wanted.talk === 'open') === (state.talk !== null)) &&
+    shownOfSkills(state, wanted) &&
     shownOfStory(state.storm, wanted) &&
     shownInWorld(state, wanted, other)
+  );
+}
+
+/** The tiny game's card, and whether each spot named is drawn ready or resting for this player. */
+function shownOfSkills(state, wanted) {
+  return (
+    (!wanted.game || (wanted.game === 'open') === (state.attempt !== null)) &&
+    Object.entries(wanted.spots ?? {}).every(([id, look]) => state.spots.some((spot) => spot.id === id && spot.resting === (look === 'resting')))
   );
 }
 
@@ -262,7 +274,11 @@ async function waitFor(entry) {
       .catch(() => {
         throw new Error(`${entry.player}'s page shows no ${named} on ${id}'s name tag`);
       });
-  await Promise.all([...(entry.until.battling ?? []).map(marked('battling', 'battle mark')), ...(entry.until.talking ?? []).map(marked('talking', 'speech mark'))]);
+  await Promise.all([
+    ...(entry.until.battling ?? []).map(marked('battling', 'battle mark')),
+    ...(entry.until.talking ?? []).map(marked('talking', 'speech mark')),
+    ...(entry.until.skilling ?? []).map(marked('skilling', 'skill mark')),
+  ]);
 }
 
 const STEPS = {
@@ -327,6 +343,13 @@ const STEPS = {
     const player = players.get(entry.player);
     await leaveBattle(player.page);
     player.battleId = null;
+  },
+  play: async (entry) => {
+    const page = pageOf(entry.player);
+    const state = await playGame(page, { win: !entry.miss });
+    await nextFrames(page);
+    const won = state.attempt.outcome === 'perfect' || state.attempt.outcome === 'success';
+    if (won === Boolean(entry.miss)) throw new Error(`${entry.player}'s ${state.attempt.game} game was ${state.attempt.outcome}`);
   },
 };
 

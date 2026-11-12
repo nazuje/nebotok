@@ -7,16 +7,17 @@ import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { LearnState } from './learn-prompt.ts';
 import type { TagBox } from './names.ts';
+import type { SkillOverlay, TestSkills } from './skills-link.ts';
 import type { StoryOverlay, TestStory } from './story-link.ts';
 import type { TestTalk } from './talks.ts';
 import type { TeamTab } from './team-screen.ts';
 import type { TestStorm } from './storm-cue.ts';
-import type { DrawnNpc } from './world-scene.ts';
+import type { DrawnNpc, DrawnSpot } from './world-scene.ts';
 import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
-export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay | StoryOverlay;
+export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay | StoryOverlay | SkillOverlay;
 
 type TestCreature = { species: string; level: number; hp: number; maxHp: number };
 
@@ -60,6 +61,8 @@ export type TestPlayer = {
   inBattle: boolean;
   /** Talking to a character, so the world shows a speech mark on their name. */
   talking: boolean;
+  /** The skill they are doing, or `''`: the world draws its action beside them. */
+  skill: string;
   x: number;
   y: number;
   moving: boolean;
@@ -69,7 +72,10 @@ export type TestPlayer = {
   walking: boolean;
 };
 
-export type TestSnapshot = TestStory & {
+export type TestSnapshot = TestStory &
+  TestSkills & {
+  /** The gathering spots on the map, and whether each shows resting for you. */
+  spots: DrawnSpot[];
   /** The tile the camera went to show for "Where next?", while it shows it. */
   looking: Point | null;
   /** Which screen is up: the profile list, the new-player form, the PIN pad, the world, or adding a PIN over it. */

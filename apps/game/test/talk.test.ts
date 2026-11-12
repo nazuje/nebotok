@@ -2,7 +2,7 @@ import { emptyProgress, emptyStory, mapFromRows, newCreature, progressMessage, t
 import { describe, expect, it } from 'vitest';
 import { CONTENT } from '../src/battle-content.ts';
 import { STORY } from '../src/talk-content.ts';
-import { LETTERS_PER_SECOND, facedNpc, facingToward, headMarks, npcAt, portraitFrame, starterNpc, talkLine, talkSpot, typedLength } from '../src/talk.ts';
+import { LETTERS_PER_SECOND, facedNpc, facedTarget, facingToward, headMarks, npcAt, portraitFrame, standBeside, starterNpc, talkLine, talkSpot, targetAt, targetTile, typedLength } from '../src/talk.ts';
 
 // Bavko stands at 3,1 behind a wall on his left; the tile right of him is the only way up to him.
 const MAP: WorldMap = { ...mapFromRows('test', ['......', '..#.#.', '......']), npcs: { bavko: { x: 3, y: 1 } } };
@@ -54,6 +54,18 @@ describe('walking up to a character', () => {
     expect(talkSpot(MAP, { x: 5, y: 2 }, 'bavko', (tile) => tile.y !== 2)).toEqual({ x: 3, y: 0 });
     expect(talkSpot(blocked(MAP, { x: 3, y: 0 }, { x: 3, y: 2 }), { x: 0, y: 0 }, 'bavko', () => true)).toBeNull();
     expect(talkSpot(MAP, { x: 0, y: 0 }, 'nobody', () => true)).toBeNull();
+  });
+
+  it('finds spots and stations too, and where to stand to use them', () => {
+    const map: WorldMap = { ...MAP, spots: { 'pebble-cove': { x: 0, y: 2 } }, stations: { 'post-pot': { x: 5, y: 0 } } };
+    expect(targetAt(map, { x: 3, y: 1 })).toEqual({ kind: 'npc', id: 'bavko' });
+    expect(targetAt(map, { x: 0, y: 2 })).toEqual({ kind: 'spot', id: 'pebble-cove' });
+    expect(targetAt(map, { x: 5, y: 0 })).toEqual({ kind: 'station', id: 'post-pot' });
+    expect(targetAt(map, { x: 1, y: 1 })).toBeNull();
+    expect(targetTile(map, { kind: 'station', id: 'post-pot' })).toEqual({ x: 5, y: 0 });
+    expect(facedTarget(map, { x: 4, y: 0 }, 'right')).toEqual({ kind: 'station', id: 'post-pot' });
+    expect(standBeside(map, { x: 4, y: 0 }, { x: 5, y: 0 }, () => true)).toEqual({ x: 4, y: 0 });
+    expect(standBeside(map, { x: 5, y: 2 }, { x: 0, y: 2 }, () => true)).toEqual({ x: 1, y: 2 });
   });
 
   it('turns a character toward whoever talks to them', () => {

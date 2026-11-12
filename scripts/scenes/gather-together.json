@@ -1,0 +1,25 @@
+{
+  "name": "gather-together",
+  "about": "Two couriers at Pebble Cove, one on a phone in English, one on a tablet in Slovenian: the first fishes and the second sees the fishing at their side and the mark on their name; after the catch the cove rests for the one who fished only, and the second finds it ready and fishes too.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "ipad-landscape", "language": "sl" }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "walk", "player": "lan", "to": { "x": 20, "y": 25 } },
+    { "do": "walk", "player": "zarja", "to": { "x": 18, "y": 24 } },
+    { "do": "tap", "player": "lan", "tile": { "x": 20, "y": 26 } },
+    { "do": "waitFor", "player": "lan", "until": { "game": "open" }, "shot": "lan-fishes" },
+    { "do": "waitFor", "player": "zarja", "until": { "skilling": ["lan"], "game": "none" }, "shot": "zarja-sees" },
+    { "do": "play", "player": "lan", "shot": "caught" },
+    { "do": "waitFor", "player": "lan", "until": { "game": "none", "spots": { "pebble-cove": "resting" } } },
+    { "do": "waitFor", "player": "zarja", "until": { "idle": ["lan"], "spots": { "pebble-cove": "ready" } }, "shot": "cove-ready" },
+    { "do": "tap", "player": "zarja", "tile": { "x": 20, "y": 26 } },
+    { "do": "waitFor", "player": "zarja", "until": { "game": "open" }, "ms": 10000 },
+    { "do": "waitFor", "player": "lan", "until": { "skilling": ["zarja"] }, "shot": "zarja-fishes" },
+    { "do": "play", "player": "zarja" },
+    { "do": "waitFor", "player": "zarja", "until": { "game": "none", "spots": { "pebble-cove": "resting" } }, "shot": "both-caught" }
+  ]
+}
