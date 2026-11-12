@@ -10,17 +10,41 @@
 //      a wild creature appears, and play their battles to the end at the same time, never refused
 //      a request;
 //   7. the other two play the story at the same time, by what core's nextGoal asks, until the
-//      first quest is done: the starter from its character, the quest, its steps and its rewards.
+//      first quest is done: the starter from its character, the quest, its steps and its rewards;
+//   8. meanwhile, from the start, a gatherer bot on a test map fishes, forages and cooks, playing
+//      each tiny game perfectly in real time, and is refused a spot that rests for it.
 //   node scripts/bot-run.mjs [--out <dir>]
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Callbacks, Client } from '@colyseus/sdk';
+import { createGameServer } from '../apps/server/src/app.ts';
+import { readConfig } from '../apps/server/src/config.ts';
+import { createLog } from '../apps/server/src/log.ts';
+import { createServices } from '../apps/server/src/services.ts';
 import { loadWorld } from '../apps/server/src/world.ts';
-import { DIRECTIONS, PLAYER_SPAWN, PROTOCOL_VERSION, createRng, encounterZoneAt, isWalkable, nextGoal, reachableFrom, readTiledMap, storyBotCommand } from '../packages/core/src/index.ts';
+import {
+  DIRECTIONS,
+  MIN_ATTEMPT_MS,
+  PLAYER_SPAWN,
+  PROTOCOL_VERSION,
+  createRng,
+  createSave,
+  emptyProgress,
+  encounterZoneAt,
+  inBounds,
+  isWalkable,
+  newCreature,
+  nextGoal,
+  perfectTaps,
+  reachableFrom,
+  readTiledMap,
+  stepFrom,
+  storyBotCommand,
+} from '../packages/core/src/index.ts';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
-import { ROOT, startServer } from './lib/server-process.mjs';
+import { ROOT, freePort, startServer } from './lib/server-process.mjs';
 
 const WALK_MS = 10_000;
 const SAMPLE_MS = 50;
@@ -35,6 +59,7 @@ const { values } = parseArgs({ options: { out: { type: 'string' } } });
 const out = values.out ?? join(ROOT, '.proof', 'bot-run');
 mkdirSync(join(out, 'logs'), { recursive: true });
 const dataDir = mkdtempSync(join(tmpdir(), 'nebotok-bot-run-'));
+const gatherDir = mkdtempSync(join(tmpdir(), 'nebotok-bot-gather-'));
 const rng = createRng('bot-run');
 
 const failures = [];
@@ -336,6 +361,106 @@ async function storyRun(bot, map, tiles) {
   expect(bot.battles.refused.length === 0, `${bot.profile.name} had requests refused: ${JSON.stringify(bot.battles.refused)}`);
   return { bot: bot.profile.name, played };
 }
+// The served map places no spots or stations yet, so the gatherer plays on a server started in this
+// process, on the same content, whose map puts every spot on one tile beside the spawn and every
+// station on another. Its messages still go over a real WebSocket.
+const SKILLS = WORLD.story.skills;
+const GATHERER = { name: 'Bot Nabiralka', avatar: 'green' };
+/** How long after its last tap the gatherer finishes, so no tap is ahead of the server's clock. */
+const TAP_MARGIN_MS = 150;
+const levelOne = (game) => [...SKILLS.spots.values()].filter((spot) => spot.level === 1 && SKILLS.skills.get(spot.skill)?.game === game);
+const RECIPE = [...SKILLS.recipes.values()].find((recipe) => recipe.level === 1);
+const POT = [...SKILLS.stations.values()].find((station) => station.kind === 'cookingPot')?.id;
+/** Every id in `ids` placed on `tile`, as a map's spots or stations layer. */
+const placedOn = (ids, tile) => Object.fromEntries([...ids].map((id) => [id, tile]));
+
+async function startGatherServer(dir) {
+  const lines = [];
+  const log = createLog('info', (line) => lines.push(JSON.parse(line)));
+  const config = readConfig({ NODE_ENV: 'test', DATA_DIR: dir });
+  const services = createServices(config, Date.now, log);
+  const real = services.world;
+  const stand = real.map.spawns[PLAYER_SPAWN];
+  const [spotTile, stationTile] = DIRECTIONS.map((direction) => stepFrom(stand, direction)).filter((tile) => inBounds(real.map, tile));
+  const map = { ...real.map, spots: placedOn(SKILLS.spots.keys(), spotTile), stations: placedOn(SKILLS.stations.keys(), stationTile) };
+  const server = createGameServer(config, log, { ...services, world: { ...real, map } });
+  const port = await freePort();
+  await server.listen(port, '127.0.0.1');
+  return {
+    base: `http://127.0.0.1:${port}`,
+    services,
+    stand,
+    lines,
+    stop: async () => {
+      await server.gracefullyShutdown(false);
+      services.close();
+    },
+  };
+}
+
+/** The first message of `type` heard since `from`, waiting for it. */
+async function heardAfter(bot, type, from) {
+  const found = () => bot.heard.slice(from).find((entry) => entry.type === type);
+  await until(found, `${bot.profile.name}'s ${type}`);
+  return found().message;
+}
+
+/** Starts a gather or cook, plays its tiny game perfectly in real time and returns `skill.result`. */
+async function playAttempt(bot, type, payload) {
+  const from = bot.heard.length;
+  await request(bot, type, payload);
+  const attempt = await heardAfter(bot, 'skill.attempt', from);
+  const taps = perfectTaps({ game: attempt.game, params: attempt.params, endsByMs: attempt.endsByMs });
+  await sleep(Math.max(MIN_ATTEMPT_MS, taps.at(-1)?.at ?? 0) + TAP_MARGIN_MS);
+  const sent = bot.heard.length;
+  bot.room.send('skill.finish', { attempt: attempt.attempt, taps });
+  const result = await heardAfter(bot, 'skill.result', sent);
+  bot.outcomes.push(`${result.skill}:${result.outcome}`);
+  expect(result.outcome === 'perfect' && result.items.every((item) => item.count === 2), `${bot.profile.name}'s ${type} ${JSON.stringify(payload)} went ${result.outcome} with ${JSON.stringify(result.items)}`);
+  return result;
+}
+
+/** Fishes, forages what the first recipe needs at every bush, is refused a resting spot, then cooks the recipe. */
+async function gatherRun(dir) {
+  const server = await startGatherServer(dir);
+  try {
+    const made = await server.services.profiles.create(GATHERER);
+    if (!made.ok) throw new Error(made.error);
+    const team = [newCreature(STARTERS[0], 5, WORLD.battle)];
+    const position = { map: WORLD.map.id, ...server.stand, facing: 'down' };
+    server.services.progress.save(made.value.id, createSave({ name: GATHERER.name, language: 'sl', createdAt: new Date().toISOString(), position, ...emptyProgress(), team }));
+    const session = await server.services.profiles.login({ profileId: made.value.id });
+    if (!session.ok) throw new Error(session.error);
+    const client = new Client(server.base);
+    client.auth.token = session.value.token;
+    const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION });
+    const bot = { profile: GATHERER, room, heard: [], outcomes: [] };
+    room.onMessage('*', (type, message) => bot.heard.push({ type, message }));
+    await heardAfter(bot, 'skills', 0);
+
+    await playAttempt(bot, 'gather.start', { spot: levelOne('dip')[0].id });
+    const bushes = levelOne('sparkle').filter((spot) => RECIPE.ingredients.some((ingredient) => ingredient.item === spot.item));
+    await inTurn(bushes, (bush) => playAttempt(bot, 'gather.start', { spot: bush.id }));
+    const from = bot.heard.length;
+    await request(bot, 'gather.start', { spot: bushes[0].id });
+    const refused = await heardAfter(bot, 'refused', from);
+    expect(refused.reason === 'resting', `${GATHERER.name} was not refused a resting spot: ${JSON.stringify(refused)}`);
+    const cooked = await playAttempt(bot, 'cook.start', { recipe: RECIPE.id, station: POT });
+    expect(JSON.stringify(cooked.used) === JSON.stringify(RECIPE.ingredients), `${GATHERER.name}'s cooking used ${JSON.stringify(cooked.used)}`);
+
+    const skills = bot.heard.findLast((entry) => entry.type === 'skills').message;
+    expect(skills.skills.every((entry) => entry.level > 1 || entry.xp > 0), `${GATHERER.name} gained no XP in some skill: ${JSON.stringify(skills.skills)}`);
+    expect(await poll(() => mine(bot)?.skill === '', { deadline: Date.now() + 2_000 }), `${GATHERER.name} still shows a skill`);
+    await room.leave();
+    const ended = server.lines.filter((line) => line.msg === 'skill attempt ended').length;
+    expect(ended === bot.outcomes.length, `the server logged ${ended} attempts, not ${bot.outcomes.length}`);
+    return { bot: GATHERER.name, outcomes: bot.outcomes, skills: skills.skills.map(({ skill, level, xp }) => `${skill} ${level}/${xp}`) };
+  } finally {
+    await server.stop();
+    for (const line of server.lines.filter((each) => each.level === 'error')) failures.push(`gatherer server: error log: ${line.msg}`);
+    writeFileSync(join(out, 'logs', 'bot-run-gatherer.log'), `${server.lines.map((line) => JSON.stringify(line)).join('\n')}\n`);
+  }
+}
 async function dropMidWalk(bot, tiles) {
   bot.room.reconnection.minUptime = 0;
   const sessionBefore = bot.room.sessionId;
@@ -356,8 +481,14 @@ const intents = { to: 0, hold: 0 };
 const battles = [];
 const stories = [];
 let tally = null;
+let gathering = Promise.resolve(null);
+let gatherer = null;
 
 try {
+  gathering = gatherRun(gatherDir).catch((error) => {
+    failures.push(`gatherer: ${error.message}`);
+    return null;
+  });
   const first = await startServer({ env: { NODE_ENV: 'test', DATA_DIR: dataDir }, logFile: join(out, 'logs', 'bot-run-server.log') });
   servers.push(first);
   await inTurn(PROFILES, async (profile) => {
@@ -429,11 +560,14 @@ try {
   step(`two bots got a starter from its character, met wild creatures in the grass at once and finished their battles: ${battles.join(', ')}`);
   stories.push(...(await Promise.all(back.slice(2).map((bot) => storyRun(bot, map, tiles)))));
   for (const story of stories) step(`${story.bot} played the story through ${STORY_QUEST}: ${story.played.join(', ')}`);
+  gatherer = await gathering;
+  if (gatherer) step(`${gatherer.bot} gathered and cooked: ${gatherer.outcomes.join(', ')}; skills ${gatherer.skills.join(', ')}`);
   await Promise.all(back.map((bot) => bot.room.leave()));
   await until(() => second.lines.filter((line) => line.msg === 'player left').length === back.length, 'the restarted server to log every leave');
 } catch (error) {
   failures.push(error.message);
 } finally {
+  gatherer ??= await gathering;
   await Promise.all(servers.map(async (server, index) => {
     if (index === servers.length - 1) {
       const stopped = await server.stop();
@@ -443,6 +577,7 @@ try {
     server.saveLog();
   }));
   rmSync(dataDir, { recursive: true, force: true });
+  rmSync(gatherDir, { recursive: true, force: true });
 }
 
 const summary = {
@@ -451,6 +586,7 @@ const summary = {
   intents,
   battles,
   stories,
+  gatherer,
   sampledPositions: tally?.samples ?? 0,
   blockedPositions: tally?.blocked ?? 0,
   positionsChecked: Object.keys(positions).length,
