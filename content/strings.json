@@ -168,7 +168,7 @@
   "jobs.progress": { "en": "{count} / {of}", "sl": "{count} / {of}" },
   "jobs.inBag": { "en": "In your bag: {count} / {of}", "sl": "V torbi: {count} / {of}" },
   "jobs.rewards": { "en": "Rewards", "sl": "Nagrade" },
-  "jobs.rewardXp": { "en": "+{xp} {skill} XP", "sl": "{skill}: +{xp} XP" },
+  "jobs.rewardXp": { "en": "+{xp} {skill} XP", "sl": "{skill}: +{xp} točk izkušenj" },
   "jobs.hint": { "en": "Finish a job and a new one appears.", "sl": "Opravi delo in pojavi se novo." },
   "jobs.toastProgress": { "en": "{item} {count} / {of}", "sl": "{item} {count} / {of}" },
   "jobs.toastDone": { "en": "Job done!", "sl": "Delo opravljeno!" }

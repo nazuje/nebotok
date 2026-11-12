@@ -1,0 +1,180 @@
+/* The job board: a cork board with a pinned card per job. Title at the top, Close at the bottom,
+   only the board between them scrolls. */
+
+#job-board {
+  display: flex;
+  flex-direction: column;
+}
+
+#job-board[hidden] {
+  display: none;
+}
+
+.job-board-body {
+  width: min(100%, 60rem);
+}
+
+.job-hint {
+  font-weight: 700;
+}
+
+.job-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: start;
+  gap: 16px;
+  margin: 0;
+  padding: 18px 14px;
+  border: 6px solid #8a5a2b;
+  border-radius: 14px;
+  background-color: #c79a5f;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgb(110 70 30 / 0.35) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 70% 80%, rgb(255 240 210 / 0.35) 0 1.5px, transparent 2px);
+  background-size: 14px 14px, 19px 19px;
+  list-style: none;
+  perspective: 900px;
+}
+
+.job-card {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 14px 14px;
+  border-radius: 6px;
+  background: #fffdf4;
+  box-shadow: 0 4px 0 rgb(60 35 10 / 0.3);
+  overflow-wrap: anywhere;
+}
+
+/* The pin holding the card up. */
+.job-card::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--bad);
+  box-shadow: inset -2px -2px 0 rgb(0 0 0 / 0.25);
+}
+
+.job-card[data-ready] {
+  box-shadow:
+    0 4px 0 rgb(60 35 10 / 0.3),
+    inset 0 0 0 3px var(--ok);
+}
+
+.job-verb {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.job-item,
+.job-to {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.job-item-name,
+.job-to-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+}
+
+.job-count {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e6eef6;
+  font-weight: 800;
+}
+
+canvas.job-portrait {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: #e6eef6;
+  image-rendering: pixelated;
+}
+
+.job-progress {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fff1cc;
+  font-weight: 700;
+}
+
+.job-card[data-ready] .job-progress {
+  background: var(--ok);
+  color: white;
+}
+
+.job-rewards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 2px dashed #e0d6bc;
+}
+
+.job-rewards-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.job-reward-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job-reward {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+}
+
+.job-reward canvas.item-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.job-xp {
+  color: var(--accent);
+}
+
+/* A job done since the last visit turns over in its place to show the new one. Reduced motion
+   shows the new card straight away. */
+@media (prefers-reduced-motion: no-preference) {
+  .job-card[data-flipped] {
+    animation: job-card-turn 0.6s ease-out both;
+    backface-visibility: hidden;
+  }
+}
+
+@keyframes job-card-turn {
+  from {
+    transform: rotateY(180deg);
+  }
+}

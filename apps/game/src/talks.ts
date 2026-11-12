@@ -1,4 +1,4 @@
-import { CLIENT_MESSAGES, SERVER_MESSAGES, type Direction, type Language, type Point, type ProgressMessage, type StoryMessage, type TalkCue, type TalkNode } from '@nebotok/core';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, type BoardJob, type Direction, type Language, type Point, type ProgressMessage, type StoryMessage, type TalkCue, type TalkNode } from '@nebotok/core';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import type { Speech } from './speech.ts';
@@ -33,6 +33,8 @@ export type TalksOptions = {
   language(): Language;
   /** Your creatures, as the server last sent them: a player with none gets the starter. */
   progress(): ProgressMessage | null;
+  /** Your job board, as the server last sent it, so a character waiting for a delivery you carry is marked. */
+  jobs(): readonly BoardJob[] | null;
   /** A talk opened or closed, so the page shows another screen and input may change. */
   changed(): void;
   /** Says each line as it starts. */
@@ -71,7 +73,7 @@ export function createTalks(options: TalksOptions): Talks {
   let skipped = false;
   let waiting = false;
   let asked: { npc: string; at: number } | null = null;
-  let marks: { progress: ProgressMessage | null; story: StoryMessage | null; marks: ReadonlyMap<string, HeadMark> } = { progress: null, story: null, marks: new Map() };
+  let marks: { progress: ProgressMessage | null; story: StoryMessage | null; jobs: readonly BoardJob[] | null; marks: ReadonlyMap<string, HeadMark> } = { progress: null, story: null, jobs: null, marks: new Map() };
 
   const box = createTalkBox(element<HTMLElement>('#talk'), {
     tap: () => tap(performance.now()),
@@ -156,7 +158,8 @@ export function createTalks(options: TalksOptions): Talks {
 
   function currentMarks(): ReadonlyMap<string, HeadMark> {
     const progress = options.progress();
-    if (marks.progress !== progress || marks.story !== story) marks = { progress, story, marks: headMarks(progress, story, STORY) };
+    const jobs = options.jobs();
+    if (marks.progress !== progress || marks.story !== story || marks.jobs !== jobs) marks = { progress, story, jobs, marks: headMarks(progress, story, STORY, jobs) };
     return marks.marks;
   }
 
