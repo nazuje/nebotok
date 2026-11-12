@@ -1,4 +1,5 @@
 import { samePoint, type Direction, type Point } from '@nebotok/core';
+import type { Target } from './talk.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Outbox } from './outbox.ts';
 
@@ -17,8 +18,8 @@ const KEYS: Readonly<Record<string, Direction>> = {
   KeyA: 'left',
   KeyD: 'right',
 };
-/** Keys that talk to the character your courier faces. */
-const TALK_KEYS = new Set(['Space', 'Enter', 'NumpadEnter']);
+/** Keys that use what your courier faces: talk to a character, gather at a spot, use a pot. */
+const USE_KEYS = new Set(['Space', 'Enter', 'NumpadEnter']);
 
 /** The direction a thumb points from where it landed, by the longer axis, or null near the middle. */
 export function joystickDirection(dx: number, dy: number, deadZone = JOYSTICK_DEAD_ZONE): Direction | null {
@@ -38,14 +39,14 @@ export type InputDeps = {
   screenToTile(x: number, y: number): Point | null;
   canReach(tile: Point): boolean;
   marker(tile: Point | null, refused?: boolean): void;
-  /** The character standing on `tile`, if any. */
-  npcAt(tile: Point): string | null;
-  /** Where to stand to talk to `npc`, or null when nowhere beside them can be reached. */
-  talkSpot(npc: string): Point | null;
+  /** The character, spot or station on `tile`, if any. */
+  targetAt(tile: Point): Target | null;
+  /** Where to stand to use `target`, or null when nowhere beside it can be reached. */
+  standFor(target: Target): Point | null;
   /** Whether your courier stands still on `tile`, on this page and on the server. */
   standsOn(tile: Point): boolean;
-  /** Asks to talk to `npc`, or to the character your courier faces when null. */
-  talk(npc: string | null): void;
+  /** Uses `target` (talks, gathers, opens), or what your courier faces when null. */
+  use(target: Target | null): void;
 };
 
 export type Input = {
@@ -53,7 +54,7 @@ export type Input = {
   frame(): void;
   /** Lets go of everything, as when the world is left. */
   release(): void;
-  state(): { joystick: Direction | 'centre' | null; keys: Direction[]; talkingTo: string | null };
+  state(): { joystick: Direction | 'centre' | null; keys: Direction[]; approaching: Target | null };
 };
 
 type Held = { id: number; x: number; y: number };
@@ -62,8 +63,8 @@ type Held = { id: number; x: number; y: number };
  * Touch, mouse and keyboard. A tap walks to the tile under it, and a finger held down keeps
  * walking toward whatever tile is under it as the world scrolls. With the joystick chosen, a thumb
  * landing on the left half steers in four directions instead. Arrows and WASD always work. A tap
- * on a character walks to the nearest free tile beside them and talks on arriving; Space or Enter
- * talks to the character your courier faces. Every command goes through the outbox, so mashing
+ * on a character, a gathering spot or a station walks to the nearest free tile beside it and uses
+ * it on arriving; Space or Enter uses what your courier faces. Every command goes through the outbox, so mashing
  * cannot flood the server.
  */
 export function createInput(deps: InputDeps): Input {
@@ -72,20 +73,20 @@ export function createInput(deps: InputDeps): Input {
   let tapTarget: Point | null = null;
   let stick: (Held & { originX: number; originY: number; direction: Direction | null }) | null = null;
   const keys: Direction[] = [];
-  /** The character a tap is walking your courier to, and the tile it talks from. */
-  let approach: { npc: string; spot: Point } | null = null;
+  /** What a tap is walking your courier to, and the tile it uses it from. */
+  let approach: { target: Target; spot: Point } | null = null;
 
-  /** Walks to beside a character, or talks at once when already there. Never refuses: a character can always be tapped. */
-  function approachNpc(npc: string) {
-    const spot = deps.talkSpot(npc);
+  /** Walks to beside a character, spot or station, or uses it at once when already there. Never refuses: they can always be tapped. */
+  function approachTarget(target: Target) {
+    const spot = deps.standFor(target);
     approach = null;
     if (!spot) return;
     if (deps.standsOn(spot)) {
       deps.marker(null);
-      deps.talk(npc);
+      deps.use(target);
       return;
     }
-    approach = { npc, spot };
+    approach = { target, spot };
     deps.marker(spot);
     outbox.send({ kind: 'to', target: spot });
   }
@@ -93,11 +94,11 @@ export function createInput(deps: InputDeps): Input {
   function walkToward(x: number, y: number, first: boolean) {
     const tile = deps.screenToTile(x, y);
     if (!tile || (tapTarget && samePoint(tile, tapTarget))) return;
-    const npc = deps.npcAt(tile);
-    if (npc !== null) {
-      // A finger held on a character does not keep asking; one dragged off it walks on.
+    const target = deps.targetAt(tile);
+    if (target !== null) {
+      // A finger held on a character or spot does not keep asking; one dragged off it walks on.
       tapTarget = tile;
-      if (first) approachNpc(npc);
+      if (first) approachTarget(target);
       return;
     }
     if (!deps.canReach(tile)) {
@@ -137,9 +138,9 @@ export function createInput(deps: InputDeps): Input {
     event.preventDefault();
     const held = { id: event.pointerId, x: event.clientX, y: event.clientY };
     const tile = deps.screenToTile(held.x, held.y);
-    // A character can be tapped with either controls, even on the joystick's half.
-    const onNpc = tile !== null && deps.npcAt(tile) !== null;
-    if (deps.controls() === 'joystick' && !stick && !onNpc && event.clientX < window.innerWidth / 2) {
+    // A character, spot or station can be tapped with either controls, even on the joystick's half.
+    const onTarget = tile !== null && deps.targetAt(tile) !== null;
+    if (deps.controls() === 'joystick' && !stick && !onTarget && event.clientX < window.innerWidth / 2) {
       stick = { ...held, originX: held.x, originY: held.y, direction: null };
       showStick();
     } else if (!tap) {
@@ -184,9 +185,9 @@ export function createInput(deps: InputDeps): Input {
   surface.addEventListener('lostpointercapture', letGo);
 
   window.addEventListener('keydown', (event) => {
-    if (TALK_KEYS.has(event.code) && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && deps.active() && !(event.target instanceof HTMLButtonElement)) {
+    if (USE_KEYS.has(event.code) && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && deps.active() && !(event.target instanceof HTMLButtonElement)) {
       event.preventDefault();
-      deps.talk(null);
+      deps.use(null);
       return;
     }
     const direction = KEYS[event.code];
@@ -222,13 +223,13 @@ export function createInput(deps: InputDeps): Input {
       if (!deps.active()) return;
       if (tap) walkToward(tap.x, tap.y, false);
       if (approach && deps.standsOn(approach.spot)) {
-        const { npc } = approach;
+        const { target } = approach;
         approach = null;
         deps.marker(null);
-        deps.talk(npc);
+        deps.use(target);
       }
     },
     release,
-    state: () => ({ joystick: stick ? (stick.direction ?? 'centre') : null, keys: [...keys], talkingTo: approach?.npc ?? null }),
+    state: () => ({ joystick: stick ? (stick.direction ?? 'centre') : null, keys: [...keys], approaching: approach?.target ?? null }),
   };
 }

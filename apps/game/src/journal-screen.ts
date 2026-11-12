@@ -1,5 +1,6 @@
-import { questLog, type Goal, type Language, type Point, type Progress, type QuestLog, type QuestLogEntry, type QuestStep, type StringId } from '@nebotok/core';
+import { questLog, type Goal, type Language, type Point, type Progress, type QuestLog, type QuestLogEntry, type QuestStep, type SkillsMessage, type StringId } from '@nebotok/core';
 import { button, el } from './dom.ts';
+import { skillsPanel } from './skills-panel.ts';
 import { questName, STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
 
@@ -25,10 +26,14 @@ export function toBeContinued(log: QuestLog): boolean {
 
 const chapterName = (id: string, language: Language): string => STORY.chapters.find((chapter) => chapter.id === id)?.name[language] ?? id;
 
+export type JournalTab = 'quests' | 'skills';
+
 export type JournalScreenOptions = {
   language(): Language;
   /** The player's progress with their story, or null before the server has sent the story. */
   progress(): Progress | null;
+  /** The player's skills, or null before the server has sent them. */
+  skills(): SkillsMessage | null;
   /** Where a goal is on the map the player is on, or null when it is not on it. */
   goalTile(goal: Goal): Point | null;
   /** "Where next?" was tapped. */
@@ -42,20 +47,33 @@ export type JournalScreen = {
   close(): void;
   /** Draws the latest journal, rebuilding only when it changed. */
   render(): void;
-  state(): { readonly unfolded: string[]; readonly goal: Point | null };
+  state(): { readonly unfolded: string[]; readonly goal: Point | null; readonly tab: JournalTab };
 };
 
 /**
  * What you are doing, opened from the world (core `questLog`): each chapter begun, its active quests
  * with the step's hint and how far along it is, and its done quests folded away under one button.
- * "Where next?" shows the next goal (core `nextGoal`) on the map.
+ * "Where next?" shows the next goal (core `nextGoal`) on the map. The Skills tab beside the quests
+ * shows each skill's level, XP and next unlock.
  */
 export function createJournalScreen(root: HTMLElement, options: JournalScreenOptions): JournalScreen {
   const t = (id: StringId) => text(id, options.language());
   let open = false;
   let shown = '';
   let goal: Point | null = null;
+  let tab: JournalTab = 'quests';
   const unfolded = new Set<string>();
+
+  function tabButton(which: JournalTab, label: string): HTMLElement {
+    const choose = button('team-tab journal-tab', label, () => {
+      tab = which;
+      render(true);
+    });
+    choose.setAttribute('role', 'tab');
+    choose.setAttribute('aria-selected', String(tab === which));
+    choose.dataset.tab = which;
+    return choose;
+  }
 
   function activeQuest(entry: QuestLogEntry): HTMLElement {
     const language = options.language();
@@ -95,12 +113,17 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     return el('section', { className: 'journal-chapter', attrs: { 'data-chapter': chapter.chapter } }, parts);
   }
 
-  function build(log: QuestLog | null) {
+  function questsPart(log: QuestLog | null): Node[] {
     const parts: Node[] = !log || log.chapters.length === 0 ? [el('p', { className: 'hint centred journal-empty', text: t('journal.empty') })] : log.chapters.map(chapterPart);
     if (log && toBeContinued(log)) parts.push(el('p', { className: 'journal-continued', text: t('journal.continued') }));
+    return parts;
+  }
+
+  function build(log: QuestLog | null) {
+    const parts = tab === 'skills' ? skillsPanel(options.skills(), STORY, options.language()) : questsPart(log);
     const before = root.querySelector<HTMLElement>('.team-scroll');
-    const keepScroll = before?.scrollTop ?? 0;
-    const scroll = el('div', { className: 'team-scroll', attrs: { role: 'group' } }, parts);
+    const keepScroll = before?.dataset.tab === tab ? before.scrollTop : 0;
+    const scroll = el('div', { className: 'team-scroll', attrs: { role: 'tabpanel', 'data-tab': tab } }, parts);
     const foot: HTMLElement[] = [];
     const target = goal;
     if (target) foot.push(button('secondary journal-where', t('journal.whereNext'), () => options.whereNext(target)));
@@ -110,7 +133,8 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
         options.closed();
       }),
     );
-    root.replaceChildren(el('div', { className: 'screen-body team-body' }, [el('div', { className: 'team-head' }, [el('h2', { className: 'screen-title', text: t('journal.title') })]), scroll, el('div', { className: 'team-foot' }, foot)]));
+    const tabs = el('div', { className: 'team-tabs', attrs: { role: 'tablist' } }, [tabButton('quests', t('journal.quests')), tabButton('skills', t('journal.skills'))]);
+    root.replaceChildren(el('div', { className: 'screen-body team-body' }, [el('div', { className: 'team-head' }, [el('h2', { className: 'screen-title', text: t('journal.title') }), tabs]), scroll, el('div', { className: 'team-foot' }, foot)]));
     scroll.scrollTop = keepScroll;
   }
 
@@ -120,7 +144,7 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     const progress = options.progress();
     const log = progress ? questLog(progress, STORY) : null;
     goal = log?.next ? options.goalTile(log.next) : null;
-    const key = JSON.stringify([options.language(), log, goal, [...unfolded]]);
+    const key = JSON.stringify([options.language(), log, goal, [...unfolded], tab, tab === 'skills' ? options.skills()?.skills : null]);
     if (!force && key === shown) return;
     shown = key;
     build(log);
@@ -128,6 +152,7 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
 
   function close() {
     open = false;
+    tab = 'quests';
     shown = '';
     render();
   }
@@ -139,6 +164,6 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     },
     close,
     render: () => render(),
-    state: () => ({ unfolded: [...unfolded], goal }),
+    state: () => ({ unfolded: [...unfolded], goal, tab }),
   };
 }

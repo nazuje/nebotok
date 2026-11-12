@@ -18,12 +18,14 @@ import { forgetSession, saveSession, storedSession, type StoredSession } from '.
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { createSpeech } from './speech.ts';
+import { createSkills } from './skills-link.ts';
 import { createStoryCues } from './storm-cue.ts';
+import { STORY } from './story-content.ts';
 import { createStory } from './story-link.ts';
-import { talkControls } from './talk-controls.ts';
 import { createTalkHint } from './talk-hint.ts';
 import { createTalks } from './talks.ts';
 import { createUpdates } from './updates.ts';
+import { useControls } from './use-controls.ts';
 import { createWalkHint } from './walk-hint.ts';
 import { installTestHook, type Screen, type TestPlayer } from './test-hook.ts';
 import { feedWorldView } from './world-feed.ts';
@@ -53,6 +55,7 @@ let stopBattles: () => void = () => {};
 let stopStory: () => void = () => {};
 let stopTalks: () => void = () => {};
 let stopCues: () => void = () => {};
+let stopSkills: () => void = () => {};
 
 const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
@@ -61,6 +64,11 @@ const scene = new WorldScene({
   frame: (now) => frame(now),
   labels: (labels) => names.place(inWorld ? labels : []),
   npcLook: (npc, at) => talks.look(npc, at, view.predicted()?.tile ?? null),
+  spotRest: (spot, now) => {
+    const left = skills.restLeft(spot, now);
+    const of = restMs(spot);
+    return left > 0 && of > 0 ? Math.min(1, left / of) : 0;
+  },
 });
 const hud = createHud(language);
 const battles = createBattles({
@@ -80,7 +88,7 @@ const storyCues = createStoryCues({
   scene,
   speech,
   language: () => language,
-  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null,
+  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null,
   changed: () => {
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
@@ -99,15 +107,34 @@ const talks = createTalks({
 });
 const story = createStory({
   language: () => language,
-  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing(),
+  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || skills.overlay() !== null,
   standing: () => view.standing(),
+  skills: () => skills.message(),
   lookAt: (tile) => scene.lookAt(tile),
   changed: () => {
     input.release();
     showScreen();
   },
 });
-const updates = createUpdates({ language, busy: () => battles.overlay() !== null || talks.isOpen() });
+const skills = createSkills({
+  language: () => language,
+  progress: () => battles.progress(),
+  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing(),
+  news: (lines, tone) => story.news(lines, tone),
+  // The job board's screen opens from here once there is one.
+  openBoard: () => {},
+  changed: () => {
+    input.release();
+    if (scene.mapId !== null) scene.setMarker(null);
+    showScreen();
+  },
+});
+/** How long a spot rests after a success, in ms: its skill's `restSeconds`. */
+const restMs = (spot: string): number => {
+  const skill = STORY.skills?.skills.get(STORY.skills.spots.get(spot)?.skill ?? '');
+  return skill?.uses === 'spots' ? skill.restSeconds * 1_000 : 0;
+};
+const updates = createUpdates({ language, busy: () => battles.overlay() !== null || talks.isOpen() || skills.overlay() !== null });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
 const settings = createSettings(language, controls, {
@@ -169,20 +196,20 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && !talks.isOpen() && !storyCues.playing(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && !talks.isOpen() && !storyCues.playing(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => {
     scene.setMarker(tile, refused);
     if (refused) hud.toast('walk.blocked');
   },
-  ...talkControls(view, talks),
+  ...useControls(view, talks, skills),
 });
 
 /** Where the new player's hint points: at the character who gives the first creature, while nothing else is up. */
 function talkHintSpot(): { npc: string; at: Point } | null {
   const npc = talks.starterNpc();
-  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || story.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
+  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || story.overlay() !== null || skills.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
   const at = scene.npcOnScreen(npc);
   return at ? { npc, at } : null;
 }
@@ -192,13 +219,14 @@ function frame(now: number) {
   battles.frame(now);
   talks.frame(now);
   story.frame();
+  skills.frame(now);
   storyCues.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   const pointing = talkHintSpot();
   talkHint.update(pointing?.at ?? null);
   // A new player is shown whom to tap first; the walking hint waits until then.
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -221,8 +249,12 @@ function setLanguage(next: Language) {
   updates.setLanguage(next);
 }
 
+function screen(): Screen {
+  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? skills.overlay() ?? 'world');
+}
+
 function showScreen() {
-  document.body.dataset.screen = !inWorld ? 'profiles' : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? 'world');
+  document.body.dataset.screen = screen();
 }
 
 function setCanAddPin(next: boolean) {
@@ -286,6 +318,8 @@ function forgetRoom() {
   stopTalks = () => {};
   stopCues();
   stopCues = () => {};
+  stopSkills();
+  stopSkills = () => {};
   room = null;
   input.release();
   outbox.reset();
@@ -302,6 +336,7 @@ async function leaveWorld() {
   battles.reset();
   story.reset();
   talks.reset();
+  skills.reset();
   storyCues.reset();
   await leaving?.leave();
 }
@@ -362,6 +397,7 @@ function enterWorld() {
       stopStory = story.joined(joined);
       stopTalks = talks.joined(joined);
       stopCues = storyCues.joined(joined);
+      stopSkills = skills.joined(joined);
       stopFeed = feedWorldView(joined, view, {
         map: (id) => {
           roomMap = id;
@@ -409,7 +445,6 @@ void showMap(START_MAP);
 if (session) enterWorld();
 else showProfiles(null);
 
-const screen = (): Screen => (!inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? 'world'));
 const round = (value: number) => Math.round(value * 100) / 100;
 const players = (): TestPlayer[] =>
   view.shown(performance.now()).map((player) => ({
@@ -419,6 +454,7 @@ const players = (): TestPlayer[] =>
     connected: player.connected,
     inBattle: player.inBattle,
     talking: player.talking,
+    skill: player.skill,
     x: player.tile.x,
     y: player.tile.y,
     moving: player.moving,
@@ -463,6 +499,8 @@ installTestHook({
       settingsOpen: settings.isOpen(),
       ...battles.snapshot(performance.now()),
       ...story.snapshot(),
+      ...skills.snapshot(performance.now()),
+      spots: scene.drawnSpots(),
       looking: scene.lookingAt,
     };
   },

@@ -1,4 +1,4 @@
-import { emptyStory, loadStoryContent, type Language, type Progress, type ProgressMessage, type StoryContent, type StoryMessage } from '@nebotok/core';
+import { emptyStory, loadStoryContent, type Language, type Progress, type ProgressMessage, type SkillsMessage, type StoryContent, type StoryMessage } from '@nebotok/core';
 import inventory from '../../../content/inventory.json';
 import jobs from '../../../content/jobs.json';
 import npcs from '../../../content/npcs.json';
@@ -20,9 +20,10 @@ export const questName = (id: string, language: Language): string => STORY.quest
 
 /**
  * The player's progress as the core rules read it, from what the server sent. Storage never
- * decides a quest or the bag, so it stays empty; skills and the board are not read here yet.
+ * decides a quest or the bag, so it stays empty; the board is not read here.
  */
-export function storyProgress(progress: ProgressMessage, saved: StoryMessage | null): Progress {
+export function storyProgress(progress: ProgressMessage, saved: StoryMessage | null, levels: SkillsMessage | null = null): Progress {
   const { team, inventory: items, lastShrine, seen, befriended } = progress;
-  return { team, storage: [], inventory: items, lastShrine, seen, befriended, story: saved ?? emptyStory(), skills: [], jobs: null };
+  const trained = (levels?.skills ?? []).map(({ skill, level, xp }) => ({ skill, level, xp }));
+  return { team, storage: [], inventory: items, lastShrine, seen, befriended, story: saved ?? emptyStory(), skills: trained, jobs: null };
 }

@@ -1,8 +1,9 @@
-import { PLAYER_SPAWN, spriteFor, type Direction, type Point, type WorldMap } from '@nebotok/core';
+import { PLAYER_SPAWN, frameNames, spriteFor, type Direction, type Point, type WorldMap } from '@nebotok/core';
 import { Scale, Scene, Scenes, Tilemaps, type GameObjects, type Time, type Tweens } from 'phaser';
 import { courierTexture, frameName, walkAnimation } from './couriers.ts';
 import type { LoadedMap } from './map-loader.ts';
-import { loadArtImages, spriteTexture } from './sprites.ts';
+import { STORY } from './story-content.ts';
+import { ART, animationKey, loadArtImages, spriteTexture } from './sprites.ts';
 import type { HeadMark } from './talk.ts';
 import { tilesetArt, type TilesetArt } from './tileset-art.ts';
 import type { ShownPlayer, WorldView } from './world-view.ts';
@@ -46,6 +47,13 @@ const HEAD_MARKS: Readonly<Record<HeadMark, { readonly fill: number; readonly ro
   turnIn: { fill: 0xffffff, rows: ['.ooooooo.', 'offfffffo', 'ofifififo', 'offfffffo', '.ooooooo.', '..oo.....', '..o......'] },
 };
 const HEAD_MARK_BOB_PX = 2;
+/** A spot's rest countdown: a small ring at its top right corner, drawn again only when it moves on a step. */
+const REST_RING_RADIUS = 4;
+const REST_RING_STEPS = 48;
+const REST_RING_COLOUR = 0xffffff;
+const REST_RING_BACK = 0x1b1b2f;
+/** Where a courier's skill action shows, from the courier's centre, in pixels. */
+const ACTION_OFFSET = { x: 12, y: -6 } as const;
 const HEAD_MARK_BOB_MS = 600;
 /**
  * The storm band: once a player has seen the storm, a dim bank of cloud hangs along the top of their
@@ -63,13 +71,18 @@ const STORM_BAND_ROW_PX = 2;
 const STORM_BAND_DEPTH = 9_000;
 
 /** A name to show above a courier, at a spot on the page in CSS pixels. */
-export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly talking: boolean; readonly x: number; readonly y: number };
+export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly talking: boolean; readonly skill: string; readonly x: number; readonly y: number };
 
 /** How a character looks this frame: the way they face, and the mark over their head. */
 export type NpcLook = { readonly facing: Direction; readonly mark: HeadMark | null };
 
 /** A character as drawn last frame, for the test hook. */
 export type DrawnNpc = { readonly id: string; readonly x: number; readonly y: number; readonly facing: Direction; readonly mark: HeadMark | null };
+
+/** A gathering spot as drawn last frame, for the test hook: whether it shows resting for you. */
+export type DrawnSpot = { readonly id: string; readonly x: number; readonly y: number; readonly resting: boolean };
+
+type Spot = { readonly id: string; readonly tile: Point; readonly art: string | null; readonly sprite: GameObjects.Sprite | null; readonly ring: GameObjects.Graphics; step: number };
 
 type Npc = { readonly id: string; readonly tile: Point; readonly sprite: GameObjects.Sprite; readonly mark: GameObjects.Graphics; look: NpcLook | null; bob: Tweens.Tween | null };
 
@@ -81,10 +94,21 @@ export type WorldSceneOptions = {
   labels(labels: readonly NameLabel[]): void;
   /** How the character `npc`, standing on `at`, looks this frame. */
   npcLook(npc: string, at: Point): NpcLook;
+  /** How much of its rest a spot still has for you at `now`, 1 just picked to 0 ready. */
+  spotRest(spot: string, now: number): number;
 };
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 const reducedMotion = () => REDUCED_MOTION.matches;
+
+const firstFrame = (art: string): string => (ART.sprites.has(art) ? (frameNames(ART.sprites.get(art)!)[0] ?? '') : '');
+
+/** A spot's frame: `resting` while it rests for you, else `ready`, or its first frame when it lacks one. */
+function spotFrame(art: string, resting: boolean): string {
+  const sprite = ART.sprites.get(art);
+  const wanted = resting ? 'resting' : 'ready';
+  return sprite && !frameNames(sprite).includes(wanted) ? firstFrame(art) : wanted;
+}
 
 /** The world: the map's tiles and every player's courier, drawn from the client's view model. */
 export class WorldScene extends Scene {
@@ -94,6 +118,9 @@ export class WorldScene extends Scene {
   private readonly options: WorldSceneOptions;
   private readonly sprites = new Map<string, GameObjects.Sprite>();
   private readonly npcs = new Map<string, Npc>();
+  private readonly spots = new Map<string, Spot>();
+  private readonly stations: GameObjects.Sprite[] = [];
+  private readonly actions = new Map<string, GameObjects.Sprite>();
   private shownPlayers: readonly ShownPlayer[] = [];
   private followed: GameObjects.Sprite | null = null;
   private currentMap: Tilemaps.Tilemap | null = null;
@@ -159,6 +186,7 @@ export class WorldScene extends Scene {
     this.tiles = tiles;
     this.spawnTile = map.world.spawns[PLAYER_SPAWN] ?? { x: 0, y: 0 };
     this.placeNpcs(map.world);
+    this.placeThings(map.world);
     this.mapId = map.id;
     if (!this.followed) this.centreOnSpawn();
   }
@@ -179,6 +207,12 @@ export class WorldScene extends Scene {
       sprite.destroy();
       this.sprites.delete(id);
     }
+    for (const [id, action] of this.actions) {
+      if (seen.has(id)) continue;
+      action.destroy();
+      this.actions.delete(id);
+    }
+    for (const spot of this.spots.values()) this.drawSpot(spot, now);
     this.shownPlayers = shown;
     for (const npc of this.npcs.values()) this.drawNpc(npc);
     const self = shown.find((player) => player.self);
@@ -299,6 +333,52 @@ export class WorldScene extends Scene {
     return [...this.npcs.values()].map(({ id, tile, look }) => ({ id, x: tile.x, y: tile.y, facing: look?.facing ?? 'down', mark: look?.mark ?? null }));
   }
 
+  /** Every gathering spot on the map, as drawn last frame. */
+  drawnSpots(): DrawnSpot[] {
+    return [...this.spots.values()].map(({ id, tile, step }) => ({ id, x: tile.x, y: tile.y, resting: step > 0 }));
+  }
+
+  /** The map's gathering spots (`spots/<look>`) and stations (`stations/<look>`), standing still like characters. */
+  private placeThings(map: WorldMap): void {
+    for (const spot of this.spots.values()) {
+      spot.sprite?.destroy();
+      spot.ring.destroy();
+    }
+    this.spots.clear();
+    for (const station of this.stations) station.destroy();
+    this.stations.length = 0;
+    const skills = STORY.skills;
+    for (const [id, tile] of Object.entries(map.spots)) {
+      const look = skills?.spots.get(id)?.look;
+      const art = look ? spriteFor.spot(look) : null;
+      const at = { x: tile.x * TILE + TILE / 2, y: tile.y * TILE + TILE / 2 };
+      const sprite = art && ART.sprites.has(art) ? this.add.sprite(at.x, at.y, spriteTexture(this, art), spotFrame(art, false)).setDepth(PLAYER_DEPTH + at.y) : null;
+      const ring = this.add.graphics().setDepth(PLAYER_DEPTH + map.height * TILE).setPosition(tile.x * TILE + TILE - REST_RING_RADIUS - 1, tile.y * TILE + REST_RING_RADIUS + 1);
+      this.spots.set(id, { id, tile, art: sprite ? art : null, sprite, ring, step: -1 });
+    }
+    for (const [id, tile] of Object.entries(map.stations)) {
+      const look = skills?.stations.get(id)?.look;
+      const art = look ? spriteFor.station(look) : null;
+      if (!art || !ART.sprites.has(art)) continue;
+      const y = tile.y * TILE + TILE / 2;
+      this.stations.push(this.add.sprite(tile.x * TILE + TILE / 2, y, spriteTexture(this, art), firstFrame(art)).setDepth(PLAYER_DEPTH + y));
+    }
+  }
+
+  /** A spot shows `resting` while it rests for you, with a ring counting down what is left. */
+  private drawSpot(spot: Spot, now: number): void {
+    const left = this.options.spotRest(spot.id, now);
+    const step = left > 0 ? Math.max(1, Math.ceil(left * REST_RING_STEPS)) : 0;
+    if (step === spot.step) return;
+    if (spot.art && step > 0 !== spot.step > 0) spot.sprite?.setFrame(spotFrame(spot.art, step > 0));
+    spot.step = step;
+    spot.ring.clear();
+    if (step === 0) return;
+    const end = -Math.PI / 2 + (2 * Math.PI * step) / REST_RING_STEPS;
+    spot.ring.fillStyle(REST_RING_BACK, 0.55).fillCircle(0, 0, REST_RING_RADIUS + 1);
+    spot.ring.lineStyle(2, REST_RING_COLOUR, 1).beginPath().arc(0, 0, REST_RING_RADIUS - 1, -Math.PI / 2, end).strokePath();
+  }
+
   private placeNpcs(map: WorldMap): void {
     for (const npc of this.npcs.values()) {
       npc.bob?.remove();
@@ -376,6 +456,28 @@ export class WorldScene extends Scene {
     }
     if (player.connected) sprite.setAlpha(1).clearTint();
     else sprite.setAlpha(AWAY_ALPHA).setTint(AWAY_TINT);
+    this.drawAction(player, sprite);
+  }
+
+  /** A courier doing a skill shows its action beside them, `actions/<skill>` playing `play`. */
+  private drawAction(player: ShownPlayer, courier: GameObjects.Sprite): void {
+    const art = player.skill === '' ? null : spriteFor.action(player.skill);
+    let action = this.actions.get(player.id);
+    if (!art || !ART.sprites.has(art)) {
+      action?.destroy();
+      this.actions.delete(player.id);
+      return;
+    }
+    const texture = spriteTexture(this, art);
+    if (!action || action.texture.key !== texture) {
+      action?.destroy();
+      action = this.add.sprite(0, 0, texture, firstFrame(art));
+      this.actions.set(player.id, action);
+    }
+    action.setPosition(courier.x + ACTION_OFFSET.x, courier.y + ACTION_OFFSET.y).setDepth(courier.depth + 0.1);
+    const play = animationKey(art, 'play');
+    if (!reducedMotion() && this.anims.exists(play)) action.play(play, true);
+    else action.stop();
   }
 
   /** Keeps the ring at your courier's feet, drawn under it but over anyone sharing its tile. */
@@ -465,7 +567,7 @@ export class WorldScene extends Scene {
       const sprite = this.sprites.get(player.id);
       if (player.self || !sprite) return [];
       const at = this.toScreen(Math.round(sprite.x), Math.round(sprite.y) - TILE / 2);
-      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, talking: player.talking, x: at.x, y: at.y }];
+      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, talking: player.talking, skill: player.skill, x: at.x, y: at.y }];
     });
   }
 }

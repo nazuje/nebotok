@@ -30,11 +30,25 @@ export function questToastLines(change: QuestChanged, language: Language): strin
   return lines;
 }
 
-export type QuestToastState = { readonly quest: string; readonly change: QuestChanged['change']; readonly lines: readonly string[] };
+/** Other news the toast carries: something gained (`good`) or a start turned down (`refused`). */
+export type NewsTone = 'good' | 'refused';
+
+/** A toast's lines, worked out in whatever language is shown when it shows. */
+export type NewsLines = (language: Language) => string[];
+
+type Entry = { readonly kind: 'quest'; readonly change: QuestChanged } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines };
+
+/** The toast showing: a quest change (with its quest), or other news (`quest` null, `change` its tone). */
+export type QuestToastState = { readonly quest: string | null; readonly change: QuestChanged['change'] | NewsTone; readonly lines: readonly string[] };
+
+const entryLines = (entry: Entry, language: Language): string[] => (entry.kind === 'quest' ? questToastLines(entry.change, language) : entry.lines(language));
+const entryChange = (entry: Entry): QuestToastState['change'] => (entry.kind === 'quest' ? entry.change.change : entry.tone);
 
 export type QuestToast = {
   /** Shows a quest change for QUEST_TOAST_MS of the world being in view, after any shown or waiting before it. */
   show(change: QuestChanged): void;
+  /** Shows other news the same way, in the same queue: what a skill gave, a level up, a refused start. */
+  news(lines: NewsLines, tone: NewsTone): void;
   clear(): void;
   /** Redraws in the current language when it changed. While `inView` is false (a screen covers the world) the toast waits. */
   render(inView: boolean): void;
@@ -44,11 +58,11 @@ export type QuestToast = {
 /**
  * The quest news at the top of the world, one change at a time, so a step that starts the next
  * quest shows both. News that comes during a battle or over a screen waits for the world, where it
- * would not cover the screen's title, and then stays its full time.
+ * would not cover the screen's title, and then stays its full time. Skill news shares the queue.
  */
 export function createQuestToast(root: HTMLElement, language: () => Language): QuestToast {
-  const waiting: QuestChanged[] = [];
-  let current: QuestChanged | null = null;
+  const waiting: Entry[] = [];
+  let current: Entry | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let showing = false;
   let shown = '';
@@ -74,17 +88,21 @@ export function createQuestToast(root: HTMLElement, language: () => Language): Q
       shown = '';
       return;
     }
-    const key = JSON.stringify([language(), current]);
+    const lines = entryLines(current, language());
+    const key = JSON.stringify([language(), entryChange(current), lines]);
     if (key === shown) return;
     shown = key;
-    const [head, ...rest] = questToastLines(current, language());
-    root.dataset.change = current.change;
+    const [head, ...rest] = lines;
+    root.dataset.change = entryChange(current);
     root.replaceChildren(el('strong', { className: 'quest-toast-head', text: head ?? '' }), ...rest.map((line) => el('span', { className: 'quest-toast-line', text: line })));
   }
 
   return {
     show: (change) => {
-      waiting.push(change);
+      waiting.push({ kind: 'quest', change });
+    },
+    news: (lines, tone) => {
+      waiting.push({ kind: 'news', tone, lines });
     },
     clear: () => {
       waiting.length = 0;
@@ -93,6 +111,6 @@ export function createQuestToast(root: HTMLElement, language: () => Language): Q
       shown = '';
     },
     render,
-    state: () => (current && showing ? { quest: current.quest, change: current.change, lines: questToastLines(current, language()) } : null),
+    state: () => (current && showing ? { quest: current.kind === 'quest' ? current.change.quest : null, change: entryChange(current), lines: entryLines(current, language()) } : null),
   };
 }
