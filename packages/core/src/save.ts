@@ -4,7 +4,7 @@ import { DirectionSchema } from './grid.ts';
 import { MapId } from './map.ts';
 
 /** The version `createSave` writes. Raise it only together with a migration from the version before. */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** How many creatures a player's storage holds, besides the team of up to 6. */
 export const STORAGE_LIMIT = 200;
@@ -95,12 +95,58 @@ const StoryV4 = z
  */
 const SaveDataV4 = z.strictObject({ ...SaveDataV3.shape, story: StoryV4 });
 
+/** Skills a save can list, and jobs a board can hold. */
+export const MAX_SAVED_SKILLS = 20;
+export const MAX_BOARD_JOBS = 5;
+const JobNumber = z.number().int().min(1).max(2 ** 31 - 1);
+
+/**
+ * A skill's level, as v5 saves it: `xp` is the experience since reaching `level`, as creatures
+ * keep it, so a later change to the curve never takes a level away. A skill not listed is level 1.
+ */
+const SkillLevelV5 = z.strictObject({ skill: ContentId, level: z.number().int().min(1).max(99), xp: z.number().int().min(0).max(1_000_000) });
+
+/** One job on the board: `job` is its number (the draw it came from), `progress` how many of `count` are done, `to` the character a delivery goes to. */
+const BoardJobV5 = z
+  .strictObject({ job: JobNumber, template: ContentId, item: ContentId, count: z.number().int().min(1).max(999), to: ContentId.nullable(), progress: z.number().int().min(0).max(999) })
+  .refine((job) => job.progress <= job.count, 'a job is never past its count');
+
+/**
+ * The job board, once opened: job `n` is drawn from an RNG seeded by `seed` and `n`, `drawn` jobs so
+ * far, `done` of them finished. Each job number once.
+ */
+const JobsV5 = z
+  .strictObject({
+    seed: z.number().int().min(0).max(0xffffffff),
+    drawn: z.number().int().min(0).max(2 ** 31 - 1),
+    done: z.number().int().min(0).max(2 ** 31 - 1),
+    board: z.array(BoardJobV5).max(MAX_BOARD_JOBS),
+  })
+  .refine((jobs) => uniqueIds(jobs.board.map((job) => String(job.job))), 'each job appears once')
+  .refine((jobs) => jobs.done <= jobs.drawn && jobs.board.every((job) => job.job <= jobs.drawn), 'jobs are numbered up to the ones drawn');
+
+/** v5 adds skills and the job board (null until the player first opens it). Spot rests are not saved. */
+const SaveDataV5 = z.strictObject({
+  ...SaveDataV4.shape,
+  skills: z
+    .array(SkillLevelV5)
+    .max(MAX_SAVED_SKILLS)
+    .refine((entries) => uniqueIds(entries.map((entry) => entry.skill)), 'each skill appears once'),
+  jobs: JobsV5.nullable(),
+});
+
 export const CreatureInstance = CreatureV3;
 export type CreatureInstance = z.infer<typeof CreatureInstance>;
 export const StoryProgress = StoryV4;
 export type StoryProgress = z.infer<typeof StoryProgress>;
 export type QuestProgress = StoryProgress['active'][number];
-export const SaveData = SaveDataV4;
+export const SkillLevel = SkillLevelV5;
+export type SkillLevel = z.infer<typeof SkillLevel>;
+export const BoardJob = BoardJobV5;
+export type BoardJob = z.infer<typeof BoardJob>;
+export const JobsProgress = JobsV5;
+export type JobsProgress = z.infer<typeof JobsProgress>;
+export const SaveData = SaveDataV5;
 export type SaveData = z.infer<typeof SaveData>;
 export type SaveFile = { readonly v: typeof SAVE_VERSION; readonly data: SaveData };
 
@@ -110,6 +156,7 @@ export const SAVE_SCHEMAS: Readonly<Record<number, z.ZodType>> = {
   2: SaveDataV2,
   3: SaveDataV3,
   4: SaveDataV4,
+  5: SaveDataV5,
 };
 
 export type Migration = (data: unknown) => unknown;
@@ -122,6 +169,8 @@ export const migrations: Readonly<Record<number, Migration>> = {
   2: (data) => ({ ...(data as z.infer<typeof SaveDataV2>), team: [], storage: [], inventory: [], lastShrine: null, seen: [], befriended: [] }),
   // A v3 player has started no quest yet; their creatures, items and shrine stay as they are.
   3: (data) => ({ ...(data as z.infer<typeof SaveDataV3>), story: { active: [], done: [], flags: [] } }),
+  // A v4 player has every skill at level 1 and has never opened the job board.
+  4: (data) => ({ ...(data as z.infer<typeof SaveDataV4>), skills: [], jobs: null }),
 };
 
 const Envelope = z.object({ v: z.number().int().min(1), data: z.unknown() });

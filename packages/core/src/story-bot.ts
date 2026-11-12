@@ -1,7 +1,9 @@
 /**
  * Playing the story without a client: a command is a talk (the answers given in order, and the
  * starter to choose when a node offers it) or a world event. `storyBotCommand` picks the command
- * that `nextGoal` asks for, so tests, goldens and bots can play the whole story through.
+ * that `nextGoal` asks for, so tests, goldens and bots can play the whole story through. Gathering,
+ * cooking and finishing a job are simulated as their events: one successful gather or cook at a
+ * time, and a job done, without playing the game or the board.
  */
 import { z } from 'zod';
 import { ContentId, type StartersFile } from './content.ts';
@@ -17,6 +19,8 @@ export const QuestEventSchema = z.union([
   z.strictObject({ kind: z.literal('befriended'), species: ContentId }),
   z.strictObject({ kind: z.literal('rested'), shrine: ContentId }),
   z.strictObject({ kind: z.literal('reached'), mark: ContentId }),
+  z.strictObject({ kind: z.enum(['gathered', 'cooked']), item: ContentId, count: z.number().int().min(1).max(2) }),
+  z.strictObject({ kind: z.literal('jobDone') }),
 ]);
 
 /** Talk to `talk`, answering each node in turn (a choice's place, or null to go on), choosing `starter` where a node offers it; or count `event`. */
@@ -130,6 +134,9 @@ export function storyBotCommand(progress: Progress, rules: StoryWorldRules): Sto
     },
     visitShrine: () => (questStep.kind === 'visitShrine' ? { kind: 'rested', shrine: questStep.shrine } : null),
     reach: () => (questStep.kind === 'reach' ? { kind: 'reached', mark: questStep.mark } : null),
+    gather: () => (questStep.kind === 'gather' ? { kind: 'gathered', item: questStep.item, count: 1 } : null),
+    cook: () => (questStep.kind === 'cook' ? { kind: 'cooked', item: questStep.treat, count: 1 } : null),
+    finishJobs: () => ({ kind: 'jobDone' }),
   };
   if (questStep.kind === 'talk') return talk(questStep.npc);
   if (questStep.kind === 'deliver') return talk(questStep.to);

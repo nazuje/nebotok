@@ -7,8 +7,10 @@ import type { WalkCommand } from './movement.ts';
  * including when the server starts to accept or require something different with the same messages.
  * 7: the starter comes only through a talk (`STARTER_NEEDS_TALK`), so clients from before it, which
  * open the starter screen by themselves, are refused at the join instead of getting stuck.
+ * 8: skills and the job board: gathering, cooking and their tiny games, `Player.skill`, and the
+ * refusals `resting`, `needsLevel` and `bagFull`.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -17,6 +19,7 @@ export const PROTOCOL_VERSION = 7;
  */
 export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   7: '153c0d940d945b',
+  8: '08338db2ebbc37',
 };
 
 export type WorldInfo = {
@@ -51,7 +54,7 @@ export function isCompatibleProtocol(clientProtocol: number): boolean {
   return clientProtocol === PROTOCOL_VERSION;
 }
 
-/** Messages a client sends to the world room, by type. See docs/protocol.md; the payload schemas are in messages.ts (battle and team) and story-messages.ts (talking). */
+/** Messages a client sends to the world room, by type. See docs/protocol.md; the payload schemas are in messages.ts (battle and team), story-messages.ts (talking) and skill-messages.ts (skills and jobs). */
 export const CLIENT_MESSAGES = {
   ping: 'ping',
   walkTo: 'walk.to',
@@ -68,6 +71,11 @@ export const CLIENT_MESSAGES = {
   talkStart: 'talk.start',
   talkNext: 'talk.next',
   talkEnd: 'talk.end',
+  gatherStart: 'gather.start',
+  cookStart: 'cook.start',
+  skillFinish: 'skill.finish',
+  skillCancel: 'skill.cancel',
+  boardOpen: 'board.open',
 } as const;
 
 /** Messages the world room sends to a client, by type. Each goes only to the player it is about. */
@@ -87,6 +95,11 @@ export const SERVER_MESSAGES = {
   talkNode: 'talk.node',
   talkEnded: 'talk.ended',
   questChanged: 'quest.changed',
+  skills: 'skills',
+  skillAttempt: 'skill.attempt',
+  skillResult: 'skill.result',
+  jobs: 'jobs',
+  jobChanged: 'job.changed',
   refused: 'refused',
 } as const;
 

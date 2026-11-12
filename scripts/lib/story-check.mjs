@@ -28,7 +28,13 @@ const dialogue = Object.fromEntries(
     .filter((file) => file.endsWith('.json'))
     .map((file) => [file.slice(0, -'.json'.length), readContent(`dialogue/${file}`)]),
 );
-const STORY = loadStoryContent({ npcs: readContent('npcs.json'), dialogue, quests: readContent('quests.json'), story: readContent('story.json'), inventory: readContent('inventory.json') }, CONTENT);
+const STORY = loadStoryContent(
+  {
+    npcs: readContent('npcs.json'), dialogue, quests: readContent('quests.json'), story: readContent('story.json'), inventory: readContent('inventory.json'),
+    skills: { skills: readContent('skills.json'), spots: readContent('spots.json'), recipes: readContent('recipes.json'), stations: readContent('stations.json'), jobs: readContent('jobs.json') },
+  },
+  CONTENT,
+);
 const STARTERS = readContent('starters.json');
 const TREATS = [...CONTENT.items.values()].filter((item) => item.kind === 'treat').slice(0, 3);
 const TREATS_EACH = 2;
@@ -89,6 +95,8 @@ export function storySave(world, { name, language }) {
       seen: [starter],
       befriended: [starter],
       story: { active: [{ quest: plan.quest.id, step: plan.at, count: 0 }], done: needed(plan.quest.id), flags: [] },
+      skills: [],
+      jobs: null,
     },
   };
 }

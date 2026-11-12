@@ -1,0 +1,129 @@
+{
+  "npc": "mehurka",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "bell-for-the-shrine",
+          "at": "deliver-bell"
+        },
+        {
+          "has": "shrine-bell",
+          "count": 1
+        }
+      ],
+      "node": "bell"
+    },
+    {
+      "if": [
+        {
+          "quest": "bell-for-the-shrine",
+          "at": "rest"
+        }
+      ],
+      "node": "rest-remind"
+    },
+    {
+      "if": [
+        {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
+          "flag": "storm-seen",
+          "set": true
+        }
+      ],
+      "node": "storm-idle"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "bell": {
+      "say": {
+        "en": "A new bell. Clear voice. Thank you.",
+        "sl": "Nov zvonec. Čist glas. Hvala."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "take": "shrine-bell",
+          "count": 1
+        },
+        {
+          "completeStep": "bell-for-the-shrine",
+          "step": "deliver-bell"
+        }
+      ],
+      "next": "explain"
+    },
+    "explain": {
+      "say": {
+        "en": "This shrine heals. If your team faints, you wake up here. Safe.",
+        "sl": "To svetišče zdravi. Če tvoja ekipa omedli, se zbudiš tu. Na varnem."
+      },
+      "mood": "calm",
+      "next": "try-it"
+    },
+    "try-it": {
+      "say": {
+        "en": "Step onto the shrine to rest. Try it now. Bubbles help.",
+        "sl": "Stopi do svetišča, da počiješ. Poskusi zdaj. Mehurčki pomagajo."
+      },
+      "mood": "calm"
+    },
+    "rest-remind": {
+      "say": {
+        "en": "Step onto the shrine to rest. Breathe. Watch the bubbles.",
+        "sl": "Stopi do svetišča, da počiješ. Dihaj. Glej mehurčke."
+      },
+      "mood": "calm"
+    },
+    "storm-idle": {
+      "say": {
+        "en": "The bubbles shiver today. Something far away. Stay close to the shrine.",
+        "sl": "Mehurčki danes drhtijo. Nekaj daleč stran. Ostani blizu svetišča."
+      },
+      "mood": "worried"
+    },
+    "idle": {
+      "say": {
+        "en": "Bubbles rise. Rest comes. The shrine is calm.",
+        "sl": "Mehurčki se dvigajo. Počitek pride. Svetišče je mirno."
+      },
+      "mood": "calm"
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
+    }
+  }
+}

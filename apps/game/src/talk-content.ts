@@ -1,7 +1,12 @@
 import { DIALOGUE_FILE, loadStoryContent, type StoryContent } from '@nebotok/core';
 import inventory from '../../../content/inventory.json';
+import jobs from '../../../content/jobs.json';
 import npcs from '../../../content/npcs.json';
 import quests from '../../../content/quests.json';
+import recipes from '../../../content/recipes.json';
+import skills from '../../../content/skills.json';
+import spots from '../../../content/spots.json';
+import stations from '../../../content/stations.json';
 import story from '../../../content/story.json';
 import { CONTENT } from './battle-content.ts';
 
@@ -15,4 +20,4 @@ const dialogue = Object.fromEntries(
 );
 
 /** The characters, their dialogue and the quests, by id, for showing what `talk.node` and `story` name. */
-export const STORY: StoryContent = loadStoryContent({ npcs, dialogue, quests, story, inventory }, CONTENT);
+export const STORY: StoryContent = loadStoryContent({ npcs, dialogue, quests, story, inventory, skills: { skills, spots, recipes, stations, jobs } }, CONTENT);

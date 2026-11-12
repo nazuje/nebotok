@@ -22,6 +22,11 @@ kind fixes its size and the frames the game asks it for:
 | `backgrounds` | 64×36 | any frames | each weather type in `creatures/weather.json` needs `backgrounds/<weather id>`, for its battles |
 | `items` | 16×16 | any frames | each item in `items.json` needs `items/<item id>` |
 | `weather` | 16×16 | any frames; the first is the icon | each weather type needs `weather/<weather id>` too, the icon beside its name on the battle field |
+| `spots` | 16×16 | frames `ready` and `resting` | each `look` in `spots.json` needs `spots/<look>` |
+| `stations` | 16×16 | any frames; the first is the still picture | each `look` in `stations.json` needs `stations/<look>` |
+| `actions` | 16×16 | animation `play` | each skill in `skills.json` needs `actions/<skill id>`, drawn beside a courier doing it |
+| `skills` | 16×16 | any frames; the first is the icon | each skill needs `skills/<skill id>` too, its icon in lists and toasts |
+| `games` | 32×32 | see below | the tiny games: `games/float` (frames `still` and `dip`) for a skill playing `dip`, `games/sparkle` for `sparkle`, `games/marker` for `marker` |
 
 A new kind is one line in `SPRITE_RULES` (`packages/core/src/art.ts`).
 
@@ -89,6 +94,13 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   and the colours of its weather, so it reads as that weather even in black and white.
 - **Weather icons** sit beside the weather's name on the battle field while that weather lasts:
   one simple shape each (a sun, a cloud with drops), in the weather's colours.
+- **Spots and stations** stand on their map tile like a character. A spot shows `ready`, or
+  `resting` while it rests for this player (a bare bush, still water). The `actions` animation of
+  a skill plays beside the courier of anyone doing it, so courier sprites need no gathering
+  frames. The `games` sprites are drawn inside the tiny game's card: the fishing float bobs on
+  `still` and drops on `dip`, the sparkle is what foraging players tap, and the marker sweeps
+  over cooking's bar. They stay readable for players who ask for reduced motion, who see no
+  animation.
 
 ## Style
 

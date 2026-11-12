@@ -29,16 +29,30 @@ together with the kids.
 - Each creature knows 4 moves.
 - There are 6 weather types: Sun, Gale, Rain, Frost, Storm and Bloom. Each is strong against some
   and weak against others, and the weather on the battlefield changes how moves work.
-- A wild creature joins you after a battle when you offer it a treat you cooked or foraged. A tired
+- A wild creature joins you after a battle when you offer it a treat you cooked. A tired
   creature, or its favourite treat, raises the chance.
 - If your whole team faints, you wake at the last shrine you visited with your team healed, and you
   lose nothing. This may change.
 
 ## Skills
 
-Skills are inspired by RuneScape and start small: fishing, foraging, cooking and building. They feed
-each other: fishing and foraging give ingredients, cooking turns them into treats for befriending,
-and building shapes your home island.
+Skills are inspired by RuneScape and start small: fishing, foraging and cooking first, and building
+later, with home islands (Slice D). They feed each other: fishing and foraging give ingredients,
+cooking turns them into treats for befriending, and building will shape your home island.
+
+- Each skill has levels with skill XP, 1 to 20 for now, about 2 to 3 hours of play to the top, with
+  early levels fast. Levels unlock new spots and recipes.
+- Every gather or cook is a tiny game of 3 to 5 seconds: tap when the float dips (fishing), tap the
+  shiny bits before they fade (foraging), stop a moving marker in the good zone (cooking). Failing
+  only means you try again; nothing is lost. The games work by touch alone and by keyboard, and
+  honour reduced motion.
+- Each player has their own spots: gathering from one rests it for you only, and others see you
+  gathering.
+- Cooking uses a recipe book that grows with your cooking level, at a cooking pot on the island.
+  Cooked treats make befriending easier; Tobolko's Plain Treats stay as a fallback.
+- The Sky Post job board shows 3 jobs, and a new one appears whenever you finish one. Rewards are
+  items and skill XP, given the moment a job is done. There is no currency and no shop, and items
+  are never discarded: a full stack stops gathering more of that item.
 
 ## Together
 

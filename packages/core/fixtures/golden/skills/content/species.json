@@ -1,0 +1,364 @@
+{
+  "species": [
+    {
+      "id": "glowbun",
+      "name": { "en": "Glowbun", "sl": "Sončni zajček" },
+      "description": { "en": "A sunny puff that glows brighter the more it giggles.", "sl": "Sončen puhek, ki žari tem močneje, čim bolj se hihita." },
+      "type": "sun",
+      "placeholder": true,
+      "stats": { "hp": 70, "attack": 65, "defense": 60, "speed": 70 },
+      "moves": ["heat-shimmer", "sun-ray", "storm-tap", "sun-call"],
+      "learnset": [
+        { "level": 1, "move": "heat-shimmer" },
+        { "level": 1, "move": "sun-ray" },
+        { "level": 1, "move": "storm-tap" },
+        { "level": 1, "move": "sun-call" },
+        { "level": 8, "move": "sun-tap" },
+        { "level": 15, "move": "sun-wallop" },
+        { "level": 24, "move": "storm-wallop" },
+        { "level": 33, "move": "noon-blaze" }
+      ],
+      "favouriteTreat": "bloom-treat"
+    },
+    {
+      "id": "baskit",
+      "name": { "en": "Baskit", "sl": "Grelček" },
+      "description": { "en": "Naps on warm rocks and spreads its frill like a little sun.", "sl": "Dremlje na toplih skalah in razpre ovratnik kot majhno sonce." },
+      "type": "sun",
+      "placeholder": true,
+      "stats": { "hp": 62, "attack": 77, "defense": 51, "speed": 80 },
+      "moves": ["sun-tap", "sun-ray", "gale-tap", "sun-call"],
+      "learnset": [
+        { "level": 1, "move": "sun-tap" },
+        { "level": 1, "move": "sun-ray" },
+        { "level": 1, "move": "gale-tap" },
+        { "level": 1, "move": "sun-call" },
+        { "level": 7, "move": "heat-shimmer" },
+        { "level": 14, "move": "sun-wallop" },
+        { "level": 22, "move": "gale-wallop" },
+        { "level": 31, "move": "noon-blaze" }
+      ],
+      "favouriteTreat": "sun-treat"
+    },
+    {
+      "id": "dawnshell",
+      "name": { "en": "Dawnshell", "sl": "Zlatoželva" },
+      "description": { "en": "Slow and steady. The sun on its shell rises every morning.", "sl": "Počasi, a zanesljivo. Sonce na njenem oklepu vzide vsako jutro." },
+      "type": "sun",
+      "placeholder": true,
+      "stats": { "hp": 89, "attack": 59, "defense": 89, "speed": 25 },
+      "moves": ["sun-tap", "heat-shimmer", "storm-tap", "sun-call"],
+      "learnset": [
+        { "level": 1, "move": "sun-tap" },
+        { "level": 1, "move": "heat-shimmer" },
+        { "level": 1, "move": "storm-tap" },
+        { "level": 1, "move": "sun-call" },
+        { "level": 10, "move": "sun-ray" },
+        { "level": 18, "move": "sun-wallop" },
+        { "level": 27, "move": "storm-wallop" },
+        { "level": 38, "move": "noon-blaze" }
+      ],
+      "favouriteTreat": "rain-treat"
+    },
+    {
+      "id": "puddlepip",
+      "name": { "en": "Puddlepip", "sl": "Lužabica" },
+      "description": { "en": "Jumps into every puddle it can find, with a big splash.", "sl": "Skoči v vsako lužo, ki jo najde, in pošteno čofne." },
+      "type": "rain",
+      "placeholder": true,
+      "stats": { "hp": 75, "attack": 65, "defense": 65, "speed": 60 },
+      "moves": ["drip-drop", "puddle-jump", "gale-tap", "rain-call"],
+      "learnset": [
+        { "level": 1, "move": "drip-drop" },
+        { "level": 1, "move": "puddle-jump" },
+        { "level": 1, "move": "gale-tap" },
+        { "level": 1, "move": "rain-call" },
+        { "level": 8, "move": "rain-tap" },
+        { "level": 15, "move": "rain-wallop" },
+        { "level": 24, "move": "gale-wallop" },
+        { "level": 33, "move": "downpour" }
+      ],
+      "favouriteTreat": "rain-treat"
+    },
+    {
+      "id": "drizzlesnail",
+      "name": { "en": "Drizzlesnail", "sl": "Dežnikar" },
+      "description": { "en": "Carries its own umbrella, so it never minds the rain.", "sl": "S sabo nosi svoj dežnik, zato ga dež nikoli ne moti." },
+      "type": "rain",
+      "placeholder": true,
+      "stats": { "hp": 81, "attack": 53, "defense": 85, "speed": 30 },
+      "moves": ["rain-tap", "drip-drop", "bloom-tap", "rain-call"],
+      "learnset": [
+        { "level": 1, "move": "rain-tap" },
+        { "level": 1, "move": "drip-drop" },
+        { "level": 1, "move": "bloom-tap" },
+        { "level": 1, "move": "rain-call" },
+        { "level": 9, "move": "puddle-jump" },
+        { "level": 17, "move": "rain-wallop" },
+        { "level": 26, "move": "bloom-wallop" },
+        { "level": 37, "move": "downpour" }
+      ],
+      "favouriteTreat": "bloom-treat"
+    },
+    {
+      "id": "pourpoise",
+      "name": { "en": "Pourpoise", "sl": "Plohfin" },
+      "description": { "en": "Swims through the sky, with a small rain cloud for company.", "sl": "Plava po nebu, za družbo pa ima majhen deževni oblak." },
+      "type": "rain",
+      "placeholder": true,
+      "stats": { "hp": 67, "attack": 77, "defense": 56, "speed": 75 },
+      "moves": ["rain-tap", "puddle-jump", "gale-tap", "rain-call"],
+      "learnset": [
+        { "level": 1, "move": "rain-tap" },
+        { "level": 1, "move": "puddle-jump" },
+        { "level": 1, "move": "gale-tap" },
+        { "level": 1, "move": "rain-call" },
+        { "level": 7, "move": "drip-drop" },
+        { "level": 14, "move": "rain-wallop" },
+        { "level": 23, "move": "gale-wallop" },
+        { "level": 32, "move": "downpour" }
+      ],
+      "favouriteTreat": "gale-treat"
+    },
+    {
+      "id": "snowsnoot",
+      "name": { "en": "Snowsnoot", "sl": "Snežni kužek" },
+      "description": { "en": "When it wags its tail, little puffs of snow fly up.", "sl": "Ko miga z repom, okoli njega zaplešejo snežinke." },
+      "type": "frost",
+      "placeholder": true,
+      "stats": { "hp": 70, "attack": 70, "defense": 60, "speed": 65 },
+      "moves": ["snow-puff", "icicle-poke", "rain-tap", "frost-call"],
+      "learnset": [
+        { "level": 1, "move": "snow-puff" },
+        { "level": 1, "move": "icicle-poke" },
+        { "level": 1, "move": "rain-tap" },
+        { "level": 1, "move": "frost-call" },
+        { "level": 8, "move": "frost-tap" },
+        { "level": 15, "move": "frost-wallop" },
+        { "level": 24, "move": "rain-wallop" },
+        { "level": 33, "move": "big-freeze" }
+      ],
+      "favouriteTreat": "frost-treat"
+    },
+    {
+      "id": "rimemoth",
+      "name": { "en": "Rimemoth", "sl": "Ivjevešča" },
+      "description": { "en": "Its wings are covered in frost that sparkles in the moonlight.", "sl": "Njena krila prekriva ivje, ki se blešči v mesečini." },
+      "type": "frost",
+      "placeholder": true,
+      "stats": { "hp": 57, "attack": 77, "defense": 52, "speed": 85 },
+      "moves": ["frost-tap", "icicle-poke", "gale-tap", "frost-call"],
+      "learnset": [
+        { "level": 1, "move": "frost-tap" },
+        { "level": 1, "move": "icicle-poke" },
+        { "level": 1, "move": "gale-tap" },
+        { "level": 1, "move": "frost-call" },
+        { "level": 7, "move": "snow-puff" },
+        { "level": 14, "move": "frost-wallop" },
+        { "level": 22, "move": "gale-wallop" },
+        { "level": 31, "move": "big-freeze" }
+      ],
+      "favouriteTreat": "storm-treat"
+    },
+    {
+      "id": "glaciyak",
+      "name": { "en": "Glaciyak", "sl": "Ledenjak" },
+      "description": { "en": "Big, shaggy and gentle. Its breath turns to frost.", "sl": "Velik, kosmat in prijazen. Njegov dih se spremeni v ivje." },
+      "type": "frost",
+      "placeholder": true,
+      "stats": { "hp": 89, "attack": 71, "defense": 71, "speed": 20 },
+      "moves": ["frost-tap", "snow-puff", "rain-tap", "frost-call"],
+      "learnset": [
+        { "level": 1, "move": "frost-tap" },
+        { "level": 1, "move": "snow-puff" },
+        { "level": 1, "move": "rain-tap" },
+        { "level": 1, "move": "frost-call" },
+        { "level": 10, "move": "icicle-poke" },
+        { "level": 18, "move": "frost-wallop" },
+        { "level": 27, "move": "rain-wallop" },
+        { "level": 38, "move": "big-freeze" }
+      ],
+      "favouriteTreat": "sun-treat"
+    },
+    {
+      "id": "boltkit",
+      "name": { "en": "Boltkit", "sl": "Bliskomuc" },
+      "description": { "en": "When it gets excited, its tail crackles with sparks.", "sl": "Ko se razveseli, mu rep zaprasketa od iskric." },
+      "type": "storm",
+      "placeholder": true,
+      "stats": { "hp": 63, "attack": 84, "defense": 53, "speed": 75 },
+      "moves": ["storm-tap", "cloud-clap", "bloom-tap", "storm-call"],
+      "learnset": [
+        { "level": 1, "move": "storm-tap" },
+        { "level": 1, "move": "cloud-clap" },
+        { "level": 1, "move": "bloom-tap" },
+        { "level": 1, "move": "storm-call" },
+        { "level": 7, "move": "static-zap" },
+        { "level": 14, "move": "storm-wallop" },
+        { "level": 22, "move": "bloom-wallop" },
+        { "level": 31, "move": "sky-crackle" }
+      ],
+      "favouriteTreat": "storm-treat"
+    },
+    {
+      "id": "sparkhog",
+      "name": { "en": "Sparkhog", "sl": "Iskrojež" },
+      "description": { "en": "Rolls into a spiky ball that buzzes with static.", "sl": "Zvije se v bodičasto kroglo, ki brenči od elektrike." },
+      "type": "storm",
+      "placeholder": true,
+      "stats": { "hp": 66, "attack": 61, "defense": 76, "speed": 50 },
+      "moves": ["static-zap", "cloud-clap", "sun-tap", "storm-call"],
+      "learnset": [
+        { "level": 1, "move": "static-zap" },
+        { "level": 1, "move": "cloud-clap" },
+        { "level": 1, "move": "sun-tap" },
+        { "level": 1, "move": "storm-call" },
+        { "level": 8, "move": "storm-tap" },
+        { "level": 16, "move": "storm-wallop" },
+        { "level": 25, "move": "sun-wallop" },
+        { "level": 34, "move": "sky-crackle" }
+      ],
+      "favouriteTreat": "sun-treat"
+    },
+    {
+      "id": "rumblejelly",
+      "name": { "en": "Rumblejelly", "sl": "Grmeduza" },
+      "description": { "en": "Floats along with the storm clouds and hums like thunder.", "sl": "Lebdi z nevihtnimi oblaki in brunda kot grom." },
+      "type": "storm",
+      "placeholder": true,
+      "stats": { "hp": 86, "attack": 71, "defense": 71, "speed": 40 },
+      "moves": ["storm-tap", "static-zap", "bloom-tap", "storm-call"],
+      "learnset": [
+        { "level": 1, "move": "storm-tap" },
+        { "level": 1, "move": "static-zap" },
+        { "level": 1, "move": "bloom-tap" },
+        { "level": 1, "move": "storm-call" },
+        { "level": 10, "move": "cloud-clap" },
+        { "level": 18, "move": "storm-wallop" },
+        { "level": 27, "move": "bloom-wallop" },
+        { "level": 38, "move": "sky-crackle" }
+      ],
+      "favouriteTreat": "rain-treat"
+    },
+    {
+      "id": "breezeray",
+      "name": { "en": "Breezeray", "sl": "Vetroraža" },
+      "description": { "en": "Rides the wind like a kite and never needs to flap.", "sl": "Jadra na vetru kot papirnati zmaj in nikoli ne zamahne." },
+      "type": "gale",
+      "placeholder": true,
+      "stats": { "hp": 62, "attack": 71, "defense": 57, "speed": 85 },
+      "moves": ["gale-tap", "twirl", "frost-tap", "gale-call"],
+      "learnset": [
+        { "level": 1, "move": "gale-tap" },
+        { "level": 1, "move": "twirl" },
+        { "level": 1, "move": "frost-tap" },
+        { "level": 1, "move": "gale-call" },
+        { "level": 7, "move": "gust-push" },
+        { "level": 14, "move": "gale-wallop" },
+        { "level": 22, "move": "frost-wallop" },
+        { "level": 31, "move": "sky-sweep" }
+      ],
+      "favouriteTreat": "gale-treat"
+    },
+    {
+      "id": "pinwhirl",
+      "name": { "en": "Pinwhirl", "sl": "Vrtavček" },
+      "description": { "en": "Spins so fast in a breeze that it makes itself dizzy.", "sl": "V vetru se vrti tako hitro, da se mu zvrti." },
+      "type": "gale",
+      "placeholder": true,
+      "stats": { "hp": 66, "attack": 72, "defense": 62, "speed": 70 },
+      "moves": ["gust-push", "twirl", "storm-tap", "gale-call"],
+      "learnset": [
+        { "level": 1, "move": "gust-push" },
+        { "level": 1, "move": "twirl" },
+        { "level": 1, "move": "storm-tap" },
+        { "level": 1, "move": "gale-call" },
+        { "level": 8, "move": "gale-tap" },
+        { "level": 15, "move": "gale-wallop" },
+        { "level": 24, "move": "storm-wallop" },
+        { "level": 33, "move": "sky-sweep" }
+      ],
+      "favouriteTreat": "frost-treat"
+    },
+    {
+      "id": "gustowl",
+      "name": { "en": "Gustowl", "sl": "Burjasova" },
+      "description": { "en": "Each flap of its wings stirs up a gust of wind.", "sl": "Vsak zamah njenih kril dvigne sunek vetra." },
+      "type": "gale",
+      "placeholder": true,
+      "stats": { "hp": 85, "attack": 72, "defense": 72, "speed": 40 },
+      "moves": ["gale-tap", "gust-push", "frost-tap", "gale-call"],
+      "learnset": [
+        { "level": 1, "move": "gale-tap" },
+        { "level": 1, "move": "gust-push" },
+        { "level": 1, "move": "frost-tap" },
+        { "level": 1, "move": "gale-call" },
+        { "level": 10, "move": "twirl" },
+        { "level": 18, "move": "gale-wallop" },
+        { "level": 27, "move": "frost-wallop" },
+        { "level": 38, "move": "sky-sweep" }
+      ],
+      "favouriteTreat": "storm-treat"
+    },
+    {
+      "id": "bloomlet",
+      "name": { "en": "Bloomlet", "sl": "Kalček" },
+      "description": { "en": "A little bud that loves sunshine and gentle rain.", "sl": "Majhen popek, ki ima rad sonce in nežen dež." },
+      "type": "bloom",
+      "placeholder": true,
+      "stats": { "hp": 75, "attack": 64, "defense": 64, "speed": 60 },
+      "moves": ["petal-toss", "vine-tickle", "sun-tap", "bloom-call"],
+      "learnset": [
+        { "level": 1, "move": "petal-toss" },
+        { "level": 1, "move": "vine-tickle" },
+        { "level": 1, "move": "sun-tap" },
+        { "level": 1, "move": "bloom-call" },
+        { "level": 8, "move": "bloom-tap" },
+        { "level": 15, "move": "bloom-wallop" },
+        { "level": 24, "move": "sun-wallop" },
+        { "level": 33, "move": "pollen-burst" }
+      ],
+      "favouriteTreat": "sun-treat"
+    },
+    {
+      "id": "petalbug",
+      "name": { "en": "Petalbug", "sl": "Cvetohrošč" },
+      "description": { "en": "Its shell smells of flowers, so bees like to visit.", "sl": "Njegov oklep diši po cvetlicah, zato ga rade obiščejo čebele." },
+      "type": "bloom",
+      "placeholder": true,
+      "stats": { "hp": 61, "attack": 76, "defense": 56, "speed": 75 },
+      "moves": ["bloom-tap", "vine-tickle", "rain-tap", "bloom-call"],
+      "learnset": [
+        { "level": 1, "move": "bloom-tap" },
+        { "level": 1, "move": "vine-tickle" },
+        { "level": 1, "move": "rain-tap" },
+        { "level": 1, "move": "bloom-call" },
+        { "level": 7, "move": "petal-toss" },
+        { "level": 14, "move": "bloom-wallop" },
+        { "level": 22, "move": "rain-wallop" },
+        { "level": 31, "move": "pollen-burst" }
+      ],
+      "favouriteTreat": "bloom-treat"
+    },
+    {
+      "id": "blossomcub",
+      "name": { "en": "Blossomcub", "sl": "Cvetni medo" },
+      "description": { "en": "A cuddly cub with a flower on its head that never wilts.", "sl": "Mehak medvedek z rožo na glavi, ki nikoli ne oveni." },
+      "type": "bloom",
+      "placeholder": true,
+      "stats": { "hp": 92, "attack": 67, "defense": 72, "speed": 25 },
+      "moves": ["bloom-tap", "petal-toss", "sun-tap", "bloom-call"],
+      "learnset": [
+        { "level": 1, "move": "bloom-tap" },
+        { "level": 1, "move": "petal-toss" },
+        { "level": 1, "move": "sun-tap" },
+        { "level": 1, "move": "bloom-call" },
+        { "level": 10, "move": "vine-tickle" },
+        { "level": 18, "move": "bloom-wallop" },
+        { "level": 27, "move": "sun-wallop" },
+        { "level": 38, "move": "pollen-burst" }
+      ],
+      "favouriteTreat": "plain-treat"
+    }
+  ]
+}

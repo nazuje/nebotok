@@ -75,6 +75,22 @@
     {
       "if": [
         {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
           "flag": "chapter-1-done",
           "set": true
         }
@@ -224,6 +240,24 @@
         "sl": "Hm. Veter se spet obrača proti vzhodu. To mi ni všeč."
       },
       "mood": "worried"
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
     }
   }
 }

@@ -5,10 +5,12 @@
  * how the server sends what changed.
  */
 import { needsStarter, type Progress } from './creatures.ts';
+import { jobReady } from './deliveries.ts';
 import { gainXp } from './growth.ts';
 import { giveItems, type ItemCount } from './inventory.ts';
 import type { CreatureReward } from './messages.ts';
 import { MAX_ACTIVE_QUESTS, MAX_STORY_IDS, type QuestProgress, type StoryProgress } from './save.ts';
+import { gainSkillXp, type SkillGain } from './skills.ts';
 import type { StoryContent } from './story.ts';
 import type { Quest, QuestStep, StepEffect, StoryCue } from './story-content.ts';
 
@@ -28,8 +30,14 @@ export function currentStep(story: StoryProgress, quest: Quest): { readonly step
   return entry && step ? { step, entry } : null;
 }
 
-/** What finishing a quest gave: items in the bag, what did not fit, and the experience each team creature got. */
-export type QuestRewards = { readonly items: readonly ItemCount[]; readonly extra: readonly ItemCount[]; readonly xp: number; readonly creatures: readonly CreatureReward[] };
+/** What finishing a quest gave: items in the bag, what did not fit, the experience each team creature got, and the skills' XP and levels after. */
+export type QuestRewards = {
+  readonly items: readonly ItemCount[];
+  readonly extra: readonly ItemCount[];
+  readonly xp: number;
+  readonly creatures: readonly CreatureReward[];
+  readonly skills: readonly SkillGain[];
+};
 
 /**
  * `quest.changed`: a quest started, moved to its next step (`step` is the index of the step now
@@ -72,9 +80,9 @@ export function startQuest(progress: Progress, id: string, content: StoryContent
 }
 
 /**
- * Gives a finished quest's rewards: its items, within stack limits, and its experience to every
- * team creature (fainted ones too, whose health stays 0). Learning the moves a level up teaches is
- * the server's part, as after a battle (`learnTeamMoves`).
+ * Gives a finished quest's rewards: its items, within stack limits, its experience to every team
+ * creature (fainted ones too, whose health stays 0) and its skill XP. Learning the moves a level up
+ * teaches is the server's part, as after a battle (`learnTeamMoves`).
  */
 export function questRewards(progress: Progress, quest: Quest, content: StoryContent): { readonly progress: Progress; readonly rewards: QuestRewards } {
   const gift = giveItems(progress, quest.rewards.items, content);
@@ -85,7 +93,15 @@ export function questRewards(progress: Progress, quest: Quest, content: StoryCon
     creatures.push({ index, xp: quest.rewards.xp, level: grown.level });
     return grown;
   });
-  return { progress: { ...gift.progress, team }, rewards: { items: gift.given, extra: gift.extra, xp: quest.rewards.xp, creatures } };
+  let progressed: Progress = { ...gift.progress, team };
+  const skills: SkillGain[] = [];
+  for (const { skill, xp } of quest.rewards.skills ?? []) {
+    if (!content.skills) break;
+    const grown = gainSkillXp(progressed, skill, xp, content.skills);
+    progressed = grown.progress;
+    skills.push(grown.gain);
+  }
+  return { progress: progressed, rewards: { items: gift.given, extra: gift.extra, xp: quest.rewards.xp, creatures, skills } };
 }
 
 /** Moves an active quest past its current step: to the next one, or to done with its rewards. */
@@ -115,23 +131,28 @@ export type QuestEvent =
   | { readonly kind: 'battleWon'; readonly zone: string | null }
   | { readonly kind: 'befriended'; readonly species: string }
   | { readonly kind: 'rested'; readonly shrine: string }
-  | { readonly kind: 'reached'; readonly mark: string };
+  | { readonly kind: 'reached'; readonly mark: string }
+  | { readonly kind: 'gathered' | 'cooked'; readonly item: string; readonly count: number }
+  | { readonly kind: 'jobDone' };
 
-/** How many events a step needs: its count for battles and befriending, else 1 (talk and deliver steps are done by dialogue). */
+/** How many events a step needs: its count for battles, befriending, gathering, cooking and jobs, else 1 (talk and deliver steps are done by dialogue). */
 export function stepTarget(step: QuestStep): number {
-  return step.kind === 'winBattles' || step.kind === 'befriend' ? step.count : 1;
+  return 'count' in step && step.kind !== 'deliver' ? step.count : 1;
 }
 
-/** Whether an event counts for a step. */
-function counts(step: QuestStep, event: QuestEvent, content: StoryContent): boolean {
-  if (step.kind === 'winBattles') return event.kind === 'battleWon' && (step.zone === undefined || step.zone === event.zone);
+/** How much an event counts for a step: 0 when it is not for that step, and a gather or cook counts each item. */
+function counts(step: QuestStep, event: QuestEvent, content: StoryContent): number {
+  if (step.kind === 'winBattles') return Number(event.kind === 'battleWon' && (step.zone === undefined || step.zone === event.zone));
   if (step.kind === 'befriend') {
-    if (event.kind !== 'befriended') return false;
-    return (step.species === undefined || step.species === event.species) && (step.type === undefined || content.battle.species.get(event.species)?.type === step.type);
+    if (event.kind !== 'befriended') return 0;
+    return Number((step.species === undefined || step.species === event.species) && (step.type === undefined || content.battle.species.get(event.species)?.type === step.type));
   }
-  if (step.kind === 'visitShrine') return event.kind === 'rested' && step.shrine === event.shrine;
-  if (step.kind === 'reach') return event.kind === 'reached' && step.mark === event.mark;
-  return false;
+  if (step.kind === 'visitShrine') return Number(event.kind === 'rested' && step.shrine === event.shrine);
+  if (step.kind === 'reach') return Number(event.kind === 'reached' && step.mark === event.mark);
+  if (step.kind === 'gather') return event.kind === 'gathered' && event.item === step.item ? event.count : 0;
+  if (step.kind === 'cook') return event.kind === 'cooked' && event.item === step.treat ? event.count : 0;
+  if (step.kind === 'finishJobs') return Number(event.kind === 'jobDone');
+  return 0;
 }
 
 /**
@@ -146,9 +167,10 @@ export function questEvent(progress: Progress, event: QuestEvent, content: Story
   for (const { quest: id } of progress.story.active) {
     const quest = questOf(content, id);
     const current = quest ? currentStep(next.story, quest) : null;
-    if (!quest || !current || !counts(current.step, event, content)) continue;
-    const count = current.entry.count + 1;
+    const amount = current ? counts(current.step, event, content) : 0;
+    if (!quest || !current || amount <= 0) continue;
     const target = stepTarget(current.step);
+    const count = Math.min(current.entry.count + amount, target);
     if (count >= target) {
       const done = finishStep(next, quest, current.entry, current.step, content);
       next = done.progress;
@@ -162,9 +184,9 @@ export function questEvent(progress: Progress, event: QuestEvent, content: Story
   return { progress: next, changes, extra };
 }
 
-/** Every quest in story order: chapter by chapter, each chapter's quests in its order. */
-function questsInOrder(content: StoryContent): Quest[] {
-  return content.chapters.flatMap((chapter) => chapter.quests.flatMap((id) => content.quests.get(id) ?? []));
+/** Every quest in story order: chapter by chapter, each chapter's quests in its order; with `side`, only the main or only the side chapters'. */
+function questsInOrder(content: StoryContent, side?: boolean): Quest[] {
+  return content.chapters.filter((chapter) => side === undefined || (chapter.side === true) === side).flatMap((chapter) => chapter.quests.flatMap((id) => content.quests.get(id) ?? []));
 }
 
 /** One quest in the journal: `step` and `count` are where an active one stands, `of` what its step needs (`stepTarget`). */
@@ -189,7 +211,7 @@ export function questLog(progress: Progress, content: StoryContent): QuestLog {
   return { chapters, next: nextGoal(progress, content) };
 }
 
-/** A mark over a character: `turnIn` when a quest's current step is to talk to them or bring them something, `newQuest` when they have one to give. */
+/** A mark over a character: `turnIn` when a quest's current step is to talk to them or bring them something, or the player carries all of a delivery job to them; `newQuest` when they have one to give. */
 export type NpcMark = { readonly npc: string; readonly mark: 'turnIn' | 'newQuest' };
 
 /** The marks over characters, in npcs.json order. A character with nothing for the player has none. */
@@ -205,7 +227,7 @@ export function npcMarks(progress: Progress, content: StoryContent): NpcMark[] {
     if (state === 'available' && !needsStarter(progress)) newQuest.add(quest.giver);
   }
   return [...content.npcs.keys()].flatMap((npc): NpcMark[] => {
-    if (turnIn.has(npc)) return [{ npc, mark: 'turnIn' }];
+    if (turnIn.has(npc) || jobReady(progress, npc)) return [{ npc, mark: 'turnIn' }];
     return newQuest.has(npc) ? [{ npc, mark: 'newQuest' }] : [];
   });
 }
@@ -214,7 +236,8 @@ export function npcMarks(progress: Progress, content: StoryContent): NpcMark[] {
  * What the player should do next, for the journal's "where next" and for bots: choose a starter
  * (from the character whose dialogue offers it), the current step of the first active quest in
  * story order (with how many it still needs), or to collect the first available quest from its
- * giver. Null when there is nothing left for now.
+ * giver. Side chapters come in only when the main story has nothing for the player. Null when
+ * there is nothing left for now.
  */
 export type Goal =
   | { readonly kind: 'starter'; readonly npc: string }
@@ -226,7 +249,11 @@ export function nextGoal(progress: Progress, content: StoryContent): Goal | null
     const npc = [...content.dialogue].find(([, dialogue]) => Object.values(dialogue.nodes).some((node) => (node.effects ?? []).some((effect) => 'offerStarter' in effect)))?.[0];
     return npc === undefined ? null : { kind: 'starter', npc };
   }
-  const quests = questsInOrder(content);
+  return goalAmong(progress, questsInOrder(content, false)) ?? goalAmong(progress, questsInOrder(content, true));
+}
+
+/** The current step of the first active quest of `quests`, else the first available one. */
+function goalAmong(progress: Progress, quests: readonly Quest[]): Goal | null {
   for (const quest of quests) {
     const current = currentStep(progress.story, quest);
     if (current) return { kind: 'step', quest: quest.id, step: current.step, left: stepTarget(current.step) - current.entry.count };

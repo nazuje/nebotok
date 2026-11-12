@@ -21,6 +21,8 @@ import {
   readTiledMap,
   reachableFrom,
   shrineAt,
+  spotInReach,
+  stationInReach,
   wakePoint,
 } from '../../src/index.ts';
 
@@ -278,5 +280,37 @@ describe('characters and marks', () => {
 
   it('gives a map drawn from rows no characters and no marks', () => {
     expect(mapFromRows('rows', ['..'])).toMatchObject({ npcs: {}, marks: {} });
+  });
+});
+
+function spots(x: number, y: number) {
+  return { type: 'objectgroup', name: 'spots', objects: [{ id: 7, name: 'pebble-cove', x, y, point: true }] };
+}
+
+function stations(x: number, y: number) {
+  return { type: 'objectgroup', name: 'stations', objects: [{ id: 8, name: 'post-pot', x, y, point: true }] };
+}
+
+describe('spots and stations', () => {
+  it('blocks the tile of each, lets a spot stand where nobody walks, and uses both from the tiles next to them', () => {
+    const result = readTiledMap('tiny', tinyMap(layers([spots(24, 8), stations(40, 8)])));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    expect(result.map.spots).toEqual({ 'pebble-cove': { x: 1, y: 0 } });
+    expect(result.map.stations).toEqual({ 'post-pot': { x: 2, y: 0 } });
+    expect(isWalkable(result.map, { x: 2, y: 0 })).toBe(false);
+    expect(playabilityProblems(result.map)).toEqual([]);
+    expect([spotInReach(result.map, { x: 0, y: 0 }, 'pebble-cove'), spotInReach(result.map, { x: 1, y: 1 }, 'pebble-cove'), spotInReach(result.map, { x: 2, y: 1 }, 'pebble-cove')]).toEqual([true, true, false]);
+    expect([stationInReach(result.map, { x: 2, y: 1 }, 'post-pot'), stationInReach(result.map, { x: 1, y: 1 }, 'post-pot'), stationInReach(result.map, { x: 2, y: 1 }, 'moon-pot')]).toEqual([true, false, false]);
+  });
+
+  it('refuses a station nobody can walk to and two things on one tile', () => {
+    expect(readTiledMap('tiny', tinyMap(layers([stations(24, 8)])))).toEqual({ ok: false, problems: ['station "post-pot" at 1,0 stands on a tile nobody can walk to'] });
+    expect(readTiledMap('tiny', tinyMap({ layers: [...openLayers(), npcs(40, 8), spots(40, 8)] }))).toEqual({ ok: false, problems: ['spot "pebble-cove" at 2,0 shares its tile with npc "bavko"'] });
+  });
+
+  it('finds a spot nobody can reach', () => {
+    const map = { ...mapFromRows('rows', ['..##']), spots: { 'pebble-cove': { x: 3, y: 0 } } };
+    expect(playabilityProblems(map)).toEqual(['spot "pebble-cove" at 3,0 has no tile next to it that players can reach']);
+    expect(mapFromRows('rows', ['..'])).toMatchObject({ spots: {}, stations: {} });
   });
 });

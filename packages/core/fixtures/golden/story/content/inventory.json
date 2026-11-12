@@ -6,6 +6,9 @@
     "treat": {
       "stack": 9
     },
+    "ingredient": {
+      "stack": 20
+    },
     "material": {
       "stack": 20
     }
@@ -13,6 +16,7 @@
   "order": [
     "quest",
     "treat",
+    "ingredient",
     "material"
   ]
 }

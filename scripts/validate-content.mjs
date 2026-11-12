@@ -5,9 +5,10 @@
 // all exist and name only types, weather, moves, species and treats that the others define; so must
 // encounters.json, starters.json and creatures/renamed.json, and each map's tall grass and shrines must name a zone in
 // encounters.json and a shrine in shrines.json. The story files (npcs.json, dialogue/, quests.json,
-// story.json, inventory.json) must link up (core storyProblems) and to the maps (storyMapProblems).
-// Art (content/art/) must hold every sprite that avatars, creatures, weather, items, npcs, story
-// cues and maps need; each tileset image must be what `npm run tiles`
+// story.json, inventory.json) and the skill files (skills.json, spots.json, recipes.json,
+// stations.json, jobs.json) must link up (core storyProblems, skillProblems) and to the maps
+// (storyMapProblems). Art (content/art/) must hold every sprite that avatars, creatures, weather,
+// items, npcs, story cues, spots, stations, skills, their games and maps need; each tileset image must be what `npm run tiles`
 // draws from its art, and each real-art PNG must be used and the right size.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -105,6 +106,7 @@ const BATTLE_FILES = {
 };
 const WORLD_FILES = ['encounters.json', 'shrines.json', 'starters.json', 'creatures/renamed.json'];
 const STORY_FILES = ['npcs.json', 'quests.json', 'story.json', 'inventory.json'];
+const SKILL_FILES = { skills: 'skills.json', spots: 'spots.json', recipes: 'recipes.json', stations: 'stations.json', jobs: 'jobs.json' };
 const missing = [...Object.values(BATTLE_FILES), ...WORLD_FILES].filter((file) => !all.includes(file));
 if (missing.length) fail('creatures/', missing.map((file) => `content/${file} is missing; the game needs it`));
 else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed.has(file))) {
@@ -133,19 +135,21 @@ else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed
   }
 }
 
-// The story: npcs.json, dialogue/, quests.json, story.json and inventory.json, linked to each other,
-// to the battle content and to the maps.
+// The story: npcs.json, dialogue/, quests.json, story.json, inventory.json and the skill files,
+// linked to each other, to the battle content and to the maps.
 function checkStory(battle, maps, encounters, shrines) {
-  const missingStory = STORY_FILES.filter((file) => !all.includes(file));
+  const needed = [...STORY_FILES, ...Object.values(SKILL_FILES)];
+  const missingStory = needed.filter((file) => !all.includes(file));
   if (missingStory.length) return fail('story', missingStory.map((file) => `content/${file} is missing; the game needs it`));
   const dialogueFiles = [...parsed.keys()].filter((file) => DIALOGUE_FILE.test(file));
-  if (!STORY_FILES.every((file) => parsed.has(file)) || dialogueFiles.length !== all.filter((file) => DIALOGUE_FILE.test(file)).length) return;
+  if (!needed.every((file) => parsed.has(file)) || dialogueFiles.length !== all.filter((file) => DIALOGUE_FILE.test(file)).length) return;
   const storyFiles = {
     npcs: parsed.get('npcs.json'),
     quests: parsed.get('quests.json'),
     story: parsed.get('story.json'),
     inventory: parsed.get('inventory.json'),
     dialogue: Object.fromEntries(dialogueFiles.map((file) => [DIALOGUE_FILE.exec(file)[1], parsed.get(file)])),
+    skills: Object.fromEntries(Object.entries(SKILL_FILES).map(([key, file]) => [key, parsed.get(file)])),
   };
   const problems = storyContentProblems(storyFiles, battle);
   if (problems.length) return fail('story', problems);
@@ -169,6 +173,9 @@ if (artFiles.every((file) => parsed.has(file))) {
     npcs: ids('npcs.json', 'npcs'),
     cues: [...STORY_CUES],
     tilesets: [...new Set(mapTilesets.map(({ name }) => name))],
+    spots: [...new Set((parsed.get('spots.json')?.spots ?? []).map((spot) => spot.look))],
+    stations: [...new Set((parsed.get('stations.json')?.stations ?? []).map((station) => station.look))],
+    skills: (parsed.get('skills.json')?.skills ?? []).map((skill) => ({ id: skill.id, game: skill.game })),
   };
   const problems = [...art.problems, ...missingArt(art, users), ...(art.problems.length ? [] : pngProblems(art, CONTENT_DIR))];
   if (problems.length) fail('art/', problems);

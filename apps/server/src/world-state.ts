@@ -18,6 +18,8 @@ export const Player = schema(
     inBattle: t.boolean().default(false),
     /** True while the player is talking to a character. What is said goes only to them, as messages. */
     talking: t.boolean().default(false),
+    /** `''`, or the skill the player is doing (`foraging`, `fishing`, `cooking`), for the pose others see. Everything else about it goes only to them. */
+    skill: t.string().default(''),
   },
   'Player',
 );

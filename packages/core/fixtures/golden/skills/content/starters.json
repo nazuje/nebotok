@@ -1,0 +1,14 @@
+{
+  "species": [
+    "glowbun",
+    "puddlepip",
+    "bloomlet"
+  ],
+  "level": 5,
+  "items": [
+    {
+      "item": "plain-treat",
+      "count": 5
+    }
+  ]
+}

@@ -2,11 +2,13 @@
 
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
-`src/profile.ts`, and `src/messages.ts` for battles and teams), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **7**),
+`src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
+`src/skill-messages.ts` for skills and jobs), so client and server import the
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **8**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
-protocol 6 with the starter only through a talk. `scripts/lib/protocol-contract.test.mjs` hashes the
-message names, the client message schemas and server switches such as `STARTER_NEEDS_TALK`, and
+protocol 6 with the starter only through a talk, and protocol 8 adds skills and the job board.
+`scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
+attempt timing constants and server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`, and
 fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
 
 Everything is same-origin: the page, the API, the maps and the WebSocket all come from the server
@@ -99,6 +101,7 @@ Player
   connected          boolean  false while the player's connection is lost
   inBattle           boolean  true while the player is in a battle
   talking            boolean  true while the player is talking to a character
+  skill              string   '' or the skill the player is doing: foraging, fishing or cooking
 ```
 
 The key of `players` is the Colyseus `sessionId`; your own is `room.sessionId`. Nothing else about a
@@ -141,8 +144,8 @@ Server to client:
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
 
-The battle, team and starter messages are in the next section, and the talk and quest messages in
-"Talking, quests and the bag".
+The battle, team and starter messages are in the next section, the talk and quest messages in
+"Talking, quests and the bag", and the skill and job messages in "Skills and the job board".
 
 ## Battles, teams and treats
 
@@ -362,6 +365,109 @@ when the team faints), `treat`s and `material`s. `content/inventory.json` gives 
 how many of one item fit (core `stackLimit`). What does not fit is not added (a quest's
 `rewards.extra` lists it); nothing is ever thrown away, and players cannot discard items. Core `bagView` is the bag screen: one section per kind, in `order`.
 
+## Skills and the job board
+
+Since protocol 8. The payload schemas are in `packages/core/src/skill-messages.ts`, the content
+schemas in `skill-content.ts`, and the rules in core: levels (`skills.ts`), the tiny games and how
+they are judged (`attempts.ts`), gathering and cooking (`gathering.ts`) and the board (`jobs.ts`).
+Everything here goes **only to its player**, as messages; the room state shows others just
+`skill` on that player, the skill being done or `''`.
+
+A player gathers at a spot (`content/spots.json`, placed by a map's `spots` layer) and cooks at a
+cooking pot (`content/stations.json`, placed by its `stations` layer), standing on a tile beside it,
+not diagonally (core `spotInReach`, `stationInReach`). Each gather or cook is one attempt: a tiny
+game of 3 to 5 seconds that the browser plays and the server judges. Skills need a creature: a
+player still waiting for the starter is refused `notNow` (`SKILLS_NEED_STARTER` in
+`apps/server/src/skills.ts`).
+
+### Client to server
+
+| Type | Payload | When | Effect |
+| --- | --- | --- | --- |
+| `gather.start` | `{ spot }` | Next to the spot, not busy | Checks the start (core `gatherRefusal`), stops any walk (the step under way still ends), turns the courier to the spot, sets `skill` and sends `skill.attempt` |
+| `cook.start` | `{ recipe, station }` | Next to that cooking pot, not busy | The same with core `cookRefusal`; the ingredients are taken only on a success |
+| `skill.finish` | `{ attempt, taps }`: at most `MAX_TAPS` (8) taps `{ at, place }`, `at` 0 to 20000 ms, whole, `place` 0 to 3 (0 for dip and marker) | The game of `attempt` is over | Judges the taps (core `judgeAttempt`), applies the result and sends `skill.result` |
+| `skill.cancel` | `{ attempt }` | An attempt is open | Ends it as `cancelled`: nothing is used and nothing rests |
+| `board.open` | `{ station }` | Next to the job board | The first open draws the board from a new seed (core `openBoard`); sends `jobs` |
+
+Busy means in a battle, talking, a `move.offer` waiting or an attempt open. A request that matches
+its schema but is not allowed now is answered with `refused`: `invalid` (an unknown spot, recipe
+or station, a station of the wrong kind, or another attempt's number), `notNow` (busy, or no
+creature yet), `inBattle`, `tooFar` (not next to it, or it is on another map), `needsLevel` (the
+spot or recipe needs a higher level), `resting` (the spot rests for this player), `noItem` (the
+ingredients are not in the bag) and `bagFull` (the spot's item or the dish is already at its
+stack). The order of the checks is that of core `gatherRefusal` and `cookRefusal`.
+
+### Server to client
+
+| Type | Payload | When |
+| --- | --- | --- |
+| `skills` | `SkillsMessage`: `{ skills: [{ skill, level, xp, toNext }], resting: [{ spot, ms }] }` | After `story` on joining and on each reconnection, and after anything that changes it |
+| `skill.attempt` | `SkillAttemptMessage`: `{ attempt, skill, spot, recipe, game, params, endsByMs }` | An accepted start: play `game` with `params` (core `AttemptPlan`); `spot` or `recipe` is null |
+| `skill.result` | `SkillResultMessage`: `{ attempt, outcome, items, used, extra, skill, xp, level, levelUp, restMs }` | The attempt ended: `perfect`, `success`, `miss`, `late` or `cancelled`. `skill` turns `''` |
+| `jobs` | `JobsMessage`: `{ board: [{ job, template, kind, item, count, to, progress }] }` | After `board.open`, after `skills` on joining once the board has been opened, and after anything that changes the board |
+| `job.changed` | `JobChanged`: `{ job, change, progress, rewards, next }` | A job counted something (`progress`) or was `done`: `rewards` are the items given, what did not fit and the skills' XP and levels, and `next` the job drawn in its place |
+
+`skill.attempt` params by game: dip `{ dipAtMs, windowMs, perfectMs }`; sparkle `{ sparkles:
+[{ place, atMs, showMs }], need }`; marker `{ sweepMs, zoneFrom, zoneTo, perfectFrom, perfectTo,
+timeoutMs }` (marker positions run 0 to `MARKER_TRACK`, 1000, and back, core `markerAt`). Text
+never travels: names come from the content files by id.
+
+**Order.** After an attempt: `skill.result`, then each `job.changed` and `quest.changed`, then
+`progress`, `skills`, `story` and `jobs`, each only when it changed (core `skillEvent` counts the
+attempt for quests and jobs in one call). After a delivery in a talk: the same from `job.changed`
+on, then the `talk.node`. On joining and each reconnection: `progress`, `story`, `skills`, then
+`jobs` once the board has been opened.
+
+### How the server judges an attempt
+
+The browser times taps with `performance.now()` from the moment it draws the game, so network
+delay never shortens a window, and sends `skill.finish` when the game ends: on the tap for dip
+and marker, after the last sparkle for sparkle, or with no taps when time runs out. With
+`elapsed` the server's own time since it sent `skill.attempt` (constants in `attempts.ts`, pinned
+by `scripts/lib/protocol-contract.test.mjs`):
+
+- `MIN_ATTEMPT_MS` (1000): a finish sooner is a miss.
+- `CLOCK_SLACK_MS` (50): a tap later than `elapsed` + 50, or taps out of order, is a miss: that
+  tap had not happened yet.
+- `GRACE_MS` (150): every window counts 150 ms wider on each side than it is drawn. The marker's
+  zone widens by the distance it moves in 150 ms.
+- `LATE_MS` (5000): the server waits `endsByMs` plus 5 s for `skill.finish`, then ends the attempt
+  `late`, a miss. Up to 5 s of delay on the answer costs nothing.
+- Dip: the first tap counts; inside the window is a success, inside its first `perfectMs` a
+  perfect, before it a miss. Sparkle: a tap counts for the sparkle shown at its `place` then;
+  `need` of them is a success, all a perfect. Marker: the first tap stops it; inside the zone is a
+  success, inside the perfect band a perfect, no tap by `timeoutMs` a miss.
+
+A success gives the spot's item (or the dish) and XP, and rests the spot for this player only
+(`restSeconds` of its skill); a perfect gives one more within the stack. A miss, `late` or
+`cancelled` uses and rests nothing. One attempt per player at a time: during it the player stands
+still and meets no wild creature, and `talk.start`, `board.open` and another start are refused
+`notNow`. A walk message, `skill.cancel`, leaving, a take-over, a reconnection and a battle start
+end it as `cancelled`. Attempts and rests live only in the server's memory, rests by profile id,
+so a reconnection keeps them and a restart clears them. The five requests share the request
+limit of the battle and talk requests, `REQUESTS_PER_SECOND` (5) a second in
+`apps/server/src/world-room.ts`; the extra ones are dropped without an answer.
+
+A modified browser knows the parameters and can play perfectly, but it cannot be faster than the
+game, the minimum time or the rests, so the most it gains is the perfect bonus.
+
+### Levels, recipes and jobs
+
+Each skill has levels 1 to `maxLevel` (`content/skills.json`); `levelCosts` is the XP from each
+level to the next, and a save keeps the XP since the level was reached, so a later curve never
+takes a level away. Levels unlock spots and recipes. The recipe book (core `recipeBook`) is every
+recipe at or below the cooking level, plus the next locked one.
+
+The board shows `slots` (3) jobs from `content/jobs.json`. Job `n` is drawn from an RNG seeded by
+the save's `jobs.seed` and `n` (core `drawJob`), never a template already on the board and only
+one whose `needs` the player meets. A `gather` job counts that item gathered after it appeared (a
+perfect counts 2), a `cook` job that dish cooked, and a `deliver` job is handed over in a talk:
+the character's dialogue entry `{ "jobReady": true }` leads to a node with the effect
+`{ "deliverJob": true }`, which takes the items (core `deliverJob`). A job is done the moment its
+count is reached: its rewards go in at once, within stack limits, and the next job is drawn
+straight away. There is no accept, collect or swap step and no currency. Quest steps `gather`,
+`cook` and `finishJobs` count the same events.
 ## Movement rules
 
 The server runs core's `stepWalker` 20 times a second (`setFixedTimestep`, 50 ms) for every
@@ -401,7 +507,7 @@ before `welcome` does, and may already count a player who joined in between.
 
 ## Saves
 
-The server saves each player (save format v4, `packages/core/src/save.ts`) when they leave or
+The server saves each player (save format v5, `packages/core/src/save.ts`) when they leave or
 their seat expires, every 30 seconds for players who moved, when a battle starts, and when it shuts down. A save holds the
 position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
 an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item id and count),
@@ -425,6 +531,14 @@ story. `sanitizeProgress` leaves the story alone; right after it, the server's s
 (`loadSaveRepair`) applies core `pruneStory` against `quests.json` and `story.json`, which drops
 unknown quests and flags, and active quests whose saved step is past their steps now (they can be
 started again). The `save repaired` log line then also lists `droppedQuests` and `droppedFlags`.
+
+Since v5 a save also holds `skills` (each skill's `level` and the `xp` since reaching it; a skill
+not listed is level 1 with 0 XP) and `jobs` (null until the board is first opened, then its
+`seed`, how many jobs were `drawn` and `done`, and the `board`). Spot rests are not saved. A v4
+save gets `skills: []` and `jobs: null`. The save repair applies core `pruneSkills` (drops skills
+that are gone, holds levels at `maxLevel`) and `pruneJobs` (drops board jobs whose template, item
+or character is gone; the next `board.open` refills the board), and the `save repaired` line then
+also lists `droppedSkills` and `droppedJobs`.
 
 **The Slice B story is a placeholder.** When the real story replaces it, a new save version resets
 every player's `story` to empty, so everyone starts it from the beginning, and keeps their

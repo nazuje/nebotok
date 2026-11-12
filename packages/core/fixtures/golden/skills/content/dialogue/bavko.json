@@ -1,0 +1,485 @@
+{
+  "npc": "bavko",
+  "entries": [
+    {
+      "if": [
+        {
+          "needsStarter": true
+        }
+      ],
+      "node": "welcome"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "at": "back-to-bavko"
+        },
+        {
+          "has": "grey-letter",
+          "count": 1
+        }
+      ],
+      "node": "letter-back"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "meet-the-board"
+        }
+      ],
+      "node": "board-intro"
+    },
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "is": "available"
+        }
+      ],
+      "node": "offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "at": "deliver-note"
+        }
+      ],
+      "node": "remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "bell-for-the-shrine",
+          "is": "available"
+        }
+      ],
+      "node": "bell-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "bell-for-the-shrine",
+          "at": "deliver-bell"
+        }
+      ],
+      "node": "bell-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "bell-for-the-shrine",
+          "at": "rest"
+        }
+      ],
+      "node": "rest-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "is": "available"
+        }
+      ],
+      "node": "wind-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "is": "active"
+        }
+      ],
+      "node": "wind-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "is": "available"
+        }
+      ],
+      "node": "grey-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "is": "active"
+        }
+      ],
+      "node": "grey-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "one-job"
+        }
+      ],
+      "node": "board-remind"
+    },
+    {
+      "if": [
+        {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
+          "flag": "chapter-1-done",
+          "set": true
+        }
+      ],
+      "node": "after"
+    },
+    {
+      "if": [
+        {
+          "quest": "restless-grass",
+          "is": "available"
+        }
+      ],
+      "node": "tobolko-hint"
+    },
+    {
+      "if": [
+        {
+          "quest": "a-new-friend",
+          "is": "available"
+        }
+      ],
+      "node": "tobolko-hint"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "welcome": {
+      "say": {
+        "en": "Oh! Someone new at the post! Good to have you here. I'm Bavko, the postmaster of the Sky Post.",
+        "sl": "Oh! Nekdo nov na pošti! Lepo, da si tu. Sem Bavko, poštar Nebesne pošte."
+      },
+      "mood": "surprised",
+      "next": "first-friend"
+    },
+    "first-friend": {
+      "say": {
+        "en": "Nobody carries the mail alone out here. Pick a creature to travel with you, then come back for your first delivery.",
+        "sl": "Tu nihče ne nosi pošte sam. Izberi bitje, ki bo potovalo s tabo, nato se vrni po prvo pošiljko."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "offerStarter": true
+        }
+      ]
+    },
+    "offer": {
+      "say": {
+        "en": "I have a note for Tobolko, down by the meadow. Can you take it to him?",
+        "sl": "Imam sporočilo za Tobolka, tam pri travniku. Mu ga lahko neseš?"
+      },
+      "mood": "happy",
+      "choices": [
+        {
+          "say": {
+            "en": "I'll take it!",
+            "sl": "Prevzamem!"
+          },
+          "next": "accept"
+        },
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Kasneje."
+          },
+          "next": "later"
+        }
+      ]
+    },
+    "accept": {
+      "say": {
+        "en": "Wonderful! Here's the note. Tobolko is by the meadow, west of here.",
+        "sl": "Odlično! Tu je sporočilo. Tobolko je pri travniku, zahodno od tod."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "first-round"
+        },
+        {
+          "give": "hello-note",
+          "count": 1
+        }
+      ]
+    },
+    "later": {
+      "say": {
+        "en": "No hurry. The letters can wait.",
+        "sl": "Ni treba hiteti. Pisma lahko počakajo."
+      }
+    },
+    "remind": {
+      "say": {
+        "en": "Tobolko is waiting for that note. He's by the meadow.",
+        "sl": "Tobolko čaka na tisto sporočilo. Najdeš ga pri travniku."
+      }
+    },
+    "bell-offer": {
+      "say": {
+        "en": "The shrine's old bell cracked in the last big gust. I have a new one. Will you take it to Mehurka?",
+        "sl": "Stari zvonec v svetišču je počil v zadnjem močnem sunku vetra. Imam novega. Ga odneseš Mehurki?"
+      },
+      "mood": "worried",
+      "choices": [
+        {
+          "say": {
+            "en": "I'll take it!",
+            "sl": "Prevzamem!"
+          },
+          "next": "bell-accept"
+        },
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Kasneje."
+          },
+          "next": "later"
+        }
+      ]
+    },
+    "bell-accept": {
+      "say": {
+        "en": "Thank you! Mehurka keeps the shrine, just east of here. Careful, the bell rings at every step.",
+        "sl": "Hvala! Mehurka skrbi za svetišče, malo vzhodno od tod. Previdno, zvonec zazvoni ob vsakem koraku."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "bell-for-the-shrine"
+        },
+        {
+          "give": "shrine-bell",
+          "count": 1
+        }
+      ]
+    },
+    "bell-remind": {
+      "say": {
+        "en": "Mehurka is waiting for her bell. The shrine is just east of here.",
+        "sl": "Mehurka čaka na zvonec. Svetišče je malo vzhodno od tod."
+      }
+    },
+    "rest-remind": {
+      "say": {
+        "en": "Mehurka says a rest at the shrine works wonders. Give it a try.",
+        "sl": "Mehurka pravi, da počitek v svetišču dela čudeže. Poskusi."
+      },
+      "mood": "calm"
+    },
+    "wind-offer": {
+      "say": {
+        "en": "Vetrinka at the east lookout asked for this wind gauge. It shows how strong the wind is. Will you take it?",
+        "sl": "Vetrinka pri vzhodnem razgledišču je prosila za ta vetromer. Kaže, kako močno piha veter. Ga odneseš?"
+      },
+      "mood": "worried",
+      "choices": [
+        {
+          "say": {
+            "en": "I'll take it!",
+            "sl": "Prevzamem!"
+          },
+          "next": "wind-accept"
+        },
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Kasneje."
+          },
+          "next": "later"
+        }
+      ]
+    },
+    "wind-accept": {
+      "say": {
+        "en": "Good. Follow the path east until you feel the wind.",
+        "sl": "Dobro. Pojdi po poti proti vzhodu, dokler ne začutiš vetra."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "wind-readings"
+        },
+        {
+          "give": "wind-gauge",
+          "count": 1
+        }
+      ]
+    },
+    "wind-remind": {
+      "say": {
+        "en": "Vetrinka is at the east lookout. She knows the winds better than anyone.",
+        "sl": "Vetrinka je pri vzhodnem razgledišču. Vetrove pozna bolje kot kdorkoli."
+      }
+    },
+    "grey-offer": {
+      "say": {
+        "en": "This came on the wind this morning. A grey envelope, all wet, and no sender.",
+        "sl": "Tole je zjutraj prinesel veter. Sivo pismo, čisto mokro, brez pošiljatelja."
+      },
+      "mood": "worried",
+      "next": "grey-ask"
+    },
+    "grey-ask": {
+      "say": {
+        "en": "Vetrinka knows all about the weather. Maybe she can work this out too. Will you take it to her?",
+        "sl": "Vetrinka ve vse o vremenu. Morda bo razumela tudi tole. Ji ga odneseš?"
+      },
+      "mood": "worried",
+      "choices": [
+        {
+          "say": {
+            "en": "I'll take it!",
+            "sl": "Prevzamem!"
+          },
+          "next": "grey-accept"
+        },
+        {
+          "say": {
+            "en": "Later.",
+            "sl": "Kasneje."
+          },
+          "next": "later"
+        }
+      ]
+    },
+    "grey-accept": {
+      "say": {
+        "en": "Thank you. Hurry, and watch out for the strong wind.",
+        "sl": "Hvala. Pohiti in pazi, ker močno piha."
+      },
+      "effects": [
+        {
+          "startQuest": "the-grey-letter"
+        },
+        {
+          "give": "grey-letter",
+          "count": 1
+        }
+      ]
+    },
+    "grey-remind": {
+      "say": {
+        "en": "Any news about that grey letter? Vetrinka will know what to do.",
+        "sl": "Kaj je novega s sivim pismom? Vetrinka bo vedela, kaj storiti."
+      },
+      "mood": "worried"
+    },
+    "letter-back": {
+      "say": {
+        "en": "The letter, back again? Let me look at it once more.",
+        "sl": "Pismo je spet tu? Naj ga še enkrat pogledam."
+      },
+      "mood": "worried",
+      "effects": [
+        {
+          "take": "grey-letter",
+          "count": 1
+        },
+        {
+          "completeStep": "the-grey-letter",
+          "step": "back-to-bavko"
+        }
+      ],
+      "next": "turn-over"
+    },
+    "turn-over": {
+      "say": {
+        "en": "Wait. It's addressed to... you. \"To the new courier.\"",
+        "sl": "Počakaj. Naslovljeno je na ... tebe. »Za novi obraz na Nebesni pošti.«"
+      },
+      "mood": "surprised",
+      "next": "continued"
+    },
+    "continued": {
+      "say": {
+        "en": "To be continued…",
+        "sl": "Se nadaljuje …"
+      },
+      "speaker": "narrator"
+    },
+    "after": {
+      "say": {
+        "en": "That letter found you before you found it. Whatever is out there, the Sky Post is with you.",
+        "sl": "Tisto pismo je našlo tebe, ne ti njega. Kar koli je tam zunaj, Nebesna pošta je s tabo."
+      },
+      "mood": "calm"
+    },
+    "tobolko-hint": {
+      "say": {
+        "en": "Tobolko was asking for you. He's by the meadow, west of here.",
+        "sl": "Tobolko te je iskal. Je pri travniku, zahodno od tod."
+      },
+      "mood": "happy"
+    },
+    "idle": {
+      "say": {
+        "en": "The wind is gentle today. Good weather for letters.",
+        "sl": "Veter je danes nežen. Pravo vreme za pisma."
+      },
+      "mood": "calm"
+    },
+    "board-intro": {
+      "say": {
+        "en": "Odd jobs pile up here. Take any you like!",
+        "sl": "Tu se nabirajo priložnostna dela. Izberi katero koli!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "completeStep": "treats-from-scratch",
+          "step": "meet-the-board"
+        }
+      ]
+    },
+    "board-remind": {
+      "say": {
+        "en": "Finish any job from the board. Its reward comes to you at once.",
+        "sl": "Opravi katero koli delo z deske. Nagrado dobiš takoj."
+      }
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
+    }
+  }
+}

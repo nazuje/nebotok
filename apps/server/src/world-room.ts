@@ -5,14 +5,19 @@ import {
   BattleRunMessage,
   BattleSwitchMessage,
   BattleTreatMessage,
+  BoardOpenMessage,
   CLIENT_MESSAGES,
   CLOSE_CODES,
+  CookStartMessage,
+  GatherStartMessage,
   IDLE,
   LanguageSchema,
   MAX_PROFILES,
   MoveChooseMessage,
   PLAYER_SPAWN,
   SERVER_MESSAGES,
+  SkillCancelMessage,
+  SkillFinishMessage,
   StarterChooseMessage,
   StorageSwapMessage,
   TalkEndMessage,
@@ -67,10 +72,12 @@ import {
   type QuestChanged,
   type RefusalReason,
   type Refused,
+  type Rng,
   type SaveFile,
   type StorageMessage,
   type StoryMessage,
   type TalkEnded,
+  type TalkStep,
   type WakePoint,
   type WalkCommand,
   type Walker,
@@ -82,8 +89,25 @@ import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planR
 import type { Log } from './log.ts';
 import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
+import { boardOpen, jobsJoined } from './jobs.ts';
 import { createRateLimiter } from './rate-limit.ts';
-import { TALK_IDLE_MS, battleEvents, continueTalk, countEvents, openTalk, starterRefusal, storyChange, talkStartRefusal, type LiveTalk, type StoryResult } from './talk.ts';
+import { cookStart, endAttempt, gatherStart, newSkillSeat, skillCancel, skillFinish, skillsJoined, tickSkills, type AttemptEnd, type SkillRoom, type SkillSeat } from './skills.ts';
+import {
+  NO_EXTRAS,
+  TALK_IDLE_MS,
+  battleEvents,
+  continueTalk,
+  countEvents,
+  deliveredJobs,
+  openTalk,
+  starterRefusal,
+  storyChange,
+  talkStartRefusal,
+  type LiveTalk,
+  type Outgoing,
+  type StoryExtras,
+  type StoryResult,
+} from './talk.ts';
 import type { WorldContent } from './world.ts';
 import { Player, WorldState } from './world-state.ts';
 
@@ -102,7 +126,7 @@ export const STOP_SAVE_GAP_MS = 5_000;
 export const MAX_PLAYERS = MAX_PROFILES * 2;
 /** Each walk.to runs a path search; more than this a second from one client are dropped. */
 export const WALK_TO_PER_SECOND = 5;
-/** Battle, team, storage, starter, move and talk requests a second from one client; more are dropped. A battle needs one a turn. */
+/** Battle, team, storage, starter, move, talk, skill and board requests a second from one client; more are dropped. A battle needs one a turn. */
 export const REQUESTS_PER_SECOND = 5;
 /** How often battles and talks left without input, and offered moves left unanswered, are looked for. */
 export const BATTLE_CHECK_MS = 5_000;
@@ -151,6 +175,8 @@ type Seat = {
   talk: LiveTalk | null;
   /** The shrine the player is resting at, so walking about next to it heals only once. */
   restedAt: string | null;
+  /** The player's gather or cook under way and their resting spots, kept by `skills.ts`. */
+  skills: SkillSeat;
   dirty: boolean;
   /** When this seat was last saved, by the room's clock. */
   savedAt: number;
@@ -219,6 +245,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private offerCount = 0;
     /** The id of the last talk, counted across the room like offers. */
     private talkCount = 0;
+    /** The id of the last gather or cook, counted across the room like offers. */
+    private attemptCount = 0;
+    /** Plans gathers and cooks. Made on first use, so rooms that never see one draw no seed for it. */
+    private attemptRng: Rng | null = null;
 
     override messages = {
       [CLIENT_MESSAGES.ping]: validate(z.strictObject({ sentAt: z.number().finite() }), (client: Client, { sentAt }) => {
@@ -240,6 +270,11 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       [CLIENT_MESSAGES.talkStart]: validate(TalkStartMessage, (client: Client, { npc }) => this.talkStart(client, npc)),
       [CLIENT_MESSAGES.talkNext]: validate(TalkNextMessage, (client: Client, { conversation, choice }) => this.talkNext(client, conversation, choice)),
       [CLIENT_MESSAGES.talkEnd]: validate(TalkEndMessage, (client: Client, { conversation }) => this.talkEnd(client, conversation)),
+      [CLIENT_MESSAGES.gatherStart]: validate(GatherStartMessage, (client: Client, { spot }) => this.skillRequest(client, (room) => gatherStart(room, spot))),
+      [CLIENT_MESSAGES.cookStart]: validate(CookStartMessage, (client: Client, { recipe, station }) => this.skillRequest(client, (room) => cookStart(room, recipe, station))),
+      [CLIENT_MESSAGES.skillFinish]: validate(SkillFinishMessage, (client: Client, { attempt, taps }) => this.skillRequest(client, (room) => skillFinish(room, attempt, taps))),
+      [CLIENT_MESSAGES.skillCancel]: validate(SkillCancelMessage, (client: Client, { attempt }) => this.skillRequest(client, (room) => skillCancel(room, attempt))),
+      [CLIENT_MESSAGES.boardOpen]: validate(BoardOpenMessage, (client: Client, { station }) => this.skillRequest(client, (room) => boardOpen(room, station))),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -268,6 +303,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (earlier) {
         earlier.room.endBattle(earlier.sessionId, earlier.seat, 'replaced');
         earlier.room.endTalk(earlier.sessionId, earlier.seat, 'replaced');
+        earlier.room.endSkill(earlier.sessionId, earlier.seat, 'replaced');
       }
       // Taking over from another device continues from where that device's character stands.
       const start = earlier
@@ -289,6 +325,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         offer: null,
         talk: null,
         restedAt: null,
+        skills: newSkillSeat(),
         dirty: true,
         savedAt: Number.NEGATIVE_INFINITY,
         stopped: false,
@@ -307,6 +344,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       client.send(SERVER_MESSAGES.welcome, welcome(WORLD, this.state.playerCount));
       client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
       client.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
+      this.sendSkills(client.sessionId, seat);
       log.info('player joined', { roomId: this.roomId, sessionId: client.sessionId, playerId: seat.playerId, playerCount: this.state.playerCount, tookOver: earlier !== undefined });
     }
 
@@ -344,6 +382,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (seat) {
         client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
         client.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
+        this.sendSkills(client.sessionId, seat);
         if (seat.battle) client.send(SERVER_MESSAGES.battleView, { battle: battleView(seat.battle.id, seat.battle.state) } satisfies BattleViewMessage);
         const offer = seat.offer && this.offerMessage(seat, seat.offer);
         if (offer) client.send(SERVER_MESSAGES.moveOffer, offer);
@@ -357,6 +396,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (seat && !seat.replaced) {
         this.endBattle(client.sessionId, seat, 'left');
         this.endTalk(client.sessionId, seat, 'left');
+        this.endSkill(client.sessionId, seat, 'left');
         this.save(seat);
       }
       this.seats.delete(client.sessionId);
@@ -375,6 +415,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         if (seat.replaced) return;
         this.endBattle(sessionId, seat, 'shutdown');
         this.endTalk(sessionId, seat, 'shutdown');
+        this.endSkill(sessionId, seat, 'shutdown');
         this.save(seat);
       });
       log.info('room disposed', { roomId: this.roomId });
@@ -499,8 +540,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const seat = this.seats.get(client.sessionId);
       if (!seat || seat.battle || seat.talk) return false;
       const intent = planCommand(map, seat.walker, command, from);
-      if (intent) seat.walker = withIntent(seat.walker, intent);
-      return intent !== null;
+      if (!intent) return false;
+      this.endSkill(client.sessionId, seat, 'walk');
+      seat.walker = withIntent(seat.walker, intent);
+      return true;
     }
 
     private tick(dtMs: number) {
@@ -517,6 +560,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           seat.stopped = false;
           this.save(seat);
         }
+        if (!seat.replaced && !seat.closing) tickSkills(this.skillRoom(sessionId, seat));
         this.show(sessionId, seat.walker);
       });
     }
@@ -549,6 +593,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const client = this.clients.get(sessionId);
       if (!client) return;
       this.endTalk(sessionId, seat, 'battle');
+      this.endSkill(sessionId, seat, 'battle');
       const battleSeed = seed();
       let begun: ReturnType<typeof beginBattle>;
       try {
@@ -771,7 +816,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const player = this.state.players.get(client.sessionId);
       if (player) player.talking = true;
       log.info('talk started', { roomId: this.roomId, playerId: seat.playerId, conversation: seat.talk.id, npc, node: opened.conversation.node });
-      this.applyStory(client.sessionId, seat, opened.step);
+      this.applyStory(client.sessionId, seat, opened.step, this.deliveries(seat, opened.step));
       this.sendTalkNode(client.sessionId, seat);
     }
 
@@ -793,7 +838,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         }
         return;
       }
-      this.applyStory(client.sessionId, seat, next.step);
+      this.applyStory(client.sessionId, seat, next.step, this.deliveries(seat, next.step));
       if (next.kind === 'ended') {
         this.endTalk(client.sessionId, seat, 'done');
         return;
@@ -830,17 +875,20 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     }
 
     /**
-     * Applies what a talk step or a world event did to the story, saved at once, and sends it:
-     * `quest.changed` for each quest, then the next move offer that experience brought and
-     * `progress`, then `story`. Returns false, sending nothing, when nothing changed.
+     * Applies what a talk step, a world event or a skill did to the story, saved at once, and sends it:
+     * `extras.first`, `quest.changed` for each quest, then the next move offer that experience brought
+     * and `progress`, then `extras.beforeStory`, `story` and `extras.last`. Returns false, sending
+     * nothing, when nothing changed and there are no extras.
      */
-    private applyStory(sessionId: string, seat: Seat, result: StoryResult): boolean {
-      if (result.progress === seat.progress) return false;
+    private applyStory(sessionId: string, seat: Seat, result: StoryResult, extras: StoryExtras = NO_EXTRAS): boolean {
+      const unchanged = result.progress === seat.progress;
+      if (unchanged && extras.first.length === 0 && extras.beforeStory.length === 0 && extras.last.length === 0) return false;
+      const client = this.clients.get(sessionId);
+      sendAll(client, extras.first);
       const change = storyChange(seat.progress, result, world.battle);
       seat.progress = change.progress;
       seat.offers.push(...change.offers);
-      this.changed(seat);
-      const client = this.clients.get(sessionId);
+      if (!unchanged) this.changed(seat);
       for (const quest of change.changes) {
         client?.send(SERVER_MESSAGES.questChanged, quest satisfies QuestChanged);
         log.info('quest changed', { roomId: this.roomId, playerId: seat.playerId, quest: quest.quest, change: quest.change, step: quest.step });
@@ -848,8 +896,73 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       // An offer already waiting is answered first; the new ones follow it.
       if (seat.offer) client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
       else this.offerNext(sessionId, seat);
+      sendAll(client, extras.beforeStory);
       if (change.storyChanged) client?.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
+      sendAll(client, extras.last);
       return true;
+    }
+
+    /** The messages a talk step's finished jobs send around its story change. */
+    private deliveries(seat: Seat, step: TalkStep): StoryExtras {
+      return deliveredJobs(step, seat.progress, { now: now(), rests: seat.skills.rests }, story);
+    }
+
+    /** What the skill and board rules may read and do for one seat: see `SkillRoom`. */
+    private skillRoom(sessionId: string, seat: Seat): SkillRoom {
+      return {
+        playerId: seat.playerId,
+        skills: seat.skills,
+        get progress() {
+          return seat.progress;
+        },
+        get walker() {
+          return seat.walker;
+        },
+        get busy() {
+          if (seat.battle) return 'inBattle';
+          return seat.talk || seat.offer ? 'notNow' : null;
+        },
+        get now() {
+          return now();
+        },
+        map,
+        content: story,
+        rng: () => (this.attemptRng ??= createRng(seed())),
+        nextAttempt: () => (this.attemptCount += 1),
+        log,
+        send: (type, message) => this.clients.get(sessionId)?.send(type, message),
+        refuse: (request, reason) => {
+          const client = this.clients.get(sessionId);
+          if (client) this.refuse(client, request, reason);
+        },
+        stand: (facing) => {
+          seat.walker = { ...withIntent(seat.walker, IDLE), facing };
+          seat.dirty = true;
+        },
+        showSkill: (skill) => {
+          const player = this.state.players.get(sessionId);
+          if (player) player.skill = skill;
+        },
+        apply: (result, extras) => this.applyStory(sessionId, seat, result, extras),
+      };
+    }
+
+    /** A gather, cook or board request from a client within its rate limit. */
+    private skillRequest(client: Client, request: (room: SkillRoom) => void) {
+      const seat = this.requestingSeat(client);
+      if (seat) request(this.skillRoom(client.sessionId, seat));
+    }
+
+    /** Ends a seat's gather or cook, if it has one, unjudged. */
+    private endSkill(sessionId: string, seat: Seat, why: AttemptEnd) {
+      endAttempt(this.skillRoom(sessionId, seat), why);
+    }
+
+    /** After `progress` and `story` on joining and each reconnection: `skills`, then `jobs`. */
+    private sendSkills(sessionId: string, seat: Seat) {
+      const room = this.skillRoom(sessionId, seat);
+      skillsJoined(room);
+      jobsJoined(room);
     }
 
     private show(sessionId: string, walker: Walker) {
@@ -920,4 +1033,9 @@ export type WorldRoom = InstanceType<ReturnType<typeof worldRoom>>;
 /** An error's name and message for the log: content ids at most, never a payload. */
 function errorOf(error: unknown): { error: string; message: string } {
   return error instanceof Error ? { error: error.name, message: error.message } : { error: typeof error, message: '' };
+}
+
+/** Sends each message, in order, to a client that may have gone. */
+function sendAll(client: Client | undefined, messages: readonly Outgoing[]) {
+  for (const { type, message } of messages) client?.send(type, message);
 }

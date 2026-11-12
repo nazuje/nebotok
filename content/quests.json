@@ -327,6 +327,79 @@
           "setFlag": "chapter-1-done"
         }
       ]
+    },
+    {
+      "id": "treats-from-scratch",
+      "chapter": "odd-jobs",
+      "giver": "tobolko",
+      "requires": [
+        "a-new-friend"
+      ],
+      "placeholder": true,
+      "name": {
+        "en": "Treats from Scratch",
+        "sl": "Domače poslastice"
+      },
+      "summary": {
+        "en": "Pick cloudberries, cook a Berry Bun, then ask Bavko about the job board.",
+        "sl": "Naberi oblačnice, skuhaj jagodno žemljico, nato Bavka povprašaj o oglasni deski."
+      },
+      "steps": [
+        {
+          "id": "pick-berries",
+          "kind": "gather",
+          "item": "cloudberry",
+          "count": 3,
+          "hint": {
+            "en": "Pick 3 cloudberries from the bushes.",
+            "sl": "Z grmov naberi 3 oblačnice."
+          }
+        },
+        {
+          "id": "bake-a-bun",
+          "kind": "cook",
+          "treat": "berry-bun",
+          "count": 1,
+          "hint": {
+            "en": "Cook a Berry Bun at the pot by Tobolko.",
+            "sl": "V loncu pri Tobolku skuhaj jagodno žemljico."
+          }
+        },
+        {
+          "id": "meet-the-board",
+          "kind": "talk",
+          "npc": "bavko",
+          "hint": {
+            "en": "Talk to Bavko by the job board.",
+            "sl": "Pogovori se z Bavkom pri oglasni deski."
+          }
+        },
+        {
+          "id": "one-job",
+          "kind": "finishJobs",
+          "count": 1,
+          "hint": {
+            "en": "Finish a job from the board.",
+            "sl": "Opravi eno delo z deske."
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "berry-bun",
+            "count": 2
+          }
+        ],
+        "xp": 0,
+        "skills": [
+          {
+            "skill": "cooking",
+            "xp": 20
+          }
+        ]
+      },
+      "effects": []
     }
   ]
 }

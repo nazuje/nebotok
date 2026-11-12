@@ -60,7 +60,19 @@ function storyContentOf(dir: string, battle: BattleContent): StoryContent {
     const npc = DIALOGUE_FILE.exec(`dialogue/${file}`)?.[1];
     if (npc !== undefined) dialogue[npc] = readJson(dir, `dialogue/${file}`);
   }
-  return loadStoryContent({ npcs: readJson(dir, 'npcs.json'), dialogue, quests: readJson(dir, 'quests.json'), story: readJson(dir, 'story.json'), inventory: readJson(dir, 'inventory.json') }, battle);
+  return loadStoryContent(
+    {
+      npcs: readJson(dir, 'npcs.json'), dialogue, quests: readJson(dir, 'quests.json'), story: readJson(dir, 'story.json'), inventory: readJson(dir, 'inventory.json'),
+      skills: {
+        skills: readJson(dir, 'skills.json'),
+        spots: readJson(dir, 'spots.json'),
+        recipes: readJson(dir, 'recipes.json'),
+        stations: readJson(dir, 'stations.json'),
+        jobs: readJson(dir, 'jobs.json'),
+      },
+    },
+    battle,
+  );
 }
 
 /** Reads and checks the start map, walk speed, avatars, everything battles need and the story. Throws on anything content:validate would refuse. */

@@ -44,7 +44,9 @@ export type NpcsFile = z.infer<typeof NpcsFile>;
 /**
  * Something that is true or not for the player now. `is: available` means the quest's `requires`
  * are all done and it has not been started; `at` means the quest is active at that step.
- * `needsStarter` is whether the player has no creature yet.
+ * `needsStarter` is whether the player has no creature yet. `jobReady` holds when a delivery job
+ * to this character is on the player's board and they carry all of it; `jobWaiting` when one is on
+ * the board and they do not. `{ skill, level }` holds when that skill is at least that level.
  */
 export const Condition = z.union([
   z.strictObject({ quest: ContentId, is: z.enum(['available', 'active', 'done']) }),
@@ -53,6 +55,9 @@ export const Condition = z.union([
   z.strictObject({ lacks: ContentId }),
   z.strictObject({ flag: ContentId, set: z.boolean() }),
   z.strictObject({ needsStarter: z.boolean() }),
+  z.strictObject({ jobReady: z.literal(true) }),
+  z.strictObject({ jobWaiting: z.literal(true) }),
+  z.strictObject({ skill: ContentId, level: z.number().int().min(1).max(99) }),
 ]);
 export type Condition = z.infer<typeof Condition>;
 const Conditions = z.array(Condition).min(1).max(4);
@@ -63,7 +68,8 @@ const PlayCue = z.strictObject({ cue: StoryCueSchema });
 /**
  * What entering a node does. A node's effects happen all together or not at all: one that cannot
  * happen (a quest not available, a step not current, an item the player lacks) stops the node.
- * `offerStarter` lets a player with no creature choose their starter.
+ * `offerStarter` lets a player with no creature choose their starter. `deliverJob` hands this
+ * character the first delivery job on the board the player carries all of (`deliverJob` in jobs.ts).
  */
 export const Effect = z.union([
   z.strictObject({ startQuest: ContentId }),
@@ -73,6 +79,7 @@ export const Effect = z.union([
   SetFlag,
   PlayCue,
   z.strictObject({ offerStarter: z.literal(true) }),
+  z.strictObject({ deliverJob: z.literal(true) }),
 ]);
 export type Effect = z.infer<typeof Effect>;
 
@@ -174,7 +181,8 @@ const stepBase = { id: ContentId, hint: LocalizedText, effects: z.array(StepEffe
  * One step of a quest. `talk` and `deliver` steps are completed by a dialogue node of their
  * character (`completeStep`); the others count events from the moment the step begins: battles
  * won (in `zone`, or anywhere), creatures befriended (of `species` or `type`, or any), a rest at
- * `shrine`, or reaching the map mark `mark`.
+ * `shrine`, reaching the map mark `mark`, `item`s gathered (a perfect counts 2), `treat`s cooked,
+ * or jobs from the board finished.
  */
 export const QuestStep = z.discriminatedUnion('kind', [
   z.strictObject({ ...stepBase, kind: z.literal('talk'), npc: ContentId }),
@@ -183,13 +191,21 @@ export const QuestStep = z.discriminatedUnion('kind', [
   z.strictObject({ ...stepBase, kind: z.literal('befriend'), count: Count, species: ContentId.optional(), type: ContentId.optional() }),
   z.strictObject({ ...stepBase, kind: z.literal('visitShrine'), shrine: ContentId }),
   z.strictObject({ ...stepBase, kind: z.literal('reach'), mark: ContentId }),
+  z.strictObject({ ...stepBase, kind: z.literal('gather'), item: ContentId, count: Count }),
+  z.strictObject({ ...stepBase, kind: z.literal('cook'), treat: ContentId, count: Count }),
+  z.strictObject({ ...stepBase, kind: z.literal('finishJobs'), count: Count }),
 ]);
 export type QuestStep = z.infer<typeof QuestStep>;
 
-/** Items for the bag and experience for every team creature, given when the last step is done. */
+/** Items for the bag, experience for every team creature and, optionally, skill XP, given when the last step is done. */
 export const QuestRewardsSchema = z.strictObject({
   items: z.array(z.strictObject({ item: ContentId, count: Count })).max(5),
   xp: z.number().int().min(0).max(10_000),
+  skills: z
+    .array(z.strictObject({ skill: ContentId, xp: z.number().int().min(1).max(10_000) }))
+    .max(3)
+    .refine((entries) => new Set(entries.map((entry) => entry.skill)).size === entries.length, 'each skill appears once')
+    .optional(),
 });
 
 /**
@@ -245,8 +261,12 @@ export const QuestsFile = z.strictObject({ quests: z.array(Quest).min(1).max(200
 });
 export type QuestsFile = z.infer<typeof QuestsFile>;
 
-/** A chapter of the story: its quests, in the order the journal lists them, and the flag that marks it finished. */
-export const Chapter = z.strictObject({ id: ContentId, name: LocalizedText, quests: z.array(ContentId).min(1).max(50), endsWith: ContentId.optional() });
+/**
+ * A chapter of the story: its quests, in the order the journal lists them, and the flag that marks
+ * it finished. A `side` chapter stands beside the main story: it comes after the main chapters,
+ * and `nextGoal` offers it only when the main story has nothing for the player.
+ */
+export const Chapter = z.strictObject({ id: ContentId, name: LocalizedText, quests: z.array(ContentId).min(1).max(50), endsWith: ContentId.optional(), side: z.literal(true).optional() });
 export type Chapter = z.infer<typeof Chapter>;
 
 /** A story flag, set once for a player and never unset. `about` is a note for authors; players never see it. */
@@ -263,6 +283,10 @@ export const StoryFile = z
     listed.forEach((id, at) => {
       if (listed.indexOf(id) !== at) ctx.addIssue({ code: 'custom', message: `quest "${id}" is in more than one chapter, or twice in one`, path: ['chapters'] });
     });
+    chapters.forEach((chapter, at) => {
+      if (!chapter.side && chapters.slice(0, at).some((before) => before.side)) ctx.addIssue({ code: 'custom', message: `main chapter "${chapter.id}" comes after a side chapter; side chapters come last`, path: ['chapters', at] });
+    });
+    if (chapters.every((chapter) => chapter.side)) ctx.addIssue({ code: 'custom', message: 'the story needs a main chapter, not only side ones', path: ['chapters'] });
   });
 export type StoryFile = z.infer<typeof StoryFile>;
 
@@ -272,7 +296,7 @@ const KindRule = z.strictObject({ stack: z.number().int().min(1).max(999) });
 /** The bag's rules for each item kind (ITEM_KINDS in content.ts), and the order its sections show in. */
 export const InventoryFile = z
   .strictObject({
-    kinds: z.strictObject({ quest: KindRule, treat: KindRule, material: KindRule }),
+    kinds: z.strictObject({ quest: KindRule, treat: KindRule, ingredient: KindRule, material: KindRule }),
     order: z.array(z.enum(ITEM_KINDS)).length(ITEM_KINDS.length),
   })
   .refine(({ order }) => new Set(order).size === order.length, 'order lists each kind once');

@@ -1,0 +1,54 @@
+{
+  "chapters": [
+    {
+      "id": "post-training",
+      "name": {
+        "en": "Training at the Sky Post",
+        "sl": "Uvajanje na Nebesni pošti"
+      },
+      "quests": [
+        "first-round",
+        "restless-grass",
+        "bell-for-the-shrine",
+        "a-new-friend"
+      ]
+    },
+    {
+      "id": "quiet-clouds",
+      "name": {
+        "en": "Quiet Clouds",
+        "sl": "Tihi oblaki"
+      },
+      "quests": [
+        "wind-readings",
+        "the-grey-letter"
+      ],
+      "endsWith": "chapter-1-done"
+    },
+    {
+      "id": "odd-jobs",
+      "name": {
+        "en": "Odd Jobs",
+        "sl": "Priložnostna dela"
+      },
+      "quests": [
+        "treats-from-scratch"
+      ],
+      "side": true
+    }
+  ],
+  "flags": [
+    {
+      "id": "grey-letter-read",
+      "about": "Vetrinka read the grey letter aloud and sent the player to the lookout."
+    },
+    {
+      "id": "storm-seen",
+      "about": "The player saw the storm glimpse from the lookout: a dark cloud swallowing a small one."
+    },
+    {
+      "id": "chapter-1-done",
+      "about": "Bavko found the grey letter is addressed to the new courier. Closes the Quiet Clouds chapter."
+    }
+  ]
+}

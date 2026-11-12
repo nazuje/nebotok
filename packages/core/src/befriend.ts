@@ -20,6 +20,8 @@ export type BefriendInput = {
   readonly maxHp: number;
   readonly level: number;
   readonly liking: TreatLiking;
+  /** The treat's `strength` in items.json: 0 when it has none. */
+  readonly strength?: number;
 };
 
 const LIKING_BONUS: Readonly<Record<TreatLiking, (rules: BefriendRules) => number>> = {
@@ -30,14 +32,15 @@ const LIKING_BONUS: Readonly<Record<TreatLiking, (rules: BefriendRules) => numbe
 
 /**
  * The chance, in whole percent, that a wild creature accepts a treat and joins. A tired creature
- * (less health left), a treat it likes and a lower level all raise it; see `BefriendRules`.
- * Integer maths only, so every machine agrees. The engine rolls `rng.int(1, 100) <= chance`.
+ * (less health left), a treat it likes, a stronger treat and a lower level all raise it; see
+ * `BefriendRules`. Integer maths only, so every machine agrees. The engine rolls
+ * `rng.int(1, 100) <= chance`.
  */
-export function befriendChance({ hp, maxHp, level, liking }: BefriendInput, rules: BefriendRules): number {
+export function befriendChance({ hp, maxHp, level, liking, strength = 0 }: BefriendInput, rules: BefriendRules): number {
   if (!Number.isInteger(maxHp) || maxHp < 1) throw new RangeError(`befriendChance() needs a whole maxHp of at least 1, got ${maxHp}`);
   const left = Math.min(Math.max(Math.trunc(hp), 0), maxHp);
   const tired = Math.floor((rules.tiredPercent * (maxHp - left)) / maxHp);
   const penalty = Math.floor((rules.levelPenaltyPer10Levels * Math.max(Math.trunc(level), 0)) / 10);
-  const chance = rules.basePercent + tired + LIKING_BONUS[liking](rules) - penalty;
+  const chance = rules.basePercent + tired + LIKING_BONUS[liking](rules) + Math.max(Math.trunc(strength), 0) - penalty;
   return Math.min(Math.max(chance, rules.minPercent), rules.maxPercent);
 }

@@ -5,7 +5,7 @@ import { paintFrame, sprite } from './sprites.ts';
 import { questName, STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
 
-const KIND_TITLE: Readonly<Record<ItemKind, StringId>> = { quest: 'bag.kind.quest', treat: 'bag.kind.treat', material: 'bag.kind.material' };
+const KIND_TITLE: Readonly<Record<ItemKind, StringId>> = { quest: 'bag.kind.quest', treat: 'bag.kind.treat', ingredient: 'bag.kind.ingredient', material: 'bag.kind.material' };
 
 /** What a tap on an item says: its description, and for a quest item which quest it is for. */
 export function itemAbout(id: string, language: Language): { readonly description: string; readonly quest: string | null } {

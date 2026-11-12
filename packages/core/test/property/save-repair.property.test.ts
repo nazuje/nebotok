@@ -26,6 +26,9 @@ const progress: fc.Arbitrary<Progress> = fc.record({
   befriended: fc.uniqueArray(someId(speciesIds), { maxLength: 6 }),
   // The story is pruned against the story content after the repair, not by it.
   story: fc.constantFrom({ active: [], done: [], flags: [] }, { active: [{ quest: 'first-round', step: 0, count: 1 }], done: ['gone-quest'], flags: ['gone-flag'] }),
+  // Skills and jobs are pruned against the skill content after the repair, like the story.
+  skills: fc.constantFrom([], [{ skill: 'cooking', level: 3, xp: 10 }, { skill: 'gone-skill', level: 2, xp: 0 }]),
+  jobs: fc.constant(null),
 });
 
 const SAVE = { name: 'Test Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null } as const;

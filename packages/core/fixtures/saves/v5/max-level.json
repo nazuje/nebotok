@@ -1,0 +1,181 @@
+{
+  "v": 5,
+  "data": {
+    "name": "Seasoned Courier",
+    "language": "en",
+    "createdAt": "2026-05-05T12:30:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 19,
+      "y": 12,
+      "facing": "up"
+    },
+    "team": [
+      {
+        "species": "bloom-blob",
+        "level": 5,
+        "xp": 0,
+        "hp": 20,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "bloom-blob",
+        "level": 6,
+        "xp": 0,
+        "hp": 21,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "bloom-blob",
+        "level": 7,
+        "xp": 0,
+        "hp": 22,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "bloom-blob",
+        "level": 8,
+        "xp": 0,
+        "hp": 23,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "bloom-blob",
+        "level": 9,
+        "xp": 0,
+        "hp": 24,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "bloom-blob",
+        "level": 10,
+        "xp": 0,
+        "hp": 25,
+        "moves": [
+          "bloom-tap"
+        ]
+      }
+    ],
+    "storage": [
+      {
+        "species": "sun-cube",
+        "level": 8,
+        "xp": 0,
+        "hp": 20,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "sun-cube",
+        "level": 9,
+        "xp": 0,
+        "hp": 21,
+        "moves": [
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "sun-cube",
+        "level": 10,
+        "xp": 0,
+        "hp": 22,
+        "moves": [
+          "bloom-tap"
+        ]
+      }
+    ],
+    "inventory": [
+      {
+        "item": "bloom-treat",
+        "count": 999
+      }
+    ],
+    "lastShrine": {
+      "map": "post-island",
+      "shrine": "post-shrine"
+    },
+    "seen": [
+      "bloom-blob",
+      "sun-cube"
+    ],
+    "befriended": [
+      "bloom-blob",
+      "sun-cube"
+    ],
+    "story": {
+      "active": [],
+      "done": [
+        "first-round",
+        "restless-grass",
+        "bell-for-the-shrine",
+        "a-new-friend",
+        "wind-readings",
+        "the-grey-letter"
+      ],
+      "flags": [
+        "grey-letter-read",
+        "storm-seen",
+        "chapter-1-done"
+      ]
+    },
+    "skills": [
+      {
+        "skill": "cooking",
+        "level": 20,
+        "xp": 0
+      },
+      {
+        "skill": "foraging",
+        "level": 12,
+        "xp": 30
+      },
+      {
+        "skill": "fishing",
+        "level": 7,
+        "xp": 44
+      }
+    ],
+    "jobs": {
+      "seed": 4000000000,
+      "drawn": 17,
+      "done": 14,
+      "board": [
+        {
+          "job": 15,
+          "template": "berries-please",
+          "item": "cloudberry",
+          "count": 4,
+          "to": null,
+          "progress": 0
+        },
+        {
+          "job": 16,
+          "template": "bun-batch",
+          "item": "berry-bun",
+          "count": 3,
+          "to": null,
+          "progress": 0
+        },
+        {
+          "job": 17,
+          "template": "breezy-catch",
+          "item": "breezefin",
+          "count": 2,
+          "to": null,
+          "progress": 0
+        }
+      ]
+    }
+  }
+}

@@ -89,6 +89,49 @@
     {
       "if": [
         {
+          "quest": "treats-from-scratch",
+          "is": "available"
+        }
+      ],
+      "node": "scratch-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "pick-berries"
+        }
+      ],
+      "node": "scratch-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "bake-a-bun"
+        }
+      ],
+      "node": "scratch-remind"
+    },
+    {
+      "if": [
+        {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
           "flag": "storm-seen",
           "set": true
         }
@@ -269,6 +312,66 @@
         "sl": "Poslastice, torbe in še več poslastic. To je moje delo!"
       },
       "mood": "happy"
+    },
+    "scratch-offer": {
+      "say": {
+        "en": "Treats you make yourself work even better! Pick 3 cloudberries, then cook a Berry Bun in my pot.",
+        "sl": "Domače poslastice delujejo še bolje! Naberi 3 oblačnice, nato v mojem loncu skuhaj jagodno žemljico."
+      },
+      "mood": "happy",
+      "choices": [
+        {
+          "say": {
+            "en": "Let's cook!",
+            "sl": "Kuhajmo!"
+          },
+          "next": "scratch-accept"
+        },
+        {
+          "say": {
+            "en": "Not now.",
+            "sl": "Ne zdaj."
+          },
+          "next": "not-now"
+        }
+      ]
+    },
+    "scratch-accept": {
+      "say": {
+        "en": "The berry bushes are near the post, and the pot is right here by me.",
+        "sl": "Grmi z jagodami so blizu pošte, lonec pa je kar tu ob meni."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "treats-from-scratch"
+        }
+      ]
+    },
+    "scratch-remind": {
+      "say": {
+        "en": "Three cloudberries, then a Berry Bun in the pot. Easy and tasty!",
+        "sl": "Tri oblačnice, nato jagodna žemljica v loncu. Preprosto in okusno!"
+      },
+      "mood": "happy"
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
     }
   }
 }

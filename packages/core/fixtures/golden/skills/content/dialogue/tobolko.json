@@ -1,0 +1,377 @@
+{
+  "npc": "tobolko",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "first-round",
+          "at": "deliver-note"
+        },
+        {
+          "has": "hello-note",
+          "count": 1
+        }
+      ],
+      "node": "note"
+    },
+    {
+      "if": [
+        {
+          "quest": "a-new-friend",
+          "at": "befriend-one"
+        },
+        {
+          "lacks": "plain-treat"
+        },
+        {
+          "lacks": "sun-treat"
+        },
+        {
+          "lacks": "rain-treat"
+        }
+      ],
+      "node": "refill"
+    },
+    {
+      "if": [
+        {
+          "quest": "restless-grass",
+          "at": "report"
+        }
+      ],
+      "node": "grass-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "a-new-friend",
+          "at": "tell"
+        }
+      ],
+      "node": "friend-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "restless-grass",
+          "is": "available"
+        }
+      ],
+      "node": "grass-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "restless-grass",
+          "at": "win-two"
+        }
+      ],
+      "node": "grass-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "a-new-friend",
+          "is": "available"
+        }
+      ],
+      "node": "friend-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "a-new-friend",
+          "at": "befriend-one"
+        }
+      ],
+      "node": "friend-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "is": "available"
+        }
+      ],
+      "node": "scratch-offer"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "pick-berries"
+        }
+      ],
+      "node": "scratch-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "treats-from-scratch",
+          "at": "bake-a-bun"
+        }
+      ],
+      "node": "scratch-remind"
+    },
+    {
+      "if": [
+        {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
+          "flag": "storm-seen",
+          "set": true
+        }
+      ],
+      "node": "storm-idle"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "note": {
+      "say": {
+        "en": "A note from Bavko? For me? Thank you!",
+        "sl": "Sporočilo od Bavka? Zame? Hvala!"
+      },
+      "mood": "surprised",
+      "effects": [
+        {
+          "take": "hello-note",
+          "count": 1
+        },
+        {
+          "completeStep": "first-round",
+          "step": "deliver-note"
+        }
+      ],
+      "next": "bag"
+    },
+    "bag": {
+      "say": {
+        "en": "Your bag holds treats for wild creatures, and here are three more. Look inside any time.",
+        "sl": "V torbi imaš poslastice za divja bitja, tu so še tri. Poglej vanjo, kadar želiš."
+      },
+      "mood": "happy",
+      "next": "grass-offer"
+    },
+    "grass-offer": {
+      "say": {
+        "en": "Oh, the meadow creatures are so jumpy today! Could you calm them down? Win 2 battles in the tall grass.",
+        "sl": "Oh, bitja na travniku so danes tako nemirna! Jih pomiriš? Zmagaj v 2 bojih v visoki travi."
+      },
+      "mood": "worried",
+      "choices": [
+        {
+          "say": {
+            "en": "Leave it to me!",
+            "sl": "Prepusti meni!"
+          },
+          "next": "grass-accept"
+        },
+        {
+          "say": {
+            "en": "Not now.",
+            "sl": "Ne zdaj."
+          },
+          "next": "not-now"
+        }
+      ]
+    },
+    "grass-accept": {
+      "say": {
+        "en": "Great! The tall grass is right here. Come back when you're done.",
+        "sl": "Super! Visoka trava je kar tu. Vrni se, ko končaš."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "restless-grass"
+        }
+      ]
+    },
+    "not-now": {
+      "say": {
+        "en": "Of course, of course. The grass will wait. It always does.",
+        "sl": "Seveda, seveda. Trava bo počakala. Vedno počaka."
+      },
+      "mood": "calm"
+    },
+    "grass-remind": {
+      "say": {
+        "en": "Two wins in the tall grass, and the meadow will settle down. I believe in you!",
+        "sl": "Dve zmagi v visoki travi in travnik se bo umiril. Verjamem vate!"
+      },
+      "mood": "happy"
+    },
+    "grass-report": {
+      "say": {
+        "en": "Listen! The meadow has calmed down. Great work!",
+        "sl": "Poslušaj! Travnik se je umiril. Odlično opravljeno!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "completeStep": "restless-grass",
+          "step": "report"
+        }
+      ],
+      "next": "friend-offer"
+    },
+    "friend-offer": {
+      "say": {
+        "en": "Now for my favourite part. Offer a treat to a wild creature in battle. If it likes you, it joins your team!",
+        "sl": "Zdaj pa moj najljubši del. V boju ponudi poslastico divjemu bitju. Če te ima rado, se pridruži tvoji ekipi!"
+      },
+      "mood": "happy",
+      "choices": [
+        {
+          "say": {
+            "en": "I'll try it!",
+            "sl": "Poskusim!"
+          },
+          "next": "friend-accept"
+        },
+        {
+          "say": {
+            "en": "Not now.",
+            "sl": "Ne zdaj."
+          },
+          "next": "not-now"
+        }
+      ]
+    },
+    "friend-accept": {
+      "say": {
+        "en": "Wonderful! A tired creature says yes more often. And its favourite treat works best.",
+        "sl": "Čudovito! Utrujeno bitje pogosteje reče ja. Najbolje deluje njegova najljubša poslastica."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "a-new-friend"
+        }
+      ]
+    },
+    "friend-remind": {
+      "say": {
+        "en": "Any luck yet? Offer a treat in battle. Tired creatures say yes more often.",
+        "sl": "Ti je že uspelo? V boju ponudi poslastico. Utrujena bitja pogosteje rečejo ja."
+      }
+    },
+    "refill": {
+      "say": {
+        "en": "Out of treats? Oh dear, oh dear! Here, take three plain ones. Everyone deserves another try.",
+        "sl": "Ti je zmanjkalo poslastic? Ojej, ojej! Na, vzemi tri navadne. Vsakdo si zasluži še en poskus."
+      },
+      "mood": "worried",
+      "effects": [
+        {
+          "give": "plain-treat",
+          "count": 3
+        }
+      ]
+    },
+    "friend-report": {
+      "say": {
+        "en": "A new teammate! Look how happy it is. That's what treats are for.",
+        "sl": "Novo bitje v ekipi! Poglej, kako je veselo. Za to so poslastice."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "completeStep": "a-new-friend",
+          "step": "tell"
+        }
+      ]
+    },
+    "storm-idle": {
+      "say": {
+        "en": "Vetrinka says there's something odd in the clouds. I've packed extra treats, just in case.",
+        "sl": "Vetrinka pravi, da je v oblakih nekaj čudnega. Za vsak primer imam pripravljenih več poslastic."
+      },
+      "mood": "worried"
+    },
+    "idle": {
+      "say": {
+        "en": "Treats, bags, and more treats. That's my job!",
+        "sl": "Poslastice, torbe in še več poslastic. To je moje delo!"
+      },
+      "mood": "happy"
+    },
+    "scratch-offer": {
+      "say": {
+        "en": "Treats you make yourself work even better! Pick 3 cloudberries, then cook a Berry Bun in my pot.",
+        "sl": "Domače poslastice delujejo še bolje! Naberi 3 oblačnice, nato v mojem loncu skuhaj jagodno žemljico."
+      },
+      "mood": "happy",
+      "choices": [
+        {
+          "say": {
+            "en": "Let's cook!",
+            "sl": "Kuhajmo!"
+          },
+          "next": "scratch-accept"
+        },
+        {
+          "say": {
+            "en": "Not now.",
+            "sl": "Ne zdaj."
+          },
+          "next": "not-now"
+        }
+      ]
+    },
+    "scratch-accept": {
+      "say": {
+        "en": "The berry bushes are near the post, and the pot is right here by me.",
+        "sl": "Grmi z jagodami so blizu pošte, lonec pa je kar tu ob meni."
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "startQuest": "treats-from-scratch"
+        }
+      ]
+    },
+    "scratch-remind": {
+      "say": {
+        "en": "Three cloudberries, then a Berry Bun in the pot. Easy and tasty!",
+        "sl": "Tri oblačnice, nato jagodna žemljica v loncu. Preprosto in okusno!"
+      },
+      "mood": "happy"
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
+    }
+  }
+}

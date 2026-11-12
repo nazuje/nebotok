@@ -1,7 +1,7 @@
 import { matchMaker } from '@colyseus/core';
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, MAX_PROFILES, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, MAX_PROFILES, MAX_TAPS, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
@@ -441,6 +441,33 @@ describe('messages', () => {
     const room = await join((await profile('Test Courier')).token);
     const left = leftWith(room);
     room.send('ping', { sentAt: 'soon' });
+    expect(await left).toBe(4002);
+  });
+
+  it('refuses gathering, cooking and the board as not open yet, and shows nobody doing a skill', async () => {
+    const room = await join((await profile('Test Courier')).token);
+    expect(room.state.players.get(room.sessionId)?.skill).toBe('');
+    const requests = [
+      ['gather.start', { spot: 'berry-bush' }],
+      ['cook.start', { recipe: 'berry-bun', station: 'post-pot' }],
+      ['skill.finish', { attempt: 1, taps: [{ at: 1_200, place: 0 }] }],
+      ['skill.cancel', { attempt: 1 }],
+      ['board.open', { station: 'post-board' }],
+    ] as const;
+    const refusals: unknown[] = [];
+    room.onMessage('refused', (refusal: unknown) => {
+      refusals.push(refusal);
+    });
+    for (const [type, message] of requests) room.send(type, message);
+    await until(() => refusals.length === requests.length, 'every request to be refused');
+    expect(refusals).toEqual(requests.map(([type]) => ({ request: type, reason: 'notNow' })));
+    expect(room.state.players.get(room.sessionId)?.skill).toBe('');
+  });
+
+  it('disconnects a client that sends more taps than a game takes', async () => {
+    const room = await join((await profile('Test Courier')).token);
+    const left = leftWith(room);
+    room.send('skill.finish', { attempt: 1, taps: Array.from({ length: MAX_TAPS + 1 }, (_, index) => ({ at: index * 100, place: 0 })) });
     expect(await left).toBe(4002);
   });
 });

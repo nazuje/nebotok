@@ -24,6 +24,17 @@
         "the-grey-letter"
       ],
       "endsWith": "chapter-1-done"
+    },
+    {
+      "id": "odd-jobs",
+      "name": {
+        "en": "Odd Jobs",
+        "sl": "Priložnostna dela"
+      },
+      "quests": [
+        "treats-from-scratch"
+      ],
+      "side": true
     }
   ],
   "flags": [

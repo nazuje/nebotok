@@ -264,7 +264,7 @@ describe('progress', () => {
   it('loads a save naming a species that was renamed as the species that replaced it', async () => {
     const { id } = await created('Blob Courier');
     const creature = { species: 'sun-blob', level: 7, xp: 40, hp: 26, moves: ['sun-tap', 'sun-wallop', 'sun-call', 'storm-tap'] };
-    const { story: _v4Only, ...v3Progress } = emptyProgress();
+    const { story: _v4Only, skills: _v5Skills, jobs: _v5Jobs, ...v3Progress } = emptyProgress();
     const data = { name: 'Blob Courier', language: 'en', createdAt: '2026-05-02T10:00:00.000Z', position: null, ...v3Progress, team: [creature], seen: ['sun-blob'], befriended: ['sun-blob'] };
     temp.services.db.prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, 3, ?, 0)').run(id, JSON.stringify(data));
     expect(temp.services.progress.load(id)?.data).toMatchObject({ team: [{ species: 'glowbun', level: 7, xp: 40, hp: 26, moves: ['heat-shimmer', 'sun-ray', 'storm-tap', 'sun-call'] }], seen: ['glowbun'], befriended: ['glowbun'] });
@@ -280,6 +280,19 @@ describe('progress', () => {
       story: { active: [{ quest: 'first-round', step: 0, count: 0 }], done: [], flags: [] },
     });
     expect(logged.find((line) => line['msg'] === 'save repaired')).toMatchObject({ playerId: id, droppedCreatures: ['gone-species'], droppedQuests: ['gone-quest', 'old-round'], droppedFlags: ['gone-flag'] });
+  });
+
+  it('drops the skills and board jobs content no longer has, and holds levels at the top level', async () => {
+    const { id } = await created('Busy Courier');
+    type V5 = { v: number; data: { skills: { skill: string; level: number; xp: number }[]; jobs: { board: { template: string }[] } } };
+    const fixture = JSON.parse(readFileSync(new URL('../../../packages/core/fixtures/saves/v5/basic.json', import.meta.url), 'utf8')) as V5;
+    const board = fixture.data.jobs.board.map((job, at) => (at === 2 ? { ...job, template: 'gone-job' } : job));
+    const data = { ...fixture.data, skills: [{ skill: 'cooking', level: 99, xp: 5 }, { skill: 'gone-skill', level: 4, xp: 0 }], jobs: { ...fixture.data.jobs, board } };
+    temp.services.db.prepare('INSERT INTO player_progress (player_id, save_version, data, updated_at) VALUES (?, ?, ?, 0)').run(id, fixture.v, JSON.stringify(data));
+    const loaded = temp.services.progress.load(id)?.data;
+    expect(loaded?.skills).toEqual([{ skill: 'cooking', level: 20, xp: 0 }]);
+    expect(loaded?.jobs?.board.map((job) => job.template)).toEqual(board.slice(0, 2).map((job) => job.template));
+    expect(logged.find((line) => line['msg'] === 'save repaired')).toMatchObject({ playerId: id, droppedSkills: ['gone-skill'], droppedJobs: ['gone-job'] });
   });
 
   it('refuses a save from a newer game rather than guessing', async () => {

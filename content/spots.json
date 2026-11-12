@@ -1,0 +1,121 @@
+{
+  "spots": [
+    {
+      "id": "cloudberry-bush-a",
+      "skill": "foraging",
+      "item": "cloudberry",
+      "level": 1,
+      "xp": 8,
+      "difficulty": 1,
+      "look": "berry-bush",
+      "name": {
+        "en": "Cloudberry Bush",
+        "sl": "Grm oblačnic"
+      }
+    },
+    {
+      "id": "cloudberry-bush-b",
+      "skill": "foraging",
+      "item": "cloudberry",
+      "level": 1,
+      "xp": 8,
+      "difficulty": 1,
+      "look": "berry-bush",
+      "name": {
+        "en": "Cloudberry Bush",
+        "sl": "Grm oblačnic"
+      }
+    },
+    {
+      "id": "skymint-patch-a",
+      "skill": "foraging",
+      "item": "skymint",
+      "level": 5,
+      "xp": 14,
+      "difficulty": 2,
+      "look": "mint-patch",
+      "name": {
+        "en": "Sky Mint Patch",
+        "sl": "Gredica nebesne mete"
+      }
+    },
+    {
+      "id": "skymint-patch-b",
+      "skill": "foraging",
+      "item": "skymint",
+      "level": 5,
+      "xp": 14,
+      "difficulty": 2,
+      "look": "mint-patch",
+      "name": {
+        "en": "Sky Mint Patch",
+        "sl": "Gredica nebesne mete"
+      }
+    },
+    {
+      "id": "sunroot-patch",
+      "skill": "foraging",
+      "item": "sunroot",
+      "level": 10,
+      "xp": 24,
+      "difficulty": 2,
+      "look": "sunroot-patch",
+      "name": {
+        "en": "Sunroot Patch",
+        "sl": "Gredica sončnega korena"
+      }
+    },
+    {
+      "id": "frostcap-ring",
+      "skill": "foraging",
+      "item": "frostcap",
+      "level": 15,
+      "xp": 36,
+      "difficulty": 3,
+      "look": "frostcap-ring",
+      "name": {
+        "en": "Frostcap Ring",
+        "sl": "Krog ivnatih gobic"
+      }
+    },
+    {
+      "id": "pebble-cove",
+      "skill": "fishing",
+      "item": "pebblefish",
+      "level": 1,
+      "xp": 12,
+      "difficulty": 1,
+      "look": "cloud-ripple",
+      "name": {
+        "en": "Pebble Cove",
+        "sl": "Kamenčkov zaliv"
+      }
+    },
+    {
+      "id": "breezy-ledge",
+      "skill": "fishing",
+      "item": "breezefin",
+      "level": 6,
+      "xp": 22,
+      "difficulty": 2,
+      "look": "cloud-ripple",
+      "name": {
+        "en": "Breezy Ledge",
+        "sl": "Vetrovna polica"
+      }
+    },
+    {
+      "id": "glimmer-drop",
+      "skill": "fishing",
+      "item": "glimmercarp",
+      "level": 12,
+      "xp": 36,
+      "difficulty": 3,
+      "look": "cloud-ripple",
+      "name": {
+        "en": "Glimmer Drop",
+        "sl": "Lesketavi prepad"
+      }
+    }
+  ]
+}

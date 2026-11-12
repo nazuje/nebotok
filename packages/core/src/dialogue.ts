@@ -4,9 +4,12 @@
  * Entering a node does its effects, all of them or none. docs/protocol.md has the messages.
  */
 import { needsStarter, itemCount, type Progress } from './creatures.ts';
+import { jobReady, jobWaiting } from './deliveries.ts';
 import { giveItems, takeItems, type ItemCount } from './inventory.ts';
+import { deliverJob, type JobChange } from './jobs.ts';
 import { completeStep, currentStep, questState, startQuest, type QuestChange } from './quests.ts';
 import { MAX_STORY_IDS } from './save.ts';
+import { skillLevel } from './skills.ts';
 import type { StoryContent } from './story.ts';
 import type { Condition, DialogueNode, Effect, StoryCue } from './story-content.ts';
 
@@ -16,7 +19,8 @@ export type Conversation = { readonly npc: string; readonly node: string };
 /** What the client plays at a node: a story cue, or `offerStarter`, which opens the starter screen. */
 export type TalkCue = StoryCue | 'offerStarter';
 
-export function conditionHolds(condition: Condition, progress: Progress, content: StoryContent): boolean {
+/** Whether a condition holds for the player talking to `npc`. */
+export function conditionHolds(condition: Condition, npc: string, progress: Progress, content: StoryContent): boolean {
   const { story } = progress;
   if ('is' in condition) {
     const quest = content.quests.get(condition.quest);
@@ -29,12 +33,15 @@ export function conditionHolds(condition: Condition, progress: Progress, content
   if ('has' in condition) return itemCount(progress, condition.has) >= (condition.count ?? 1);
   if ('lacks' in condition) return itemCount(progress, condition.lacks) === 0;
   if ('flag' in condition) return story.flags.includes(condition.flag) === condition.set;
+  if ('jobReady' in condition) return jobReady(progress, npc);
+  if ('jobWaiting' in condition) return jobWaiting(progress, npc);
+  if ('skill' in condition) return skillLevel(progress, condition.skill).level >= condition.level;
   return needsStarter(progress) === condition.needsStarter;
 }
 
-/** Whether every condition holds; no conditions always hold. */
-export function conditionsHold(conditions: readonly Condition[] | undefined, progress: Progress, content: StoryContent): boolean {
-  return (conditions ?? []).every((condition) => conditionHolds(condition, progress, content));
+/** Whether every condition holds for the player talking to `npc`; no conditions always hold. */
+export function conditionsHold(conditions: readonly Condition[] | undefined, npc: string, progress: Progress, content: StoryContent): boolean {
+  return (conditions ?? []).every((condition) => conditionHolds(condition, npc, progress, content));
 }
 
 function nodeOf(conversation: Conversation, content: StoryContent): DialogueNode | null {
@@ -66,20 +73,26 @@ export type TalkView = { readonly npc: string; readonly node: string; readonly s
 export function conversationView(conversation: Conversation, progress: Progress, content: StoryContent): TalkView | null {
   const node = nodeOf(conversation, content);
   if (!node) return null;
-  const choices = (node.choices ?? []).flatMap((choice, at) => (conditionsHold(choice.if, progress, content) ? [at] : []));
+  const choices = (node.choices ?? []).flatMap((choice, at) => (conditionsHold(choice.if, conversation.npc, progress, content) ? [at] : []));
   return { ...conversation, speaker: node.speaker ?? conversation.npc, choices, cue: cueOfNode(node), ends: node.next === undefined && choices.length === 0 };
 }
 
 /**
  * Where a talk is after a step: at a node (null when it ended), the Progress after the node's
- * effects, the quests that changed, and items that did not fit in the bag.
+ * effects, the quests and jobs that changed, and items that did not fit in the bag.
  */
-export type TalkStep = { readonly conversation: Conversation | null; readonly progress: Progress; readonly changes: readonly QuestChange[]; readonly extra: readonly ItemCount[] };
+export type TalkStep = {
+  readonly conversation: Conversation | null;
+  readonly progress: Progress;
+  readonly changes: readonly QuestChange[];
+  readonly jobs: readonly JobChange[];
+  readonly extra: readonly ItemCount[];
+};
 
-type Draft = { progress: Progress; changes: QuestChange[]; extra: ItemCount[] };
+type Draft = { progress: Progress; changes: QuestChange[]; jobs: JobChange[]; extra: ItemCount[] };
 
-/** One effect on the draft; false when it cannot happen. */
-function applyEffect(draft: Draft, effect: Effect, content: StoryContent): boolean {
+/** One effect on the draft, at `npc`'s node; false when it cannot happen. */
+function applyEffect(draft: Draft, effect: Effect, npc: string, content: StoryContent): boolean {
   if ('startQuest' in effect || 'completeStep' in effect) {
     const result = 'startQuest' in effect ? startQuest(draft.progress, effect.startQuest, content) : completeStep(draft.progress, effect.completeStep, effect.step, content);
     if (!result) return false;
@@ -105,6 +118,15 @@ function applyEffect(draft: Draft, effect: Effect, content: StoryContent): boole
     return true;
   }
   if ('offerStarter' in effect) return needsStarter(draft.progress);
+  if ('deliverJob' in effect) {
+    const delivered = deliverJob(draft.progress, npc, content);
+    if (!delivered) return false;
+    draft.progress = delivered.progress;
+    draft.jobs.push(...delivered.jobs);
+    draft.changes.push(...delivered.quests);
+    draft.extra.push(...delivered.extra);
+    return true;
+  }
   return true;
 }
 
@@ -115,15 +137,15 @@ function applyEffect(draft: Draft, effect: Effect, content: StoryContent): boole
  */
 function enter(conversation: Conversation, progress: Progress, content: StoryContent): TalkStep {
   const node = nodeOf(conversation, content);
-  const draft: Draft = { progress, changes: [], extra: [] };
-  const done = node !== null && (node.effects ?? []).every((effect) => applyEffect(draft, effect, content));
-  return done ? { conversation, ...draft } : { conversation: null, progress, changes: [], extra: [] };
+  const draft: Draft = { progress, changes: [], jobs: [], extra: [] };
+  const done = node !== null && (node.effects ?? []).every((effect) => applyEffect(draft, effect, conversation.npc, content));
+  return done ? { conversation, ...draft } : { conversation: null, progress, changes: [], jobs: [], extra: [] };
 }
 
 /** Opens a talk with a character at the first entry of their file whose `if` holds. Null when they have no dialogue. */
 export function openConversation(npc: string, progress: Progress, content: StoryContent): TalkStep | null {
   const dialogue = content.dialogue.get(npc);
-  const entry = dialogue?.entries.find((candidate) => conditionsHold(candidate.if, progress, content));
+  const entry = dialogue?.entries.find((candidate) => conditionsHold(candidate.if, npc, progress, content));
   return entry ? enter({ npc, node: entry.node }, progress, content) : null;
 }
 
@@ -142,5 +164,5 @@ export function advanceConversation(conversation: Conversation, choice: number |
   }
   if (view.choices.length > 0) return null;
   if (node.next !== undefined) return enter({ npc: conversation.npc, node: node.next }, progress, content);
-  return { conversation: null, progress, changes: [], extra: [] };
+  return { conversation: null, progress, changes: [], jobs: [], extra: [] };
 }

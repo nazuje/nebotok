@@ -1,0 +1,263 @@
+{
+  "npc": "vetrinka",
+  "entries": [
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "at": "deliver-gauge"
+        },
+        {
+          "has": "wind-gauge",
+          "count": 1
+        }
+      ],
+      "node": "gauge"
+    },
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "at": "report"
+        }
+      ],
+      "node": "wind-report"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "at": "deliver-letter"
+        },
+        {
+          "has": "grey-letter",
+          "count": 1
+        }
+      ],
+      "node": "letter"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "at": "tell-vetrinka"
+        }
+      ],
+      "node": "no-storm"
+    },
+    {
+      "if": [
+        {
+          "quest": "wind-readings",
+          "at": "gale-win"
+        }
+      ],
+      "node": "gale-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "at": "lookout"
+        }
+      ],
+      "node": "lookout-remind"
+    },
+    {
+      "if": [
+        {
+          "quest": "the-grey-letter",
+          "at": "back-to-bavko"
+        }
+      ],
+      "node": "back-remind"
+    },
+    {
+      "if": [
+        {
+          "jobReady": true
+        }
+      ],
+      "node": "job-thanks"
+    },
+    {
+      "if": [
+        {
+          "jobWaiting": true
+        }
+      ],
+      "node": "job-waiting"
+    },
+    {
+      "if": [
+        {
+          "flag": "chapter-1-done",
+          "set": true
+        }
+      ],
+      "node": "after"
+    },
+    {
+      "node": "idle"
+    }
+  ],
+  "nodes": {
+    "gauge": {
+      "say": {
+        "en": "My wind gauge! Finally. Bavko never forgets... well, sometimes he forgets.",
+        "sl": "Moj vetromer! Končno. Bavko nikoli ne pozabi ... no, včasih pozabi."
+      },
+      "mood": "surprised",
+      "effects": [
+        {
+          "take": "wind-gauge",
+          "count": 1
+        },
+        {
+          "completeStep": "wind-readings",
+          "step": "deliver-gauge"
+        }
+      ],
+      "next": "gale-ask"
+    },
+    "gale-ask": {
+      "say": {
+        "en": "See how it spins? The wind is wrong today. Win a battle in the windy grass to the south-west, then come back to me.",
+        "sl": "Vidiš, kako se vrti? Veter je danes čuden. Zmagaj v boju v vetrovni travi na jugozahodu, nato se vrni k meni."
+      },
+      "mood": "worried"
+    },
+    "gale-remind": {
+      "say": {
+        "en": "The windy grass is in the south-west. Win one battle there, then come back. Too hard? Train in the meadow first.",
+        "sl": "Vetrovna trava je na jugozahodu. Tam zmagaj v enem boju, nato se vrni. Pretežko? Najprej treniraj na travniku."
+      },
+      "mood": "worried"
+    },
+    "wind-report": {
+      "say": {
+        "en": "Strong out there, isn't it? And strange. The mail from the outer islands has stopped. Not one letter in days.",
+        "sl": "Tam močno piha, kajne? In čudno. Pošta z zunanjih otokov ne prihaja več. Že več dni niti enega pisma."
+      },
+      "mood": "worried",
+      "effects": [
+        {
+          "completeStep": "wind-readings",
+          "step": "report"
+        }
+      ],
+      "next": "wind-thanks"
+    },
+    "wind-thanks": {
+      "say": {
+        "en": "Thank you for the help. Tell Bavko I'll keep watching the sky.",
+        "sl": "Hvala za pomoč. Povej Bavku, da bom še naprej opazovala nebo."
+      },
+      "mood": "calm"
+    },
+    "letter": {
+      "say": {
+        "en": "A grey letter, brought by the wind? Let me read it...",
+        "sl": "Sivo pismo, ki ga je prinesel veter? Naj ga preberem ..."
+      },
+      "mood": "surprised",
+      "effects": [
+        {
+          "take": "grey-letter",
+          "count": 1
+        },
+        {
+          "completeStep": "the-grey-letter",
+          "step": "deliver-letter"
+        }
+      ],
+      "next": "letter-read"
+    },
+    "letter-read": {
+      "say": {
+        "en": "\"The clouds over the far islands are going quiet. Something out there is hungry.\"",
+        "sl": "»Oblaki nad daljnimi otoki utihujejo. Nekaj tam zunaj je lačno.«"
+      },
+      "mood": "worried",
+      "next": "lookout-ask"
+    },
+    "lookout-ask": {
+      "say": {
+        "en": "Go to the lookout, just east of me. Look out over the sea of clouds. Quickly!",
+        "sl": "Pojdi na razgledišče, malo vzhodno od mene. Poglej čez morje oblakov. Hitro!"
+      },
+      "mood": "worried"
+    },
+    "lookout-remind": {
+      "say": {
+        "en": "The lookout is just east of me. Go and look out over the clouds.",
+        "sl": "Razgledišče je malo vzhodno od mene. Pojdi in poglej čez oblake."
+      },
+      "mood": "worried"
+    },
+    "no-storm": {
+      "say": {
+        "en": "That was no storm. Storms don't eat.",
+        "sl": "To ni bila nevihta. Nevihte ne jedo."
+      },
+      "mood": "worried",
+      "effects": [
+        {
+          "completeStep": "the-grey-letter",
+          "step": "tell-vetrinka"
+        },
+        {
+          "give": "grey-letter",
+          "count": 1
+        }
+      ],
+      "next": "send-back"
+    },
+    "send-back": {
+      "say": {
+        "en": "Take the letter back to Bavko. He needs to see this.",
+        "sl": "Odnesi pismo nazaj Bavku. To mora videti."
+      },
+      "mood": "worried"
+    },
+    "back-remind": {
+      "say": {
+        "en": "Bavko must see that letter. Hurry back to the post.",
+        "sl": "Bavko mora videti tisto pismo. Pohiti nazaj na pošto."
+      },
+      "mood": "worried"
+    },
+    "after": {
+      "say": {
+        "en": "I watch the far clouds every day now. If that thing comes back, we'll see it in time.",
+        "sl": "Zdaj vsak dan opazujem daljne oblake. Če se tisto vrne, ga bomo pravočasno opazili."
+      },
+      "mood": "calm"
+    },
+    "idle": {
+      "say": {
+        "en": "Hm. The wind turns east again. I don't like it.",
+        "sl": "Hm. Veter se spet obrača proti vzhodu. To mi ni všeč."
+      },
+      "mood": "worried"
+    },
+    "job-thanks": {
+      "say": {
+        "en": "For me? Thank you!",
+        "sl": "Zame? Hvala lepa!"
+      },
+      "mood": "happy",
+      "effects": [
+        {
+          "deliverJob": true
+        }
+      ]
+    },
+    "job-waiting": {
+      "say": {
+        "en": "A job from the board? Bring it all when you have it.",
+        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+      }
+    }
+  }
+}
