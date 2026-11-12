@@ -1,8 +1,54 @@
 {
-  "recolour": "spots/berry-bush",
+  "width": 16,
+  "height": 16,
   "palette": {
-    "g": "#a8833f",
-    "d": "#6e5427",
-    "f": "#ffd34d"
+    "k": "#1b1b2f",
+    "f": "#2f7d3a",
+    "g": "#7ad66f",
+    "l": "#fff2a8",
+    "w": "#ffffff",
+    "b": "#ffd94a",
+    "d": "#e8a33a",
+    "p": "#b8844f",
+    "o": "#9a6a3f",
+    "m": "#6b4329"
+  },
+  "frames": {
+    "ready": [
+      "................",
+      "................",
+      "..kk..kk...kk...",
+      ".kgfkkgfk.kgfk..",
+      "..kgfgfk.kgfgk..",
+      "...kffk...kffk..",
+      "..kklbbk.klbbkk.",
+      ".kklwbbdkkwbbdkk",
+      "kpklbbbdkkbbbdpk",
+      "kooooooooooooooo",
+      "kpppppppppppppok",
+      "kooooooooooooomk",
+      ".kmmmmmmmmmmmmk.",
+      "..kkkkkkkkkkkk..",
+      "................",
+      "................"
+    ],
+    "resting": [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      ".......k........",
+      "......kgk.......",
+      ".......kk.......",
+      ".kkkkkkkkkkkkkk.",
+      "kpppopppoppppopk",
+      "kooooooooooooomk",
+      ".kmmmmmmmmmmmmk.",
+      "..kkkkkkkkkkkk..",
+      "................"
+    ]
   }
 }
