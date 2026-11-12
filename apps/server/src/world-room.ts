@@ -91,7 +91,7 @@ import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
 import { boardOpen, jobsJoined } from './jobs.ts';
 import { createRateLimiter } from './rate-limit.ts';
-import { cookStart, endAttempt, gatherStart, newSkillSeat, skillCancel, skillFinish, skillsJoined, tickSkills, type AttemptEnd, type SkillRoom, type SkillSeat } from './skills.ts';
+import { cookStart, endAttempt, gatherStart, skillCancel, skillFinish, skillSeats, skillsJoined, tickSkills, type AttemptEnd, type SkillRoom, type SkillSeat } from './skills.ts';
 import {
   NO_EXTRAS,
   TALK_IDLE_MS,
@@ -249,6 +249,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private attemptCount = 0;
     /** Plans gathers and cooks. Made on first use, so rooms that never see one draw no seed for it. */
     private attemptRng: Rng | null = null;
+    /** Each profile's gather or cook and resting spots, kept across its seats while the room is open. */
+    private readonly skillSeatOf = skillSeats();
 
     override messages = {
       [CLIENT_MESSAGES.ping]: validate(z.strictObject({ sentAt: z.number().finite() }), (client: Client, { sentAt }) => {
@@ -325,7 +327,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         offer: null,
         talk: null,
         restedAt: null,
-        skills: newSkillSeat(),
+        skills: this.skillSeatOf(profile.id),
         dirty: true,
         savedAt: Number.NEGATIVE_INFINITY,
         stopped: false,
@@ -572,8 +574,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       seat.restedAt = shrine;
       for (const mark of marksAt(map, tile)) this.applyStory(sessionId, seat, questEvent(seat.progress, { kind: 'reached', mark }, story));
       // Nobody is ambushed while away: a dropped player's last step can still end in the grass. A
-      // talk stops the walk, but the step under way still ends.
-      if (seat.battle || seat.offer || seat.talk || seat.reconnection || !canBattle(seat.progress)) return;
+      // talk or a gather stops the walk, but the step under way still ends.
+      if (seat.battle || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return;
       const zoneId = encounterZoneAt(map, tile);
       const zone = zoneId === null ? undefined : world.encounters.get(zoneId);
       const wild = zone ? rollEncounter(zone, this.encounterRng) : null;
@@ -798,7 +800,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private talkStart(client: Client, npc: string) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
-      const refusal = talkStartRefusal(npc, seat.walker, { battle: seat.battle !== null, offer: seat.offer !== null, talking: seat.talk !== null }, map, story);
+      // A gather or cook under way keeps the player busy as a talk does.
+      const refusal = talkStartRefusal(npc, seat.walker, { battle: seat.battle !== null, offer: seat.offer !== null, talking: seat.talk !== null || seat.skills.attempt !== null }, map, story);
       if (refusal) {
         this.refuse(client, CLIENT_MESSAGES.talkStart, refusal);
         return;
@@ -920,7 +923,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         },
         get busy() {
           if (seat.battle) return 'inBattle';
-          return seat.talk || seat.offer ? 'notNow' : null;
+          return seat.talk || seat.offer || seat.skills.attempt ? 'notNow' : null;
         },
         get now() {
           return now();

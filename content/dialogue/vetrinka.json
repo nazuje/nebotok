@@ -243,8 +243,8 @@
     },
     "job-thanks": {
       "say": {
-        "en": "For me? Thank you!",
-        "sl": "Zame? Hvala lepa!"
+        "en": "Right on time, before the wind turns. Thank you!",
+        "sl": "Ravno pravi čas, preden se veter obrne. Hvala!"
       },
       "mood": "happy",
       "effects": [
@@ -255,8 +255,8 @@
     },
     "job-waiting": {
       "say": {
-        "en": "A job from the board? Bring it all when you have it.",
-        "sl": "Opravilo z deske? Prinesi vse, ko zbereš."
+        "en": "A job from the board for me? Bring it all at once. The wind won't wait, but I will.",
+        "sl": "Delo z deske zame? Prinesi vse skupaj. Veter ne čaka, jaz pa počakam."
       }
     }
   }

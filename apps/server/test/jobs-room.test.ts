@@ -46,7 +46,7 @@ async function boot() {
 beforeAll(async () => {
   temp = tempServices(undefined, logged.log);
   const real = temp.services.world;
-  // The real map places no stations yet, so the board goes on a tile next to the one beside Tobolko.
+  // The board moves next to the tile beside Tobolko, so one tile reaches both.
   stand = beside(real.map, real.map.npcs['tobolko']!);
   const board = DIRECTIONS.map((direction) => stepFrom(stand, direction)).find((tile) => !samePoint(tile, real.map.npcs['tobolko']!))!;
   world = { ...real, map: { ...real.map, stations: { ...real.map.stations, 'post-board': board } } };
@@ -161,7 +161,8 @@ describe('opening the board', () => {
     const back = await join(who.id);
     await until(() => back.box.has('jobs'), 'the board on joining');
     const types = back.box.types();
-    expect(types.indexOf('story')).toBeLessThan(types.indexOf('jobs'));
+    expect(types.indexOf('story')).toBeLessThan(types.indexOf('skills'));
+    expect(types.indexOf('skills')).toBeLessThan(types.indexOf('jobs'));
     expect(types.at(-1)).toBe('jobs');
     expect(await back.box.take<JobsMessage>('jobs')).toEqual(first);
   });
@@ -191,6 +192,7 @@ describe('deliveries', () => {
   it('delivers a job at its character, finishes the quest, draws the next job at once, all in order and saved', async () => {
     const who = await player('Delivering Courier', { story: ONE_JOB_LEFT, jobs: deliveryBoard(), inventory: [{ item: 'cloudberry', count: 3 }] });
     await who.box.take<StoryMessage>('story');
+    await who.box.take<SkillsMessage>('skills');
     await who.box.take<JobsMessage>('jobs');
     const from = who.box.heard.length;
     await send(who, 'talk.start', { npc: 'tobolko' });
