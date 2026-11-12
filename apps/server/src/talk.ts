@@ -1,22 +1,28 @@
 import {
   PLAYER_SIDE,
+  SERVER_MESSAGES,
   advanceConversation,
   conversationView,
+  jobsView,
   learnTeamMoves,
   needsStarter,
   npcInReach,
   offersStarter,
   openConversation,
   questEvent,
+  skillsView,
   type BattleContent,
   type BattleOutcome,
   type Conversation,
+  type JobChanged,
+  type JobsMessage,
   type PendingMove,
   type Point,
   type Progress,
   type QuestChange,
   type QuestEvent,
   type RefusalReason,
+  type SkillsMessage,
   type SpotRest,
   type StoryContent,
   type TalkStep,
@@ -146,9 +152,16 @@ export const NO_EXTRAS: StoryExtras = { first: [], beforeStory: [], last: [] };
 export type DeliveryContext = { readonly now: number; readonly rests: readonly SpotRest[] };
 
 /**
- * The `deliverJob` hook: the messages a talk step that finished jobs (`step.jobs`) sends around its
- * story change, before the `talk.node`. Jobs are not served yet, so none.
+ * The `deliverJob` hook: the messages a talk step sends around its story change, before the
+ * `talk.node`. Core has already done the delivery (`step.jobs`); this sends a `job.changed` for each
+ * job first, `skills` when the rewards moved a skill, and `jobs` last when the board changed.
  */
-export function deliveredJobs(_step: TalkStep, _before: Progress, _context: DeliveryContext, _content: StoryContent): StoryExtras {
-  return NO_EXTRAS;
+export function deliveredJobs(step: TalkStep, before: Progress, { now, rests }: DeliveryContext, content: StoryContent): StoryExtras {
+  const skills = content.skills;
+  if (!skills) return NO_EXTRAS;
+  const after = step.progress;
+  const first = step.jobs.map((job): Outgoing => ({ type: SERVER_MESSAGES.jobChanged, message: job satisfies JobChanged }));
+  const beforeStory: Outgoing[] = after.skills === before.skills ? [] : [{ type: SERVER_MESSAGES.skills, message: skillsView(after, rests, now, skills) satisfies SkillsMessage }];
+  const last: Outgoing[] = after.jobs === before.jobs ? [] : [{ type: SERVER_MESSAGES.jobs, message: jobsView(after, content) satisfies JobsMessage }];
+  return first.length + beforeStory.length + last.length === 0 ? NO_EXTRAS : { first, beforeStory, last };
 }

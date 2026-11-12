@@ -437,6 +437,7 @@ describe('quests and jobs', () => {
     const story = { active: [{ quest: quest.id, step: 0, count: 'count' in step ? step.count - 1 : 0 }], done: [], flags: [] };
     const who = await gatherer('Busy Forager', { jobs, story });
     await who.box.take('skills');
+    await who.box.take('jobs');
     const attempt = await gather(who, spot.id);
     const from = who.box.heard.length;
     server.clock.offset += attempt.endsByMs + 100;
