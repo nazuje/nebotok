@@ -3,27 +3,67 @@
   "height": 16,
   "palette": {
     "k": "#1b1b2f",
-    "b": "#5a5f73",
-    "l": "#e9edf5"
+    "w": "#ffffff",
+    "c": "#c8d8e8",
+    "s": "#c8c8d4",
+    "l": "#9a9aa8",
+    "m": "#6e6e80",
+    "n": "#4a4a60",
+    "y": "#ffd94a",
+    "o": "#e8a33a",
+    "f": "#ffd94a",
+    "r": "#d0574a",
+    "t": "#9a6a3f",
+    "u": "#6b4329"
   },
   "frames": {
     "still": [
-      "................",
-      "................",
-      "................",
-      "................",
-      "................",
+      ".....c...w......",
+      "....w...c.......",
+      ".....c...w......",
       "................",
       "...kkkkkkkkkk...",
-      "...kllllllllk...",
-      "...kbbbbbbbbk...",
-      "...kbbbbbbbbk...",
-      "...kbbbbbbbbk...",
-      "...kbbbbbbbbk...",
-      "...kbbbbbbbbk...",
-      "...kkkkkkkkkk...",
+      "..ksyyyyyyyonk..",
+      ".kssssssssssnnk.",
+      "kkklmmmmmmmmnkkk",
+      "knklmmmmmmmmnknk",
+      "kkklmmmmmmmnnkkk",
+      "..klmmmmmmmnnk..",
+      "...knnnnnnnnk...",
+      "....kkkkkkkk....",
+      "...kfrkfrkfrk...",
+      "..ktttttttttuk..",
+      "..kkkkkkkkkkkk.."
+    ],
+    "puff": [
+      "....w...c.......",
+      ".....c...w......",
+      "....w...c.......",
       "................",
-      "................"
+      "...kkkkkkkkkk...",
+      "..ksyyyyyyyonk..",
+      ".kssssssssssnnk.",
+      "kkklmmmmmmmmnkkk",
+      "knklmmmmmmmmnknk",
+      "kkklmmmmmmmnnkkk",
+      "..klmmmmmmmnnk..",
+      "...knnnnnnnnk...",
+      "....kkkkkkkk....",
+      "...kfrkfrkfrk...",
+      "..ktttttttttuk..",
+      "..kkkkkkkkkkkk.."
     ]
+  },
+  "animations": {
+    "steam": {
+      "frames": [
+        "still",
+        "puff"
+      ],
+      "ms": [
+        400,
+        400
+      ]
+    }
   }
 }
