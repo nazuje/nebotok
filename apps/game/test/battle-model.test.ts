@@ -1,5 +1,6 @@
 import { mapFromRows } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
+import { favouriteBesides } from '../src/battle-content.ts';
 import type { ServerMessage } from '../src/battle-link.ts';
 import { createBattleModel, menuFor, resultLines } from '../src/battle-model.ts';
 import { QUICK_TAP_MS, TAP_GRACE_MS, playbackMs, playback } from '../src/battle-playback.ts';
@@ -72,7 +73,7 @@ describe('the battle model', () => {
     expect(model.battle(LATER)?.panel).toBe('menu');
     const next = turn(battle, move(0), move(0));
     model.receive(next, LATER);
-    const steps = playback(started.payload.battle, next.payload.battle, next.payload.events, TEN);
+    const steps = playback(started.payload.battle, next.payload.battle, next.payload.events, TEN, favouriteBesides);
     const firstHit = steps.find((step) => step.event.kind === 'hit');
     expect(model.battle(LATER)?.shown.hp).toEqual(steps[1]?.shown.hp);
     expect(firstHit).toBeDefined();

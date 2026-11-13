@@ -7,7 +7,7 @@
  * they play.
  */
 import { z } from 'zod';
-import { GRACE_MS, MARKER_MARGIN, MARKER_TRACK, MAX_TAPS, SPARKLE_FIRST_MS, SPARKLE_PLACES } from './attempts.ts';
+import { FADE_MS, MARKER_MARGIN, MARKER_TRACK, MAX_TAPS, SPARKLE_FIRST_MS, SPARKLE_PLACES } from './attempts.ts';
 import { ContentId, LocalizedText, noRepeatedIds } from './content.ts';
 
 /** The tiny games, one per skill: tap when the float dips, tap the sparkles, stop the marker in its zone. */
@@ -53,8 +53,8 @@ export const SparkleRules = z
     sparkle.showMs.forEach((show, at) => {
       const length = SPARKLE_FIRST_MS + (sparkle.count - 1) * sparkle.gapMs[1] + show;
       if (length > MAX_GAME_MS) ctx.addIssue({ code: 'custom', message: `the game lasts up to ${length} ms, more than ${MAX_GAME_MS}`, path: ['showMs', at] });
-      // A new sparkle needs a place that no sparkle still in reach of a tap holds.
-      if (show + 2 * GRACE_MS >= SPARKLE_PLACES * sparkle.gapMs[0]) ctx.addIssue({ code: 'custom', message: `showMs ${show} is too long for the shortest gap: more than ${SPARKLE_PLACES - 1} sparkles would show at once`, path: ['showMs', at] });
+      // A new sparkle needs a place that no sparkle still showing or fading holds.
+      if (show + FADE_MS >= SPARKLE_PLACES * sparkle.gapMs[0]) ctx.addIssue({ code: 'custom', message: `showMs ${show} is too long for the shortest gap: more than ${SPARKLE_PLACES - 1} sparkles would show at once`, path: ['showMs', at] });
     });
   });
 export type SparkleRules = z.infer<typeof SparkleRules>;
@@ -168,9 +168,26 @@ export const JobTemplate = z.discriminatedUnion('kind', [
 ]);
 export type JobTemplate = z.infer<typeof JobTemplate>;
 
-/** `jobs.json`: how many jobs the board shows, and the templates it draws them from by `weight`. */
+/**
+ * How job counts grow with the player's level: past `afterLevel` of the skill a template needs,
+ * each level adds `percentPerLevel` percent to the count drawn, so a keen courier gets fewer,
+ * bigger jobs that pay more XP each.
+ */
+export const CountGrowth = z.strictObject({ afterLevel: Level, percentPerLevel: z.number().int().min(0).max(100) });
+export type CountGrowth = z.infer<typeof CountGrowth>;
+
+/**
+ * `jobs.json`: how many jobs the board shows, how their counts grow, after how many levels past its
+ * `needs` a template is `outgrownAfter` (no longer drawn, so the board keeps up with the player),
+ * and the templates it draws them from by `weight`.
+ */
 export const JobsFile = z
-  .strictObject({ slots: z.number().int().min(1).max(MAX_JOB_SLOTS), templates: z.array(JobTemplate).min(1).max(100) })
+  .strictObject({
+    slots: z.number().int().min(1).max(MAX_JOB_SLOTS),
+    countGrowth: CountGrowth.optional(),
+    outgrownAfter: z.number().int().min(1).max(MAX_SKILL_LEVEL).optional(),
+    templates: z.array(JobTemplate).min(1).max(100),
+  })
   .superRefine(({ templates }, ctx) => noRepeatedIds(templates, 'templates', ctx));
 export type JobsFile = z.infer<typeof JobsFile>;
 
@@ -187,6 +204,8 @@ export type SkillContent = {
   readonly recipes: ReadonlyMap<string, Recipe>;
   readonly stations: ReadonlyMap<string, Station>;
   readonly slots: number;
+  readonly countGrowth: CountGrowth | null;
+  readonly outgrownAfter: number | null;
   readonly templates: ReadonlyMap<string, JobTemplate>;
 };
 
@@ -203,6 +222,8 @@ export function skillContentOf(files: { readonly skills: SkillsFile; readonly sp
     recipes: byId(files.recipes.recipes),
     stations: byId(files.stations.stations),
     slots: files.jobs.slots,
+    countGrowth: files.jobs.countGrowth ?? null,
+    outgrownAfter: files.jobs.outgrownAfter ?? null,
     templates: byId(files.jobs.templates),
   };
 }

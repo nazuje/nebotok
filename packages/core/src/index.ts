@@ -227,7 +227,20 @@ export { battleCreature, maxHpAt, damageOf, effectivenessOf, fieldEffectOf, type
 export { startBattle, battleStep, legalActions, isLegalAction, canOfferTreat } from './battle/engine.ts';
 export { greedyPolicy, randomPolicy, befriendPolicy, BOT_POLICIES, BOT_NAMES, playBattle, type BattlePolicy, type BotName, type PlayedBattle } from './battle/bots.ts';
 export { SkillCommand, SkillGoldenFile, SkillPlay, skillReplay, skillReplayHash, type SkillRecord, type SkillReplay } from './skill-golden.ts';
-export { SKILL_SIM_DEFAULTS, simulateSkill, simulateSkills, type SkillSimOptions, type SkillSimRun } from './skill-sim.ts';
+export {
+  SKILL_SIM_DEFAULTS,
+  PLAYER_SIM_DEFAULTS,
+  simulateSkill,
+  simulateSkills,
+  simulatePlayer,
+  simulatePlayers,
+  type SkillSimOptions,
+  type SkillSimRun,
+  type PlayerStyle,
+  type PlayerSimOptions,
+  type PlayerSimRun,
+} from './skill-sim.ts';
+export { CHILD_MODEL, childTaps, childOutcome, simulateGames, type ChildModel, type GameRates } from './game-sim.ts';
 export { mirroredSetup, simulateBots, roundRobin, type SimulationOptions, type SimulationReport, type RoundRobinOptions, type SpeciesRecord } from './battle/simulate.ts';
 export { BattlePilot, BattleGoldenFile, battleReplay, battleReplayHash, type BattleReplay } from './battle/golden.ts';
 export { befriendChance, treatLiking, type BefriendInput, type TreatLiking } from './befriend.ts';
@@ -421,7 +434,7 @@ export {
 export {
   MIN_ATTEMPT_MS,
   CLOCK_SLACK_MS,
-  GRACE_MS,
+  FADE_MS,
   LATE_MS,
   SPARKLE_FIRST_MS,
   SPARKLE_PLACES,
@@ -429,9 +442,14 @@ export {
   MAX_TAP_MS,
   MARKER_TRACK,
   MARKER_MARGIN,
+  MARKER_HALF_WIDTH,
   planAttempt,
   judgeAttempt,
   markerAt,
+  dipPhase,
+  shownSparkle,
+  sparkleFading,
+  sparkleHit,
   attemptDeadlineMs,
   perfectTaps,
   type Tap,
@@ -441,9 +459,11 @@ export {
   type MarkerParams,
   type AttemptPlan,
   type AttemptOutcome,
+  type DipPhase,
 } from './attempts.ts';
 export { MAX_SKILL_XP, skillLevel, skillXpToNext, gainSkillXp, skillsView, pruneSkills, type SpotRest, type SkillGain } from './skills.ts';
 export { gatherRefusal, gatherResult, cookRefusal, cookResult, nothingGained, recipeBook, type StartCheck, type SkillRefusal, type SkillResult, type RecipeBook } from './gathering.ts';
+export { canGetNow, jobCount, jobFits } from './job-reach.ts';
 export {
   drawJob,
   openBoard,

@@ -17,6 +17,8 @@ export type Line = {
   readonly weather?: string;
   readonly xp?: number;
   readonly level?: number;
+  /** A treat, by item id. */
+  readonly treat?: string;
 };
 
 /** What the field animates for one event, on the creature it names. */
@@ -108,6 +110,24 @@ export function lineOf(event: BattleEvent): Line | null {
   }
 }
 
+/**
+ * The treat to name as a species' favourite once it has turned down `item`: null when `item` is its
+ * favourite or it has none. Passed in, so this file stays free of the bundled content that scripts
+ * running under Node cannot import.
+ */
+export type FavouriteOf = (species: string, item: string) => string | null;
+
+/**
+ * After a creature turns down a treat that is not its favourite, a line naming the favourite, so a
+ * player learns what to cook for it. Null for anything else, or a species with no favourite.
+ */
+export function favouriteLine(event: BattleEvent, view: BattleView, favouriteOf: FavouriteOf): Line | null {
+  if (event.kind !== 'treatOffered' || event.accepted) return null;
+  const species = [...view.team.creatures, ...view.opponent.creatures].find((creature) => creature.id === event.target)?.species;
+  const treat = species === undefined ? null : favouriteOf(species, event.item);
+  return species === undefined || treat === null ? null : { id: 'battle.favourite', creature: event.target, species, treat };
+}
+
 function effectOf(event: BattleEvent): Effect | null {
   switch (event.kind) {
     case 'switched':
@@ -170,13 +190,15 @@ function holds(steps: readonly Untimed[], length: LineCharacters): number[] {
  * the screen for its reading time (`length` counts its characters), with the effects under it.
  * Leaving a wild creature that has fainted is no run: the battle ends as a win, with no line.
  */
-export function playback(before: BattleView | null, after: BattleView, events: readonly BattleEvent[], length: LineCharacters): Step[] {
+export function playback(before: BattleView | null, after: BattleView, events: readonly BattleEvent[], length: LineCharacters, favouriteOf: FavouriteOf): Step[] {
   let shown: Shown = before && before.id === after.id ? shownOf(before) : { ...shownOf(after), active: [null, null], weather: null };
   const won = after.outcome !== null && after.outcome.reason !== 'ran';
-  const steps = events.map((event): Untimed => {
+  const steps = events.flatMap((event): Untimed[] => {
     shown = apply(shown, event);
     const leftBeaten = event.kind === 'ran' && won;
-    return { event, shown, line: leftBeaten ? null : lineOf(event), effect: leftBeaten ? null : effectOf(event) };
+    const step = { event, shown, line: leftBeaten ? null : lineOf(event), effect: leftBeaten ? null : effectOf(event) };
+    const hint = favouriteLine(event, after, favouriteOf);
+    return hint ? [step, { event, shown, line: hint, effect: null }] : [step];
   });
   const ms = holds(steps, length);
   return steps.map((step, at) => Object.assign(step, { ms: ms[at] ?? 0 }));

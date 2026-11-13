@@ -13,7 +13,12 @@ describe('the words of a battle', () => {
     expect(lineText({ id: 'battle.befriended', species: 'pinwhirl' }, view, 'en')).toBe('Pinwhirl joins your team!');
     expect(lineText({ id: 'battle.xp', creature: 'a1', xp: 18 }, view, 'sl')).toBe('Sončni zajček dobi 18 točk izkušenj.');
   });
-});
+
+  it("names the wild creature's favourite treat after it turns another down, as one whole sentence", () => {
+    const line = { id: 'battle.favourite', creature: 'b1', treat: 'mint-dumpling' } as const;
+    expect(lineText(line, view, 'en')).toBe("Pinwhirl's favourite treat is Mint Dumpling!");
+    expect(lineText(line, view, 'sl')).toMatch(/^\S.*: najljubša poslastica je \S.*\.$/);
+  });});
 
 describe('reordering the team', () => {
   it('swaps two places and keeps the rest', () => {

@@ -35,8 +35,9 @@ describe('a job card', () => {
   it('lists the rewards: the template items, and XP for each item the job wants', () => {
     const card = jobCard(delivery(7), [], 'en');
     expect(card.rewards.items).toEqual([{ item: 'skymint', count: '×1' }]);
-    expect(card.rewards.xp).toEqual(['+42 Fishing XP']);
-    expect(jobCard(delivery(7), [], 'sl').rewards.xp).toEqual([format('jobs.rewardXp', 'sl', { skill: STORY.skills!.skills.get('fishing')!.name.sl, xp: 42 })]);
+    const xp = 3 * STORY.skills!.templates.get('fish-for-friends')!.rewards.xp[0]!.perItem;
+    expect(card.rewards.xp).toEqual([`+${xp} Fishing XP`]);
+    expect(jobCard(delivery(7), [], 'sl').rewards.xp).toEqual([format('jobs.rewardXp', 'sl', { skill: STORY.skills!.skills.get('fishing')!.name.sl, xp })]);
   });
 
   it('never leaves English XP in the Slovenian rewards', () => {

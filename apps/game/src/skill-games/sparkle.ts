@@ -1,4 +1,4 @@
-import { GAME_SPRITES, GRACE_MS, SPARKLE_PLACES, spriteFor, type Language, type SparkleParams, type Tap } from '@nebotok/core';
+import { FADE_MS, GAME_SPRITES, SPARKLE_PLACES, shownSparkle, sparkleFading, sparkleHit, spriteFor, type Language, type SparkleParams, type Tap } from '@nebotok/core';
 import { el } from '../dom.ts';
 import { text } from '../strings.ts';
 import { onPress, spriteCanvas, type MiniGame, type MiniGameOptions } from './mini-game.ts';
@@ -10,27 +10,13 @@ export const SPARKLE_PLACE_NAMES = ['up', 'left', 'right', 'down'] as const;
 
 const PLACE_KEYS: Readonly<Record<string, number>> = { ArrowUp: 0, KeyW: 0, ArrowLeft: 1, KeyA: 1, ArrowRight: 2, KeyD: 2, ArrowDown: 3, KeyS: 3 };
 
-/**
- * The sparkle to show `ms` after the game was drawn: the earliest one not yet tapped whose time has
- * come and not gone, so only one shows at a time. Null when none does.
- */
-export function shownSparkle(params: SparkleParams, hit: ReadonlySet<number>, ms: number): number | null {
-  const at = params.sparkles.findIndex((sparkle, index) => !hit.has(index) && ms >= sparkle.atMs && ms < sparkle.atMs + sparkle.showMs);
-  return at >= 0 ? at : null;
-}
-
-/** The sparkle a tap at `place`, `ms` after the game was drawn, counts for, as core `judgeAttempt` counts it; null when none. */
-export function sparkleHit(params: SparkleParams, hit: ReadonlySet<number>, place: number, ms: number): number | null {
-  const at = params.sparkles.findIndex((sparkle, index) => !hit.has(index) && sparkle.place === place && ms >= sparkle.atMs - GRACE_MS && ms <= sparkle.atMs + sparkle.showMs + GRACE_MS);
-  return at >= 0 ? at : null;
-}
-
-/** When a game is over on its own: the last sparkle gone, with the server's grace after it. */
-export const sparkleEndsMs = (params: SparkleParams): number => Math.max(0, ...params.sparkles.map((sparkle) => sparkle.atMs + sparkle.showMs)) + GRACE_MS;
+/** When a game is over on its own: the last sparkle shown and faded out. */
+export const sparkleEndsMs = (params: SparkleParams): number => Math.max(0, ...params.sparkles.map((sparkle) => sparkle.atMs + sparkle.showMs)) + FADE_MS;
 
 /**
  * Foraging: a bush with four places around it, above, left, right and below. One sparkle shows at a
- * time; tapping it (or the arrow or WASD key for its place) picks it. Only taps that pick a sparkle
+ * time (core `shownSparkle`), fading out as its time ends; tapping it while it shows or fades (or
+ * the arrow or WASD key for its place) picks it, as core `judgeAttempt` counts it. Only taps that pick a sparkle
  * are reported, so mashing cannot use up the taps an attempt may send. The game ends when every
  * sparkle is picked or the last one is gone.
  */
@@ -49,8 +35,10 @@ export function createSparkle(params: SparkleParams, options: MiniGameOptions): 
     frame: (ms) => {
       const shown = shownSparkle(params, hit, ms);
       const place = shown === null ? null : (params.sparkles[shown]?.place ?? null);
+      const fading = shown !== null && sparkleFading(params.sparkles[shown]!, ms);
       places.forEach((spot, at) => {
         spot.dataset.on = String(at === place);
+        spot.dataset.fading = String(at === place && fading);
       });
       area.dataset.picked = String(hit.size);
     },

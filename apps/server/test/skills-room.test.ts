@@ -2,7 +2,6 @@ import { ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from '@colyseus/sdk';
 import {
   DIRECTIONS,
-  GRACE_MS,
   LATE_MS,
   MIN_ATTEMPT_MS,
   PROTOCOL_VERSION,
@@ -306,7 +305,7 @@ describe('finishing', () => {
     const attempt = await gather(who, spot.id);
     const plan = planOf(attempt);
     if (plan.game !== 'dip') throw new Error('fishing plays dip');
-    const late = plan.params.dipAtMs + plan.params.perfectMs + GRACE_MS + 10;
+    const late = plan.params.dipAtMs + plan.params.perfectMs + 10;
     expect(await finish(who, attempt, [{ at: late, place: 0 }])).toMatchObject({ outcome: 'success', items: [{ item: spot.item, count: 1 }], xp: spot.xp });
     expect(held(await who.box.take<ProgressMessage>('progress'), spot.item)).toBe(1);
   });

@@ -1,14 +1,17 @@
 import {
   CLIENT_MESSAGES,
-  GRACE_MS,
+  MARKER_HALF_WIDTH,
   MARKER_TRACK,
   createRng,
+  dipPhase,
   emptyProgress,
   judgeAttempt,
   mapFromRows,
   markerAt,
   perfectTaps,
   planAttempt,
+  shownSparkle,
+  sparkleHit,
   type AttemptPlan,
   type Difficulty,
   type GameKind,
@@ -23,9 +26,9 @@ import { describe, expect, it } from 'vitest';
 import { itemName } from '../src/battle-content.ts';
 import { recipePage, recipeStars } from '../src/recipe-book.ts';
 import { EARLIEST_FINISH_MS, attemptItem, resultLine } from '../src/skill-game.ts';
-import { dipBob, dipEndsMs, dipPhase } from '../src/skill-games/dip.ts';
+import { dipBob, dipEndsMs } from '../src/skill-games/dip.ts';
 import { MARKER_STEP, markerEndsMs, markerShown } from '../src/skill-games/marker.ts';
-import { shownSparkle, sparkleEndsMs, sparkleHit } from '../src/skill-games/sparkle.ts';
+import { sparkleEndsMs } from '../src/skill-games/sparkle.ts';
 import { SKILL_REQUESTS, refusalLines, resultNews } from '../src/skills-link.ts';
 import { nextUnlock, skillRows } from '../src/skills-panel.ts';
 import { STORY } from '../src/story-content.ts';
@@ -41,6 +44,9 @@ function plans<G extends GameKind>(game: G): Extract<AttemptPlan, { game: G }>[]
   return DIFFICULTIES.flatMap((difficulty) => Array.from({ length: SEEDS }, (_, seed) => planAttempt(game, difficulty, createRng(`${game}-${difficulty}-${seed}`), SKILLS.games) as Extract<AttemptPlan, { game: G }>));
 }
 
+/** Whether the marker's needle drawn at `shown` touches the band `from` to `to`. */
+const touches = (shown: number, from: number, to: number) => shown + MARKER_HALF_WIDTH >= from && shown - MARKER_HALF_WIDTH <= to;
+
 /** Every `step` ms from 0 to `to`. */
 const ticks = (to: number, step: number): number[] => Array.from({ length: Math.floor(to / step) + 1 }, (_, at) => at * step);
 
@@ -48,16 +54,16 @@ const ticks = (to: number, step: number): number[] => Array.from({ length: Math.
 const judged = (plan: AttemptPlan, taps: readonly Tap[]) => judgeAttempt(plan, taps, Math.max(EARLIEST_FINISH_MS, taps.at(-1)?.at ?? 0));
 
 describe('fishing (dip)', () => {
-  it('counts every tap while the float shows dipped, and none well before', () => {
+  it('counts a tap exactly while the float shows dipped or fading, and none before or after', () => {
     for (const plan of plans('dip')) {
       const wrong = ticks(dipEndsMs(plan.params) + 300, 10).filter((ms) => {
         const missed = judged(plan, [{ at: ms, place: 0 }]) === 'miss';
-        const tooEarly = ms < plan.params.dipAtMs - GRACE_MS || ms > dipEndsMs(plan.params);
-        return (dipPhase(plan.params, ms) === 'dip' && missed) || (tooEarly && !missed);
+        const shown = dipPhase(plan.params, ms) === 'dip' || dipPhase(plan.params, ms) === 'fading';
+        return shown === missed;
       });
       expect(wrong).toEqual([]);
       expect(judged(plan, perfectTaps(plan))).toBe('perfect');
-      expect(dipEndsMs(plan.params)).toBe(plan.endsByMs + GRACE_MS);
+      expect(dipEndsMs(plan.params)).toBe(plan.endsByMs);
     }
   });
 
@@ -92,7 +98,7 @@ describe('foraging (sparkle)', () => {
       }
       expect(hit.size).toBe(plan.params.sparkles.length);
       expect(judged(plan, taps)).toBe('perfect');
-      expect(sparkleEndsMs(plan.params)).toBe(plan.endsByMs + GRACE_MS);
+      expect(sparkleEndsMs(plan.params)).toBe(plan.endsByMs);
     }
   });
 
@@ -117,23 +123,22 @@ describe('foraging (sparkle)', () => {
 });
 
 describe('cooking (marker)', () => {
-  it('draws the marker where the server judges it, and wins in the zone', () => {
+  it('draws the marker where the server judges it: a stop counts exactly when the needle touches the band', () => {
     for (const plan of plans('marker')) {
       const { params } = plan;
       const wrong = ticks(params.timeoutMs, 7).filter((ms) => {
         const shown = markerShown(params, ms, false);
         const outcome = judged(plan, [{ at: ms, place: 0 }]);
-        const inPerfect = shown >= params.perfectFrom && shown <= params.perfectTo;
-        const inZone = shown >= params.zoneFrom && shown <= params.zoneTo;
-        return shown !== markerAt(params.sweepMs, ms) || (inPerfect && outcome !== 'perfect') || (inZone && outcome === 'miss');
+        const drawn = touches(shown, params.perfectFrom, params.perfectTo) ? 'perfect' : touches(shown, params.zoneFrom, params.zoneTo) ? 'success' : 'miss';
+        return shown !== markerAt(params.sweepMs, ms) || outcome !== drawn;
       });
       expect(wrong).toEqual([]);
       expect(judged(plan, [{ at: markerEndsMs(params) + 1, place: 0 }])).toBe('miss');
-      expect(markerEndsMs(params)).toBe(plan.endsByMs + GRACE_MS);
+      expect(markerEndsMs(params)).toBe(plan.endsByMs);
     }
   });
 
-  it('steps in tenths with reduced motion, close enough that a stop in the zone still counts', () => {
+  it('steps a needle at a time with reduced motion, close enough that a needle drawn in the zone still counts', () => {
     for (const plan of plans('marker')) {
       const { params } = plan;
       const wrong = ticks(params.timeoutMs + 500, 11).filter((ms) => {
