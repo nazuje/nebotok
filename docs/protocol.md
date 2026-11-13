@@ -119,7 +119,7 @@ Client to server:
 | Type | Payload | Effect |
 | --- | --- | --- |
 | `ping` | `{ sentAt: number }` | Answered with `pong`, same payload |
-| `walk.to` | `{ x, y, from? }`, integers 0 to 1023 | Walk along the shortest path (core `findPath`) to that tile. A tile off the map is ignored. |
+| `walk.to` | `{ x, y, from? }`, integers 0 to 1023 | Walk along the cheapest path (core `findPath`: around tall grass unless the tile is grass or the way around is much longer) to that tile. A tile off the map is ignored. |
 | `walk.hold` | `{ direction, from? }` | Walk that way tile after tile until `walk.stop` or another intent. At a blocked tile the player turns to face it and waits. |
 | `walk.stop` | `{ from? }` | Finish the current step and stand still |
 
@@ -277,7 +277,10 @@ learn those moves. The level and experience are saved as usual. Offers have ids 
 room, so an answer to an old offer never matches a new one.
 
 The battle, starter, team, storage and move requests together are limited to 5 a second per client;
-past that the server drops them without an answer and without closing the connection.
+past that the server drops them without an answer and without closing the connection. The game
+sends every battle, talk, skill and board request through one pacer (`apps/game/src/request-pacer.ts`,
+5 every 1.25 s) so it stays under the limit however fast it is tapped, and a screen waiting on a
+request gives it up after 1.5 s without an answer, so the next tap asks again.
 
 ## Talking, quests and the bag
 
@@ -464,7 +467,9 @@ the save's `jobs.seed` and `n` (core `drawJob`), never a template already on the
 one whose `needs` the player meets. A `gather` job counts that item gathered after it appeared (a
 perfect counts 2), a `cook` job that dish cooked, and a `deliver` job is handed over in a talk:
 the character's dialogue entry `{ "jobReady": true }` leads to a node with the effect
-`{ "deliverJob": true }`, which takes the items (core `deliverJob`). A job is done the moment its
+`{ "deliverJob": true }`, which takes the items (core `deliverJob`). A ready delivery outranks
+entries marked `reminder` (core `openConversation`), so a character with the turn-in mark for it
+takes it even while a quest of theirs is open. A job is done the moment its
 count is reached: its rewards go in at once, within stack limits, and the next job is drawn
 straight away. There is no accept, collect or swap step and no currency. Quest steps `gather`,
 `cook` and `finishJobs` count the same events.

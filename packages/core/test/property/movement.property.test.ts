@@ -2,11 +2,14 @@ import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   DIRECTIONS,
+  GRASS_STEP_COST,
   IDLE,
   createWalker,
+  encounterZoneAt,
   findPath,
   isWalkable,
   mapFromRows,
+  pathCost,
   planCommand,
   planWalk,
   reachableFrom,
@@ -104,6 +107,73 @@ describe('path finding properties', () => {
   });
 });
 
+/** A random scene as above with about a third of the open tiles tall grass, each its own one-tile encounter area. */
+const grassScene = scene.chain(({ map, from, to }) =>
+  fc.array(fc.nat({ max: map.width * map.height - 1 }), { maxLength: Math.ceil((map.width * map.height) / 3) }).map((grass) => ({
+    map: { ...map, encounterAreas: [...new Set(grass)].toSorted((a, b) => a - b).map((at) => ({ zone: 'meadow', x: at % map.width, y: Math.floor(at / map.width), width: 1, height: 1 })) },
+    from,
+    to,
+  })),
+);
+
+const grassAt = (map: WorldMap, at: Point) => encounterZoneAt(map, at) !== null;
+
+/** The cheapest cost of reaching `to`, by Dijkstra over every tile, with `stepCost` for the step onto each tile. */
+function cheapest(map: WorldMap, from: Point, to: Point, stepCost: (at: Point) => number | null): number | null {
+  const cost = new Map<string, number>([[`${from.x},${from.y}`, 0]]);
+  const done = new Set<string>();
+  for (;;) {
+    const open = [...cost].filter(([key]) => !done.has(key)).toSorted((a, b) => a[1] - b[1]);
+    const [key, g] = open[0] ?? [];
+    if (key === undefined || g === undefined) return null;
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    if (x === to.x && y === to.y) return g;
+    done.add(key);
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+      const next = { x: x + dx, y: y + dy };
+      const step = isWalkable(map, next) ? stepCost(next) : null;
+      const nextKey = `${next.x},${next.y}`;
+      if (step !== null && !done.has(nextKey) && g + step < (cost.get(nextKey) ?? Infinity)) cost.set(nextKey, g + step);
+    }
+  }
+}
+
+describe('path finding properties with tall grass', () => {
+  it('finds the cheapest path, a step onto grass costing GRASS_STEP_COST, or the shortest when the target is grass', () => {
+    fc.assert(
+      fc.property(grassScene, ({ map, from, to }) => {
+        const path = findPath(map, from, to);
+        const chose = grassAt(map, to);
+        const best = chose ? distance(map, from, to) : cheapest(map, from, to, (at) => (grassAt(map, at) ? GRASS_STEP_COST : 1));
+        expect(path && (chose ? path.length : pathCost(map, path))).toBe(best);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('stays out of the grass whenever a way around is less than GRASS_STEP_COST - 1 steps longer than the shortest', () => {
+    fc.assert(
+      fc.property(grassScene, ({ map, from, to }) => {
+        if (grassAt(map, to)) return;
+        const shortest = distance(map, from, to);
+        const around = cheapest(map, from, to, (at) => (grassAt(map, at) ? null : 1));
+        if (shortest === null || around === null || around >= shortest + GRASS_STEP_COST - 1) return;
+        expect(findPath(map, from, to)?.some((at) => grassAt(map, at))).toBe(false);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('refuses exactly the targets that cannot be reached, grass or not', () => {
+    fc.assert(
+      fc.property(grassScene, ({ map, from, to }) => {
+        const reachable = reachableFrom(map, from)[to.y * map.width + to.x] === true;
+        expect(findPath(map, from, to) !== null).toBe(reachable);
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
 describe('movement properties', () => {
   it('never stands on a blocked tile and never outruns its walk speed', () => {
     fc.assert(

@@ -75,6 +75,9 @@ function withDialogue(npc: string, change: (file: DialogueJson) => void) {
   return storyContentProblems(files, battleContent);
 }
 
+/** Where Bavko's entry that opens `node` stands in his file. */
+const bavkoEntry = (node: string) => (liveStoryFiles.dialogue['bavko'] as DialogueJson).entries.findIndex((entry) => entry['node'] === node);
+
 /** A 4 by 1 open map with these characters and marks. */
 function rowMap(id: string, npcs: Record<string, { x: number; y: number }>, marks = {}) {
   return { ...mapFromRows(id, ['....']), npcs, marks };
@@ -152,6 +155,16 @@ describe('links between the story files', () => {
   it('needs every take guarded by a check that the player has the item', () => {
     expect(withDialogue('tobolko', (file) => void (file.entries[0]!['if'] = [{ quest: 'first-round', at: 'deliver-note' }]))).toEqual([
       'dialogue/tobolko.json node "note": takes 1 "hello-note", so entry 0 must lead here only with { "has": "hello-note", "count": 1 } (a "next" cannot check it)',
+    ]);
+  });
+
+  it('needs each quest reminder before the job entry marked, and a marked one to do nothing', () => {
+    const at = bavkoEntry;
+    expect(withDialogue('bavko', (file) => void delete file.entries[at('wind-remind')]!['reminder'])).toEqual([
+      `dialogue/bavko.json entry ${at('wind-remind')}: only reminds of a quest and comes before the job entry, so mark it "reminder": true`,
+    ]);
+    expect(withDialogue('bavko', (file) => void (file.entries[at('board-intro')]!['reminder'] = true))).toEqual([
+      `dialogue/bavko.json entry ${at('board-intro')}: is a "reminder", so a ready delivery skips it, but it leads to effects`,
     ]);
   });
 

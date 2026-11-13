@@ -4,6 +4,7 @@ import type { ClientMessage } from './battle-link.ts';
 import { typeChip } from './creature-card.ts';
 import { creaturePortrait } from './creature-art.ts';
 import { button, el } from './dom.ts';
+import { ANSWER_MS } from './request-pacer.ts';
 import { text } from './strings.ts';
 
 export type StarterScreen = {
@@ -19,6 +20,8 @@ export function createStarterScreen(root: HTMLElement, options: { language(): La
   const t = (id: StringId) => text(id, options.language());
   let open = false;
   let chosen: string | null = null;
+  /** When the choice went out; with no answer after ANSWER_MS it is taken as lost and may be made again. */
+  let chosenAt = 0;
   let shown = '';
 
   function build() {
@@ -27,6 +30,7 @@ export function createStarterScreen(root: HTMLElement, options: { language(): La
       const choice = button('starter-choice', '', () => {
         if (chosen) return;
         chosen = species;
+        chosenAt = performance.now();
         root.setAttribute('aria-busy', 'true');
         options.send({ type: 'starter.choose', payload: { species } });
       });
@@ -39,7 +43,7 @@ export function createStarterScreen(root: HTMLElement, options: { language(): La
   return {
     render: (progress) => {
       const next = progress?.needsStarter === true;
-      if (!next) chosen = null;
+      if (!next || performance.now() - chosenAt >= ANSWER_MS) chosen = null;
       open = next;
       root.hidden = !open;
       root.setAttribute('aria-busy', String(chosen !== null));

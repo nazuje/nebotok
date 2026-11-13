@@ -47,6 +47,7 @@ import {
   clearWalk,
   enterPin,
   enterWorld,
+  hurryThrough,
   inGrass,
   inWorld,
   leaveBattle,
@@ -361,7 +362,8 @@ async function talkIgnoresMapAndTabsToChoice(page, talk, { expect, tabs }) {
 /**
  * A quest by talking, against the real server: the character marked with a new quest is tapped,
  * their choices show and the one that takes the quest is tapped; the quest item they give is
- * carried to the character marked to take it, who takes it, and their mark goes.
+ * carried to the character marked to take it, who takes it in a talk tapped through 8 times a
+ * second, and their mark goes.
  */
 async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const offered = await until(page, (s) => settledOn(s) && s.talk === null && s.npcs.some((npc) => npc.mark === 'newQuest'), 'a character with a quest to give');
@@ -381,14 +383,10 @@ async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const to = carrying.npcs.find((npc) => npc.mark === 'turnIn').id;
   expect(questItems(carrying) > questItems(offered), `${giver}'s quest gave no quest item to deliver: ${JSON.stringify(carrying.progress?.inventory)}`);
   await openTalk(page, bot, to, { notes });
-  let shown = false;
-  await talkThrough(page, {
-    seen: async () => {
-      if (shown) return;
-      shown = true;
-      await check('handing a delivery over', 't2-deliver');
-    },
-  });
+  await until(page, (s) => s.talk === null || (s.talk.typed && !s.talk.waiting), `${to}'s first line`);
+  await nextFrames(page);
+  await check('handing a delivery over', 't2-deliver');
+  await hurryThrough(page);
   const after = await until(page, (s) => s.talk === null && s.npcs.find((npc) => npc.id === to)?.mark !== 'turnIn', `${to} to take the delivery`);
   expect(questItems(after) < questItems(carrying), `${to} took nothing: the bag still holds ${JSON.stringify(after.progress?.inventory)}`);
 }
@@ -520,12 +518,12 @@ async function prepareSkillPlayer(browserName, device, language, bot, where = 'f
 }
 
 /** From the profile list: signs in as the skill player, plays the skill part, signs out, and deletes the player. */
-async function preparedSkills(page, player, { language, expect, check, notes }) {
+async function preparedSkills(page, player, { language, expect, check, notes, keys }) {
   try {
     await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
     const state = await enterWorld(page, bot, inWorld, 'the world as the skill player', { notes });
     expect(state.profile?.name === player.name, `signed in as ${state.profile?.name}, not ${player.name}`);
-    await playSkills(page, bot, player.plan, { language, strings: STRINGS, expect, check, notes });
+    await playSkills(page, bot, player.plan, { language, strings: STRINGS, expect, check, notes, keys });
     await signOut(page);
   } finally {
     deleteProfile(dataDir, player.id);
@@ -750,7 +748,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     else notes.push('the battles from a prepared save need the database of a server the check started, so they were skipped');
     if (storyPlayer) await preparedStory(page, storyPlayer, { language, expect, check, notes });
     else if (STORY_RUNS.has(label) && !dataDir) notes.push('the story part needs a prepared save, so it was skipped');
-    if (skillPlayer) await preparedSkills(page, skillPlayer, { language, expect, check, notes });
+    if (skillPlayer) await preparedSkills(page, skillPlayer, { language, expect, check, notes, keys: browserName === 'chromium' });
     else if (SKILL_RUNS.has(label) && !dataDir) notes.push('the skill part needs a prepared save, so it was skipped');
     if (boardPlayer) await preparedBoard(page, boardPlayer, { language, expect, check, notes });
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, notes, screenshots });

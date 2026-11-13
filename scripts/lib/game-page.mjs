@@ -433,6 +433,36 @@ export async function talkThrough(page, { toward = null, stop = () => false, see
   await until(page, (s) => stop(s) || !sameLine(talk)(s), `the talk with ${talk.npc} to go on from ${talk.node}`, 10_000);
   return talkThrough(page, next);
 }
+const HURRIED_TAPS_PER_SECOND = 8;
+const HURRIED_TALK_MS = 20_000;
+/** The centre of the first element matching `selector` in CSS pixels, or null while none is drawn. */
+const centreOf = (page, selector) =>
+  page.evaluate((query) => {
+    const box = document.querySelector(query)?.getBoundingClientRect();
+    return box && box.width > 0 ? { x: box.x + box.width / 2, y: box.y + box.height / 2 } : null;
+  }, selector);
+
+async function hurriedTap(page, { toward, gapMs, deadline, at }) {
+  const state = await readState(page);
+  if (state.talk === null) return state;
+  if (Date.now() > deadline) throw new Error(`the talk with ${state.talk.npc} froze on ${state.talk.node} under ${1000 / gapMs} taps a second`);
+  const choice = state.talk.typed ? choiceFor(state.talk, toward) : null;
+  const spot = await centreOf(page, choice ? `#talk .talk-choice[data-choice="${choice.index}"]` : '#talk .talk-line');
+  if (spot) await page.touchscreen.tap(spot.x, spot.y);
+  await page.waitForTimeout(Math.max(0, at + gapMs - Date.now()));
+  return hurriedTap(page, { toward, gapMs, deadline, at: at + gapMs });
+}
+
+/**
+ * Plays the open talk to its end as a child mashing the box would: a tap 8 times a second, or as
+ * fast as the page answers, without waiting for the server between taps. With choices up, the one
+ * that leads to a node passing `toward` is tapped (else the first). Throws when the talk is still
+ * open after 20 s, as a box frozen by a request the server dropped would be. Not for the node that
+ * offers the starters. Returns the state once the talk has closed.
+ */
+export const hurryThrough = (page, { toward = null } = {}) =>
+  hurriedTap(page, { toward, gapMs: 1000 / HURRIED_TAPS_PER_SECOND, deadline: Date.now() + HURRIED_TALK_MS, at: Date.now() });
+
 /** The character a new player gets their first creature from: the one the hint points at, or, off screen, the only one marked. */
 const starterGiver = (state) => state.talkHint ?? state.npcs.find((npc) => npc.mark === 'newQuest')?.id ?? null;
 

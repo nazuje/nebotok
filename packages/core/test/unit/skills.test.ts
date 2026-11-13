@@ -23,6 +23,7 @@ import {
   nextGoal,
   npcMarks,
   openBoard,
+  openConversation,
   perfectTaps,
   planAttempt,
   playStory,
@@ -33,6 +34,7 @@ import {
   skillLevel,
   skillsView,
   type AttemptPlan,
+  type DialogueEntry,
   type Progress,
 } from '../../src/index.ts';
 import { battleContent } from '../support/battle-content.ts';
@@ -172,6 +174,38 @@ describe('the tiny games', () => {
   });
 });
 
+const QUESTS = [...storyContent.quests.values()];
+/** Every quest that needs `id` done first, directly or through others. */
+const questsAfter = (id: string): string[] => QUESTS.flatMap((quest) => (quest.requires.includes(id) ? [quest.id, ...questsAfter(quest.id)] : []));
+
+/**
+ * A player in the middle of the story, with the quest a reminder entry of `npc` waits on active
+ * (every quest before it done) and a delivery job to `npc` on the board, talks to them: what opens
+ * one item short, their mark and what opens with every item, and whether the reminder still comes
+ * after the hand-in (a delivery that finished the quest's `finishJobs` step leaves none to come).
+ */
+function deliverDuring(npc: string, reminder: DialogueEntry) {
+  const template = [...skills.templates.values()].find((candidate) => candidate.kind === 'deliver' && candidate.to.includes(npc));
+  const condition = reminder.if?.find((candidate) => 'quest' in candidate);
+  if (!template || !condition || !('quest' in condition)) throw new Error(`${npc} takes no delivery, or "${reminder.node}" waits on no quest`);
+  const step = 'at' in condition ? (storyContent.quests.get(condition.quest)?.steps.findIndex((candidate) => candidate.id === condition.at) ?? 0) : 0;
+  const later = new Set([condition.quest, ...questsAfter(condition.quest)]);
+  const story = { active: [{ quest: condition.quest, step, count: 0 }], done: QUESTS.map((quest) => quest.id).filter((id) => !later.has(id)), flags: [] };
+  const job = { job: 1, template: template.id, item: template.item, count: template.count[0], to: npc, progress: 0 };
+  const carrying = (count: number) => courier([{ item: 'plain-treat', count: 1 }, { item: job.item, count }], { story, jobs: { seed: 1, drawn: 1, done: 0, board: [job] } });
+  const ready = carrying(job.count);
+  const handedIn = openConversation(npc, ready, storyContent);
+  const after = handedIn ? openConversation(npc, handedIn.progress, storyContent)?.conversation?.node : undefined;
+  return {
+    npc,
+    reminder: reminder.node,
+    opensWithout: openConversation(npc, carrying(job.count - 1), storyContent)?.conversation?.node,
+    mark: npcMarks(ready, storyContent).find((mark) => mark.npc === npc)?.mark,
+    handedIn: handedIn?.jobs.find((change) => change.job === job.job)?.change,
+    remindsAfter: (handedIn?.changes.length ?? 0) > 0 || after === reminder.node,
+  };
+}
+
 describe('the job board', () => {
   const opened = openBoard(courier(), 42, storyContent);
 
@@ -208,6 +242,14 @@ describe('the job board', () => {
     expect(delivered.jobs[0]).toMatchObject({ job: 1, change: 'done', progress: 3, rewards: { items: [{ item: 'berry-bun', count: 1 }] } });
     expect(delivered.progress.inventory).toEqual([{ item: 'berry-bun', count: 1 }]);
     expect(jobsView(delivered.progress, storyContent).board.every((view) => view.job > 1)).toBe(true);
+  });
+
+  it('takes a ready delivery from a player in the middle of the story, before any reminder of their quest', () => {
+    const receivers = [...new Set([...skills.templates.values()].flatMap((template) => (template.kind === 'deliver' ? template.to : [])))].toSorted();
+    expect(receivers).toEqual(['bavko', 'mehurka', 'tobolko', 'vetrinka']);
+    const plays = receivers.flatMap((npc) => (storyContent.dialogue.get(npc)?.entries ?? []).filter((entry) => entry.reminder).map((reminder) => deliverDuring(npc, reminder)));
+    expect(new Set(plays.map((play) => play.npc))).toEqual(new Set(receivers));
+    for (const play of plays) expect(play).toMatchObject({ opensWithout: play.reminder, mark: 'turnIn', handedIn: 'done', remindsAfter: true });
   });
 
   it('drops jobs whose template, item or character is gone, and the next open refills the board', () => {
