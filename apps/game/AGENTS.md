@@ -41,6 +41,9 @@ changing Phaser code, and use Phaser 4 APIs only.
   Phaser texture with its frames and animations; `src/tileset-art.ts` draws and animates map
   tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`).
 - **Input** (`src/input.ts`) sends every movement command through `src/outbox.ts`, which keeps
-  a page under the server's message limits however fast it is tapped or mashed.
+  a page under the server's message limits however fast it is tapped or mashed. Battle, talk,
+  skill and board requests go through the page's one `src/request-pacer.ts` for the same reason,
+  and a screen waiting on one gives up after its `ANSWER_MS`, since the server drops extras
+  without an answer. The browser check taps a talk through 8 times a second (`hurryThrough`).
 - Unit tests for pure helpers go in `test/` (`npx vitest run --project game-unit`); anything that
   needs a page is the browser check at verify level 4.

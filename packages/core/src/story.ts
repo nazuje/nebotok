@@ -19,6 +19,7 @@ import {
   NpcsFile,
   QuestsFile,
   StoryFile,
+  reachableNodes,
   type Chapter,
   type Condition,
   type DialogueNode,
@@ -233,6 +234,21 @@ function takeGuardProblems(label: string, id: string, node: DialogueNode, into: 
   return problems;
 }
 
+/**
+ * A ready delivery passes over `reminder` entries, so a reminder leads to no effect, and an entry
+ * before the job entry that only reminds of an active quest (no effect anywhere it leads) is marked
+ * `reminder`, or the delivery would wait behind it while the character shows the turn-in mark.
+ */
+function reminderProblems(label: string, dialogue: DialogueFile): string[] {
+  const jobEntry = dialogue.entries.findIndex((entry) => (entry.if ?? []).some((condition) => 'jobReady' in condition));
+  return dialogue.entries.flatMap((entry, at) => {
+    const effects = [...reachableNodes({ entries: [entry], nodes: dialogue.nodes })].some((id) => (dialogue.nodes[id]?.effects ?? []).length > 0);
+    if (entry.reminder) return effects ? [`${label} entry ${at}: is a "reminder", so a ready delivery skips it, but it leads to effects`] : [];
+    const remindsOfQuest = (entry.if ?? []).some((condition) => 'at' in condition || ('is' in condition && condition.is === 'active'));
+    return remindsOfQuest && !effects && at < jobEntry ? [`${label} entry ${at}: only reminds of a quest and comes before the job entry, so mark it "reminder": true`] : [];
+  });
+}
+
 function dialogueProblems(npc: string, dialogue: DialogueFile, content: StoryContent): string[] {
   const label = `dialogue/${npc}.json`;
   const into = arrivals(dialogue);
@@ -241,6 +257,7 @@ function dialogueProblems(npc: string, dialogue: DialogueFile, content: StoryCon
   dialogue.entries.forEach((entry, at) => {
     for (const condition of entry.if ?? []) problems.push(...conditionProblems(`${label} entry ${at}`, condition, content));
   });
+  problems.push(...reminderProblems(label, dialogue));
   for (const [id, node] of Object.entries(dialogue.nodes)) {
     const at = `${label} node "${id}"`;
     if (node.speaker !== undefined && node.speaker !== NARRATOR && !content.npcs.has(node.speaker)) problems.push(`${at}: speaker "${node.speaker}" is not in npcs.json`);
@@ -302,7 +319,7 @@ function questProblems(quest: Quest, content: StoryContent, effects: ReturnType<
  * every npc has a dialogue file; every id a condition or effect names exists; every quest is
  * started by its giver's dialogue and sits in the chapter it names; each talk or deliver step is
  * completed by a node of its npc's file; a node that takes an item is only reached after checking
- * the player has it; delivered items are given somewhere; quest items belong to a quest; every
+ * the player has it; reminders before a job entry are marked and lead to no effect; delivered items are given somewhere; quest items belong to a quest; every
  * flag is declared and every chapter's closing flag is set; no gift is more than one stack; and
  * some node offers a new player their starter.
  */

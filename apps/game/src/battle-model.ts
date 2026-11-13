@@ -1,6 +1,7 @@
 import { SERVER_MESSAGES, samePoint, shrineAt, type BattleResult, type BattleView, type BefriendResult, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
 import { isTreat } from './battle-content.ts';
 import type { ServerMessage } from './battle-link.ts';
+import { ANSWER_MS } from './request-pacer.ts';
 import { QUICK_TAP_MS, TAP_GRACE_MS, lineAt, nextLineAt, playback, playbackMs, shownOf, stepAt, type Effect, type Line, type Shown, type Step } from './battle-playback.ts';
 
 /** What the menu under the field offers. Moves are listed by slot. */
@@ -89,19 +90,25 @@ type Battle = {
   playing: Playing | null;
   picker: Picker;
   waiting: boolean;
+  /** When the choice being waited for went out (`sent`). */
+  sentAt: number;
   befriended: BefriendResult | null;
   result: BattleResult | null;
   /** The last line a finished playback left, so it stays up while the player chooses. */
   line: Line | null;
 };
 
-const fresh = (view: BattleView): Battle => ({ view, playing: null, picker: 'menu', waiting: false, befriended: null, result: null, line: null });
+const fresh = (view: BattleView): Battle => ({ view, playing: null, picker: 'menu', waiting: false, sentAt: 0, befriended: null, result: null, line: null });
 
 export type BattleModel = {
   /** Takes in one message from the server, at page time `now`. */
   receive(message: ServerMessage, now: number): void;
-  /** The player sent a choice; the menu waits for the answer. */
-  sent(): void;
+  /**
+   * The player's choice went out at page time `now` (again once it leaves the request pacer). The
+   * menu waits for the answer, or ANSWER_MS, after which it takes the choice as lost and lets the
+   * player choose again.
+   */
+  sent(now: number): void;
   /** Opens the menu, the team or the treats under the field. */
   pick(picker: Picker): void;
   /**
@@ -225,8 +232,10 @@ export function createBattleModel(lineLength: LineLength): BattleModel {
           break;
       }
     },
-    sent: () => {
-      if (battle) battle.waiting = true;
+    sent: (now) => {
+      if (!battle) return;
+      battle.waiting = true;
+      battle.sentAt = now;
     },
     pick: (picker) => {
       if (battle) battle.picker = picker;
@@ -260,6 +269,7 @@ export function createBattleModel(lineLength: LineLength): BattleModel {
       settle(now);
       if (!battle) return null;
       const current = battle;
+      if (current.waiting && now - current.sentAt >= ANSWER_MS) current.waiting = false;
       const menu = menuFor(current.view, hasTreats(progress));
       const playing = current.playing;
       const index = playing ? stepAt(playing.steps, now - playing.startedAt) : null;

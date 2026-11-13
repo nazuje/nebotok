@@ -142,10 +142,15 @@ function enter(conversation: Conversation, progress: Progress, content: StoryCon
   return done ? { conversation, ...draft } : { conversation: null, progress, changes: [], jobs: [], extra: [] };
 }
 
-/** Opens a talk with a character at the first entry of their file whose `if` holds. Null when they have no dialogue. */
+/**
+ * Opens a talk with a character at the first entry of their file whose `if` holds. While the player
+ * carries all of a delivery to them, entries marked `reminder` are passed over, so the character
+ * takes it as their turn-in mark (`npcMarks`) promises. Null when they have no dialogue.
+ */
 export function openConversation(npc: string, progress: Progress, content: StoryContent): TalkStep | null {
   const dialogue = content.dialogue.get(npc);
-  const entry = dialogue?.entries.find((candidate) => conditionsHold(candidate.if, npc, progress, content));
+  const ready = jobReady(progress, npc);
+  const entry = dialogue?.entries.find((candidate) => !(ready && candidate.reminder) && conditionsHold(candidate.if, npc, progress, content));
   return entry ? enter({ npc, node: entry.node }, progress, content) : null;
 }
 

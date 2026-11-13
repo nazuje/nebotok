@@ -114,8 +114,11 @@ export const DialogueNode = z
   .refine((node) => cueCount(node) <= 1, 'a node plays at most one cue: its cue, one cue effect or offerStarter');
 export type DialogueNode = z.infer<typeof DialogueNode>;
 
-/** Where a talk starts: the first entry whose `if` holds. */
-export const DialogueEntry = z.strictObject({ if: Conditions.optional(), node: NodeId });
+/**
+ * Where a talk starts: the first entry whose `if` holds. `reminder` marks an entry that only
+ * reminds the player of an active quest; a delivery the player is ready to hand over outranks it.
+ */
+export const DialogueEntry = z.strictObject({ if: Conditions.optional(), node: NodeId, reminder: z.literal(true).optional() });
 export type DialogueEntry = z.infer<typeof DialogueEntry>;
 
 /** The node ids a node leads to, in order. */

@@ -2,6 +2,7 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type JobChanged, type JobsMessage, ty
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { applyJobChange, createJobBoard, jobToastLines, type JobBoardState } from './job-board.ts';
+import type { RequestPacer } from './request-pacer.ts';
 
 /** A `board.open` with no answer is given up after this long, so a lost one never blocks the next. */
 const ASK_MS = 3_000;
@@ -21,6 +22,8 @@ export type JobsOptions = {
   refused(id: StringId): void;
   /** The board opened or closed, so the page shows another screen and input may change. */
   changed(): void;
+  /** Paces `board.open` with the page's other requests, under the server's limit. */
+  requests: RequestPacer;
 };
 
 export type TestJobs = {
@@ -118,7 +121,7 @@ export function createJobs(options: JobsOptions): Jobs {
       const now = performance.now();
       if (!room || opened || options.blocked() || (asked && now - asked.at < ASK_MS)) return;
       asked = { station, at: now, first: board === null };
-      room.send(CLIENT_MESSAGES.boardOpen, { station });
+      options.requests.send(() => room?.send(CLIENT_MESSAGES.boardOpen, { station }));
     },
     board: () => board,
     frame: () => {

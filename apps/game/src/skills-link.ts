@@ -16,6 +16,7 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import type { NewsLines, NewsTone } from './quest-toast.ts';
 import { createRecipeBook, type TestRecipeBook } from './recipe-book.ts';
+import type { RequestPacer } from './request-pacer.ts';
 import { createSkillCard, type TestAttempt } from './skill-game.ts';
 import { unlockedAt } from './skills-panel.ts';
 import { STORY, storyProgress } from './story-content.ts';
@@ -99,6 +100,8 @@ export type SkillsOptions = {
   openBoard(station: string): void;
   /** Which overlay is up changed, so the page shows another screen and input may change. */
   changed(): void;
+  /** Paces every gather, cook and game request with the page's other requests, under the server's limit. */
+  requests: RequestPacer;
 };
 
 export type TestSkills = {
@@ -145,7 +148,7 @@ export function createSkills(options: SkillsOptions): Skills {
   let overlay: SkillOverlay | null = null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  const send = (type: string, payload: unknown) => room?.send(type, payload);
+  const send = (type: string, payload: unknown) => options.requests.send(() => room?.send(type, payload));
   const start = (next: Started) => {
     started = next;
     if ('spot' in next) send(CLIENT_MESSAGES.gatherStart, { spot: next.spot });

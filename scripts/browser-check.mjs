@@ -47,6 +47,7 @@ import {
   clearWalk,
   enterPin,
   enterWorld,
+  hurryThrough,
   inGrass,
   inWorld,
   leaveBattle,
@@ -361,7 +362,8 @@ async function talkIgnoresMapAndTabsToChoice(page, talk, { expect, tabs }) {
 /**
  * A quest by talking, against the real server: the character marked with a new quest is tapped,
  * their choices show and the one that takes the quest is tapped; the quest item they give is
- * carried to the character marked to take it, who takes it, and their mark goes.
+ * carried to the character marked to take it, who takes it in a talk tapped through 8 times a
+ * second, and their mark goes.
  */
 async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const offered = await until(page, (s) => settledOn(s) && s.talk === null && s.npcs.some((npc) => npc.mark === 'newQuest'), 'a character with a quest to give');
@@ -381,14 +383,10 @@ async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const to = carrying.npcs.find((npc) => npc.mark === 'turnIn').id;
   expect(questItems(carrying) > questItems(offered), `${giver}'s quest gave no quest item to deliver: ${JSON.stringify(carrying.progress?.inventory)}`);
   await openTalk(page, bot, to, { notes });
-  let shown = false;
-  await talkThrough(page, {
-    seen: async () => {
-      if (shown) return;
-      shown = true;
-      await check('handing a delivery over', 't2-deliver');
-    },
-  });
+  await until(page, (s) => s.talk === null || (s.talk.typed && !s.talk.waiting), `${to}'s first line`);
+  await nextFrames(page);
+  await check('handing a delivery over', 't2-deliver');
+  await hurryThrough(page);
   const after = await until(page, (s) => s.talk === null && s.npcs.find((npc) => npc.id === to)?.mark !== 'turnIn', `${to} to take the delivery`);
   expect(questItems(after) < questItems(carrying), `${to} took nothing: the bag still holds ${JSON.stringify(after.progress?.inventory)}`);
 }

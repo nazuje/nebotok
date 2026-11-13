@@ -47,7 +47,8 @@
           "at": "deliver-note"
         }
       ],
-      "node": "remind"
+      "node": "remind",
+      "reminder": true
     },
     {
       "if": [
@@ -65,7 +66,8 @@
           "at": "deliver-bell"
         }
       ],
-      "node": "bell-remind"
+      "node": "bell-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -74,7 +76,8 @@
           "at": "rest"
         }
       ],
-      "node": "rest-remind"
+      "node": "rest-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -92,7 +95,8 @@
           "is": "active"
         }
       ],
-      "node": "wind-remind"
+      "node": "wind-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -110,7 +114,8 @@
           "is": "active"
         }
       ],
-      "node": "grey-remind"
+      "node": "grey-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -119,7 +124,8 @@
           "at": "one-job"
         }
       ],
-      "node": "board-remind"
+      "node": "board-remind",
+      "reminder": true
     },
     {
       "if": [

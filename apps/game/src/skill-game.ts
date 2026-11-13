@@ -2,6 +2,7 @@ import { CLOCK_SLACK_MS, MIN_ATTEMPT_MS, type DipParams, type Language, type Mar
 import { itemIcon } from './bag-screen.ts';
 import { itemName } from './battle-content.ts';
 import { el, icon } from './dom.ts';
+import { ANSWER_MS } from './request-pacer.ts';
 import { createDip } from './skill-games/dip.ts';
 import { createMarker } from './skill-games/marker.ts';
 import type { MiniGame, MiniGameOptions } from './skill-games/mini-game.ts';
@@ -112,6 +113,8 @@ type Shown = {
   phase: CardPhase;
   outcome: SkillOutcome | null;
   resultAt: number;
+  /** When "Try again" asked for another go; with no game after ANSWER_MS the ask is taken as lost. */
+  askedAt: number;
   language: Language;
 };
 
@@ -206,6 +209,7 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
   again.addEventListener('click', () => {
     if (!shown || shown.phase !== 'result') return;
     shown.phase = 'starting';
+    shown.askedAt = performance.now();
     shown.outcome = null;
     play.replaceChildren();
     showResult();
@@ -228,7 +232,7 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
   return {
     open: (attempt, now) => {
       const game = miniGame(attempt, { language: options.language(), reducedMotion: options.reducedMotion(), look: attemptLook(attempt), press });
-      shown = { attempt, game, drawnAt: now, taps: [], phase: 'playing', outcome: null, resultAt: 0, language: options.language() };
+      shown = { attempt, game, drawnAt: now, taps: [], phase: 'playing', outcome: null, resultAt: 0, askedAt: 0, language: options.language() };
       lastItems = [];
       lastExtra = [];
       const item = attemptItem(attempt);
@@ -263,6 +267,11 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
     },
     frame: (now) => {
       if (!shown) return;
+      if (shown.phase === 'starting' && now - shown.askedAt >= ANSWER_MS) {
+        shown.phase = 'result';
+        shut();
+        return;
+      }
       if (shown.language !== options.language()) label();
       step(now);
       if (shown.phase !== 'starting') shown.game.frame(now - shown.drawnAt);
