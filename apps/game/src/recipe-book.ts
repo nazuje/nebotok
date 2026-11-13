@@ -157,11 +157,14 @@ export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions):
   }
 
   function close() {
-    const hadFocus = station !== null && root.contains(document.activeElement);
+    const focused = document.activeElement;
+    const hadFocus = station !== null && focused instanceof HTMLElement && root.contains(focused);
     station = null;
     page = null;
     shown = '';
     render();
+    // A hidden button keeps focus until the next frame, and the body cannot take it back by focus().
+    if (hadFocus) focused.blur();
     if (hadFocus && focusBefore?.isConnected) focusBefore.focus({ preventScroll: true });
     focusBefore = null;
   }
