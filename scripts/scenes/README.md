@@ -41,6 +41,7 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs th
 | `{ "do": "meet", "player": "lan" }` | Walks to the tall grass nearest the spawn and steps about in it until the server sends a wild creature, then waits until the battle offers a choice, tapping the field to move its lines on. |
 | `{ "do": "fight", "player": "lan", "slot": 3 }` | In a battle, taps the move in `slot` (0 to 3, the first when left out) and waits until the turn has played, tapping the field to move its lines on. Slot 3 is each starter's weather call, which does no damage, so the battle goes on. |
 | `{ "do": "run", "player": "lan" }` | Runs from the battle (or plays on when running is not allowed), continues past the result and waits until the player is back in the world. |
+| `{ "do": "play", "player": "lan" }` | Plays the tiny game open on the player's card the way a quick player wins it: pulls just after the float dips, taps each sparkle, stops the marker in the middle of the zone. With `"miss": true` it taps nothing and waits for the miss. Waits until the server has judged it, and fails when the outcome is not the one asked for. Open a game first with a `tap` on a spot or pot (the page walks up to it). |
 | `{ "do": "talk", "player": "lan", "npc": "bavko" }` | Taps the character (an id from `content/npcs.json`; the page walks up to them, walking closer by taps first when they are off screen) and plays the talk to its end: each line is waited for until it is typed out, then a tap goes on, taking the first choice. With `"open": true` it stops once the first line is typed out and leaves the talk open; a later `talk` to the same character goes on from there. |
 
 `until` takes any of these:
@@ -66,6 +67,11 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs th
 - `"talking": ["zarja"]` / `"quiet": ["zarja"]`: those players' name tags carry the speech mark of
   someone talking to a character / do not.
 - `"talk": "open"` / `"none"`: the player's own talk box is open / closed.
+- `"skilling": ["zarja"]` / `"idle": ["zarja"]`: those players are shown gathering or cooking (the
+  action beside them and the skill mark on their name tag) / are not.
+- `"game": "open"` / `"none"`: the player's own tiny game card is open / closed.
+- `"spots": { "pebble-cove": "resting" }`: those spots (ids from `content/spots.json`) are drawn
+  `"ready"` or `"resting"` for this player. A spot rests only for whoever gathered there.
 - `"cue": "playing"` / `"none"`: a story cue such as the storm glimpse is playing on the player's
   screen / none is, and the camera follows their courier again.
 - `"cues": 1`: how many story cues the page has played since it loaded.

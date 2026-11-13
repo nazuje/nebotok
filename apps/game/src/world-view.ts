@@ -13,6 +13,8 @@ export type PlayerFacts = {
   readonly connected: boolean;
   readonly inBattle: boolean;
   readonly talking: boolean;
+  /** The skill they are doing (`fishing`, `foraging`, `cooking`), or `''`. */
+  readonly skill: string;
 };
 
 /** One player as the world should draw them right now. */
@@ -24,6 +26,7 @@ export type ShownPlayer = {
   readonly connected: boolean;
   readonly inBattle: boolean;
   readonly talking: boolean;
+  readonly skill: string;
   /** The tile the server last gave, and whether it said the player is moving. */
   readonly tile: Point;
   readonly moving: boolean;
@@ -156,7 +159,7 @@ export function createWorldView(): WorldView {
         const self = id === selfId;
         const motion = self && prediction ? predictedMotion(prediction, now) : trackedMotion(track, facts, now);
         const { at, facing, walking } = motion;
-        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, inBattle: facts.inBattle, talking: facts.talking, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
+        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, inBattle: facts.inBattle, talking: facts.talking, skill: facts.skill, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
       }),
   };
   return view;

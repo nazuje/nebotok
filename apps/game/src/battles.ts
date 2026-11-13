@@ -8,6 +8,7 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import type { ToastKind } from './hud.ts';
 import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
+import { SKILL_REQUESTS } from './skills-link.ts';
 import { createStarterScreen } from './starter-screen.ts';
 import { text } from './strings.ts';
 import { createTeamScreen } from './team-screen.ts';
@@ -114,7 +115,8 @@ export function createBattles(options: BattlesOptions): Battles {
     const restedAt = model.storage()?.shrine;
     model.receive(message, performance.now());
     learn.receive(message);
-    if (message.type === SERVER_MESSAGES.refused) {
+    // Skill refusals are the skills' to explain.
+    if (message.type === SERVER_MESSAGES.refused && !SKILL_REQUESTS.has(message.payload.request)) {
       if (wasFighting && !unfinished()) options.toast('battle.interrupted', 'news');
       else options.toast(`refused.${message.payload.reason}`);
     }
