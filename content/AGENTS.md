@@ -135,13 +135,16 @@ kids to change.
   player carries all of it), `{ "jobWaiting": true }` (one is on the board and they do not) and
   `{ "skill": id, "level": n }`, and the effect `{ "deliverJob": true }`, which hands over the
   first ready delivery. A node with it is reached only through an entry or choice whose `if` holds
-  `jobReady`, as `take` needs `has`. Put job entries after the quest entries, so a quest turn-in
-  comes first.
+  `jobReady`, as `take` needs `has`. Put job entries after the quest turn-ins and offers, so
+  those come first, and mark every entry before them that only reminds the player of an active
+  quest `"reminder": true`: while a delivery to the character is ready, the talk passes over
+  reminders and takes it, as the turn-in mark over their head promises.
 
 `content:validate` checks every link: each spot gives an ingredient and each recipe makes a treat
 from ingredients, at levels up to `maxLevel`; recipes need a `cookingPot` and jobs a `jobBoard`; a
 job's item comes from a spot or recipe its `needs` reach, so every job the board draws is
-doable; counts and rewards fit a stack; each `to` character has a `jobReady` dialogue entry; at
+doable; counts and rewards fit a stack; each `to` character has a `jobReady` dialogue entry,
+and every quest reminder before it (an active-quest `if` leading to no effects) is a `reminder`; at
 least `slots` templates need only level 1. Once any map places a spot (or station), every one must
 stand on exactly one point. Skills golden replays use their own frozen copy in
 `packages/core/fixtures/golden/skills/content/`, so editing these files never moves them.
@@ -155,7 +158,8 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
   `down`, `up` and `right`), `art/portraits/<id>.json` (32 by 32, frame `neutral`) and
   `dialogue/<id>.json`. A map's `npcs` layer places them (`docs/tiled.md`).
 - `dialogue/<npc>.json`: what one character says. `entries` are tried in order and the first whose
-  `if` holds opens the talk; only the last has no `if`. Each node has a line `say` in both
+  `if` holds opens the talk; only the last has no `if`. An entry marked `"reminder": true` leads
+  to no effects and is passed over while a delivery is ready (see the job conditions above). Each node has a line `say` in both
   languages, an optional `speaker` (another character or `narrator`), a `mood` (`calm`, `happy`,
   `worried` or `surprised`), and then `next`, up to 3 `choices` (each with its own `if`) or
   neither, which ends the talk. Entering a node does its `effects` all together or not at all:

@@ -52,7 +52,8 @@
           "at": "gale-win"
         }
       ],
-      "node": "gale-remind"
+      "node": "gale-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -61,7 +62,8 @@
           "at": "lookout"
         }
       ],
-      "node": "lookout-remind"
+      "node": "lookout-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -70,7 +72,8 @@
           "at": "back-to-bavko"
         }
       ],
-      "node": "back-remind"
+      "node": "back-remind",
+      "reminder": true
     },
     {
       "if": [

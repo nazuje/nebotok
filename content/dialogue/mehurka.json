@@ -21,7 +21,8 @@
           "at": "rest"
         }
       ],
-      "node": "rest-remind"
+      "node": "rest-remind",
+      "reminder": true
     },
     {
       "if": [

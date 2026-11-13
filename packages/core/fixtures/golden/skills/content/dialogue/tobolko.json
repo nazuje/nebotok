@@ -66,7 +66,8 @@
           "at": "win-two"
         }
       ],
-      "node": "grass-remind"
+      "node": "grass-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -84,7 +85,8 @@
           "at": "befriend-one"
         }
       ],
-      "node": "friend-remind"
+      "node": "friend-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -102,7 +104,8 @@
           "at": "pick-berries"
         }
       ],
-      "node": "scratch-remind"
+      "node": "scratch-remind",
+      "reminder": true
     },
     {
       "if": [
@@ -111,7 +114,8 @@
           "at": "bake-a-bun"
         }
       ],
-      "node": "scratch-remind"
+      "node": "scratch-remind",
+      "reminder": true
     },
     {
       "if": [

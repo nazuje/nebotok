@@ -8,6 +8,7 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import type { ToastKind } from './hud.ts';
 import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
+import type { RequestPacer } from './request-pacer.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
 import { createStarterScreen } from './starter-screen.ts';
 import { text } from './strings.ts';
@@ -31,6 +32,8 @@ export type BattlesOptions = {
   standing(): { map: WorldMap; tile: Point } | null;
   /** A talk is at the node that offers the starter: only then does the starter screen open. */
   starterOffered(): boolean;
+  /** Paces every battle, team, storage, starter and move request with the page's other requests, under the server's limit. */
+  requests: RequestPacer;
 };
 
 export type Battles = {
@@ -56,10 +59,14 @@ export function createBattles(options: BattlesOptions): Battles {
   let link: BattleLink | null = null;
   let overlay: BattleOverlay | null = null;
 
+  const request = (message: ClientMessage) => options.requests.send(() => link?.send(message));
   const send = (message: ClientMessage) => {
     if (!link) return;
-    model.sent();
-    link.send(message);
+    model.sent(performance.now());
+    options.requests.send(() => {
+      model.sent(performance.now());
+      link?.send(message);
+    });
   };
 
   const teamButton = element<HTMLButtonElement>('.team-button');
@@ -75,17 +82,17 @@ export function createBattles(options: BattlesOptions): Battles {
     language: options.language,
     progress: () => model.progress(),
     storage: () => model.storage(),
-    send: (message) => link?.send(message),
+    send: request,
     closed: () => update(),
   });
-  const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: (message) => link?.send(message) });
+  const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: request });
   // A move a level up offers is asked about once the battle screen is put away.
   const learn = createLearnModel();
   const learnPrompt = createLearnPrompt(element<HTMLElement>('#learn'), {
     language: options.language,
     answer: (forget) => {
       const message = learn.answer(forget);
-      if (message) link?.send(message);
+      if (message) request(message);
       update();
     },
   });

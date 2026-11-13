@@ -1,6 +1,7 @@
 import { CLIENT_MESSAGES, SERVER_MESSAGES, type BoardJob, type Direction, type Language, type Point, type ProgressMessage, type StoryMessage, type TalkCue, type TalkNode } from '@nebotok/core';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
+import { ANSWER_MS, type RequestPacer } from './request-pacer.ts';
 import type { Speech } from './speech.ts';
 import { talkCueKey } from './storm-plan.ts';
 import { text } from './strings.ts';
@@ -41,6 +42,8 @@ export type TalksOptions = {
   speech: Speech;
   /** A node with a cue opened (`talkCueKey` is its key): the starter screen, or a story cue to play. */
   cue(cue: TalkCue, key: string): void;
+  /** Paces every talk request with the page's other requests, under the server's limit. */
+  requests: RequestPacer;
 };
 
 export type Talks = {
@@ -72,6 +75,8 @@ export function createTalks(options: TalksOptions): Talks {
   let typingFrom = 0;
   let skipped = false;
   let waiting = false;
+  /** When the `talk.next` or `talk.end` being waited for went out, or was asked for while it waits its turn. */
+  let sentAt = 0;
   let asked: { npc: string; at: number } | null = null;
   let marks: { progress: ProgressMessage | null; story: StoryMessage | null; jobs: readonly BoardJob[] | null; marks: ReadonlyMap<string, HeadMark> } = { progress: null, story: null, jobs: null, marks: new Map() };
 
@@ -81,7 +86,16 @@ export function createTalks(options: TalksOptions): Talks {
     close: () => close(),
   });
 
-  const send = (message: TalkClientMessage) => link?.send(message);
+  const send = (message: TalkClientMessage) => options.requests.send(() => link?.send(message));
+  /** Sends a request the talk box waits on; one with no answer is given up after ANSWER_MS, so the next tap asks again. */
+  function ask(message: TalkClientMessage, now: number) {
+    waiting = true;
+    sentAt = now;
+    options.requests.send(() => {
+      sentAt = performance.now();
+      link?.send(message);
+    });
+  }
   const line = (): TalkLine | null => (talk ? talkLine(talk, STORY, options.language()) : null);
   const typed = (shown: TalkLine, now: number) => (skipped || REDUCED_MOTION.matches ? shown.say.length : typedLength(shown.say.length, now - typingFrom, shown.pace));
 
@@ -120,15 +134,13 @@ export function createTalks(options: TalksOptions): Talks {
       return;
     }
     if (shown.choices.length > 0) return;
-    waiting = true;
-    send({ type: CLIENT_MESSAGES.talkNext, payload: { conversation: talk.conversation, choice: null } });
+    ask({ type: CLIENT_MESSAGES.talkNext, payload: { conversation: talk.conversation, choice: null } }, now);
   }
 
   function choose(index: number, now: number) {
     const shown = line();
     if (!talk || !shown || waiting || typed(shown, now) < shown.say.length || !talk.choices.includes(index)) return;
-    waiting = true;
-    send({ type: CLIENT_MESSAGES.talkNext, payload: { conversation: talk.conversation, choice: index } });
+    ask({ type: CLIENT_MESSAGES.talkNext, payload: { conversation: talk.conversation, choice: index } }, now);
   }
 
   function close() {
@@ -137,8 +149,7 @@ export function createTalks(options: TalksOptions): Talks {
       show(null);
       return;
     }
-    waiting = true;
-    send({ type: CLIENT_MESSAGES.talkEnd, payload: { conversation: talk.conversation } });
+    ask({ type: CLIENT_MESSAGES.talkEnd, payload: { conversation: talk.conversation } }, performance.now());
   }
 
   window.addEventListener('keydown', (event) => {
@@ -184,6 +195,7 @@ export function createTalks(options: TalksOptions): Talks {
       send({ type: CLIENT_MESSAGES.talkStart, payload: { npc } });
     },
     frame: (now) => {
+      if (waiting && now - sentAt >= ANSWER_MS) waiting = false;
       const shown = line();
       box.render(talk && shown ? { key: `${talk.conversation}:${talk.node}:${options.language()}`, line: shown, typed: typed(shown, now), waiting, closeLabel: text('talk.close', options.language()) } : null);
     },

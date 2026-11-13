@@ -15,6 +15,7 @@ import { createNameTags } from './names.ts';
 import { createOutbox } from './outbox.ts';
 import { createPinSetup } from './pin-setup.ts';
 import { createProfileScreen } from './profile-screen.ts';
+import { createRequestPacer } from './request-pacer.ts';
 import { forgetSession, saveSession, storedSession, type StoredSession } from './session.ts';
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
@@ -59,6 +60,14 @@ let stopCues: () => void = () => {};
 let stopSkills: () => void = () => {};
 let stopJobs: () => void = () => {};
 
+/** Talk, battle, skill and board requests share the server's limit, so they share one pacer. */
+const requests = createRequestPacer({
+  now: () => performance.now(),
+  later: (run, ms) => {
+    const timer = setTimeout(run, ms);
+    return () => clearTimeout(timer);
+  },
+});
 const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
 const scene = new WorldScene({
@@ -84,6 +93,7 @@ const battles = createBattles({
   battleStarted: () => startClean(),
   standing: () => view.standing(),
   starterOffered: () => talks.offersStarter(),
+  requests,
 });
 const speech = createSpeech();
 const storyCues = createStoryCues({
@@ -107,6 +117,7 @@ const talks = createTalks({
   },
   speech,
   cue: (cue, key) => storyCues.fromTalk(cue, key),
+  requests,
 });
 const story = createStory({
   language: () => language,
@@ -130,6 +141,7 @@ const skills = createSkills({
     if (scene.mapId !== null) scene.setMarker(null);
     showScreen();
   },
+  requests,
 });
 const jobs = createJobs({
   language: () => language,
@@ -142,6 +154,7 @@ const jobs = createJobs({
     if (scene.mapId !== null) scene.setMarker(null);
     showScreen();
   },
+  requests,
 });
 /** How long a spot rests after a success, in ms: its skill's `restSeconds`. */
 const restMs = (spot: string): number => {
@@ -340,6 +353,7 @@ function forgetRoom() {
   room = null;
   input.release();
   outbox.reset();
+  requests.reset();
   view.reset();
   if (scene.mapId !== null) scene.setMarker(null);
   roomMap = null;

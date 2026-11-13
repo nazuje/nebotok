@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ServerMessage } from '../src/battle-link.ts';
 import { createBattleModel, menuFor, resultLines } from '../src/battle-model.ts';
 import { QUICK_TAP_MS, TAP_GRACE_MS, playbackMs, playback } from '../src/battle-playback.ts';
+import { ANSWER_MS } from '../src/request-pacer.ts';
 import { progress, turn, wildBattle } from './support/battle-messages.ts';
 
 const move = (slot: number) => ({ kind: 'move', slot }) as const;
@@ -135,17 +136,26 @@ describe('the battle model', () => {
     const model = createBattleModel(TEN);
     const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     model.receive(started, 0);
-    model.sent();
+    model.sent(LATER);
     expect(model.battle(LATER)?.waiting).toBe(true);
     model.receive({ type: 'refused', payload: { request: 'battle.move', reason: 'notNow' } }, LATER);
     expect(model.battle(LATER)?.waiting).toBe(false);
+  });
+
+  it('gives up on a choice with neither an answer nor a refusal, so a lost one never freezes the menu', () => {
+    const model = createBattleModel(TEN);
+    const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
+    model.receive(started, 0);
+    model.sent(LATER);
+    expect(model.battle(LATER + ANSWER_MS - 1)?.waiting).toBe(true);
+    expect(model.battle(LATER + ANSWER_MS)?.waiting).toBe(false);
   });
 
   it('forgets a battle without its result once the server says there is no battle, as after a restart', () => {
     const model = createBattleModel(TEN);
     const { started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     model.receive(started, 0);
-    model.sent();
+    model.sent(0);
     model.receive({ type: 'refused', payload: { request: 'battle.move', reason: 'notInBattle' } }, LATER);
     expect(model.battle(LATER)).toBeNull();
   });
