@@ -48,7 +48,9 @@ async function fish(page, plan, { say, name, expect, check }) {
   await tapTile(page, plan.fish.tile);
   const started = await newGame(page, 'dip', null, 'the fishing game');
   expect(started.attempt.spot === plan.fish.spot, `the fishing game is at ${started.attempt.spot}, not ${plan.fish.spot}`);
-  expect(selfIn(started)?.skill === 'fishing', `the courier is doing "${selfIn(started)?.skill}" while fishing, not fishing`);
+  // The attempt is a message, sent at once; the courier's skill comes with the next state patch.
+  const marked = await until(page, (s) => selfIn(s)?.skill === 'fishing', 'the courier to be marked fishing', 2_000).catch(() => readState(page));
+  expect(selfIn(marked)?.skill === 'fishing', `the courier is doing "${selfIn(marked)?.skill}" while fishing, not fishing`);
   await check('the fishing game', 'k1-fishing');
   const { dipAtMs } = started.attempt.params;
   const now = (await readState(page)).attempt;
