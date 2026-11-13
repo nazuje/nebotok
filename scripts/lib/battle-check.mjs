@@ -99,7 +99,15 @@ export async function chooseStarter(page, world, { say, expect, check, notes }) 
   await page.locator('.starter-choice').first().tap();
   const state = await until(page, (s) => s.screen === 'world' && s.progress?.needsStarter === false && s.progress.team.length === 1 && s.talk === null, 'the world with the starter on the team and the talk over');
   expect(state.talkHint === null, `the hint still points at ${state.talkHint} once there is a starter`);
-  expect(await page.locator('.team-button').isVisible(), 'the world shows no team button once there is a team');
+  // The state leads the page: the button shows once the talk box has been drawn away.
+  const teamShown = await page
+    .locator('.team-button')
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(
+      () => true,
+      () => false,
+    );
+  expect(teamShown, 'the world shows no team button once there is a team');
   return state;
 }
 /** The weather badge on the field: shown with the weather's name while there is weather, hidden without. */
