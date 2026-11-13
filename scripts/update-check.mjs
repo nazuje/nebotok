@@ -45,6 +45,9 @@ const AUTO_RELOAD_KEY = 'nebotok:outdatedReload';
 const MIN_TARGET_PX = 48;
 // A dropped page notices the new server, is refused, and takes the new build within this.
 const RECOVER_MS = 60_000;
+// `serviceWorker.ready` resolves once a worker is active, before its activate handler has claimed the
+// open pages; on a slow runner WebKit has taken seconds between the two.
+const CLAIM_MS = 20_000;
 const TAG = runTag();
 const RUNS = [
   { browser: 'chromium', device: 'iphone-portrait', language: 'en' },
@@ -72,6 +75,30 @@ const switchNoise = [];
 const scriptOf = (html) => html.match(/<script type="module" crossorigin src="([^"]+)"/)?.[1] ?? null;
 const pageScript = (page) => page.evaluate(() => document.querySelector('script[type="module"][src]')?.getAttribute('src') ?? null).catch(() => null);
 const controlled = (page) => page.evaluate(() => navigator.serviceWorker?.controller !== null && navigator.serviceWorker?.controller !== undefined).catch(() => false);
+/** Whether a worker controls the page, waiting up to timeoutMs for the controllerchange of one claiming it. */
+const takenOver = (page, timeoutMs) =>
+  page
+    .evaluate(
+      (ms) =>
+        new Promise((resolve) => {
+          const { serviceWorker } = navigator;
+          if (serviceWorker.controller) {
+            resolve(true);
+            return;
+          }
+          const timer = setTimeout(() => resolve(serviceWorker.controller !== null), ms);
+          serviceWorker.addEventListener(
+            'controllerchange',
+            () => {
+              clearTimeout(timer);
+              resolve(true);
+            },
+            { once: true },
+          );
+        }),
+      timeoutMs,
+    )
+    .catch(() => false);
 const offer = (page) => page.evaluate(() => {
   const button = document.querySelector('.update-button');
   if (!button || button.hidden) return null;
@@ -180,7 +207,7 @@ async function onA(player) {
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
   // A worker that does not claim open pages controls them from their next load, as for a returning
   // player; that is a failure, but the check carries on to show what else it costs.
-  if (!(await controlled(page))) {
+  if (!(await takenOver(page, CLAIM_MS))) {
     problems.push(`${player.label}: build A's service worker did not take the open page over`);
     await page.reload();
     await arrive();
