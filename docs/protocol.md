@@ -119,7 +119,7 @@ Client to server:
 | Type | Payload | Effect |
 | --- | --- | --- |
 | `ping` | `{ sentAt: number }` | Answered with `pong`, same payload |
-| `walk.to` | `{ x, y, from? }`, integers 0 to 1023 | Walk along the shortest path (core `findPath`) to that tile. A tile off the map is ignored. |
+| `walk.to` | `{ x, y, from? }`, integers 0 to 1023 | Walk along the cheapest path (core `findPath`: around tall grass unless the tile is grass or the way around is much longer) to that tile. A tile off the map is ignored. |
 | `walk.hold` | `{ direction, from? }` | Walk that way tile after tile until `walk.stop` or another intent. At a blocked tile the player turns to face it and waits. |
 | `walk.stop` | `{ from? }` | Finish the current step and stand still |
 

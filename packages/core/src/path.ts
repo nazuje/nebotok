@@ -1,8 +1,22 @@
 import { DIRECTIONS, samePoint, stepFrom, type Point } from './grid.ts';
-import { isWalkable, type WorldMap } from './map.ts';
+import { encounterZoneAt, isWalkable, type WorldMap } from './map.ts';
 
 /** How many tiles A* may expand before giving up, so a far or impossible target costs a bounded time. */
 export const PATH_SEARCH_LIMIT = 4_096;
+
+/**
+ * What a step onto tall grass costs, against 1 for any other tile, so a walk goes around the grass
+ * (where wild creatures appear) unless the way around is about GRASS_STEP_COST - 1 steps longer for
+ * each grass tile the way through crosses.
+ */
+export const GRASS_STEP_COST = 5;
+
+const inGrass = (map: WorldMap, at: Point) => encounterZoneAt(map, at) !== null;
+
+/** What walking `steps` costs by GRASS_STEP_COST: one for each step, more for each step onto tall grass. */
+export function pathCost(map: WorldMap, steps: readonly Point[]): number {
+  return steps.reduce((sum, at) => sum + (inGrass(map, at) ? GRASS_STEP_COST : 1), 0);
+}
 
 type Node = { readonly index: number; readonly g: number; readonly f: number; readonly h: number; readonly order: number };
 
@@ -58,9 +72,11 @@ function createHeap() {
 }
 
 /**
- * The shortest 4-directional path from `from` to `to`, as the tiles to step on in order (without
- * `from`). An empty list means already there; null means the target is blocked, unreachable, or
- * further than the search limit allows.
+ * The cheapest 4-directional path from `from` to `to`, as the tiles to step on in order (without
+ * `from`). Each step costs 1, or GRASS_STEP_COST onto tall grass; when `to` is itself tall grass
+ * the player chose the grass, so every step costs 1 and the path is the shortest. Without tall
+ * grass on the way it is the shortest path. An empty list means already there; null means the
+ * target is blocked, unreachable, or further than the search limit allows.
  */
 export function findPath(map: WorldMap, from: Point, to: Point, limit: number = PATH_SEARCH_LIMIT): Point[] | null {
   if (!isWalkable(map, from) || !isWalkable(map, to)) return null;
@@ -69,6 +85,7 @@ export function findPath(map: WorldMap, from: Point, to: Point, limit: number = 
   const indexOf = (at: Point) => at.y * width + at.x;
   const pointOf = (index: number): Point => ({ x: index % width, y: Math.floor(index / width) });
   const distance = (at: Point) => Math.abs(at.x - to.x) + Math.abs(at.y - to.y);
+  const grassCost = inGrass(map, to) ? 1 : GRASS_STEP_COST;
 
   const best = new Map<number, number>([[indexOf(from), 0]]);
   const cameFrom = new Map<number, number>();
@@ -92,7 +109,7 @@ export function findPath(map: WorldMap, from: Point, to: Point, limit: number = 
       const next = stepFrom(here, direction);
       if (!isWalkable(map, next)) continue;
       const index = indexOf(next);
-      const g = node.g + 1;
+      const g = node.g + (inGrass(map, next) ? grassCost : 1);
       if (closed.has(index) || g >= (best.get(index) ?? Infinity)) continue;
       best.set(index, g);
       cameFrom.set(index, node.index);

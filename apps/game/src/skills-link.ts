@@ -180,6 +180,8 @@ export function createSkills(options: SkillsOptions): Skills {
   function update() {
     const next: SkillOverlay | null = card.isOpen() ? 'skillGame' : book.isOpen() ? 'recipeBook' : null;
     if (next === overlay) return;
+    // Back from a dish's tiny game, whose card took focus, so keys work in the book again.
+    if (overlay === 'skillGame' && next === 'recipeBook') book.focus();
     overlay = next;
     options.changed();
   }

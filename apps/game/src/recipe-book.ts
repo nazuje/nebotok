@@ -77,6 +77,8 @@ export type RecipeBookScreen = {
   open(station: string): void;
   close(): void;
   isOpen(): boolean;
+  /** Moves focus to the first Cook that works, or the book itself, as opening it does. */
+  focus(): void;
   /** Draws the latest book, rebuilding only when it changed. */
   render(): void;
   state(): TestRecipeBook | null;
@@ -86,12 +88,15 @@ export type RecipeBookScreen = {
  * The recipe book, opened by walking up to a cooking pot: each recipe the cooking level unlocks with
  * its dish, the dish's strength as stars and what the bag has of each ingredient ("Cloudberry 3 / 2").
  * Cook is off, with the reason under it, while an ingredient is short or the dish's stack is full.
- * The next locked recipe shows the level it needs.
+ * The next locked recipe shows the level it needs. Opening it moves focus to the first Cook that
+ * works, or the book itself; Escape closes it, and closing gives focus back to where it was.
  */
 export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions): RecipeBookScreen {
   let station: string | null = null;
   let shown = '';
   let page: RecipePage | null = null;
+  let focusBefore: HTMLElement | null = null;
+  root.tabIndex = -1;
 
   function row(entry: RecipeRow, at: string, language: Language): HTMLElement {
     const lines = entry.ingredients.map(({ item, have, need }) =>
@@ -114,6 +119,7 @@ export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions):
     if (current.next) list.push(lockedRow(current.next, current.skill, language));
     const before = root.querySelector<HTMLElement>('.team-scroll');
     const keepScroll = before?.scrollTop ?? 0;
+    const keepFocus = focusedControl();
     const scroll = el('div', { className: 'team-scroll', attrs: { role: 'group' } }, [el('ul', { className: 'recipe-list' }, list)]);
     const foot = el('div', { className: 'team-foot' }, [
       button('primary book-close', text('team.close', language), () => {
@@ -123,6 +129,16 @@ export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions):
     ]);
     root.replaceChildren(el('div', { className: 'screen-body team-body' }, [el('div', { className: 'team-head' }, [el('h2', { className: 'screen-title', text: text('book.title', language) })]), scroll, foot]));
     scroll.scrollTop = keepScroll;
+    if (keepFocus) (root.querySelector<HTMLElement>(keepFocus) ?? root).focus({ preventScroll: true });
+  }
+
+  /** A selector for the control in the book that has focus, so a rebuilt book can give it back. */
+  function focusedControl(): string | null {
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !root.contains(focused)) return null;
+    if (focused.classList.contains('book-close')) return '.book-close';
+    const recipe = focused.closest<HTMLElement>('.recipe')?.dataset['recipe'];
+    return recipe !== undefined && focused.classList.contains('recipe-cook') ? `.recipe[data-recipe="${recipe}"] .recipe-cook:not(:disabled)` : '.recipe-cook:not(:disabled)';
   }
 
   function render(force = false) {
@@ -136,20 +152,44 @@ export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions):
     build(station, page);
   }
 
+  function focusFirst() {
+    (root.querySelector<HTMLElement>('.recipe-cook:not(:disabled)') ?? root).focus({ preventScroll: true });
+  }
+
   function close() {
+    const focused = document.activeElement;
+    const hadFocus = station !== null && focused instanceof HTMLElement && root.contains(focused);
     station = null;
     page = null;
     shown = '';
     render();
+    // A hidden button keeps focus until the next frame, and the body cannot take it back by focus().
+    if (hadFocus) focused.blur();
+    if (hadFocus && focusBefore?.isConnected) focusBefore.focus({ preventScroll: true });
+    focusBefore = null;
   }
+
+  window.addEventListener('keydown', (event) => {
+    // A tiny game opened from the book takes Escape first and calls preventDefault.
+    if (station === null || event.code !== 'Escape' || event.repeat || event.defaultPrevented) return;
+    event.preventDefault();
+    close();
+    options.closed();
+  });
 
   return {
     open: (at) => {
+      const focused = document.activeElement;
+      if (station === null) focusBefore = focused instanceof HTMLElement && !root.contains(focused) ? focused : null;
       station = at;
       render(true);
+      focusFirst();
     },
     close,
     isOpen: () => station !== null,
+    focus: () => {
+      if (station !== null) focusFirst();
+    },
     render: () => render(),
     state: () => (station === null ? null : { station, rows: (page?.rows ?? []).map(({ recipe, blocked }) => ({ recipe, blocked })), next: page?.next?.recipe ?? null }),
   };

@@ -6,6 +6,7 @@ import {
   nextGoal,
   npcInReach,
   npcMarks,
+  pathCost,
   samePoint,
   stepFrom,
   type BoardJob,
@@ -106,7 +107,7 @@ export function facedTarget(map: WorldMap, tile: Point, facing: Direction): Targ
 
 /**
  * Where to stand to talk to `npc` from `from`: `from` itself when already beside them, else the
- * free neighbour of theirs with the shortest walk that `canReach` accepts. Null when none is.
+ * free neighbour of theirs that `standBeside` picks. Null when none is.
  */
 export function talkSpot(map: WorldMap, from: Point, npc: string, canReach: (tile: Point) => boolean): Point | null {
   const at = map.npcs[npc];
@@ -117,17 +118,17 @@ export function talkSpot(map: WorldMap, from: Point, npc: string, canReach: (til
 
 /**
  * Where to stand to use what is on `at` from `from`: `from` itself when it is next to `at`, not
- * diagonally, else the free neighbour of `at` with the shortest walk that `canReach` accepts.
- * Null when none is.
+ * diagonally, else the free neighbour of `at` with the cheapest walk (core `pathCost`, so one
+ * out of the tall grass wins unless it is much further) that `canReach` accepts. Null when none is.
  */
 export function standBeside(map: WorldMap, from: Point, at: Point, canReach: (tile: Point) => boolean): Point | null {
   if (Math.abs(from.x - at.x) + Math.abs(from.y - at.y) === 1) return from;
   const spots = DIRECTIONS.map((direction) => stepFrom(at, direction)).flatMap((tile) => {
     if (!isWalkable(map, tile) || !canReach(tile)) return [];
     const path = findPath(map, from, tile);
-    return path ? [{ tile, steps: path.length }] : [];
+    return path ? [{ tile, cost: pathCost(map, path) }] : [];
   });
-  return spots.toSorted((a, b) => a.steps - b.steps)[0]?.tile ?? null;
+  return spots.toSorted((a, b) => a.cost - b.cost)[0]?.tile ?? null;
 }
 
 /** The way a character on `from` turns to look at someone on `to`, by the longer axis. */
