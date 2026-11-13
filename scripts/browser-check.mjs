@@ -18,7 +18,10 @@
 // to the shrine for the quest toast and see the journal move on. Four more (the other language on
 // each device) sign in beside a fishing spot (scripts/lib/skill-check.mjs): they fish, see the catch
 // and a full stack toasted, are told the spot rests, miss and then win a foraging game, cook from
-// the recipe book and read the Skills tab; at 360px a player opens the book, a game and the tab. At 360px wide it also checks the lock messages (a first and a
+// the recipe book and read the Skills tab; at 360px a player opens the book, a game and the tab. The
+// same four then sign in beside the job board (scripts/lib/board-check.mjs): they read its three
+// cards, hand a delivery over in a talk, see the job toast and find the new card in its place; at
+// 360px a player opens the board for the first time. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
 // from the settings, then signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px and answers the offer of
@@ -73,12 +76,13 @@ import { battleSave, chooseStarter, playBattles } from './lib/battle-check.mjs';
 import { learnerSave, playLearning } from './lib/learn-check.mjs';
 import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
-import { skillSave } from './lib/skill-saves.mjs';
+import { boardSave, skillSave } from './lib/skill-saves.mjs';
+import { boardScreenFits, playBoard } from './lib/board-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
-import { battlerName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName } from './lib/test-players.mjs';
+import { battlerName, boardName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
 const parts = values.part === undefined ? BROWSER_CHECK_PARTS : BROWSER_CHECK_PARTS.filter((part) => part.name === values.part);
@@ -528,6 +532,30 @@ async function preparedSkills(page, player, { language, expect, check, notes }) 
   }
 }
 
+/** Like prepareSkillPlayer, for the board part (boardSave): beside the job board, with it `opened` and a delivery ready, or never opened. */
+async function prepareBoardPlayer(browserName, device, language, bot, opened = true) {
+  if (!dataDir) return null;
+  const name = boardName(browserName, device, language, TAG);
+  const made = await api('/profiles', { body: { name, avatar: 'orange' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { plan, data } = boardSave(bot, { name, language, opened });
+  prepareSave(dataDir, made.data.id, data);
+  return { id: made.data.id, name, plan };
+}
+
+/** From the profile list: signs in as the board player, plays the board part, signs out, and deletes the player. */
+async function preparedBoard(page, player, { language, expect, check, notes }) {
+  try {
+    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    const state = await enterWorld(page, bot, inWorld, 'the world as the board player', { notes });
+    expect(state.profile?.name === player.name, `signed in as ${state.profile?.name}, not ${player.name}`);
+    await playBoard(page, bot, player.plan, { language, strings: STRINGS, expect, check, notes });
+    await signOut(page);
+  } finally {
+    deleteProfile(dataDir, player.id);
+  }
+}
+
 /** The bot joins, walks past the page's courier while the page is sampled, then drops. */
 async function meetBot(bot, page, self, { expect, shot }) {
   const room = await joinBot(bot);
@@ -715,6 +743,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     const battler = await prepareBattler(browserName, device, language, bot);
     const storyPlayer = STORY_RUNS.has(label) ? await prepareStoryPlayer(browserName, device, language, bot) : null;
     const skillPlayer = SKILL_RUNS.has(label) ? await prepareSkillPlayer(browserName, device.name, language, bot) : null;
+    const boardPlayer = SKILL_RUNS.has(label) ? await prepareBoardPlayer(browserName, device.name, language, bot) : null;
     // Sign out, so this run's courier does not stand on the spawn, away, through the runs after it.
     await signOut(page);
     if (battler) await preparedBattles(page, battler, { language, expect, check, notes });
@@ -723,6 +752,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     else if (STORY_RUNS.has(label) && !dataDir) notes.push('the story part needs a prepared save, so it was skipped');
     if (skillPlayer) await preparedSkills(page, skillPlayer, { language, expect, check, notes });
     else if (SKILL_RUNS.has(label) && !dataDir) notes.push('the skill part needs a prepared save, so it was skipped');
+    if (boardPlayer) await preparedBoard(page, boardPlayer, { language, expect, check, notes });
     results.push({ label, ok: problems.length === 0, serviceWorkerReload: hasWorker, state, problems, notes, screenshots });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -1011,6 +1041,42 @@ async function checkSkillsNarrow(browser, browserName, bot) {
   results.push({ label: `${label} (skills)`, ok: problems.length === 0, problems, screenshots, notes });
 }
 
+/**
+ * At 360px wide, a player beside the job board who never opened it (scripts/lib/skill-saves.mjs)
+ * opens it for the first time: three cards and the hint, without scrolling sideways. Chromium plays
+ * it in Slovenian, WebKit in English.
+ */
+async function checkBoardNarrow(browser, browserName, bot) {
+  const language = browserName === 'chromium' ? 'sl' : 'en';
+  const label = `${browserName}-360px-${language}`;
+  const problems = [];
+  const screenshots = [];
+  const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
+  const player = await prepareBoardPlayer(browserName, '360px', language, bot, false);
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
+  const check = async (where, step) => {
+    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await shot(step);
+  };
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    await enterWorld(page, bot, inWorld, 'the world as the board player at 360px', { notes });
+    await boardScreenFits(page, player.plan, { language, strings: STRINGS, expect, noSideways, check });
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+    deleteProfile(dataDir, player.id);
+  }
+  results.push({ label: `${label} (job board)`, ok: problems.length === 0, problems, screenshots, notes });
+}
+
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
 async function fillProfiles() {
   const listed = await api('/profiles', { address: nextAddress() });
@@ -1069,6 +1135,7 @@ async function playPart(browser, part, bot) {
   await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
   if (LOCAL) await timed(() => checkLearn(browser, name, bot));
   if (LOCAL) await timed(() => checkSkillsNarrow(browser, name, bot));
+  if (LOCAL) await timed(() => checkBoardNarrow(browser, name, bot));
 }
 
 let bot = null;

@@ -8,6 +8,7 @@ import { initialControls, otherControls, saveControls, type Controls } from './c
 import { element } from './dom.ts';
 import { createHud } from './hud.ts';
 import { createInput } from './input.ts';
+import { createJobs } from './jobs-link.ts';
 import { initialLanguage, otherLanguage, saveLanguage } from './language.ts';
 import { loadMap } from './map-loader.ts';
 import { createNameTags } from './names.ts';
@@ -56,6 +57,7 @@ let stopStory: () => void = () => {};
 let stopTalks: () => void = () => {};
 let stopCues: () => void = () => {};
 let stopSkills: () => void = () => {};
+let stopJobs: () => void = () => {};
 
 const view = createWorldView();
 const names = createNameTags(element<HTMLElement>('#names'));
@@ -88,7 +90,7 @@ const storyCues = createStoryCues({
   scene,
   speech,
   language: () => language,
-  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null,
+  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null,
   changed: () => {
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
@@ -97,6 +99,7 @@ const storyCues = createStoryCues({
 const talks = createTalks({
   language: () => language,
   progress: () => battles.progress(),
+  jobs: () => jobs.board(),
   changed: () => {
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
@@ -107,7 +110,7 @@ const talks = createTalks({
 });
 const story = createStory({
   language: () => language,
-  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || skills.overlay() !== null,
+  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || skills.overlay() !== null || jobs.overlay() !== null,
   standing: () => view.standing(),
   skills: () => skills.message(),
   lookAt: (tile) => scene.lookAt(tile),
@@ -119,10 +122,21 @@ const story = createStory({
 const skills = createSkills({
   language: () => language,
   progress: () => battles.progress(),
-  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing(),
+  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || jobs.overlay() !== null,
   news: (lines, tone) => story.news(lines, tone),
-  // The job board's screen opens from here once there is one.
-  openBoard: () => {},
+  openBoard: (station) => jobs.open(station),
+  changed: () => {
+    input.release();
+    if (scene.mapId !== null) scene.setMarker(null);
+    showScreen();
+  },
+});
+const jobs = createJobs({
+  language: () => language,
+  progress: () => battles.progress(),
+  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || story.overlay() !== null || skills.overlay() !== null,
+  news: (lines) => story.news(lines, 'good'),
+  refused: (id) => hud.toast(id),
   changed: () => {
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
@@ -134,7 +148,7 @@ const restMs = (spot: string): number => {
   const skill = STORY.skills?.skills.get(STORY.skills.spots.get(spot)?.skill ?? '');
   return skill?.uses === 'spots' ? skill.restSeconds * 1_000 : 0;
 };
-const updates = createUpdates({ language, busy: () => battles.overlay() !== null || talks.isOpen() || skills.overlay() !== null });
+const updates = createUpdates({ language, busy: () => battles.overlay() !== null || talks.isOpen() || skills.overlay() !== null || jobs.overlay() !== null });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
 const settings = createSettings(language, controls, {
@@ -196,7 +210,7 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && !talks.isOpen() && !storyCues.playing(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => {
@@ -209,7 +223,7 @@ const input = createInput({
 /** Where the new player's hint points: at the character who gives the first creature, while nothing else is up. */
 function talkHintSpot(): { npc: string; at: Point } | null {
   const npc = talks.starterNpc();
-  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || story.overlay() !== null || skills.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
+  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || story.overlay() !== null || skills.overlay() !== null || jobs.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
   const at = scene.npcOnScreen(npc);
   return at ? { npc, at } : null;
 }
@@ -220,13 +234,14 @@ function frame(now: number) {
   talks.frame(now);
   story.frame();
   skills.frame(now);
+  jobs.frame();
   storyCues.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   const pointing = talkHintSpot();
   talkHint.update(pointing?.at ?? null);
   // A new player is shown whom to tap first; the walking hint waits until then.
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -250,7 +265,7 @@ function setLanguage(next: Language) {
 }
 
 function screen(): Screen {
-  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? skills.overlay() ?? 'world');
+  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? skills.overlay() ?? jobs.overlay() ?? 'world');
 }
 
 function showScreen() {
@@ -320,6 +335,8 @@ function forgetRoom() {
   stopCues = () => {};
   stopSkills();
   stopSkills = () => {};
+  stopJobs();
+  stopJobs = () => {};
   room = null;
   input.release();
   outbox.reset();
@@ -337,6 +354,7 @@ async function leaveWorld() {
   story.reset();
   talks.reset();
   skills.reset();
+  jobs.reset();
   storyCues.reset();
   await leaving?.leave();
 }
@@ -398,6 +416,7 @@ function enterWorld() {
       stopTalks = talks.joined(joined);
       stopCues = storyCues.joined(joined);
       stopSkills = skills.joined(joined);
+      stopJobs = jobs.joined(joined);
       stopFeed = feedWorldView(joined, view, {
         map: (id) => {
           roomMap = id;
@@ -500,6 +519,7 @@ installTestHook({
       ...battles.snapshot(performance.now()),
       ...story.snapshot(),
       ...skills.snapshot(performance.now()),
+      ...jobs.snapshot(),
       spots: scene.drawnSpots(),
       looking: scene.lookingAt,
     };

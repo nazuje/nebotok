@@ -8,6 +8,7 @@ import {
   npcMarks,
   samePoint,
   stepFrom,
+  type BoardJob,
   type Direction,
   type Language,
   type Mood,
@@ -141,12 +142,14 @@ export type HeadMark = NpcMark['mark'];
 
 /**
  * The marks over characters' heads: core's `npcMarks`, and for a player with no creature yet a
- * new-quest mark on the character who offers the starter, so a new player knows whom to see.
+ * new-quest mark on the character who offers the starter, so a new player knows whom to see. A
+ * character with a delivery from the job `board` that the bag holds all of gets a turn-in mark.
  */
-export function headMarks(progress: ProgressMessage | null, story: StoryProgress | null, content: StoryContent): ReadonlyMap<string, HeadMark> {
+export function headMarks(progress: ProgressMessage | null, story: StoryProgress | null, content: StoryContent, board: readonly BoardJob[] | null = null): ReadonlyMap<string, HeadMark> {
   if (!progress || !story) return new Map();
-  // Storage comes only at a shrine; the marks look only at the team and the story.
-  const full = { ...progress, storage: [], story, skills: [], jobs: null };
+  // Storage comes only at a shrine; the marks look only at the team, the story and the board's
+  // jobs, so the board's seed and counts, which the client never gets, can be anything.
+  const full = { ...progress, storage: [], story, skills: [], jobs: board ? { seed: 0, drawn: 0, done: 0, board: [...board] } : null };
   if (progress.needsStarter) {
     const goal = nextGoal(full, content);
     return new Map(goal?.kind === 'starter' ? [[goal.npc, 'newQuest' as const]] : []);

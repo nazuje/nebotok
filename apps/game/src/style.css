@@ -173,11 +173,11 @@ body:not([data-screen='world']) #names {
   line-height: 36px;
 }
 
-body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame']) .title,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame']) .badge,
+body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .title,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .badge,
 body:not([data-screen='world']) .welcome,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame']) .toast,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame']) .quest-toast,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .toast,
+body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .quest-toast,
 body:not([data-screen='world']) .walk-hint {
   display: none;
 }
