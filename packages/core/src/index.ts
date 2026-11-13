@@ -106,7 +106,7 @@ export {
   type MapResult,
   type WorldMap,
 } from './map.ts';
-export { PATH_SEARCH_LIMIT, findPath } from './path.ts';
+export { GRASS_STEP_COST, PATH_SEARCH_LIMIT, findPath, pathCost } from './path.ts';
 export {
   IDLE,
   WalkerPosition,

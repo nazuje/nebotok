@@ -56,6 +56,11 @@ describe('walking up to a character', () => {
     expect(talkSpot(MAP, { x: 0, y: 0 }, 'nobody', () => true)).toBeNull();
   });
 
+  it('stands out of the tall grass when a tile beside them is not much further', () => {
+    const grassy: WorldMap = { ...MAP, encounterAreas: [{ zone: 'meadow', x: 3, y: 0, width: 1, height: 1 }] };
+    expect(talkSpot(grassy, { x: 0, y: 0 }, 'bavko', () => true)).toEqual({ x: 3, y: 2 });
+  });
+
   it('finds spots and stations too, and where to stand to use them', () => {
     const map: WorldMap = { ...MAP, spots: { 'pebble-cove': { x: 0, y: 2 } }, stations: { 'post-pot': { x: 5, y: 0 } } };
     expect(targetAt(map, { x: 3, y: 1 })).toEqual({ kind: 'npc', id: 'bavko' });

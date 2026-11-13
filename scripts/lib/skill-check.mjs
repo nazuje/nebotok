@@ -4,7 +4,8 @@
 // from the test hook, and see the catch toasted with the fish that had no room; press Space at the
 // resting spot and are told how long it rests; walk to a bush beside a cooking pot, let the
 // sparkles go by once (a miss), try again and tap each sparkle; open the recipe book at the pot,
-// cook and stop the marker in the zone; and find the three skills in the journal's Skills tab.
+// cook and stop the marker in the zone (in Chromium, focus moves into the book and Escape closes
+// it); and find the three skills in the journal's Skills tab.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOK, nextFrames, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
@@ -126,27 +127,52 @@ export async function playGame(page, { win = true } = {}) {
   return judged(page, `the ${attempt.game} game's result`);
 }
 
-/** The recipe book at the pot: the recipe listed with what the bag has, Cook, and the marker stopped in the zone. */
-async function cook(page, plan, { name, expect, check }) {
+/** The element that has focus, as `tag#id.class` (the body when nothing does). */
+const focusedElement = (page) =>
+  page.evaluate(() => {
+    const at = document.activeElement;
+    return at ? `${at.tagName.toLowerCase()}${at.id ? `#${at.id}` : ''}${typeof at.className === 'string' && at.className ? `.${at.className.split(' ').join('.')}` : ''}` : 'nothing';
+  });
+
+/**
+ * The recipe book at the pot: the recipe listed with what the bag has, Cook, and the marker stopped
+ * in the zone. With `keys` (where a keyboard is checked), opening the book focuses the first Cook,
+ * coming back from the game puts focus in the book again, and Escape closes the book and gives
+ * focus back.
+ */
+async function cook(page, plan, { name, expect, check, keys }) {
+  const focusBefore = await focusedElement(page);
   await tapTile(page, plan.pot.tile);
   const book = await until(page, (s) => s.screen === 'recipeBook' && s.recipeBook !== null, 'the recipe book', 10_000);
   const row = book.recipeBook.rows.find((each) => each.recipe === plan.recipe.id);
   expect(row?.blocked === null, `the recipe book shows ${plan.recipe.id} as ${JSON.stringify(row)}`);
   const shown = await page.locator('#recipe-book .recipe .recipe-name span').first().textContent();
   expect(shown === name(plan.recipe.makes), `the recipe book's first dish is "${shown}"`);
+  const cookButton = page.locator(`#recipe-book .recipe[data-recipe="${plan.recipe.id}"] .recipe-cook`);
+  const onCook = () => cookButton.evaluate((button) => document.activeElement === button);
+  if (keys) expect(await onCook(), `opening the recipe book focused ${await focusedElement(page)}, not the first Cook`);
   await nextFrames(page);
   await check('the recipe book', 'k5-book');
-  await page.locator(`#recipe-book .recipe[data-recipe="${plan.recipe.id}"] .recipe-cook`).tap();
+  await cookButton.tap();
   await newGame(page, 'marker', null, 'the cooking game');
   const result = await playGame(page);
   expect(result.attempt.outcome === 'perfect' || result.attempt.outcome === 'success', `stopping the marker in the perfect band was ${result.attempt.outcome}`);
   await check('the cooking result', 'k6-cooked');
   const back = await until(page, (s) => s.screen === 'recipeBook', 'the recipe book after cooking', 5_000);
   expect(back.progress.inventory.some((entry) => entry.item === plan.recipe.makes), `the bag has no ${plan.recipe.makes} after cooking`);
+  if (keys) {
+    await nextFrames(page);
+    const inBook = await page.evaluate(() => document.querySelector('#recipe-book')?.contains(document.activeElement) === true);
+    expect(inBook, `back in the recipe book after cooking, focus is on ${await focusedElement(page)}, outside the book`);
+    await page.keyboard.press('Escape');
+    await until(page, (s) => s.screen === 'world', 'Escape to close the recipe book');
+    const focusAfter = await focusedElement(page);
+    expect(focusAfter === focusBefore, `closing the recipe book left focus on ${focusAfter}, not ${focusBefore} where it was`);
+    return;
+  }
   await page.locator('#recipe-book .book-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the recipe book');
 }
-
 /** The journal's Skills tab: a row for each skill, fishing with the XP of the catch. */
 async function skillsTab(page, { expect, check }) {
   await page.locator('.journal-button').tap();
@@ -164,7 +190,7 @@ async function skillsTab(page, { expect, check }) {
 }
 
 /** Plays the skill part from the world, signed in as the prepared player beside the fishing spot. */
-export async function playSkills(page, world, plan, { language, strings, expect, check, notes }) {
+export async function playSkills(page, world, plan, { language, strings, expect, check, notes, keys = false }) {
   const say = (id) => strings[id][language];
   const name = (item) => ITEMS.get(item)?.name[language] ?? item;
   await until(page, (s) => s.screen === 'world' && s.skills !== null && s.progress !== null, 'the world with the skills');
@@ -172,7 +198,7 @@ export async function playSkills(page, world, plan, { language, strings, expect,
   await restingRefused(page, { say, expect });
   await walkByTaps(page, world, plan.stand, { notes });
   await forage(page, plan, { say, expect, check });
-  await cook(page, plan, { name, expect, check });
+  await cook(page, plan, { name, expect, check, keys });
   await skillsTab(page, { expect, check });
 }
 
