@@ -48,12 +48,13 @@
   overflow-wrap: anywhere;
 }
 
+/* A little over the 48px minimum: the card's entrance can measure a hair under it mid-animation. */
 .skill-close {
   flex: none;
   display: grid;
   place-items: center;
-  width: var(--tap);
-  height: var(--tap);
+  width: calc(var(--tap) + 4px);
+  height: calc(var(--tap) + 4px);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -121,7 +122,7 @@
 
 .skill-actions button {
   flex: 1 1 8rem;
-  min-height: var(--tap);
+  min-height: calc(var(--tap) + 4px);
 }
 
 /* Fishing: the float on the cloud water, red with a "!" when it dips. */
