@@ -62,7 +62,7 @@ services:
   litestream:
     <<: *hardening
     # litestream/litestream:0.5.17 (the Debian build: its sh runs deploy/litestream/copy-snapshots.sh)
-    image: litestream/litestream:0.5.17@sha256:4b02b9859a6b6b4087d8b8944e15f7e984bd7957cba322bbeee38b0e27b9656a
+    image: litestream/litestream:0.5.18@sha256:513bff62a88fc0c86c73d27333c41c54c89fe890a7c32a551600adff9309b11b
     # The game's own uid (node), so it can read and checkpoint the database files the game owns.
     user: "1000:1000"
     network_mode: none
