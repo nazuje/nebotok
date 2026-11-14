@@ -28,7 +28,9 @@
     "art:sheet": "node scripts/art-sheet.mjs",
     "verify": "node scripts/verify.mjs",
     "verify:container": "node scripts/verify.mjs --level 4 --container",
-    "scene": "node scripts/scene.mjs"
+    "scene": "node scripts/scene.mjs",
+    "prototype:battle:build": "vite build --config apps/game/vite.prototype.config.ts apps/game",
+    "prototype:battle:serve": "vite preview --config apps/game/vite.prototype.config.ts apps/game --host 127.0.0.1 --port 8569 --strictPort"
   },
   "volta": {
     "node": "26.13.0"

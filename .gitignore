@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# The throwaway battle prototype build (npm run prototype:battle:build).
+dist-prototype/
 .proof/
 .env
 .env.*

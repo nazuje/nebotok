@@ -1,0 +1,326 @@
+/* THROWAWAY PROTOTYPE styles for prototype-battle.html, never merged to main. */
+
+.proto-round {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.proto-round svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* The look switcher: always at the bottom in the middle. */
+.proto-pill {
+  position: fixed;
+  z-index: 30;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(16 42 67 / 0.85);
+  color: white;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.proto-pill .proto-round {
+  background: transparent;
+  color: white;
+  box-shadow: none;
+}
+
+.proto-pill-label {
+  min-width: 8.5rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.proto-top {
+  position: fixed;
+  z-index: 10;
+  top: var(--top);
+  right: max(12px, env(safe-area-inset-right));
+  left: max(12px, env(safe-area-inset-left));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.proto-top.today {
+  justify-content: flex-end;
+}
+
+.proto-top > * {
+  pointer-events: auto;
+}
+
+.proto-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  padding: 0 16px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--ink);
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+
+.proto-new svg {
+  width: 24px;
+  height: 24px;
+}
+
+body[data-turn='over'] .proto-new {
+  background: #ffd43b;
+  animation: proto-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes proto-pulse {
+  to {
+    transform: scale(1.08);
+  }
+}
+
+.proto-log {
+  position: fixed;
+  z-index: 20;
+  top: calc(var(--top) + 56px);
+  left: max(12px, env(safe-area-inset-left));
+  width: min(22rem, calc(100vw - 24px));
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 8px 8px 12px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 8px 24px rgb(16 42 67 / 0.25);
+}
+
+.proto-log .proto-round {
+  float: right;
+  box-shadow: none;
+}
+
+.proto-log-lines {
+  margin: 0;
+  padding: 4px 0 0 1.4rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+/* The moves, above the look switcher. */
+.proto-bottom {
+  position: fixed;
+  z-index: 10;
+  right: 0;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 62px);
+  left: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.proto-bottom > * {
+  pointer-events: auto;
+}
+
+.proto-moves {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  width: min(100%, 40rem);
+}
+
+.proto-move {
+  position: relative;
+  min-width: 0;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border: 3px solid rgb(16 42 67 / 0.2);
+  border-radius: 18px;
+  color: var(--ink);
+  box-shadow: 0 4px 0 rgb(16 42 67 / 0.3);
+}
+
+.proto-move:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgb(16 42 67 / 0.3);
+}
+
+.proto-move:disabled,
+.proto-card:disabled:not(.played) {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.proto-move.strong {
+  border-color: #2f9e44;
+}
+
+.proto-icon {
+  image-rendering: pixelated;
+}
+
+.proto-move .proto-icon {
+  width: 52px;
+  height: 52px;
+}
+
+.proto-move-name,
+.proto-card-name {
+  max-width: 100%;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.proto-pips {
+  display: flex;
+  gap: 4px;
+  min-height: 8px;
+}
+
+.proto-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgb(16 42 67 / 0.65);
+}
+
+.proto-badge {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 3px solid white;
+  border-radius: 50%;
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.proto-badge svg {
+  width: 18px;
+  height: 18px;
+}
+
+.proto-badge.strong {
+  background: #2f9e44;
+}
+
+.proto-badge.weak {
+  background: #868e96;
+}
+
+.proto-badge.sky {
+  background: #4dabf7;
+}
+
+/* Variant 3: the moves as a fan of cards. */
+.proto-cards {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  width: min(100%, 40rem);
+  padding-top: 16px;
+}
+
+.proto-card {
+  position: relative;
+  flex: none;
+  width: clamp(76px, 21vw, 132px);
+  aspect-ratio: 5 / 7;
+  margin: 0 -3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 3px solid white;
+  border-radius: 14px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--type) 55%, white), var(--type));
+  color: var(--ink);
+  box-shadow: 0 6px 14px rgb(16 42 67 / 0.3);
+  transform: translateY(calc(var(--drop) + var(--lift, 0px))) rotate(var(--angle));
+  transform-origin: 50% 120%;
+  transition: transform 160ms ease-out;
+  touch-action: none;
+}
+
+.proto-card.strong {
+  animation: proto-glow 1100ms ease-in-out infinite alternate;
+}
+
+@keyframes proto-glow {
+  from {
+    box-shadow: 0 0 0 3px #ffd43b, 0 0 8px 2px rgb(255 212 59 / 0.6);
+  }
+  to {
+    box-shadow: 0 0 0 4px #ffd43b, 0 0 26px 10px rgb(255 212 59 / 0.9);
+  }
+}
+
+.proto-card.played {
+  opacity: 0;
+  transform: translateY(-40vh) scale(1.2);
+  transition: transform 260ms ease-in, opacity 260ms ease-in;
+}
+
+.proto-card-art {
+  display: grid;
+  place-items: center;
+  width: 82%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.8);
+}
+
+.proto-card-art canvas {
+  width: 72%;
+  height: auto;
+}
+
+/* Variant 0 keeps today's screen, with room for the look switcher under it. */
+body[data-variant='0'] .battle {
+  padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 62px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-card,
+  .proto-card.played {
+    transition: none;
+  }
+
+  .proto-card.strong,
+  body[data-turn='over'] .proto-new {
+    animation: none;
+    box-shadow: 0 0 0 4px #ffd43b;
+  }
+}
