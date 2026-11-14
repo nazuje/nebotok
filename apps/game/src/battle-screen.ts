@@ -1,5 +1,5 @@
 import { frameNames, spriteFor, type BattleView, type Language, type ProgressMessage, type StringId } from '@nebotok/core';
-import { isTreat, itemName, moveName, moveType, speciesName, weatherName } from './battle-content.ts';
+import { isFavourite, isTreat, itemName, moveName, moveType, speciesName, weatherName } from './battle-content.ts';
 import type { ClientMessage } from './battle-link.ts';
 import { resultLines, type BattleScreenState, type Picker } from './battle-model.ts';
 import type { Line } from './battle-playback.ts';
@@ -18,6 +18,7 @@ export function lineText(line: Line, view: BattleView, language: Language): stri
     weather: line.weather ? weatherName(line.weather, language) : '',
     xp: line.xp ?? '',
     level: line.level ?? '',
+    treat: line.treat ? itemName(line.treat, language) : '',
   });
 }
 
@@ -120,12 +121,20 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
     return parts;
   }
 
-  function treatPicker(): HTMLElement[] {
+  /** The treats in the bag, each marked with a heart when the wild creature out loves it most. */
+  function treatPicker(state: BattleScreenState): HTMLElement[] {
     const language = options.language();
+    const { creatures, active } = state.view.opponent;
+    const wild = creatures[active]?.species;
     const treats = (options.progress()?.inventory ?? []).filter((entry) => isTreat(entry.item) && entry.count > 0);
     const choices = treats.map((entry) => {
       const choice = button('battle-choice treat-choice', '', () => choose({ type: 'battle.treat', payload: { itemId: entry.item } }));
-      choice.append(el('span', { className: 'treat-name', text: itemName(entry.item, language) }), el('span', { className: 'treat-count', text: String(entry.count) }));
+      const label = el('span', { className: 'treat-label' }, [el('span', { className: 'treat-name', text: itemName(entry.item, language) })]);
+      if (wild !== undefined && isFavourite(entry.item, wild)) {
+        choice.dataset.favourite = 'true';
+        label.append(el('span', { className: 'treat-favourite', text: t('battle.favouriteTag') }));
+      }
+      choice.append(label, el('span', { className: 'treat-count', text: String(entry.count) }));
       return el('li', {}, [choice]);
     });
     const parts: HTMLElement[] = [el('p', { className: 'battle-heading', text: t('battle.treats') })];
@@ -147,7 +156,7 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
       case 'team':
         return teamPicker(state);
       case 'treats':
-        return treatPicker();
+        return treatPicker(state);
       case 'result':
         return result(state);
       default:

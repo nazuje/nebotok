@@ -1,11 +1,13 @@
 import type { BattleEvent } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
-import { EFFECT_LEAD_MS, LINE_MAX_MS, LINE_MIN_MS, LINE_MS_PER_CHARACTER, lineAt, nextLineAt, playback, playbackMs, readingMs, shownOf, stepAt, type Step } from '../src/battle-playback.ts';
+import { favouriteBesides, favouriteTreat, isFavourite } from '../src/battle-content.ts';
+import { EFFECT_LEAD_MS, LINE_MAX_MS, LINE_MIN_MS, LINE_MS_PER_CHARACTER, favouriteLine, lineAt, nextLineAt, playback, playbackMs, readingMs, shownOf, stepAt, type Step } from '../src/battle-playback.ts';
 import { turn, wildBattle } from './support/battle-messages.ts';
 
 const move = (slot: number) => ({ kind: 'move', slot }) as const;
 const TEN = () => 10;
 const ID_LENGTH = (line: { id: string }) => line.id.length;
+const offer = (item: string, accepted: boolean): BattleEvent => ({ kind: 'treatOffered', side: 0, item, target: 'b1', chance: 10, accepted });
 
 /** How long each line stays on screen: from its step to the next line's, or the end. */
 function lineHolds(steps: readonly Step[]): { id: string; ms: number }[] {
@@ -21,7 +23,7 @@ function lineHolds(steps: readonly Step[]): { id: string; ms: number }[] {
 describe('battle playback', () => {
   it('sends both creatures out in order on a new battle, starting with nobody on the field', () => {
     const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 3 }, 'rain');
-    const steps = playback(null, started.payload.battle, started.payload.events, TEN);
+    const steps = playback(null, started.payload.battle, started.payload.events, TEN, favouriteBesides);
     expect(steps.map((step) => step.shown.active)).toEqual([
       ['a1', null],
       ['a1', 'b1'],
@@ -35,7 +37,7 @@ describe('battle playback', () => {
     const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     const before = started.payload.battle;
     const { payload } = turn(battle, move(0), move(0));
-    const steps = playback(before, payload.battle, payload.events, TEN);
+    const steps = playback(before, payload.battle, payload.events, TEN, favouriteBesides);
     const hits = payload.events.filter((event): event is Extract<BattleEvent, { kind: 'hit' }> => event.kind === 'hit');
     expect(hits.length).toBeGreaterThan(0);
     for (const hit of hits) {
@@ -57,7 +59,7 @@ describe('battle playback', () => {
   it('holds every line for its reading time, with the effects under it', () => {
     const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 }, 'sun');
     const { payload } = turn(battle, move(0), move(0));
-    const steps = playback(started.payload.battle, payload.battle, payload.events, ID_LENGTH);
+    const steps = playback(started.payload.battle, payload.battle, payload.events, ID_LENGTH, favouriteBesides);
     const holds = lineHolds(steps);
     expect(holds.length).toBeGreaterThan(1);
     for (const hold of holds) expect(hold.ms).toBe(readingMs(hold.id.length));
@@ -68,7 +70,7 @@ describe('battle playback', () => {
     // A sun move on a gale creature is neither strong nor weak, so its hit has no line of its own.
     const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'pinwhirl', level: 20 });
     const { payload } = turn(battle, move(1));
-    const steps = playback(started.payload.battle, payload.battle, payload.events, TEN);
+    const steps = playback(started.payload.battle, payload.battle, payload.events, TEN, favouriteBesides);
     const used = steps.findIndex((step, at) => step.event.kind === 'used' && steps[at + 1]?.event.kind === 'hit' && !steps[at + 1]?.line);
     expect(used).toBeGreaterThan(-1);
     expect(steps[used]?.ms).toBe(EFFECT_LEAD_MS);
@@ -78,7 +80,7 @@ describe('battle playback', () => {
   it('keeps no time for a line that asks for a choice, since it stays up with the menu', () => {
     const { battle, started } = wildBattle([{ species: 'glowbun', level: 2 }, { species: 'puddlepip', level: 2 }], { species: 'boltkit', level: 60 });
     const { payload } = turn(battle, move(0), move(0));
-    const steps = playback(started.payload.battle, payload.battle, payload.events, TEN);
+    const steps = playback(started.payload.battle, payload.battle, payload.events, TEN, favouriteBesides);
     const prompt = steps.find((step) => step.line?.id === 'battle.chooseNext');
     expect(prompt?.ms).toBe(0);
   });
@@ -89,18 +91,18 @@ describe('battle playback', () => {
     expect(fainted.payload.battle.phase).toBe('befriend');
     const left = turn(battle, { kind: 'run' });
     expect(left.payload.battle.outcome).toMatchObject({ winner: 0 });
-    const steps = playback(fainted.payload.battle, left.payload.battle, left.payload.events, TEN);
+    const steps = playback(fainted.payload.battle, left.payload.battle, left.payload.events, TEN, favouriteBesides);
     expect(steps.some((step) => step.line?.id === 'battle.ranAway')).toBe(false);
     expect(playbackMs(steps)).toBe(0);
     const ran = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'puddlepip', level: 3 });
     const away = turn(ran.battle, { kind: 'run' });
-    expect(playback(ran.started.payload.battle, away.payload.battle, away.payload.events, TEN).map((step) => step.line?.id)).toContain('battle.ranAway');
+    expect(playback(ran.started.payload.battle, away.payload.battle, away.payload.events, TEN, favouriteBesides).map((step) => step.line?.id)).toContain('battle.ranAway');
   });
 
   it('finds the step on screen at any moment, skipping steps that take no time, and ends after the last', () => {
     const { battle, started } = wildBattle([{ species: 'glowbun', level: 20 }], { species: 'puddlepip', level: 20 });
     const { payload } = turn(battle, move(0), move(0));
-    const steps = playback(started.payload.battle, payload.battle, payload.events, TEN);
+    const steps = playback(started.payload.battle, payload.battle, payload.events, TEN, favouriteBesides);
     expect(steps[0]?.event.kind).toBe('turnStarted');
     expect(stepAt(steps, 0)).toBe(1);
     expect(stepAt(steps, playbackMs(steps))).toBeNull();
@@ -109,9 +111,25 @@ describe('battle playback', () => {
 
   it('finds where the next line starts, and none after the last', () => {
     const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 3 }, 'rain');
-    const steps = playback(null, started.payload.battle, started.payload.events, TEN);
+    const steps = playback(null, started.payload.battle, started.payload.events, TEN, favouriteBesides);
     expect(nextLineAt(steps, 0)).toBe(readingMs(10));
     expect(nextLineAt(steps, readingMs(10))).toBe(2 * readingMs(10));
     expect(nextLineAt(steps, 2 * readingMs(10))).toBeNull();
+  });
+
+  it('names the favourite treat after a creature turns down another one, and not after its favourite', () => {
+    const { started } = wildBattle([{ species: 'glowbun', level: 5 }], { species: 'pinwhirl', level: 3 });
+    const view = started.payload.battle;
+    expect(favouriteTreat('pinwhirl')).toBe('mint-dumpling');
+    expect(isFavourite('mint-dumpling', 'pinwhirl')).toBe(true);
+    expect(isFavourite('plain-treat', 'pinwhirl')).toBe(false);
+    const refused = playback(view, view, [offer('plain-treat', false)], TEN, favouriteBesides);
+    expect(refused.map((step) => step.line)).toEqual([
+      { id: 'battle.treatRefused', creature: 'b1' },
+      { id: 'battle.favourite', creature: 'b1', species: 'pinwhirl', treat: 'mint-dumpling' },
+    ]);
+    expect(lineHolds(refused).map((hold) => hold.id)).toEqual(['battle.treatRefused', 'battle.favourite']);
+    expect(favouriteLine(offer('mint-dumpling', false), view, favouriteBesides)).toBeNull();
+    expect(favouriteLine(offer('plain-treat', true), view, favouriteBesides)).toBeNull();
   });
 });

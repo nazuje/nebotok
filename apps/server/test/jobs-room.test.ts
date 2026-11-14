@@ -201,7 +201,7 @@ describe('deliveries', () => {
     expect(await who.box.take<TalkNode>('talk.node')).toMatchObject({ npc: 'tobolko', node: 'job-thanks' });
 
     const changed = await who.box.take<JobChanged>('job.changed');
-    expect(changed).toMatchObject({ job: 1, change: 'done', progress: 3, rewards: { items: [{ item: 'berry-bun', count: 1 }], extra: [], skills: [{ skill: 'foraging', xp: 24 }] } });
+    expect(changed).toMatchObject({ job: 1, change: 'done', progress: 3, rewards: { items: [{ item: 'berry-bun', count: 1 }], extra: [], skills: [{ skill: 'foraging', xp: 3 * world.story.skills!.templates.get('berries-for-the-post')!.rewards.xp[0]!.perItem }] } });
     expect(changed.next?.job).toBe(4);
     expect(await who.box.take<QuestChanged>('quest.changed')).toMatchObject({ quest: 'treats-from-scratch', change: 'done', rewards: { items: [{ item: 'berry-bun', count: 2 }], skills: [{ skill: 'cooking', xp: 20 }] } });
     expect((await who.box.take<ProgressMessage>('progress')).inventory).toEqual([{ item: 'berry-bun', count: 3 }]);

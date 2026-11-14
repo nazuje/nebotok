@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   CLOCK_SLACK_MS,
-  GRACE_MS,
+  FADE_MS,
   MIN_ATTEMPT_MS,
   attemptDeadlineMs,
+  canGetNow,
   checkContentFile,
   cookRefusal,
   cookResult,
@@ -15,7 +16,9 @@ import {
   gainSkillXp,
   gatherRefusal,
   gatherResult,
+  jobCount,
   jobEvent,
+  jobFits,
   jobsView,
   judgeAttempt,
   markerAt,
@@ -165,8 +168,9 @@ describe('the tiny games', () => {
     expect(judgeAttempt(dip, [tap], tap.at + CLOCK_SLACK_MS)).not.toBe('miss');
     expect(judgeAttempt(dip, [tap], tap.at - CLOCK_SLACK_MS - 1)).toBe('miss');
     expect(judgeAttempt(dip, [tap, { at: 0, place: 0 }], 9_000)).toBe('miss');
-    expect(judgeAttempt(dip, [{ at: dip.params.dipAtMs - GRACE_MS - 1, place: 0 }], 9_000)).toBe('miss');
-    expect(judgeAttempt(dip, [{ at: dip.params.dipAtMs + dip.params.windowMs, place: 0 }], 9_000)).toBe('success');
+    expect(judgeAttempt(dip, [{ at: dip.params.dipAtMs - 1, place: 0 }], 9_000)).toBe('miss');
+    expect(judgeAttempt(dip, [{ at: dip.params.dipAtMs + dip.params.windowMs + FADE_MS - 1, place: 0 }], 9_000)).toBe('success');
+    expect(judgeAttempt(dip, [{ at: dip.params.dipAtMs + dip.params.windowMs + FADE_MS, place: 0 }], 9_000)).toBe('miss');
   });
 
   it('sweeps the marker to the end of its track and back', () => {
@@ -225,7 +229,7 @@ describe('the job board', () => {
     const once = jobEvent(courier([], { jobs: board }), { kind: 'gathered', item: 'cloudberry', count: 1 }, storyContent);
     expect(once.changes).toEqual([{ job: 1, change: 'progress', progress: 1, rewards: null, next: null }]);
     const twice = skillEvent(once.progress, { kind: 'gathered', item: 'cloudberry', count: 2 }, storyContent);
-    expect(twice.jobs[0]).toMatchObject({ job: 1, change: 'done', progress: 2, rewards: { items: [{ item: 'plain-treat', count: 1 }], skills: [{ skill: 'foraging', xp: 12 }] } });
+    expect(twice.jobs[0]).toMatchObject({ job: 1, change: 'done', progress: 2, rewards: { items: [{ item: 'plain-treat', count: 1 }], skills: [{ skill: 'foraging', xp: 2 * skills.templates.get('berries-please')!.rewards.xp[0]!.perItem }] } });
     expect(twice.jobs[0]?.next?.job).toBe(2);
     expect(twice.progress.jobs).toMatchObject({ done: 1, drawn: skills.slots + 1 });
     expect(twice.progress.inventory).toEqual([{ item: 'plain-treat', count: 1 }]);
@@ -261,7 +265,43 @@ describe('the job board', () => {
     expect(openBoard({ ...opened, jobs: pruned.jobs }, 0, storyContent).jobs?.board).toHaveLength(skills.slots);
     expect(pruneJobs(null, storyContent)).toEqual({ jobs: null, dropped: [] });
   });
-});
+
+  it('never draws the template of the job just finished again while another fits', () => {
+    for (let seed = 0; seed < 30; seed += 1) {
+      const board = { seed, drawn: 1, done: 0, board: [{ job: 1, template: 'berries-please', item: 'cloudberry', count: 1, to: null, progress: 0 }] };
+      const done = skillEvent(courier([], { jobs: board }), { kind: 'gathered', item: 'cloudberry', count: 1 }, storyContent);
+      expect(done.progress.jobs!.board.map((job) => job.template)).not.toContain('berries-please');
+      expect(done.progress.jobs!.board).toHaveLength(skills.slots);
+    }
+  });
+
+  it('draws only jobs a player can do now, and none they have outgrown', () => {
+    const outgrown = skills.outgrownAfter!;
+    const soup = skills.templates.get('soup-for-the-lookout')!;
+    expect(jobFits(at(courier(), { cooking: soup.needs.level }), soup, skills)).toBe(false);
+    expect(canGetNow(at(courier(), { cooking: soup.needs.level }), soup.item, skills)).toBe(false);
+    expect(jobFits(at(courier(), { cooking: soup.needs.level, fishing: 20, foraging: 20 }), soup, skills)).toBe(true);
+    const berries = skills.templates.get('berries-please')!;
+    expect(jobFits(at(courier(), { foraging: berries.needs.level + outgrown - 1 }), berries, skills)).toBe(true);
+    expect(jobFits(at(courier(), { foraging: berries.needs.level + outgrown }), berries, skills)).toBe(false);
+    const top = at(courier(), { foraging: 20, fishing: 20, cooking: 20 });
+    const board = openBoard(top, 3, storyContent).jobs!.board;
+    expect(board).toHaveLength(skills.slots);
+    expect(board.every((job) => jobFits(top, skills.templates.get(job.template)!, skills))).toBe(true);
+  });
+
+  it('asks for more of an item as the player grows past countGrowth.afterLevel, so jobs get fewer and richer', () => {
+    const { afterLevel, percentPerLevel } = skills.countGrowth!;
+    expect(jobCount(4, afterLevel, skills)).toBe(4);
+    expect(jobCount(4, 1, skills)).toBe(4);
+    expect(jobCount(4, afterLevel + 5, skills)).toBe(Math.floor((4 * (100 + 5 * percentPerLevel)) / 100));
+    const high = at(courier(), { foraging: 12, fishing: 12, cooking: 12 });
+    for (const job of openBoard(high, 5, storyContent).jobs!.board) {
+      const template = skills.templates.get(job.template)!;
+      expect(job.count).toBeGreaterThanOrEqual(jobCount(template.count[0], 12, skills));
+      expect(job.count).toBeLessThanOrEqual(jobCount(template.count[1], 12, skills));
+    }
+  });});
 
 describe('the side chapter', () => {
   const mainQuests = storyContent.chapters.filter((chapter) => !chapter.side).flatMap((chapter) => chapter.quests);

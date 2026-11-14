@@ -111,8 +111,11 @@ kids to change.
   `restSeconds`, or `uses: "recipes"`, and the tiny `game` it plays: `dip`, `sparkle` or `marker`)
   and the `games`' timings, one entry per `difficulty` 1 to 3. The schema keeps every game fair:
   a dip window of at least 500 ms, a sparkle shown at least 800 ms, a sweep of at least 900 ms, a
-  game at most 6 s. `node scripts/skill-sim.mjs` prints the minutes of steady play to each level;
-  keep the top level between 120 and 180 minutes, which a property test checks.
+  game at most 6 s. `node scripts/skill-sim.mjs` prints the minutes of play to each level, for one
+  skill alone and for whole players training all three with the job board, and how often a child
+  wins each game; `packages/core/test/property/skill-sim.test.ts` checks the targets: the top
+  level in 120 to 180 minutes, level 5 in 10 to 20 minutes with the board, at least 100 minutes
+  to the top for a board-first player, and difficulty 3 still won by a child most of the time.
 - `spots.json`: where players gather: the `skill`, the `ingredient` `item` it gives (1 a success,
   2 a perfect), the `level` it needs, the `xp` per success, its game's `difficulty`, its picture
   `look` (`art/spots/<look>`) and its `name`. A map's `spots` layer places each one
@@ -122,10 +125,15 @@ kids to change.
   player's cooking level, plus the next locked one.
 - `stations.json`: things players use on the map: a `cookingPot` or a `jobBoard`, with a `look`
   (`art/stations/<look>`) and a `name`. A map's `stations` layer places each one.
-- `jobs.json`: the board's `slots` and the job `templates`: `gather` (an item gathered), `cook` (a
-  dish cooked) or `deliver` (items handed to one of the characters `to`), a `count` range, what
-  the player `needs` (a skill level), a draw `weight` and `rewards`: items, and skill XP `perItem`.
-  A job is done the moment its count is reached; its rewards go in at once.
+- `jobs.json`: the board's `slots`, `countGrowth` (past `afterLevel` of the skill a job needs,
+  each level asks for `percentPerLevel` percent more items, so jobs get fewer and richer),
+  `outgrownAfter` (how many levels past its `needs` a template stops being drawn) and the job
+  `templates`: `gather` (an item gathered), `cook` (a dish cooked) or `deliver` (items handed to
+  one of the characters `to`), a `count` range, what the player `needs` (a skill level), a draw
+  `weight` and `rewards`: items, and skill XP `perItem`. The board draws a job only when the
+  player can get its item now, so a dish job also waits for the levels its ingredients need, and
+  never draws the template just finished again while another fits. A job is done the moment its
+  count is reached; its rewards go in at once.
 - `items.json` kinds `ingredient` (gathered, never offered in battle) and `treat` with an optional
   `strength` (0 to 30, added to the befriending chance). `inventory.json` stacks ingredients too.
 - Quest steps `gather` (an `item`, a perfect counts 2), `cook` (a `treat`) and `finishJobs` (any
@@ -143,9 +151,10 @@ kids to change.
 `content:validate` checks every link: each spot gives an ingredient and each recipe makes a treat
 from ingredients, at levels up to `maxLevel`; recipes need a `cookingPot` and jobs a `jobBoard`; a
 job's item comes from a spot or recipe its `needs` reach, so every job the board draws is
-doable; counts and rewards fit a stack; each `to` character has a `jobReady` dialogue entry,
-and every quest reminder before it (an active-quest `if` leading to no effects) is a `reminder`; at
-least `slots` templates need only level 1. Once any map places a spot (or station), every one must
+doable; counts (grown to the top level) and rewards fit a stack; each `to` character has a
+`jobReady` dialogue entry, and every quest reminder before it (an active-quest `if` leading to no
+effects) is a `reminder`; at least `slots` templates fit a new player, and at least `slots` a
+player at the top level of every skill. Once any map places a spot (or station), every one must
 stand on exactly one point. Skills golden replays use their own frozen copy in
 `packages/core/fixtures/golden/skills/content/`, so editing these files never moves them.
 ## The story: characters, dialogue, quests and the bag

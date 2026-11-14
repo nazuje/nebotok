@@ -9,6 +9,7 @@
 import type { Progress } from './creatures.ts';
 import { deliveryTo } from './deliveries.ts';
 import { giveItems, takeItems, type ItemCount } from './inventory.ts';
+import { jobCount, jobFits } from './job-reach.ts';
 import { questEvent, type QuestChange } from './quests.ts';
 import { createRng } from './rng.ts';
 import type { BoardJob, JobsProgress } from './save.ts';
@@ -33,40 +34,40 @@ export type JobResult = { readonly progress: Progress; readonly jobs: readonly J
 
 const EVENT_KIND: Readonly<Record<SkillEvent['kind'], JobKind>> = { gathered: 'gather', cooked: 'cook' };
 
-/** Whether the player's skill is at the level a template needs. */
-const meetsNeeds = (progress: Progress, template: JobTemplate) => skillLevel(progress, template.needs.skill).level >= template.needs.level;
-
 /**
  * The job the board draws next (number `drawn + 1`), from an RNG seeded by the board's seed and
- * that number, so the same save always draws the same job: a template whose needs the player meets
- * and that is not on the board already, picked by weight. Null when the board is unopened or no
- * template fits.
+ * that number, so the same save always draws the same job: a template that fits the player's levels
+ * (`jobFits`) and is not on the board already, picked by weight. The template of the job just
+ * finished (`after`) is drawn again only when nothing else fits. Null when the board is unopened or
+ * no template fits.
  */
 export function drawJob(progress: Progress, content: SkillContent): BoardJob | null {
-  return progress.jobs ? nextJob(progress.jobs, progress, content) : null;
+  return progress.jobs ? nextJob(progress.jobs, progress, content, null) : null;
 }
 
-function nextJob(jobs: Pick<JobsProgress, 'seed' | 'drawn' | 'board'>, progress: Progress, content: SkillContent): BoardJob | null {
+function nextJob(jobs: Pick<JobsProgress, 'seed' | 'drawn' | 'board'>, progress: Progress, content: SkillContent, after: string | null): BoardJob | null {
   const onBoard = new Set(jobs.board.map((job) => job.template));
-  const fits = [...content.templates.values()].filter((template) => !onBoard.has(template.id) && meetsNeeds(progress, template));
-  if (fits.length === 0) return null;
+  const fits = [...content.templates.values()].filter((template) => !onBoard.has(template.id) && jobFits(progress, template, content));
+  const fresh = fits.filter((template) => template.id !== after);
+  const choices = fresh.length > 0 ? fresh : fits;
+  if (choices.length === 0) return null;
   const number = jobs.drawn + 1;
   const rng = createRng(`job:${jobs.seed}:${number}`);
-  let roll = rng.int(1, fits.reduce((sum, template) => sum + template.weight, 0));
-  const template = fits.find((candidate) => (roll -= candidate.weight) <= 0) ?? (fits[0] as JobTemplate);
-  const count = rng.int(template.count[0], template.count[1]);
+  let roll = rng.int(1, choices.reduce((sum, template) => sum + template.weight, 0));
+  const template = choices.find((candidate) => (roll -= candidate.weight) <= 0) ?? (choices[0] as JobTemplate);
+  const count = jobCount(rng.int(template.count[0], template.count[1]), skillLevel(progress, template.needs.skill).level, content);
   const to = template.kind === 'deliver' ? rng.pick(template.to) : null;
   return { job: number, template: template.id, item: template.item, count, to, progress: 0 };
 }
 
-/** The board filled up to `slots` with new draws. */
-function fillBoard(progress: Progress, content: SkillContent): Progress {
+/** The board filled up to `slots` with new draws, none of them `after`'s template while another fits. */
+function fillBoard(progress: Progress, content: SkillContent, after: string | null = null): Progress {
   const { jobs } = progress;
   if (!jobs) return progress;
   const board = [...jobs.board];
   let { drawn } = jobs;
   while (board.length < content.slots) {
-    const job = nextJob({ seed: jobs.seed, drawn, board }, progress, content);
+    const job = nextJob({ seed: jobs.seed, drawn, board }, progress, content, after);
     if (!job) break;
     board.push(job);
     drawn = job.job;
@@ -121,7 +122,7 @@ function finishJob(progress: Progress, job: BoardJob, content: SkillContent, bag
     skills.push(grown.gain);
   }
   const before = next.jobs?.drawn ?? 0;
-  next = fillBoard(next, content);
+  next = fillBoard(next, content, job.template);
   const drawn = next.jobs?.board.find((other) => other.job > before);
   const change: JobChange = { job: job.job, change: 'done', progress: job.count, rewards: { items: gift.given, extra: gift.extra, skills }, next: drawn ? viewOf(drawn, content) : null };
   return { progress: next, change };

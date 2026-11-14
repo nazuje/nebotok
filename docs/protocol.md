@@ -4,9 +4,10 @@ How the browser talks to the server: an HTTP API for profiles and sessions, then
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
 `src/skill-messages.ts` for skills and jobs), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **8**),
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **9**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
-protocol 6 with the starter only through a talk, and protocol 8 adds skills and the job board.
+protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board, and
+protocol 9 judges the tiny games exactly as they are drawn.
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants and server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`, and
 fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -433,14 +434,19 @@ by `scripts/lib/protocol-contract.test.mjs`):
 - `MIN_ATTEMPT_MS` (1000): a finish sooner is a miss.
 - `CLOCK_SLACK_MS` (50): a tap later than `elapsed` + 50, or taps out of order, is a miss: that
   tap had not happened yet.
-- `GRACE_MS` (150): every window counts 150 ms wider on each side than it is drawn. The marker's
-  zone widens by the distance it moves in 150 ms.
+- What counts is what the browser draws, with the slack for frame timing and touch delay drawn
+  too. `FADE_MS` (100): a dipped float and a sparkle fade out over 100 ms once their time is up,
+  and a tap while they fade still counts; a tap before they show never does.
+  `MARKER_HALF_WIDTH` (20): the marker's needle is 40 track units wide, and a stop counts for a
+  band whenever any part of the needle touches it.
 - `LATE_MS` (5000): the server waits `endsByMs` plus 5 s for `skill.finish`, then ends the attempt
   `late`, a miss. Up to 5 s of delay on the answer costs nothing.
-- Dip: the first tap counts; inside the window is a success, inside its first `perfectMs` a
-  perfect, before it a miss. Sparkle: a tap counts for the sparkle shown at its `place` then;
-  `need` of them is a success, all a perfect. Marker: the first tap stops it; inside the zone is a
-  success, inside the perfect band a perfect, no tap by `timeoutMs` a miss.
+- Dip: the first tap counts; while the float is dipped or fading (core `dipPhase`) is a success,
+  within `perfectMs` of the dip a perfect, before or after a miss. Sparkle: one sparkle shows at a
+  time, the earliest not yet picked whose time has come and whose fade is not over (core
+  `shownSparkle`); a tap at its `place` picks it (core `sparkleHit`). `need` of them is a
+  success, all a perfect. Marker: the first tap stops it; the needle touching the zone is a
+  success, touching the perfect band a perfect, no tap by `timeoutMs` a miss.
 
 A success gives the spot's item (or the dish) and XP, and rests the spot for this player only
 (`restSeconds` of its skill); a perfect gives one more within the stack. A miss, `late` or
@@ -463,8 +469,13 @@ takes a level away. Levels unlock spots and recipes. The recipe book (core `reci
 recipe at or below the cooking level, plus the next locked one.
 
 The board shows `slots` (3) jobs from `content/jobs.json`. Job `n` is drawn from an RNG seeded by
-the save's `jobs.seed` and `n` (core `drawJob`), never a template already on the board and only
-one whose `needs` the player meets. A `gather` job counts that item gathered after it appeared (a
+the save's `jobs.seed` and `n` (core `drawJob`), never a template already on the board, and never
+the template of the job just finished while another fits. It draws only a template that fits the
+player (core `jobFits`): their level of the skill its `needs` name is at least that level and
+less than `outgrownAfter` levels past it, and they can get its item now, from a spot of theirs or
+a recipe whose ingredients they can gather (`canGetNow`). Past `countGrowth.afterLevel` of that
+skill, each level asks for `percentPerLevel` percent more items (core `jobCount`), so jobs come
+fewer and richer, as XP is paid per item. A `gather` job counts that item gathered after it appeared (a
 perfect counts 2), a `cook` job that dish cooked, and a `deliver` job is handed over in a talk:
 the character's dialogue entry `{ "jobReady": true }` leads to a node with the effect
 `{ "deliverJob": true }`, which takes the items (core `deliverJob`). A ready delivery outranks
@@ -473,6 +484,7 @@ takes it even while a quest of theirs is open. A job is done the moment its
 count is reached: its rewards go in at once, within stack limits, and the next job is drawn
 straight away. There is no accept, collect or swap step and no currency. Quest steps `gather`,
 `cook` and `finishJobs` count the same events.
+
 ## Movement rules
 
 The server runs core's `stepWalker` 20 times a second (`setFixedTimestep`, 50 ms) for every

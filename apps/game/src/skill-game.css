@@ -171,12 +171,23 @@ canvas.dip-float {
   background: linear-gradient(#ffe3e3, #ffb3b3);
 }
 
-.dip[data-phase='dip'] .dip-mark {
+.dip[data-phase='dip'] .dip-mark,
+.dip[data-phase='fading'] .dip-mark {
   visibility: visible;
 }
 
 .dip[data-phase='dip'] canvas.dip-float {
   filter: drop-shadow(0 0 6px var(--bad));
+}
+
+/* The window's last moment: a pull still counts while the red fades. */
+.dip[data-phase='fading'] {
+  background: linear-gradient(#fff0f0, #ffd6d6);
+}
+
+.dip[data-phase='fading'] .dip-mark,
+.dip[data-phase='fading'] canvas.dip-float {
+  opacity: 0.5;
 }
 
 /* Foraging: a bush with a place above, left, right and below it. */
@@ -246,6 +257,11 @@ canvas.sparkle-gem {
   visibility: visible;
 }
 
+/* A sparkle whose time is up fades out, and a tap while it fades still picks it. */
+.sparkle-place[data-fading='true'] canvas.sparkle-gem {
+  opacity: 0.45;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .sparkle-place[data-on='true'] canvas.sparkle-gem {
     animation: sparkle-in 0.18s ease-out;
@@ -304,11 +320,12 @@ canvas.sparkle-gem {
   background: #b2f2bb;
 }
 
+/* Its width is set from core MARKER_HALF_WIDTH: a stop counts wherever any of the needle touches. */
 .marker-head {
   position: absolute;
   top: -14px;
   bottom: -14px;
-  width: 8px;
+  min-width: 4px;
   transform: translateX(-50%);
   border-radius: 4px;
   background: var(--ink);

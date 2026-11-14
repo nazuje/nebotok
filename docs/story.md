@@ -74,11 +74,17 @@ voice: one when the courier brings everything (`job-thanks`, which hands it over
 the courier has not got it all yet (`job-waiting`). These come after the quest lines, so a quest
 always goes first.
 
+The board grows with the courier: berries and pebblefish at first, then Fish Biscuits and Mint
+Dumplings to cook and hand over, then sunroot, glimmercarp, frostcaps, Sunroot Bakes and Frost
+Pudding. A job the courier has long outgrown stops coming, and jobs ask for more as levels rise.
+
 ### Cooked treats
 
 Every creature's favourite treat is now a dish from the pot, three creatures for each dish. The
 weather treats from quests are still liked by their weather type, and Tobolko's Plain Treats stay
-as the fallback when the courier runs out.
+as the fallback when the courier runs out. The treat picker marks a wild creature's favourite with
+a heart, and a creature that turns down another treat says which dish it loves, so players learn
+what to cook for whom.
 
 | Dish | Cooking level | Favourite of |
 | --- | --- | --- |

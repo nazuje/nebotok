@@ -1113,8 +1113,31 @@ body:not([data-screen='world']) .team-button {
   height: 48px;
 }
 
+.treat-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .treat-name {
   font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.treat-favourite {
+  color: #c2255c;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.treat-favourite::before {
+  content: '♥ ';
+  content: '♥ ' / '';
+}
+
+.treat-choice[data-favourite='true'] {
+  border-color: #f783ac;
+  background: #fff0f6;
 }
 
 .treat-count {

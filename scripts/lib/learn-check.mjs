@@ -1,7 +1,8 @@
 // Learning a move at a level up, against the real server. Nothing in the game reaches a learnset
 // level quickly, so the browser check prepares the player's save in its own server's database
 // (scripts/lib/prepared-saves.mjs) before the player first signs in: one glowbun a point of
-// experience short of the level where it learns a fifth move.
+// experience short of the level where it learns a fifth move, carrying one of every treat so the
+// treat picker, opened once the wild creature has fainted, shows its favourite at 360px.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { emptyProgress, loadBattleContent, newCreature, xpToNextLevel } from '../../packages/core/src/index.ts';
@@ -25,6 +26,7 @@ const NEXT = glowbun.learnset.find((entry) => entry.level >= 12);
 const LEVEL = NEXT.level - 1;
 const power = (move) => CONTENT.moves.get(move)?.power ?? 0;
 const MAX_TURNS = 40;
+const TREATS = [...CONTENT.items.values()].filter((item) => item.kind === 'treat');
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 
@@ -33,16 +35,67 @@ export function learnerSave({ name, language, position }) {
   const grown = newCreature(SPECIES, LEVEL, CONTENT);
   // The strongest move first, since the check attacks with the first one.
   const learner = { ...grown, xp: xpToNextLevel(LEVEL) - 1, moves: grown.moves.toSorted((a, b) => power(b) - power(a)) };
-  return { name, language, createdAt: new Date().toISOString(), position, ...emptyProgress(), team: [learner], befriended: [SPECIES], seen: [SPECIES] };
+  return {
+    name,
+    language,
+    createdAt: new Date().toISOString(),
+    position,
+    ...emptyProgress(),
+    team: [learner],
+    befriended: [SPECIES],
+    seen: [SPECIES],
+    inventory: TREATS.map((item) => ({ item: item.id, count: 1 })),
+  };
 }
 
-/** Attacks with the first move until the battle is won, leaving with Done once the wild creature has fainted and waits for a treat. */
-async function winBattle(page, state, turn = 0) {
+/**
+ * Opens the treat picker on a fainted wild creature and sees its favourite marked: the heart and
+ * "Favourite!" on the favourite's own button, on one line inside it, scrolled into view for the
+ * screenshot. Goes back to the menu without offering anything.
+ */
+async function seeFavourite(page, state, { language, strings, expect, check }) {
+  const species = state.battle.opponent.species;
+  const favourite = CONTENT.items.get(CONTENT.species.get(species)?.favouriteTreat);
+  await page.locator('#battle .battle-treat').tap();
+  await until(page, (s) => s.battle?.panel === 'treats', 'the treat picker on the fainted wild creature');
+  await nextFrames(page);
+  const marked = page.locator('#battle .treat-choice[data-favourite="true"]');
+  expect((await marked.count()) === 1, `the treat picker marks ${await marked.count()} treats as the wild ${species}'s favourite, not 1`);
+  if ((await marked.count()) === 1 && favourite) {
+    await marked.scrollIntoViewIfNeeded();
+    const shown = await marked.evaluate((choice) => {
+      const tag = choice.querySelector('.treat-favourite');
+      const box = choice.getBoundingClientRect();
+      const tagBox = tag?.getBoundingClientRect();
+      // Line height is often "normal", so a wrapped tag is told by being two font sizes tall.
+      const fontSize = tag ? Number.parseFloat(getComputedStyle(tag).fontSize) : 0;
+      return {
+        name: choice.querySelector('.treat-name')?.textContent,
+        tag: tag?.textContent,
+        inside: Boolean(tagBox) && tagBox.left >= box.left && tagBox.right <= box.right && choice.scrollWidth <= choice.clientWidth,
+        oneLine: Boolean(tagBox) && tagBox.height < fontSize * 2,
+      };
+    });
+    expect(shown.name === favourite.name[language], `the favourite marked is "${shown.name}", not "${favourite.name[language]}"`);
+    expect(shown.tag === strings['battle.favouriteTag'][language], `the favourite tag says "${shown.tag}"`);
+    expect(shown.inside && shown.oneLine, `the favourite tag does not fit its button on one line: ${JSON.stringify(shown)}`);
+  }
+  await check('the treat picker with the favourite', 'b3-favourite');
+  await page.locator('#battle .battle-back').tap();
+  return until(page, (s) => s.battle?.panel === 'menu', 'the battle menu after the treat picker');
+}
+
+/**
+ * Attacks with the first move until the battle is won, leaving with Done once the wild creature has
+ * fainted and waits for a treat, after `befriend` has looked at the treat picker.
+ */
+async function winBattle(page, state, befriend, turn = 0) {
   if (state.battle.panel === 'result' || turn >= MAX_TURNS) return state;
   await nextFrames(page);
+  if (state.battle.phase === 'befriend') await befriend(state);
   await page.locator(state.battle.phase === 'befriend' ? '#battle .battle-run' : '#battle .move').first().tap();
   const next = await untilTappingThrough(page, (s) => battleIdle(s) && (s.battle.turn > state.battle.turn || s.battle.panel === 'result'), 'the next turn of the learner’s battle', 15_000);
-  return winBattle(page, next, turn + 1);
+  return winBattle(page, next, befriend, turn + 1);
 }
 
 /**
@@ -54,7 +107,14 @@ async function winBattle(page, state, turn = 0) {
 export async function playLearning(page, { language, strings, forget, expect, check }) {
   const say = (id) => strings[id][language];
   const name = (kind, id) => CONTENT[kind].get(id)?.name[language] ?? id;
-  const won = await winBattle(page, await untilTappingThrough(page, battleIdle, 'the learner’s battle to offer a choice', 15_000));
+  let looked = false;
+  const befriend = async (state) => {
+    if (looked) return;
+    looked = true;
+    await seeFavourite(page, state, { language, strings, expect, check });
+  };
+  const won = await winBattle(page, await untilTappingThrough(page, battleIdle, 'the learner’s battle to offer a choice', 15_000), befriend);
+  expect(looked, 'the wild creature never waited for a treat, so the treat picker was not seen');
   expect(won.battle.outcome?.winner === 0, `the learner’s battle ended ${JSON.stringify(won.battle.outcome)}, not in a win`);
   expect(won.battle.rewards[0]?.level === NEXT.level, `the learner reached level ${won.battle.rewards[0]?.level}, not ${NEXT.level}`);
   await nextFrames(page);
