@@ -33,6 +33,16 @@ const WEATHER_NAMES = new Map(readContent('creatures/weather.json').types.map((t
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 const nameOf = (species, language) => CONTENT.species.get(species)?.name[language] ?? species;
 const apartBy = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/** What is wrong with the weather chips in `scope`: each must show its weather's icon and be named by the weather in `language`. */
+export async function weatherChipProblems(page, scope, language) {
+  const chips = await page.locator(`${scope} .type-chip`).evaluateAll((all) => all.map((chip) => ({ type: chip.dataset.type ?? null, label: chip.getAttribute('aria-label'), picture: chip.querySelector('canvas.picture')?.dataset.picture ?? null })));
+  if (chips.length === 0) return [`${scope} shows no weather chips`];
+  return chips.flatMap((chip) => {
+    const wanted = WEATHER_NAMES.get(chip.type)?.[language];
+    return chip.picture === spriteFor.weatherIcon(chip.type) && chip.label === wanted ? [] : [`a weather chip in ${scope} shows ${JSON.stringify(chip)}, not the ${chip.type} icon named "${wanted}"`];
+  });
+}
 const worn = (creature, hp) => Object.assign(creature, { hp });
 
 /**
@@ -74,7 +84,7 @@ export function battleSave(world, { name, language }) {
  * stands marked; tapping them walks up and opens the talk, where a tap shows the whole line at
  * once; talking on brings up the starter choice, which is checked, and the first starter taken.
  */
-export async function chooseStarter(page, world, { say, expect, check, notes }) {
+export async function chooseStarter(page, world, { language, say, expect, check, notes }) {
   const hinted = await until(page, (s) => inWorld(s) && s.progress?.needsStarter === true && s.talkHint !== null && settledOn(s), 'the hint to the character who gives the first creature');
   const giver = hinted.talkHint;
   expect(hinted.npcs.find((npc) => npc.id === giver)?.mark === 'newQuest', `${giver}, who gives the first creature, carries the mark ${JSON.stringify(hinted.npcs.find((npc) => npc.id === giver)?.mark)}`);
@@ -95,6 +105,7 @@ export async function chooseStarter(page, world, { say, expect, check, notes }) 
   await nextFrames(page);
   expect((await textOf(page, '#starter .screen-title')) === say('starter.title'), 'the starter choice has the wrong title');
   expect((await page.locator('.starter-choice').count()) === STARTERS.species.length, `the starter choice does not offer the ${STARTERS.species.length} starters`);
+  for (const problem of await weatherChipProblems(page, '#starter', language)) expect(false, problem);
   await check('the starter choice', 'b1-starter');
   await page.locator('.starter-choice').first().tap();
   const state = await until(page, (s) => s.screen === 'world' && s.progress?.needsStarter === false && s.progress.team.length === 1 && s.talk === null, 'the world with the starter on the team and the talk over');

@@ -23,7 +23,8 @@
 // cards, hand a delivery over in a talk, see the job toast and find the new card in its place; at
 // 360px a player opens the board for the first time. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
-// from the settings, then signs in with it and meets a wild creature. Against its own server, a
+// from the settings (after choosing a starter, whose weather chips must show their icons), then
+// signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px, sees the fainted wild
 // creature's favourite marked in the treat picker, and answers the offer of a new move
 // (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
@@ -74,7 +75,7 @@ import {
   walkByTaps,
   watch,
 } from './lib/game-page.mjs';
-import { battleSave, chooseStarter, playBattles } from './lib/battle-check.mjs';
+import { battleSave, chooseStarter, playBattles, weatherChipProblems } from './lib/battle-check.mjs';
 import { learnerSave, playLearning } from './lib/learn-check.mjs';
 import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
@@ -446,6 +447,7 @@ async function keepOne(page, bot, { language, expect, check, notes }) {
   expect(opened.progress?.team.length === 1, `the new player has ${opened.progress?.team.length} creatures, not just the starter`);
   expect((await page.locator('#team .team-store').count()) === 0, 'the team screen offers to leave the only creature at the shrine');
   expect((await textOf(page, '#team .team-keep')) === STRINGS['storage.keepOne'][language], `the team screen says "${await textOf(page, '#team .team-keep')}" about the only creature`);
+  for (const problem of await weatherChipProblems(page, '#team', language)) expect(false, problem);
   await check('the team screen with one creature at a shrine', 'b5-team');
 }
 
@@ -671,7 +673,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await shot('3-new-player');
 
     await page.locator('.create').tap();
-    await chooseStarter(page, bot, { say, expect, check, notes });
+    await chooseStarter(page, bot, { language, say, expect, check, notes });
     state = await enterWorld(page, bot, inWorld, 'the world after making a player', { notes });
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
     expect(state.playerCount >= 1, `player count is ${state.playerCount}`);
@@ -890,11 +892,20 @@ async function checkAddPin(browser, browserName, language, bot) {
   const targets = async (where) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
   };
+  const check = async (where, step) => {
+    await targets(where);
+    await noSideways(where);
+    await shot(step);
+  };
   try {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    let state = await enterWorld(page, bot, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add', { notes });
+    const atStarter = async () => {
+      for (const problem of await weatherChipProblems(page, '#starter', language)) problems.push(problem);
+      await check('the starter choice at 360px', 'add-pin-0-starter');
+    };
+    let state = await enterWorld(page, bot, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add', { notes, atStarter });
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
 
     await page.locator('.settings-button').tap();
@@ -946,11 +957,6 @@ async function checkAddPin(browser, browserName, language, bot) {
     state = await until(page, inWorld, 'the world after signing in with the added PIN');
     expect(state.profile?.name === name, 'the added PIN signed in as someone else');
     await shot('add-pin-5-signed-in');
-    const check = async (where, step) => {
-      await targets(where);
-      await noSideways(where);
-      await shot(step);
-    };
     await wildBattle(page, bot, { expect, check, notes });
     await keepOne(page, bot, { language, expect, check, notes });
     await page.locator('#team .team-close').tap();

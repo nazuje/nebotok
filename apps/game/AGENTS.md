@@ -40,7 +40,10 @@ changing Phaser code, and use Phaser 4 APIs only.
   couriers are HTML (`src/names.ts`).
 - **Art** comes from `content/art/`, bundled by `src/sprites.ts`, which makes each sprite a
   Phaser texture with its frames and animations; `src/tileset-art.ts` draws and animates map
-  tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`).
+  tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`). HTML
+  screens show pictures with `pictureIcon(id, sizePx)` (the picture kit, `content/art/pictures/`)
+  and `weatherIcon(type, sizePx)` from `src/pictures.ts`, hidden from screen readers unless given
+  a `label`.
 - **Input** (`src/input.ts`) sends every movement command through `src/outbox.ts`, which keeps
   a page under the server's message limits however fast it is tapped or mashed. Battle, talk,
   skill and board requests go through the page's one `src/request-pacer.ts` for the same reason,

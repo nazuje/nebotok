@@ -27,6 +27,7 @@ kind fixes its size and the frames the game asks it for:
 | `actions` | 16×16 | animation `play` | each skill in `skills.json` needs `actions/<skill id>`, drawn beside a courier doing it |
 | `skills` | 16×16 | any frames; the first is the icon | each skill needs `skills/<skill id>` too, its icon in lists and toasts |
 | `games` | 32×32 | see below | the tiny games: `games/float` (frames `still` and `dip`) for a skill playing `dip`, `games/sparkle` for `sparkle`, `games/marker` for `marker` |
+| `pictures` | 16×16 | any frames; the first is the picture | the picture kit: every id in `PICTURES` (`packages/core/src/art.ts`) needs `pictures/<id>` |
 
 A new kind is one line in `SPRITE_RULES` (`packages/core/src/art.ts`).
 
@@ -92,8 +93,15 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   player and `back` as the player's own; a background is drawn behind both. A creature's icon is
   the same creature, simplified to read at 16 by 16. Give each creature a silhouette of its own
   and the colours of its weather, so it reads as that weather even in black and white.
-- **Weather icons** sit beside the weather's name on the battle field while that weather lasts:
-  one simple shape each (a sun, a cloud with drops), in the weather's colours.
+- **Weather icons** sit beside the weather's name on the battle field while that weather lasts,
+  and stand in for the weather's name on type and move chips: one simple shape each (a sun, a
+  cloud with drops), in the weather's colours.
+- **Pictures** say on HTML screens what words would, for players who cannot read yet: a check, a
+  cross, a heart, a lock, a clock, a trophy, an arrow (pointing right; the game mirrors it to point
+  left), a try-again loop, an envelope, a compass, footprints (too far), a full bag, a stamp (done),
+  a star burst and a speaker (read aloud). Each is one outlined shape that reads on its own at 16
+  by 16. `pictureIcon(id, sizePx)` and `weatherIcon(type, sizePx)` in `apps/game/src/pictures.ts`
+  paint them into HTML; a new picture is an id in `PICTURES` and its sprite.
 - **Spots and stations** stand on their map tile like a character. A spot shows `ready`, or
   `resting` while it rests for this player (a bare bush, still water). The `actions` animation of
   a skill plays beside the courier of anyone doing it, so courier sprites need no gathering

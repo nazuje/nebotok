@@ -837,11 +837,26 @@ canvas.creature {
   gap: 6px;
 }
 
+/* The picture kit and weather icons (src/pictures.ts), scaled up with sharp pixels. */
+.picture {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.picture.mirrored {
+  transform: scaleX(-1);
+}
+
+/* A weather type: its icon, with its name small underneath. */
 .type-chip {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 0.85rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px 2px;
+  border-radius: 12px;
+  font-size: 0.7rem;
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .move-chips {
@@ -854,7 +869,10 @@ canvas.creature {
 }
 
 .move-chip {
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 4px;
   border-radius: 8px;
   font-size: 0.85rem;
 }
@@ -1336,6 +1354,13 @@ body:not([data-screen='world']) .team-button {
 .learn-new .move-chip {
   font-size: 1.05rem;
   font-weight: 800;
+}
+
+.learn-forget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 #learn[aria-busy='true'] button {
