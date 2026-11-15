@@ -189,6 +189,7 @@ export const REQUIRED_STRING_IDS = [
   'skill.miss',
   'skill.tryAgain',
   'skill.gained',
+  'skill.count',
   'skill.levelUp',
   'skill.resting',
   'skill.needsLevel',

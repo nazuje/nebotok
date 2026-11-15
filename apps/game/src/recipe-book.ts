@@ -1,7 +1,8 @@
-import { giveItems, itemCount, recipeBook, recipeSkill, type Language, type Progress, type StoryContent, type StringId } from '@nebotok/core';
+import { giveItems, itemCount, recipeBook, recipeSkill, spriteFor, type Language, type Progress, type StoryContent, type StringId } from '@nebotok/core';
 import { itemIcon } from './bag-screen.ts';
 import { CONTENT, itemName } from './battle-content.ts';
 import { button, el } from './dom.ts';
+import { pictureIcon, spriteIcon } from './pictures.ts';
 import { STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
 
@@ -46,19 +47,51 @@ export function recipePage(progress: Progress, content: StoryContent): RecipePag
 
 const BLOCK_TEXT: Readonly<Record<CookBlock, StringId>> = { noItem: 'skill.noItem', bagFull: 'skill.bagFull' };
 
+/** An ingredient's pips: one per item the recipe needs, filled for each the bag has. */
+export const needPips = (have: number, need: number): boolean[] => Array.from({ length: need }, (_, at) => at < have);
+
+/** An ingredient as its picture with a pip for each one needed, filled for each the bag has, red while short; the words are for screen readers. */
+function ingredient({ item, have, need }: RecipeRow['ingredients'][number], language: Language): HTMLElement {
+  const pips = needPips(have, need).map((filled) => el('span', { className: filled ? 'pip' : 'pip empty' }));
+  return el('li', { className: have < need ? 'recipe-need short' : 'recipe-need' }, [
+    el('span', { className: 'visually-hidden', text: format('book.have', language, { item: itemName(item, language), count: have, of: need }) }),
+    el('span', { className: 'recipe-need-pictures', attrs: { 'aria-hidden': 'true' } }, [spriteIcon(spriteFor.item(item), 32), el('span', { className: 'recipe-pips' }, pips)]),
+  ]);
+}
+
+/** Why Cook is off, with the full bag's picture when the dish has no room. */
+function blockedWhy(blocked: CookBlock, makes: string, language: Language): HTMLElement {
+  const words = el('span', { text: format(BLOCK_TEXT[blocked], language, { item: itemName(makes, language) }) });
+  return el('p', { className: 'recipe-why' }, blocked === 'bagFull' ? [pictureIcon('bag-full', 32), words] : [words]);
+}
+
 /** A dish's strength as stars, read out as "Strength 2 of 5". */
 function stars(count: number, language: Language): HTMLElement {
   const marks = Array.from({ length: MAX_STARS }, (_, at) => el('span', { className: at < count ? 'star' : 'star empty' }));
   return el('span', { className: 'recipe-stars', attrs: { role: 'img', 'aria-label': format('book.strength', language, { count }) } }, marks);
 }
 
-/** The next locked recipe: its dish greyed out and the level it needs. */
+/** The next locked recipe: its dish greyed out, then a lock, the skill's icon and the level it needs, with the words under them. */
 function lockedRow(next: NonNullable<RecipePage['next']>, skill: string | null, language: Language): HTMLElement {
   const skillName = (skill && STORY.skills?.skills.get(skill)?.name[language]) ?? '';
+  const pictures = el('div', { className: 'recipe-lock', attrs: { 'aria-hidden': 'true' } }, [
+    pictureIcon('lock', 32),
+    ...(skill ? [spriteIcon(spriteFor.skill(skill), 32)] : []),
+    el('span', { className: 'level-badge', text: String(next.level) }),
+  ]);
   return el('li', { className: 'recipe locked', attrs: { 'data-recipe': next.recipe } }, [
     el('div', { className: 'recipe-top' }, [itemIcon(next.makes), el('div', { className: 'recipe-name' }, [el('span', { text: itemName(next.makes, language) })])]),
+    pictures,
     el('p', { className: 'recipe-why', text: format('book.locked', language, { skill: skillName, level: next.level }) }),
   ]);
+}
+
+/** Cook, with the picture of the pot it is cooked in. */
+function cookButton(station: string, language: Language, onTap: () => void): HTMLButtonElement {
+  const cook = button('primary recipe-cook', '', onTap);
+  const look = STORY.skills?.stations.get(station)?.look;
+  cook.append(...(look ? [spriteIcon(spriteFor.station(look), 32)] : []), el('span', { text: text('book.cook', language) }));
+  return cook;
 }
 
 export type RecipeBookOptions = {
@@ -86,9 +119,10 @@ export type RecipeBookScreen = {
 
 /**
  * The recipe book, opened by walking up to a cooking pot: each recipe the cooking level unlocks with
- * its dish, the dish's strength as stars and what the bag has of each ingredient ("Cloudberry 3 / 2").
- * Cook is off, with the reason under it, while an ingredient is short or the dish's stack is full.
- * The next locked recipe shows the level it needs. Opening it moves focus to the first Cook that
+ * its dish, the dish's strength as stars and each ingredient as its picture with a pip for each one
+ * needed, filled for each the bag has. Cook shows the pot, and is off, with the reason under it, while
+ * an ingredient is short (its pips red) or the dish's stack is full (the full bag). The next locked
+ * recipe shows a lock, the skill's icon and the level it needs. Opening it moves focus to the first Cook that
  * works, or the book itself; Escape closes it, and closing gives focus back to where it was.
  */
 export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions): RecipeBookScreen {
@@ -99,17 +133,15 @@ export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions):
   root.tabIndex = -1;
 
   function row(entry: RecipeRow, at: string, language: Language): HTMLElement {
-    const lines = entry.ingredients.map(({ item, have, need }) =>
-      el('li', { className: have < need ? 'recipe-need short' : 'recipe-need', text: format('book.have', language, { item: itemName(item, language), count: have, of: need }) }),
-    );
-    const cook = button('primary recipe-cook', text('book.cook', language), () => options.cook(entry.recipe, at));
+    const lines = entry.ingredients.map((each) => ingredient(each, language));
+    const cook = cookButton(at, language, () => options.cook(entry.recipe, at));
     cook.disabled = entry.blocked !== null;
     const parts: HTMLElement[] = [
       el('div', { className: 'recipe-top' }, [itemIcon(entry.makes), el('div', { className: 'recipe-name' }, [el('span', { text: itemName(entry.makes, language) }), stars(entry.stars, language)])]),
       el('ul', { className: 'recipe-needs' }, lines),
       cook,
     ];
-    if (entry.blocked) parts.push(el('p', { className: 'recipe-why', text: format(BLOCK_TEXT[entry.blocked], language, { item: itemName(entry.makes, language) }) }));
+    if (entry.blocked) parts.push(blockedWhy(entry.blocked, entry.makes, language));
     return el('li', { className: 'recipe', attrs: { 'data-recipe': entry.recipe } }, parts);
   }
 

@@ -90,6 +90,8 @@ export function resultNews(result: SkillResultMessage, content: StoryContent): {
 
 export type SkillsOptions = {
   language(): Language;
+  /** The signed-in player's profile id, or null when the page does not know it. */
+  player(): number | null;
   /** The player's team and bag, as the server last sent them. */
   progress(): ProgressMessage | null;
   /** Something else is in front of the world (a battle, a talk, a story cue): the card and the book close. */
@@ -158,6 +160,7 @@ export function createSkills(options: SkillsOptions): Skills {
   const card = createSkillCard(element<HTMLElement>('#skill-game'), {
     language: options.language,
     reducedMotion: () => reducedMotion.matches,
+    player: options.player,
     finish: (attempt: number, taps: readonly Tap[]) => send(CLIENT_MESSAGES.skillFinish, { attempt, taps }),
     cancel: (attempt) => send(CLIENT_MESSAGES.skillCancel, { attempt }),
     again: (attempt: SkillAttemptMessage) => {
