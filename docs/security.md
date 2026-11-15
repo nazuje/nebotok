@@ -183,7 +183,7 @@ dependency of a different kind from npm's, so it has its own rules.
 | It runs only on a developer's Mac. CI, the image, the server and the game never run it, and none of it is installed by `npm ci`. CI only checks the committed clips against content (`content:validate`), in plain JavaScript. | `scripts/voice/`, `scripts/voice/clips.mjs` |
 | Everything it installs lives outside the repository, in `~/.cache/nebotok-voice/` (`NEBOTOK_VOICE_HOME`), so none of it can be committed or copied into the image. | `scripts/voice/setup.sh`, `config.mjs` |
 | Python packages: exact versions with a SHA-256 hash for every file, installed by uv with `--require-hashes` (a file that changed on PyPI is refused) and `--only-binary :all:` (wheels only, so no package builds or runs setup code while installing). | `scripts/voice/requirements.txt`, `setup.sh` |
-| Voice models: one Hugging Face revision of `rhasspy/piper-voices`, downloaded over HTTPS only and refused unless each file's SHA-256 matches. | `scripts/voice/setup.sh` |
+| Voice models: one Hugging Face revision of `rhasspy/piper-voices`, downloaded over HTTPS only and refused unless each file's SHA-256 matches, at setup and again before every use. | `scripts/voice/setup.sh`, `models.sha256`, `voice.mjs` |
 | What ships is only MP3 files and a JSON manifest, served from the game's own origin like its other files. No outside request, and the Content-Security-Policy is unchanged (`default-src 'self'` covers audio). | `apps/game/public/voice/`, `apps/game/src/voice-clips.json` |
 
 What `npm run voice:setup` uses and downloads, as of its first install (November 2026):
@@ -209,9 +209,12 @@ What `npm run voice:setup` uses and downloads, as of its first install (November
   | `sl/sl_SI/artur/medium/sl_SI-artur-medium.onnx` (63.2 MB) | `9222ed93ef425524ad4be0b083369af8ea8db18455576a6016b154192f4ed38c` | CC BY 4.0 (Artur dataset) |
   | `sl/sl_SI/artur/medium/sl_SI-artur-medium.onnx.json` | `741283430f1fa2be5c61717c6f1fe795a7b9f537491927340dd12f90f3b3cc04` | |
 
-  The `.onnx` hashes match the SHA-256 Hugging Face publishes for each file at that revision, and
-  the `.json` files match its git object ids. The Slovenian model and its hashes are the same ones
-  the owner's Playroom project already uses.
+  The `.onnx` hashes match the SHA-256 Hugging Face publishes for each file at that revision. It
+  publishes only a git object id for the small `.json` files, so they were downloaded at that
+  revision, checked to give that id (`git hash-object`), then hashed. `scripts/voice/models.sha256`
+  holds all four sums; `npm run voice` checks them again before every use, so a model changed in the
+  cache after setup is refused. The Slovenian model and its hashes are the same ones the owner's
+  Playroom project already uses.
 
 ## Residual risks
 

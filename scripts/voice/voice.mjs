@@ -3,7 +3,8 @@
 //   voice.mjs words [language]     list every word with its sounds, for a person to scan
 //   voice.mjs fix <language> <word> <ipa>   add a pronunciation fix, then generate
 import { execFile, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -40,6 +41,15 @@ function python(script, input) {
   return result.stdout;
 }
 
+/** Refuses a model that changed since setup checked it, so a tampered cache can't speak for the game. */
+function checkModel(language) {
+  const pins = new Map(readFileSync(join(HERE, 'models.sha256'), 'utf8').trim().split('\n').map((line) => line.split(/\s+/).toReversed()));
+  for (const file of [`${VOICES[language].model}.onnx`, `${VOICES[language].model}.onnx.json`]) {
+    const sum = createHash('sha256').update(readFileSync(join(VOICE_HOME, 'models', file))).digest('hex');
+    if (sum !== pins.get(file)) fail(`${file} in ${join(VOICE_HOME, 'models')} does not match scripts/voice/models.sha256. Delete it and run: npm run voice:setup`);
+  }
+}
+
 /** Returns a function from one language's text to IPA, covering every given text. */
 function phonemizer(language, texts, fixes) {
   const chunks = [...new Set(texts.flatMap((text) => chunksIn(splitLine(text, fixes))))];
@@ -61,6 +71,7 @@ async function makeClips(language, jobs) {
   const toIpa = phonemizer(language, jobs.map(({ text }) => spokenText(text)), fixes);
   const items = jobs.map(({ text, settings, file }) => ({ ipa: toIpa(spokenText(text)), length_scale: settings.lengthScale, wav: join(WORK, `${file}.wav`) }));
   console.log(`${language}: speaking ${jobs.length} new clip(s)`);
+  checkModel(language);
   python('synth.py', { model: modelPath(language), items });
 
   const lanes = Array.from({ length: FFMPEG_AT_ONCE }, (_, lane) => jobs.filter((_job, index) => index % FFMPEG_AT_ONCE === lane));

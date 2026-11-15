@@ -95,7 +95,7 @@ sounds into audio. The library is expected at `/opt/homebrew/lib/libespeak-ng.dy
 | `pronunciation/` | Word fixes, one table per language |
 | `phonemize.py` | Text to IPA, through espeak-ng |
 | `synth.py` | IPA to WAV, through Piper |
-| `setup.sh`, `requirements.in`, `requirements.txt` | One-time setup and the pinned Python packages |
+| `setup.sh`, `requirements.in`, `requirements.txt`, `models.sha256` | One-time setup, the pinned Python packages and the models' checksums |
 
 ## Credit
 

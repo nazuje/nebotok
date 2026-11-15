@@ -34,12 +34,8 @@ for path in \
   fi
 done
 
-# A cut-off or swapped download fails here, not later in a confusing way.
-(cd "$VOICE_HOME/models" && shasum -a 256 -c <<'SUMS'
-1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d  en_GB-cori-medium.onnx
-e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36  en_GB-cori-medium.onnx.json
-9222ed93ef425524ad4be0b083369af8ea8db18455576a6016b154192f4ed38c  sl_SI-artur-medium.onnx
-741283430f1fa2be5c61717c6f1fe795a7b9f537491927340dd12f90f3b3cc04  sl_SI-artur-medium.onnx.json
-SUMS
-)
+# A cut-off or swapped download fails here, not later in a confusing way. npm run voice checks the
+# same sums again before every use.
+SUMS="$(pwd)/models.sha256"
+(cd "$VOICE_HOME/models" && shasum -a 256 -c "$SUMS")
 echo "Ready. Make the clips with: npm run voice"
