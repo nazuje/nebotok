@@ -3,6 +3,9 @@ import type { ClipPlayer } from './speech.ts';
 /** What the test hook shows of the clips: the last one asked for and how many have been. */
 export type TestVoice = { readonly clip: string | null; readonly asked: number };
 
+/** The only place a clip may come from: the game's own server. */
+const VOICE_PATH = '/voice/';
+
 /** Taps and keys that count as the player asking, which is when a browser lets a page make sound. */
 const GESTURES = ['pointerup', 'touchend', 'click', 'keydown'] as const;
 
@@ -60,6 +63,7 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
 
   return {
     play: (url) => {
+      if (!url.startsWith(VOICE_PATH)) return;
       current = url;
       last = url;
       asked += 1;
