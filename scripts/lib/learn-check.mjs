@@ -1,12 +1,13 @@
 // Learning a move at a level up, against the real server. Nothing in the game reaches a learnset
 // level quickly, so the browser check prepares the player's save in its own server's database
 // (scripts/lib/prepared-saves.mjs) before the player first signs in: one glowbun a point of
-// experience short of the level where it learns a fifth move, carrying one of every treat so the
-// treat picker, opened once the wild creature has fainted, shows its favourite at 360px.
+// experience short of the level where it learns a fifth move, with a second creature behind it so
+// the team screen shows how to swap, carrying one of every treat so the treat picker, opened once
+// the wild creature has fainted, shows its favourite at 360px.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { emptyProgress, loadBattleContent, newCreature, xpToNextLevel } from '../../packages/core/src/index.ts';
-import { battleIdle, nextFrames, readState, until, untilTappingThrough } from './game-page.mjs';
+import { animationsSettled, battleIdle, nextFrames, readState, until, untilTappingThrough } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -27,6 +28,8 @@ const LEVEL = NEXT.level - 1;
 const power = (move) => CONTENT.moves.get(move)?.power ?? 0;
 const MAX_TURNS = 40;
 const TREATS = [...CONTENT.items.values()].filter((item) => item.kind === 'treat');
+/** A second creature, never sent out, so the team screen has two to swap. */
+const FRIEND = [...CONTENT.species.keys()].find((id) => id !== SPECIES);
 
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 
@@ -41,11 +44,25 @@ export function learnerSave({ name, language, position }) {
     createdAt: new Date().toISOString(),
     position,
     ...emptyProgress(),
-    team: [learner],
-    befriended: [SPECIES],
-    seen: [SPECIES],
+    team: [learner, newCreature(FRIEND, 3, CONTENT)],
+    befriended: [SPECIES, FRIEND],
+    seen: [SPECIES, FRIEND],
     inventory: TREATS.map((item) => ({ item: item.id, count: 1 })),
   };
+}
+
+/**
+ * The team of two shows the swap hint, two little cards trading places, before any swap on this
+ * device. Closes the team screen again.
+ */
+export async function seeSwapHint(page, { expect, check }) {
+  await page.locator('.team-button').tap();
+  const opened = await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
+  await nextFrames(page);
+  expect(opened.teamScreen.swapHint && (await page.locator('#team .swap-hint').isVisible()), 'the team of two shows no swap hint before the first swap');
+  await check('the team screen with the swap hint', 'l0-team');
+  await page.locator('#team .team-close').tap();
+  return until(page, (s) => s.screen === 'world', 'the world after closing the team');
 }
 
 /**
@@ -79,6 +96,7 @@ async function seeFavourite(page, state, { language, strings, expect, check }) {
     expect(shown.name === favourite.name[language], `the favourite marked is "${shown.name}", not "${favourite.name[language]}"`);
     expect(shown.tag === strings['battle.favouriteTag'][language], `the favourite tag says "${shown.tag}"`);
     expect(shown.inside && shown.oneLine, `the favourite tag does not fit its button on one line: ${JSON.stringify(shown)}`);
+    expect((await marked.locator('canvas.picture[data-picture="pictures/heart"]').count()) === 1, 'the favourite treat shows no heart');
   }
   await check('the treat picker with the favourite', 'b3-favourite');
   await page.locator('#battle .battle-back').tap();
@@ -118,6 +136,13 @@ export async function playLearning(page, { language, strings, forget, expect, ch
   expect(won.battle.outcome?.winner === 0, `the learner’s battle ended ${JSON.stringify(won.battle.outcome)}, not in a win`);
   expect(won.battle.rewards[0]?.level === NEXT.level, `the learner reached level ${won.battle.rewards[0]?.level}, not ${NEXT.level}`);
   await nextFrames(page);
+  const pictured = await page.locator('#battle .battle-result').evaluate((box) => ({
+    kind: box.querySelector('.result-hero')?.getAttribute('data-kind'),
+    trophy: box.querySelector('.result-hero canvas.picture[data-picture="pictures/trophy"]') !== null,
+    levelUps: box.querySelectorAll('.result-reward .result-level-up').length,
+  }));
+  expect(pictured.kind === 'won' && pictured.trophy && pictured.levelUps === 1, `the won result shows ${JSON.stringify(pictured)}, not the trophy and one level up`);
+  await animationsSettled(page);
   await check('the result before learning', 'l1-result');
   await page.locator('#battle .battle-continue').tap();
 
@@ -131,6 +156,8 @@ export async function playLearning(page, { language, strings, forget, expect, ch
   const moves = offer.moves.map((move) => ({ text: name('moves', move), type: CONTENT.moves.get(move)?.type }));
   expect(shown.length === moves.length && shown.every((button, at) => button.text === moves[at].text && button.className.includes(`type-${moves[at].type}`)), `the moves to forget show ${JSON.stringify(shown)}`);
   expect((await textOf(page, '#learn .learn-skip')) === say('learn.skip'), 'the button to keep the moves has the wrong text');
+  expect((await page.locator('#learn .learn-skip canvas.picture[data-picture="pictures/cross"]').count()) === 1, 'the button to keep the moves shows no cross');
+  expect(await page.locator('#learn .learn-toward').isVisible(), 'no arrow points from the new move to the moves it can replace');
   await check('the move to learn', 'l2-learn');
 
   await page.locator(forget === null ? '#learn .learn-skip' : `#learn .learn-forget[data-slot="${forget}"]`).tap();

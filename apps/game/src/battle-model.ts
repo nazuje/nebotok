@@ -62,6 +62,37 @@ export function menuFor(view: BattleView, treats: boolean): Menu {
 /** Whether the progress lists a treat; before any progress arrives, it is assumed so. */
 const hasTreats = (progress: ProgressMessage | null): boolean => progress === null || progress.inventory.some((entry) => isTreat(entry.item) && entry.count > 0);
 
+/** The picture a result leads with, from its first line in `resultLines`. */
+export type ResultKind = 'won' | 'befriended' | 'stored' | 'ran' | 'fainted' | 'over';
+
+const RESULT_KINDS: Partial<Readonly<Record<StringId, ResultKind>>> = {
+  'battle.won': 'won',
+  'battle.befriended': 'befriended',
+  'battle.befriendedStored': 'stored',
+  'battle.ranAway': 'ran',
+  'battle.teamFainted': 'fainted',
+};
+
+export const resultKind = (line: Line | undefined): ResultKind => (line ? RESULT_KINDS[line.id] : undefined) ?? 'over';
+
+/** One creature's gains from a battle, as the result pictures them, with the lines that say so. */
+export type CreatureGains = { readonly creature: string; readonly xp: number | null; readonly level: number | null; readonly moves: readonly string[]; readonly lines: readonly Line[] };
+
+/** The lines of `resultLines` about creatures, gathered per creature in the order each first comes. */
+export function gainsOf(lines: readonly Line[]): CreatureGains[] {
+  const gains = new Map<string, { creature: string; xp: number | null; level: number | null; moves: string[]; lines: Line[] }>();
+  for (const line of lines) {
+    if (line.creature === undefined) continue;
+    const entry = gains.get(line.creature) ?? { creature: line.creature, xp: null, level: null, moves: [], lines: [] };
+    gains.set(line.creature, entry);
+    entry.lines.push(line);
+    if (line.id === 'battle.xp') entry.xp = line.xp ?? null;
+    else if (line.id === 'battle.levelUp') entry.level = line.level ?? null;
+    else if (line.id === 'battle.learned' && line.move !== undefined) entry.moves.push(line.move);
+  }
+  return [...gains.values()];
+}
+
 /** What the screen says once a battle is over, in order: how it ended, then each creature's experience and level. */
 export function resultLines(result: BattleResult, befriended: BefriendResult | null, view: BattleView): Line[] {
   const lines: Line[] = [];

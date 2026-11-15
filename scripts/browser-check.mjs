@@ -44,6 +44,7 @@ import {
   BROWSERS,
   DEVICES,
   HOOK,
+  animationsSettled,
   apiCall,
   battleIdle,
   clearWalk,
@@ -76,7 +77,7 @@ import {
   watch,
 } from './lib/game-page.mjs';
 import { battleSave, chooseStarter, playBattles, weatherChipProblems } from './lib/battle-check.mjs';
-import { learnerSave, playLearning } from './lib/learn-check.mjs';
+import { learnerSave, playLearning, seeSwapHint } from './lib/learn-check.mjs';
 import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
 import { boardSave, skillSave } from './lib/skill-saves.mjs';
@@ -425,6 +426,7 @@ async function wildBattle(page, bot, { expect, check, notes }) {
   }
   expect(ended.battle.outcome !== null, 'the wild battle shows a result without an outcome');
   await nextFrames(page);
+  await animationsSettled(page);
   await check('the wild battle result', '12-wild-result');
   await page.locator('#battle .battle-continue').tap();
   const back = await until(page, (s) => s.screen === 'world' && s.battle === null && s.progress !== null, 'the world after the wild battle');
@@ -972,8 +974,8 @@ async function checkAddPin(browser, browserName, language, bot) {
 
 /**
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
- * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs), wins a wild
- * battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
+ * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs), sees the swap
+ * hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
  * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {
@@ -999,8 +1001,9 @@ async function checkLearn(browser, browserName, bot) {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    await until(page, (s) => inWorld(s) && s.progress?.team.length === 1, 'the world with the learner');
+    await until(page, (s) => inWorld(s) && s.progress?.team.length === 2, 'the world with the learner');
     await storyScreensFit(page, { noSideways, check });
+    await seeSwapHint(page, { expect, check });
     await meetWildCreature(page, bot, { notes });
     await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
     await signOut(page);

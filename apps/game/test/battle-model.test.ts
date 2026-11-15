@@ -2,7 +2,7 @@ import { mapFromRows } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import { favouriteBesides } from '../src/battle-content.ts';
 import type { ServerMessage } from '../src/battle-link.ts';
-import { createBattleModel, menuFor, resultLines } from '../src/battle-model.ts';
+import { createBattleModel, gainsOf, menuFor, resultKind, resultLines } from '../src/battle-model.ts';
 import { QUICK_TAP_MS, TAP_GRACE_MS, playbackMs, playback } from '../src/battle-playback.ts';
 import { ANSWER_MS } from '../src/request-pacer.ts';
 import { progress, turn, wildBattle } from './support/battle-messages.ts';
@@ -252,6 +252,32 @@ describe('the result lines', () => {
   it('says the team wakes at the shrine after it all fainted', () => {
     const lines = resultLines({ battle: view.id, outcome: { winner: 1, reason: 'fainted' }, rewards: [], learned: [], woke: { map: 'post-island', shrine: null } }, null, view);
     expect(lines).toEqual([{ id: 'battle.teamFainted' }]);
+  });
+});
+
+describe('the result pictures', () => {
+  it('lead with a picture for how the battle ended', () => {
+    expect(resultKind({ id: 'battle.won' })).toBe('won');
+    expect(resultKind({ id: 'battle.befriended', species: 'pinwhirl' })).toBe('befriended');
+    expect(resultKind({ id: 'battle.befriendedStored', species: 'pinwhirl' })).toBe('stored');
+    expect(resultKind({ id: 'battle.ranAway' })).toBe('ran');
+    expect(resultKind({ id: 'battle.teamFainted' })).toBe('fainted');
+    expect(resultKind({ id: 'battle.over' })).toBe('over');
+    expect(resultKind(undefined)).toBe('over');
+  });
+
+  it('gather each creature’s experience, level and new moves, in the order the lines name them', () => {
+    const lines = [
+      { id: 'battle.won' },
+      { id: 'battle.xp', creature: 'a1', xp: 22 },
+      { id: 'battle.levelUp', creature: 'a1', level: 6 },
+      { id: 'battle.learned', creature: 'a1', move: 'sun-tap' },
+      { id: 'battle.xp', creature: 'a2', xp: 22 },
+    ] as const;
+    expect(gainsOf(lines)).toEqual([
+      { creature: 'a1', xp: 22, level: 6, moves: ['sun-tap'], lines: lines.slice(1, 4) },
+      { creature: 'a2', xp: 22, level: null, moves: [], lines: lines.slice(4) },
+    ]);
   });
 });
 
