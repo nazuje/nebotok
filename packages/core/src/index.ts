@@ -324,6 +324,7 @@ export {
   DialogueFile,
   DIALOGUE_FILE,
   QuestStep,
+  StepPicture,
   Quest,
   QuestsFile,
   Chapter,
@@ -347,6 +348,7 @@ export {
   type StoryContentFiles,
   type StoryWorld,
 } from './story.ts';
+export { pictureSprite, stepPictures } from './quest-pictures.ts';
 export { MAX_BAG_ENTRIES, stackLimit, giveItems, takeItems, bagView, type BagRules, type ItemCount, type Gift, type BagEntry, type BagSection } from './inventory.ts';
 export {
   questState,

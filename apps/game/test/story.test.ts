@@ -1,8 +1,8 @@
-import { mapFromRows, type Goal, type QuestChanged, type QuestStep, type WorldMap } from '@nebotok/core';
+import { mapFromRows, stepPictures, type Goal, type QuestChanged, type QuestStep, type WorldMap } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import { itemAbout } from '../src/bag-screen.ts';
 import { stepProgress, toBeContinued } from '../src/journal-screen.ts';
-import { questToastLines } from '../src/quest-toast.ts';
+import { questBanner, questToastLines } from '../src/quest-toast.ts';
 import { STORY } from '../src/story-content.ts';
 import { goalTile } from '../src/story-link.ts';
 import { format, text } from '../src/strings.ts';
@@ -96,5 +96,28 @@ describe('quest toasts', () => {
 
   it('says only the headline for a done quest with no rewards', () => {
     expect(questToastLines({ quest: 'first-round', change: 'done', step: 1, rewards: null, cue: null }, 'sl')).toEqual([format('quest.done', 'sl', { quest: STORY.quests.get('first-round')?.name.sl ?? '' })]);
+  });
+});
+
+describe('quest banners', () => {
+  const quest = STORY.quests.get('first-round');
+  const steps = quest?.steps ?? [];
+
+  it('shows who gave a new quest, its first step as pictures, no step done and what it will give', () => {
+    const banner = questBanner({ quest: 'first-round', change: 'started', step: 0, rewards: null, cue: null });
+    expect(banner).toEqual({ giver: quest?.giver, goal: steps[0] ? stepPictures(steps[0], STORY) : [], done: 0, of: steps.length, rewards: quest?.rewards.items ?? [], extra: [] });
+    expect(banner.goal.length).toBeGreaterThan(0);
+  });
+
+  it('shows the next step with the steps before it done', () => {
+    const banner = questBanner({ quest: 'first-round', change: 'step', step: 1, rewards: null, cue: null });
+    expect(banner.done).toBe(1);
+    expect(banner.goal).toEqual(steps[1] ? stepPictures(steps[1], STORY) : []);
+  });
+
+  it('shows a done quest with every step done, nothing left to do and what it gave', () => {
+    const rewards = { items: [{ item: 'plain-treat', count: 3 }], extra: [{ item: 'sun-treat', count: 1 }], xp: 20, creatures: [], skills: [] };
+    const banner = questBanner({ quest: 'first-round', change: 'done', step: steps.length, rewards, cue: null });
+    expect(banner).toEqual({ giver: quest?.giver, goal: [], done: steps.length, of: steps.length, rewards: rewards.items, extra: rewards.extra });
   });
 });

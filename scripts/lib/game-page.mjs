@@ -98,10 +98,13 @@ export const HOOK = '__nebotok';
 export const readState = (page) => page.evaluate((key) => JSON.parse(window[key].stateAsText()), HOOK);
 // Clear of the connection badge at the top, the toasts at the bottom and the screen's edges.
 const TAP_MARGIN = { side: 40, top: 100, bottom: 90 };
+// Clear of the compass button above the toasts at the bottom right (apps/game/src/bag.css), from the right and bottom edges.
+const COMPASS_CORNER = { right: 96, bottom: 180 };
 /** Whether a spot on the page is somewhere a tap reaches the map rather than the interface. */
 export const tappable = (page, spot) => {
   const { width, height } = page.viewportSize();
-  return Boolean(spot) && spot.x > TAP_MARGIN.side && spot.x < width - TAP_MARGIN.side && spot.y > TAP_MARGIN.top && spot.y < height - TAP_MARGIN.bottom;
+  const onCompass = Boolean(spot) && spot.x > width - COMPASS_CORNER.right && spot.y > height - COMPASS_CORNER.bottom;
+  return Boolean(spot) && !onCompass && spot.x > TAP_MARGIN.side && spot.x < width - TAP_MARGIN.side && spot.y > TAP_MARGIN.top && spot.y < height - TAP_MARGIN.bottom;
 };
 
 /** Where each tile's centre is on the page, in CSS pixels, or null before a map is drawn. */

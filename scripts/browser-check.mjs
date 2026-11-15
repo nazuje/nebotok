@@ -79,7 +79,7 @@ import {
 } from './lib/game-page.mjs';
 import { battleSave, chooseStarter, playBattles, weatherChipProblems } from './lib/battle-check.mjs';
 import { learnerSave, playLearning, seeSwapHint } from './lib/learn-check.mjs';
-import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
+import { learnerStory, playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
 import { boardSave, skillSave } from './lib/skill-saves.mjs';
 import { boardScreenFits, playBoard } from './lib/board-check.mjs';
@@ -363,6 +363,20 @@ async function talkIgnoresMapAndTabsToChoice(page, talk, { expect, tabs }) {
   await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
 }
 
+/** The banner of a quest just taken: `giver`'s portrait, the pictures of the first step and a dot per step, none done. */
+async function bannerOfNewQuest(page, giver, { expect, check }) {
+  const { questToast } = await until(page, (s) => s.questToast?.change === 'started', `the banner of ${giver}'s new quest`, 10_000);
+  const { banner } = questToast;
+  expect(banner.giver === giver && banner.done === 0 && banner.goal.length > 0, `the banner of ${giver}'s new quest shows ${JSON.stringify(banner)}`);
+  const shown = await page.locator('.quest-toast [data-goal]').first().getAttribute('data-goal');
+  expect(shown === banner.goal.join(' '), `the banner of the new quest shows the pictures "${shown}", not "${banner.goal.join(' ')}"`);
+  expect(await page.locator('.quest-toast .quest-banner-giver').isVisible(), `the banner of the new quest shows no portrait of ${giver}`);
+  expect((await page.locator('.quest-toast .quest-pip').count()) === banner.of, `the banner of the new quest shows ${await page.locator('.quest-toast .quest-pip').count()} dots for ${banner.of} steps`);
+  // Past the banner's quarter-second fade in, so the screenshot shows it as it stays.
+  await page.waitForTimeout(400);
+  await check('the banner of a new quest', 't3-banner-start');
+}
+
 /**
  * A quest by talking, against the real server: the character marked with a new quest is tapped,
  * their choices show and the one that takes the quest is tapped; the quest item they give is
@@ -386,6 +400,7 @@ async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const carrying = await until(page, (s) => s.talk === null && s.npcs.some((npc) => npc.mark === 'turnIn'), `a character to take ${giver}'s quest to`);
   const to = carrying.npcs.find((npc) => npc.mark === 'turnIn').id;
   expect(questItems(carrying) > questItems(offered), `${giver}'s quest gave no quest item to deliver: ${JSON.stringify(carrying.progress?.inventory)}`);
+  await bannerOfNewQuest(page, giver, { expect, check });
   await openTalk(page, bot, to, { notes });
   await until(page, (s) => s.talk === null || (s.talk.typed && !s.talk.waiting), `${to}'s first line`);
   await nextFrames(page);
@@ -975,8 +990,9 @@ async function checkAddPin(browser, browserName, language, bot) {
 
 /**
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
- * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs), sees the swap
- * hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
+ * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs) with the first
+ * quest a battle does not move on active (learnerStory), so its journal shows a quest card, sees the
+ * swap hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
  * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {
@@ -991,7 +1007,9 @@ async function checkLearn(browser, browserName, bot) {
   };
   const made = await api('/profiles', { body: { name, avatar: 'green' }, address: nextAddress() });
   if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
-  prepareSave(dataDir, made.data.id, learnerSave({ name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } }));
+  const learner = learnerSave({ name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } });
+  const { story, carried } = learnerStory();
+  prepareSave(dataDir, made.data.id, story ? { ...learner, story, inventory: [...carried, ...learner.inventory] } : learner);
   const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
   const check = async (where, step) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
@@ -1003,7 +1021,7 @@ async function checkLearn(browser, browserName, bot) {
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
     await until(page, (s) => inWorld(s) && s.progress?.team.length === 2, 'the world with the learner');
-    await storyScreensFit(page, { noSideways, check });
+    await storyScreensFit(page, { noSideways, check, expect });
     await seeSwapHint(page, { expect, check });
     await meetWildCreature(page, bot, { notes });
     await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
