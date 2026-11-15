@@ -132,6 +132,7 @@ const story = createStory({
 });
 const skills = createSkills({
   language: () => language,
+  player: () => session?.profile?.id ?? null,
   progress: () => battles.progress(),
   blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || jobs.overlay() !== null,
   news: (lines, tone) => story.news(lines, tone),

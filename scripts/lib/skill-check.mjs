@@ -5,7 +5,9 @@
 // resting spot and are told how long it rests; walk to a bush beside a cooking pot, let the
 // sparkles go by once (a miss), try again and tap each sparkle; open the recipe book at the pot,
 // cook and stop the marker in the zone (in Chromium, focus moves into the book and Escape closes
-// it); and find the three skills in the journal's Skills tab.
+// it); and find the three skills in the journal's Skills tab. Each kind of game shows the demo hand
+// until the player's first tap in one, and each result its pictures: a perfect catch with no room
+// for one fish, a miss, a success (two sparkles of three) and the cooked dish.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOK, nextFrames, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
@@ -43,6 +45,28 @@ async function tapAt(page, locator, atMs) {
 /** A new game on the card, after `before` (the attempt number of the last one, or null). */
 const newGame = (page, game, before, what) => until(page, (s) => s.screen === 'skillGame' && s.attempt?.game === game && s.attempt.phase === 'playing' && s.attempt.attempt !== before, what, 10_000);
 const judged = (page, what) => until(page, (s) => s.attempt?.phase === 'result' && s.attempt.outcome !== null, what, 10_000);
+/** The demo hand over a game still being played, for a player who has not tapped in this kind of game yet, with the card done coming in. */
+async function demoShown(page, what) {
+  const state = await until(page, (s) => s.attempt?.demo === true, `the demo hand over ${what}`, 5_000);
+  await page.waitForFunction(cardSettled, null, { timeout: 1_000 }).catch(() => {});
+  return state;
+}
+
+/**
+ * The result's pictures are `kind`, the hand is gone, and the card's pictures have landed for the
+ * screenshot, before a won card closes by itself. Other animations on the page, such as a toast's,
+ * are not waited for.
+ */
+async function resultPictures(page, state, kind, expect) {
+  expect(state.attempt.pictures === kind, `the ${state.attempt.game} result shows the ${state.attempt.pictures} pictures, not ${kind}`);
+  expect(!state.attempt.demo, `the demo hand stays over the ${state.attempt.game} result`);
+  await page.waitForFunction(cardSettled, null, { timeout: 1_800 }).catch(() => {});
+}
+const cardSettled = () =>
+  document
+    .querySelector('#skill-game')
+    .getAnimations({ subtree: true })
+    .every((animation) => animation.playState !== 'running' || animation.effect?.getComputedTiming().endTime === Infinity);
 
 /** Fishing: taps the spot, pulls just after the float dips, and sees the catch and the fish with no room toasted. */
 async function fish(page, plan, { say, name, expect, check }) {
@@ -52,6 +76,7 @@ async function fish(page, plan, { say, name, expect, check }) {
   // The attempt is a message, sent at once; the courier's skill comes with the next state patch.
   const marked = await until(page, (s) => selfIn(s)?.skill === 'fishing', 'the courier to be marked fishing', 2_000).catch(() => readState(page));
   expect(selfIn(marked)?.skill === 'fishing', `the courier is doing "${selfIn(marked)?.skill}" while fishing, not fishing`);
+  await demoShown(page, 'the first fishing game');
   await check('the fishing game', 'k1-fishing');
   const { dipAtMs } = started.attempt.params;
   const now = (await readState(page)).attempt;
@@ -59,11 +84,12 @@ async function fish(page, plan, { say, name, expect, check }) {
   await tapAt(page, page.locator('#skill-game .skill-area.dip'), dipAtMs + PULL_AFTER_MS);
   const result = await judged(page, 'the fishing result');
   expect(result.attempt.outcome === 'perfect', `pulling ${result.attempt.taps[0]?.at - dipAtMs} ms after the dip was ${result.attempt.outcome}, not perfect`);
+  expect((await page.locator('#skill-game .skill-outcome .outcome-full').count()) === 1, 'the catch with no room for one fish shows no full bag');
+  await resultPictures(page, result, 'perfect', expect);
+  await check('the fishing result', 'k2-fish-result');
   const toasted = await until(page, (s) => s.questToast?.change === 'good', 'the toast of the catch', 5_000);
   const noRoom = fill(say('skill.bagFull'), { item: name(plan.fish.item) });
   expect(toasted.questToast.lines.includes(noRoom), `the catch toast says ${JSON.stringify(toasted.questToast.lines)}, without "${noRoom}"`);
-  await nextFrames(page);
-  await check('the fishing result', 'k2-fish-result');
   const rested = await until(page, (s) => s.screen === 'world', 'the card to close after a catch', 5_000);
   expect((rested.resting[plan.fish.spot] ?? 0) > 0, `${plan.fish.spot} does not rest after a catch: ${JSON.stringify(rested.resting)}`);
   expect(rested.spots.some((spot) => spot.id === plan.fish.spot && spot.resting), `${plan.fish.spot} is not drawn resting`);
@@ -78,30 +104,39 @@ async function restingRefused(page, { say, expect }) {
   expect(line === fill(say('skill.resting'), { seconds }) && seconds > 0, `the resting toast says "${line}"`);
 }
 
-/** Taps each sparkle as it shows, until the game is over or `deadline` passes. */
-async function tapSparkles(page, deadline) {
+/** Taps each sparkle as it shows, up to `left` of them, until the game is over or `deadline` passes. */
+async function tapSparkles(page, deadline, left = Infinity) {
   const { attempt } = await readState(page);
   if (attempt?.phase !== 'playing' || Date.now() > deadline) return;
+  if (attempt.taps.length >= left) {
+    await sleep(40);
+    await tapSparkles(page, deadline, left);
+    return;
+  }
   const on = page.locator('#skill-game .sparkle-place[data-on="true"]');
   // A sparkle can go out between finding and tapping it; the next round looks again.
   if ((await on.count()) > 0) await on.first().tap({ timeout: 2_000 }).catch(() => {});
   else await sleep(40);
-  await tapSparkles(page, deadline);
+  await tapSparkles(page, deadline, left);
 }
 
 /** Foraging: lets the sparkles go by once (a miss), tries again and taps each sparkle as it shows. */
 async function forage(page, plan, { say, expect, check }) {
   await tapTile(page, plan.bush.tile);
   const first = await newGame(page, 'sparkle', null, 'the foraging game');
+  await demoShown(page, 'the first foraging game');
   const missed = await judged(page, 'the foraging game to end with no taps');
+  await resultPictures(page, missed, 'miss', expect);
   expect(missed.attempt.outcome === 'miss', `a foraging game with no taps was ${missed.attempt.outcome}`);
   expect((await textOf(page, '#skill-game .skill-result')) === say('skill.miss'), `the miss says "${await textOf(page, '#skill-game .skill-result')}"`);
   expect(await page.locator('#skill-game .skill-again').isVisible(), 'a miss offers no "Try again"');
   await check('a missed foraging game', 'k3-miss');
   await page.locator('#skill-game .skill-again').tap();
-  await newGame(page, 'sparkle', first.attempt.attempt, 'another foraging game');
-  const won = await playGame(page);
-  expect(won.attempt.outcome === 'perfect' || won.attempt.outcome === 'success', `tapping each sparkle was ${won.attempt.outcome} (taps ${JSON.stringify(won.attempt.taps)})`);
+  const second = await newGame(page, 'sparkle', first.attempt.attempt, 'another foraging game');
+  await demoShown(page, 'a foraging game after one with no taps');
+  const won = await playGame(page, { sparkles: second.attempt.params.need });
+  expect(won.attempt.outcome === 'success', `tapping ${second.attempt.params.need} sparkles of ${second.attempt.params.sparkles.length} was ${won.attempt.outcome} (taps ${JSON.stringify(won.attempt.taps)})`);
+  await resultPictures(page, won, 'success', expect);
   await check('a foraging result', 'k4-forage');
   await until(page, (s) => s.screen === 'world', 'the card to close after foraging', 5_000);
 }
@@ -116,13 +151,13 @@ function markerStopMs({ sweepMs, perfectFrom, perfectTo, timeoutMs }, after) {
 
 /**
  * Plays the tiny game open on the card: to win, as a quick player would (pulls just after the float
- * dips, taps each sparkle, stops the marker in the perfect band), or not at all, to miss. Returns
- * the state once the server has judged it.
+ * dips, taps each sparkle, or only the first `sparkles` of them, stops the marker in the perfect
+ * band), or not at all, to miss. Returns the state once the server has judged it.
  */
-export async function playGame(page, { win = true } = {}) {
+export async function playGame(page, { win = true, sparkles = Infinity } = {}) {
   const { attempt } = await until(page, (s) => s.attempt?.phase === 'playing', 'a tiny game to play', 10_000);
   if (win && attempt.game === 'dip') await tapAt(page, page.locator('#skill-game .skill-area.dip'), attempt.params.dipAtMs + PULL_AFTER_MS);
-  else if (win && attempt.game === 'sparkle') await tapSparkles(page, Date.now() + SPARKLE_DEADLINE_MS);
+  else if (win && attempt.game === 'sparkle') await tapSparkles(page, Date.now() + SPARKLE_DEADLINE_MS, sparkles);
   else if (win) await tapAt(page, page.locator('#skill-game .marker-stop'), markerStopMs(attempt.params, attempt.elapsedMs + 400));
   return judged(page, `the ${attempt.game} game's result`);
 }
@@ -151,12 +186,17 @@ async function cook(page, plan, { name, expect, check, keys }) {
   const cookButton = page.locator(`#recipe-book .recipe[data-recipe="${plan.recipe.id}"] .recipe-cook`);
   const onCook = () => cookButton.evaluate((button) => document.activeElement === button);
   if (keys) expect(await onCook(), `opening the recipe book focused ${await focusedElement(page)}, not the first Cook`);
+  expect((await cookButton.locator('canvas.picture').count()) === 1, 'Cook shows no pot');
+  expect((await page.locator('#recipe-book .recipe-need .pip').count()) > 0, 'the recipe book shows no pips for the ingredients');
+  expect((await page.locator('#recipe-book .recipe.locked .recipe-lock .level-badge').count()) === (book.recipeBook.next ? 1 : 0), 'the locked recipe shows no lock and level');
   await nextFrames(page);
   await check('the recipe book', 'k5-book');
   await cookButton.tap();
   await newGame(page, 'marker', null, 'the cooking game');
+  await demoShown(page, 'the first cooking game');
   const result = await playGame(page);
   expect(result.attempt.outcome === 'perfect' || result.attempt.outcome === 'success', `stopping the marker in the perfect band was ${result.attempt.outcome}`);
+  await resultPictures(page, result, result.attempt.outcome, expect);
   await check('the cooking result', 'k6-cooked');
   const back = await until(page, (s) => s.screen === 'recipeBook', 'the recipe book after cooking', 5_000);
   expect(back.progress.inventory.some((entry) => entry.item === plan.recipe.makes), `the bag has no ${plan.recipe.makes} after cooking`);
@@ -183,6 +223,8 @@ async function skillsTab(page, { expect, check }) {
   const rows = await page.locator('#journal .skill-row').evaluateAll((list) => list.map((row) => row.dataset.skill));
   const skills = state.skills?.skills.map((entry) => entry.skill) ?? [];
   expect(rows.length === 3 && JSON.stringify(rows) === JSON.stringify(skills), `the Skills tab shows ${JSON.stringify(rows)}, the server ${JSON.stringify(skills)}`);
+  const badges = await page.locator('#journal .skill-row-level').allTextContents();
+  expect(JSON.stringify(badges) === JSON.stringify(state.skills?.skills.map((entry) => String(entry.level))), `the Skills tab's level badges say ${JSON.stringify(badges)}`);
   expect((state.skills?.skills.find((entry) => entry.skill === 'fishing')?.xp ?? 0) > 0, 'fishing has no XP after a catch');
   await check('the Skills tab', 'k7-skills');
   await page.locator('#journal .journal-close').tap();
@@ -202,8 +244,11 @@ export async function playSkills(page, world, plan, { language, strings, expect,
   await skillsTab(page, { expect, check });
 }
 
-/** At 360px wide, from beside the bush and the pot: the recipe book, a game's card and the Skills tab fit. */
-export async function skillScreensFit(page, plan, { noSideways, check }) {
+/**
+ * At 360px wide, from beside the bush and the pot: the recipe book, a game's card with the demo
+ * hand, its missed result and the Skills tab fit.
+ */
+export async function skillScreensFit(page, plan, { expect, noSideways, check }) {
   await until(page, (s) => s.screen === 'world' && s.skills !== null && s.progress !== null, 'the world with the skills at 360px');
   await tapTile(page, plan.pot.tile);
   await until(page, (s) => s.screen === 'recipeBook' && s.recipeBook !== null, 'the recipe book at 360px', 10_000);
@@ -214,9 +259,13 @@ export async function skillScreensFit(page, plan, { noSideways, check }) {
   await until(page, (s) => s.screen === 'world', 'the world after the recipe book');
   await tapTile(page, plan.bush.tile);
   await newGame(page, 'sparkle', null, 'the foraging game at 360px');
-  await nextFrames(page);
+  await demoShown(page, 'the foraging game at 360px');
   await noSideways('the foraging game');
   await check('the foraging game at 360px', 'sparkle');
+  const missed = await judged(page, 'the foraging game at 360px to end with no taps');
+  await resultPictures(page, missed, 'miss', expect);
+  await noSideways('a missed foraging game');
+  await check('a missed foraging game at 360px', 'sparkle-miss');
   await page.locator('#skill-game .skill-close').tap();
   await until(page, (s) => s.screen === 'world' && s.attempt === null, 'the world after closing the game');
   await page.locator('.journal-button').tap();

@@ -189,6 +189,7 @@
   "skill.miss": { "en": "So close! Try again.", "sl": "Skoraj! Poskusi znova." },
   "skill.tryAgain": { "en": "Try again", "sl": "Poskusi znova" },
   "skill.gained": { "en": "+{count} {item}", "sl": "+{count} {item}" },
+  "skill.count": { "en": "+{count}", "sl": "+{count}" },
   "skill.levelUp": { "en": "{skill} level {level}!", "sl": "{skill}: raven {level}!" },
   "skill.resting": { "en": "This spot is resting. Come back in {seconds} s.", "sl": "To mesto počiva. Vrni se čez {seconds} s." },
   "skill.needsLevel": { "en": "You need {skill} level {level}.", "sl": "Potrebuješ raven {level} v veščini {skill}." },

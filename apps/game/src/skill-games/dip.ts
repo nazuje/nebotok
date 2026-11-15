@@ -47,5 +47,9 @@ export function createDip(params: DipParams, options: MiniGameOptions): MiniGame
     keyPlace: (code) => (ACTION_KEYS.has(code) ? 0 : null),
     over: (taps: readonly Tap[], ms) => taps.length > 0 || ms >= dipEndsMs(params),
     relabel: (language: Language) => area.setAttribute('aria-label', text('skill.dip.pull', language)),
+    aim: (ms) => {
+      const phase = dipPhase(params, ms);
+      return { target: float, now: phase === 'dip' || phase === 'fading' };
+    },
   };
 }

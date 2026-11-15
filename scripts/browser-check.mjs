@@ -1019,8 +1019,8 @@ async function checkLearn(browser, browserName, bot) {
 
 /**
  * At 360px wide, a player prepared beside a bush and a cooking pot (scripts/lib/skill-saves.mjs)
- * opens the recipe book, a tiny game's card and the Skills tab, which must fit without scrolling
- * sideways. Chromium plays it in Slovenian, WebKit in English.
+ * opens the recipe book, a tiny game's card with its demo hand and missed result, and the Skills
+ * tab, which must fit without scrolling sideways. Chromium plays it in Slovenian, WebKit in English.
  */
 async function checkSkillsNarrow(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'sl' : 'en';
@@ -1028,6 +1028,9 @@ async function checkSkillsNarrow(browser, browserName, bot) {
   const problems = [];
   const screenshots = [];
   const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
   const player = await prepareSkillPlayer(browserName, '360px', language, bot, 'bush');
   const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
   const check = async (where, step) => {
@@ -1039,7 +1042,7 @@ async function checkSkillsNarrow(browser, browserName, bot) {
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
     await enterWorld(page, bot, inWorld, 'the world as the skill player at 360px', { notes });
-    await skillScreensFit(page, player.plan, { noSideways, check });
+    await skillScreensFit(page, player.plan, { expect, noSideways, check });
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
