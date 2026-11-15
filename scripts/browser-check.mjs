@@ -370,7 +370,8 @@ async function bannerOfNewQuest(page, giver, { expect, check }) {
   expect(shown === banner.goal.join(' '), `the banner of the new quest shows the pictures "${shown}", not "${banner.goal.join(' ')}"`);
   expect(await page.locator('.quest-toast .quest-banner-giver').isVisible(), `the banner of the new quest shows no portrait of ${giver}`);
   expect((await page.locator('.quest-toast .quest-pip').count()) === banner.of, `the banner of the new quest shows ${await page.locator('.quest-toast .quest-pip').count()} dots for ${banner.of} steps`);
-  await nextFrames(page);
+  // Past the banner's quarter-second fade in, so the screenshot shows it as it stays.
+  await page.waitForTimeout(400);
   await check('the banner of a new quest', 't3-banner-start');
 }
 
