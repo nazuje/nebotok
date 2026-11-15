@@ -9,7 +9,9 @@
 // stations.json, jobs.json) must link up (core storyProblems, skillProblems) and to the maps
 // (storyMapProblems). Art (content/art/) must hold every sprite that avatars, creatures, weather,
 // items, npcs, story cues, spots, stations, skills, their games and maps need; each tileset image must be what `npm run tiles`
-// draws from its art, and each real-art PNG must be used and the right size.
+// draws from its art, and each real-art PNG must be used and the right size. Every line players hear
+// (talk lines, choices and quest text) must have its voice clip, and no clip or manifest entry may be
+// left over (scripts/voice/clips.mjs; `npm run voice` makes them).
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +40,7 @@ import {
   storyMapProblems,
 } from '../packages/core/src/index.ts';
 import { artPixels, pngProblems, renderTileset } from './lib/art.mjs';
+import { checkClips } from './voice/clips.mjs';
 
 const CONTENT_DIR = fileURLToPath(new URL('../content/', import.meta.url));
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -156,6 +159,18 @@ function checkStory(battle, maps, encounters, shrines) {
   const storyWorld = { maps, zones: encounters.zones.map((zone) => zone.id), shrines: shrines.shrines.map((shrine) => shrine.id) };
   const mapProblems = storyMapProblems(loadStoryContent(storyFiles, battle), storyWorld);
   if (mapProblems.length) fail('story', mapProblems);
+  checkVoice(storyFiles);
+}
+
+function checkVoice(storyFiles) {
+  const { problems, clips, skipped } = checkClips(storyFiles);
+  if (problems.length) {
+    failures += 1;
+    console.error('FAIL voice clips (apps/game/src/voice-clips.json, apps/game/public/voice/)');
+    for (const problem of problems) console.error(`     - ${problem}`);
+  } else {
+    console.log(`ok   voice clips: ${clips.length}, and ${skipped.length} line(s) with a {placeholder} not voiced`);
+  }
 }
 
 // Art: only once every file reads on its own, so each problem below is about how the files fit.

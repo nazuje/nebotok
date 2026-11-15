@@ -20,8 +20,11 @@ Read `content/AGENTS.md` first: it holds the writing rules for both languages.
    the sheet `npm run art:sheet` draws.
 4. Names, creatures and art are original: never a name, character or look taken from a commercial
    game. Nothing refers to real people.
-5. Run `npm run content:validate`, then `npm run verify -- --level 1` (golden replays show whether
+5. Changed a talk line, choice or quest text? Run `npm run voice` and commit the clips with
+   `apps/game/src/voice-clips.json` (`scripts/voice/README.md`); `content:validate` fails until you
+   do.
+6. Run `npm run content:validate`, then `npm run verify -- --level 1` (golden replays show whether
    rule behaviour moved). When text the player sees changed, run the `playtest` skill and look at the
    Slovenian screenshots for text that overflows its box. Done when both pass and the screenshots
    show the new text fitting in both languages.
-6. Report every Slovenian line you wrote: a native speaker must still read them.
+7. Report every Slovenian line you wrote: a native speaker must still read them.

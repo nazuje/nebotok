@@ -37,6 +37,10 @@ working in before you start.
 - One test file: `npx vitest run --project <name> <path>`; projects are in `vitest.config.mjs`.
 - `npm run content:validate` checks `content/`. `npm run golden:update` re-records golden replay
   hashes, only after `packages/core/AGENTS.md`'s golden policy.
+- Voice clips: `npm run voice` makes the computer-voice clips for every talk line, choice and quest
+  text in both languages (`scripts/voice/README.md`), on a Mac only, after `npm run voice:setup`
+  once per machine. Run it after changing any of those lines and commit the clips with
+  `apps/game/src/voice-clips.json`; `content:validate` fails on a missing or stale clip.
 - Art is JSON pixel grids in `content/art/` (guide: `docs/art.md`). `npm run art:sheet` draws every
   sprite onto `.proof/art/sheet.png`; open it after changing art. `npm run tiles` redraws the
   tileset PNG Tiled uses.
@@ -139,5 +143,8 @@ sessions.
   Tailscale identity). `docker compose down` is fine.
 - Headless browsers have no GPU, so WebGL runs on a software fallback (SwiftShader). It is slow and
   can look slightly different; judge layout, not frame rate.
+- The voice tool needs Homebrew's `uv`, `ffmpeg` and `espeak-ng`, because Piper's bundled espeak
+  data path is broken on macOS. Never play a clip to check it (no `afplay`, `open` or visible
+  browser): it plays aloud in the house. Measure clips with `ffprobe` instead.
 - TypeScript is run by Node directly, so only erasable syntax works (`erasableSyntaxOnly`): no
   `enum`, `namespace` or constructor parameter properties. Imports end in `.ts`.
