@@ -173,13 +173,15 @@ export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) =>
  * none, as every player entering the world for the first time must: walking up to the character
  * the page's hint points at, talking until they offer the starters, and taking the first. The
  * world can show before the server's progress arrives, so it counts only once the progress says
- * there is a starter. `world` is a servedMap.
+ * there is a starter. `world` is a servedMap. `atStarter`, if given, runs once the starter screen
+ * shows, before the choice.
  */
-export async function enterWorld(page, world, check, what, { notes = [], timeoutMs = 20_000 } = {}) {
+export async function enterWorld(page, world, check, what, { notes = [], timeoutMs = 20_000, atStarter = async () => {} } = {}) {
   const state = await until(page, (s) => inWorld(s) && s.progress !== null && (s.progress.needsStarter || check(s)), what, timeoutMs);
   if (!state.progress.needsStarter) return state;
   await talkForStarter(page, world, { notes });
   await nextFrames(page);
+  await atStarter();
   await page.locator('.starter-choice').first().tap();
   return until(page, (s) => s.progress?.needsStarter === false && check(s), `${what} after choosing a starter`, timeoutMs);
 }

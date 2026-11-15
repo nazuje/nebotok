@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_COURIER, animationFrameAt, checkContentFile, loadArt, missingArt, pixelColour, type PixelSprite } from '../../src/index.ts';
+import { DEFAULT_COURIER, PICTURES, animationFrameAt, checkContentFile, loadArt, missingArt, pixelColour, type PixelSprite } from '../../src/index.ts';
 
 const row = (pixels: string) => pixels.padEnd(16, '.');
 const tile = (frames: Record<string, string[]> = { still: Array.from({ length: 16 }, () => row('g')) }, extra: object = {}) => ({
@@ -56,7 +56,7 @@ describe('art schemas', () => {
       '(root): creatures sprites need a frame "back"',
     ]);
     expect(problems('art/couriers/courier.json', tile()).join()).toContain('need a frame "down-stand"');
-    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items, weather, characters, portraits, effects, spots, stations, actions, games, skills']);
+    expect(problems('art/monsters/x.json', tile())).toEqual(['(root): "monsters" is not a kind of sprite; use one of tiles, couriers, creatures, icons, backgrounds, items, weather, characters, portraits, effects, spots, stations, actions, games, skills, pictures']);
   });
 });
 
@@ -103,8 +103,10 @@ describe('loadArt', () => {
   });
 
   it('lists every sprite content needs and the art lacks', () => {
+    const kitMissing = PICTURES.map((id) => `the picture kit needs the sprite pictures/${id} (content/art/pictures/${id}.json)`);
     const art = loadArt({ 'art/couriers/courier.json': courier('#8a8a8a') });
     expect(missingArt(art, { avatars: ['blue'], species: ['glowbun'], weather: ['sun'], items: ['berry'], npcs: ['bavko'], cues: ['storm-glimpse'], tilesets: ['sky-tiles'], spots: ['berry-bush'], stations: ['pot'], skills: [{ id: 'fishing', game: 'dip' }] })).toEqual([
+      ...kitMissing,
       'avatar "blue" needs the sprite couriers/blue (content/art/couriers/blue.json)',
       'species "glowbun" needs the sprite creatures/glowbun (content/art/creatures/glowbun.json)',
       'species "glowbun" needs the sprite icons/glowbun (content/art/icons/glowbun.json)',
@@ -123,6 +125,7 @@ describe('loadArt', () => {
     ]);
     expect(missingArt(loadArt({}), { avatars: [], species: [], weather: [], items: [], npcs: [], cues: [], tilesets: [], spots: [], stations: [], skills: [] })).toEqual([
       `the game, for avatars without a courier of their own, needs the sprite ${DEFAULT_COURIER} (content/art/${DEFAULT_COURIER}.json)`,
+      ...kitMissing,
     ]);
   });
 

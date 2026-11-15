@@ -2,6 +2,7 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type MoveOffer, type S
 import { moveName, moveType, speciesName } from './battle-content.ts';
 import type { ClientMessage, ServerMessage } from './battle-link.ts';
 import { creaturePortrait } from './creature-art.ts';
+import { moveTypeIcon } from './creature-card.ts';
 import { button, el } from './dom.ts';
 import { format, text } from './strings.ts';
 
@@ -58,7 +59,8 @@ export function createLearnPrompt(root: HTMLElement, options: { language(): Lang
   let shown = '';
 
   const moveButton = (move: string, slot: number, language: Language) => {
-    const choice = button(`move learn-forget type-${moveType(move) ?? 'none'}`, moveName(move, language), () => options.answer(slot));
+    const choice = button(`move learn-forget type-${moveType(move) ?? 'none'}`, '', () => options.answer(slot));
+    choice.append(...moveTypeIcon(move, language, 32), el('span', { text: moveName(move, language) }));
     choice.dataset.slot = String(slot);
     return choice;
   };
@@ -69,7 +71,7 @@ export function createLearnPrompt(root: HTMLElement, options: { language(): Lang
     const wants = format('learn.wants', language, { creature: speciesName(offer.species, language), move: moveName(offer.move, language) });
     const learning = el('p', { className: 'learn-new' }, [
       el('span', { className: 'label', text: t('learn.new') }),
-      el('span', { className: `move-chip type-${moveType(offer.move) ?? 'none'}`, text: moveName(offer.move, language) }),
+      el('span', { className: `move-chip type-${moveType(offer.move) ?? 'none'}` }, [...moveTypeIcon(offer.move, language, 32), el('span', { text: moveName(offer.move, language) })]),
     ]);
     const moves = el('div', { className: 'battle-moves learn-moves', attrs: { role: 'group', 'aria-label': t('learn.forget') } }, offer.moves.map((move, slot) => moveButton(move, slot, language)));
     root.replaceChildren(

@@ -48,7 +48,7 @@ is their guide. Keep to these conventions or validation fails:
 
 `art/` holds every sprite as JSON, one character per pixel, and `art/png/` the real art that
 replaces them. `docs/art.md` is the format and style guide. `content:validate` fails while any
-avatar, species, weather type, item, character, story cue, spot, station, skill or map lacks the sprite it needs; `npm run art:sheet` draws
+avatar, species, weather type, item, character, story cue, spot, station, skill, map or picture of the picture kit lacks the sprite it needs; `npm run art:sheet` draws
 them all onto `.proof/art/sheet.png` to look at.
 
 ## Creatures and battles
