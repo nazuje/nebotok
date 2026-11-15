@@ -9,8 +9,10 @@ import type { WalkCommand } from './movement.ts';
  * open the starter screen by themselves, are refused at the join instead of getting stuck.
  * 8: skills and the job board: gathering, cooking and their tiny games, `Player.skill`, and the
  * refusals `resting`, `needsLevel` and `bagFull`.
+ * 9: the tiny games are judged as they are drawn: no grace before a dip or sparkle, a fade after
+ * it (`FADE_MS`), one sparkle at a time, and the marker's needle width (`MARKER_HALF_WIDTH`).
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -20,6 +22,7 @@ export const PROTOCOL_VERSION = 8;
 export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   7: '153c0d940d945b',
   8: '08338db2ebbc37',
+  9: '134099ff291a6b',
 };
 
 export type WorldInfo = {

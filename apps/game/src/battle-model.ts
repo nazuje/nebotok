@@ -1,5 +1,5 @@
 import { SERVER_MESSAGES, samePoint, shrineAt, type BattleResult, type BattleView, type BefriendResult, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
-import { isTreat } from './battle-content.ts';
+import { favouriteBesides, isTreat } from './battle-content.ts';
 import type { ServerMessage } from './battle-link.ts';
 import { ANSWER_MS } from './request-pacer.ts';
 import { QUICK_TAP_MS, TAP_GRACE_MS, lineAt, nextLineAt, playback, playbackMs, shownOf, stepAt, type Effect, type Line, type Shown, type Step } from './battle-playback.ts';
@@ -170,7 +170,7 @@ export function createBattleModel(lineLength: LineLength): BattleModel {
     next.view = view;
     next.picker = 'menu';
     next.waiting = false;
-    const steps = playback(before, view, events, (line) => lineLength(line, view));
+    const steps = playback(before, view, events, (line) => lineLength(line, view), favouriteBesides);
     next.playing = steps.length > 0 ? { steps, startedAt: now, began: now, tappedAt: null, update: updates } : null;
     battle = next;
   };

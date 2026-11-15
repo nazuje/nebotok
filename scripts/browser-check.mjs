@@ -24,8 +24,9 @@
 // 360px a player opens the board for the first time. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
 // from the settings, then signs in with it and meets a wild creature. Against its own server, a
-// player saved one point short of a level up wins a wild battle at 360px and answers the offer of
-// a new move (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
+// player saved one point short of a level up wins a wild battle at 360px, sees the fainted wild
+// creature's favourite marked in the treat picker, and answers the offer of a new move
+// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>] [--part <name>]
@@ -966,7 +967,7 @@ async function checkAddPin(browser, browserName, language, bot) {
 /**
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
  * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs), wins a wild
- * battle and is asked which move to forget for the new one. Chromium forgets one, in English;
+ * battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
  * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {

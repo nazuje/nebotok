@@ -2,6 +2,7 @@
  * The links between the skill files, and to the items, characters, dialogue and maps, that no
  * single schema can check (`skillProblems`, `skillMapProblems`).
  */
+import { jobCount, jobFits } from './job-reach.ts';
 import type { WorldMap } from './map.ts';
 import type { StoryContent } from './story.ts';
 import type { JobTemplate, SkillContent } from './skill-content.ts';
@@ -87,7 +88,8 @@ function templateProblems(template: JobTemplate, skills: SkillContent, content: 
     }
   }
   const stack = stackOf(template.item, content);
-  if (stack !== null && template.count[1] > stack) problems.push(`${label}: asks for up to ${template.count[1]} "${template.item}", more than one stack of ${stack}`);
+  const most = jobCount(template.count[1], skills.maxLevel, skills);
+  if (stack !== null && most > stack) problems.push(`${label}: asks for up to ${most} "${template.item}" at level ${skills.maxLevel}, more than one stack of ${stack}`);
   for (const { item, count } of template.rewards.items) {
     const rewardStack = stackOf(item, content);
     if (rewardStack === null) problems.push(`${label} rewards: item "${item}" is not in items.json`);
@@ -100,8 +102,14 @@ function templateProblems(template: JobTemplate, skills: SkillContent, content: 
 function jobProblems(skills: SkillContent, content: StoryContent): string[] {
   const ready = readyNpcs(content);
   const problems = [...skills.templates.values()].flatMap((template) => templateProblems(template, skills, content, ready));
-  const starters = [...skills.templates.values()].filter((template) => template.needs.level === 1).length;
-  if (starters < skills.slots) problems.push(`jobs.json: only ${starters} template(s) need level 1; a new board of ${skills.slots} needs at least that many`);
+  const fitting = (level: number) => {
+    const player = { skills: [...skills.skills.keys()].map((skill) => ({ skill, level, xp: 0 })) };
+    return [...skills.templates.values()].filter((template) => jobFits(player, template, skills)).length;
+  };
+  for (const [level, who] of [[1, 'a new player'], [skills.maxLevel, `a player at level ${skills.maxLevel} of every skill`]] as const) {
+    const count = fitting(level);
+    if (count < skills.slots) problems.push(`jobs.json: only ${count} template(s) fit ${who}; a board of ${skills.slots} needs at least that many`);
+  }
   return problems;
 }
 
@@ -109,8 +117,8 @@ function jobProblems(skills: SkillContent, content: StoryContent): string[] {
  * The links of the skill files: spots give ingredients of a skill that uses spots; recipes make
  * treats from ingredients, within a stack; a cooking pot and a job board exist when recipes and jobs
  * do; every job's item exists, comes from a spot or recipe its \`needs\` reach, fits a stack, and goes
- * to characters whose dialogue takes deliveries; at least \`slots\` jobs need level 1; every level is
- * at most \`maxLevel\`; and the dialogue's job entries and skill conditions have skill content.
+ * to characters whose dialogue takes deliveries; at least \`slots\` jobs fit a new player and one at
+ * the top level of every skill (\`jobFits\`); every level is at most \`maxLevel\`; and the dialogue's job entries and skill conditions have skill content.
  */
 export function skillProblems(content: StoryContent): string[] {
   const skills = content.skills;

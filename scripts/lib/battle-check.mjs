@@ -227,16 +227,20 @@ function bestTreat(species) {
   return TREATS.find((item) => item.id === wild?.favouriteTreat || item.likedBy.species.includes(species)) ?? TREATS.find((item) => item.likedBy.types.includes(wild?.type)) ?? TREATS[0];
 }
 
-/** Offers the treat the wild creature likes best from the treat picker. */
-async function offerTreat(page, species, { language, check, seen }) {
+/** Offers the treat the wild creature likes best from the treat picker, which marks its favourite. */
+async function offerTreat(page, species, { language, expect, check, seen }) {
   await page.locator('#battle .battle-treat').tap();
   await until(page, (s) => s.battle?.panel === 'treats', 'the treat picker');
+  const best = bestTreat(species);
+  const wanted = page.locator('#battle .treat-choice').filter({ has: page.locator('.treat-name', { hasText: best.name[language] }) });
   if (!seen.treats) {
     seen.treats = true;
     await nextFrames(page);
+    if (best.id === CONTENT.species.get(species)?.favouriteTreat && (await wanted.count()) > 0) {
+      expect((await wanted.first().locator('.treat-favourite').count()) === 1, `the treat picker does not mark ${best.id} as the wild ${species}'s favourite`);
+    }
     await check('the treat picker', 'b3-treats');
   }
-  const wanted = page.locator('#battle .treat-choice').filter({ has: page.locator('.treat-name', { hasText: bestTreat(species).name[language] }) });
   await ((await wanted.count()) > 0 ? wanted : page.locator('#battle .treat-choice')).first().tap();
 }
 
@@ -286,7 +290,7 @@ async function befriend(page, world, options, tries = 1) {
       expect(label === say('battle.done'), `after the wild creature fainted the leave button says "${label}", not "${say('battle.done')}"`);
       await check('the end of the battle after the wild creature fainted', 'b3-done');
     }
-    if (current.battle.menu.treat) return offerTreat(page, wild, { language, check, seen });
+    if (current.battle.menu.treat) return offerTreat(page, wild, { language, expect, check, seen });
     return tapMove(page, gentlestSlot(current.battle.menu.moves));
   };
   const state = await nextTurn(page, start, 0, choose, { language, expect, check, notes, seen });

@@ -1,5 +1,10 @@
 {
   "slots": 3,
+  "countGrowth": {
+    "afterLevel": 5,
+    "percentPerLevel": 10
+  },
+  "outgrownAfter": 8,
   "templates": [
     {
       "id": "berries-please",
@@ -24,7 +29,7 @@
         "xp": [
           {
             "skill": "foraging",
-            "perItem": 6
+            "perItem": 3
           }
         ]
       }
@@ -52,7 +57,7 @@
         "xp": [
           {
             "skill": "fishing",
-            "perItem": 10
+            "perItem": 5
           }
         ]
       }
@@ -80,7 +85,7 @@
         "xp": [
           {
             "skill": "cooking",
-            "perItem": 10
+            "perItem": 5
           }
         ]
       }
@@ -112,7 +117,7 @@
         "xp": [
           {
             "skill": "foraging",
-            "perItem": 8
+            "perItem": 4
           }
         ]
       }
@@ -144,7 +149,67 @@
         "xp": [
           {
             "skill": "fishing",
-            "perItem": 14
+            "perItem": 7
+          }
+        ]
+      }
+    },
+    {
+      "id": "biscuit-bake",
+      "kind": "cook",
+      "item": "fish-biscuit",
+      "count": [
+        2,
+        3
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 3
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "pebblefish",
+            "count": 2
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
+            "perItem": 7
+          }
+        ]
+      }
+    },
+    {
+      "id": "biscuits-for-the-post",
+      "kind": "deliver",
+      "item": "fish-biscuit",
+      "count": [
+        2,
+        3
+      ],
+      "to": [
+        "bavko",
+        "tobolko"
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 3
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "plain-treat",
+            "count": 2
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
+            "perItem": 9
           }
         ]
       }
@@ -176,7 +241,7 @@
         "xp": [
           {
             "skill": "foraging",
-            "perItem": 15
+            "perItem": 12
           }
         ]
       }
@@ -210,6 +275,38 @@
       }
     },
     {
+      "id": "dumplings-to-go",
+      "kind": "deliver",
+      "item": "mint-dumpling",
+      "count": [
+        1,
+        2
+      ],
+      "to": [
+        "tobolko",
+        "vetrinka"
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 6
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "gale-treat",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
+            "perItem": 18
+          }
+        ]
+      }
+    },
+    {
       "id": "soup-for-the-lookout",
       "kind": "deliver",
       "item": "cloud-soup",
@@ -235,7 +332,151 @@
         "xp": [
           {
             "skill": "cooking",
+            "perItem": 28
+          }
+        ]
+      }
+    },
+    {
+      "id": "sunroot-dig",
+      "kind": "gather",
+      "item": "sunroot",
+      "count": [
+        2,
+        3
+      ],
+      "needs": {
+        "skill": "foraging",
+        "level": 10
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "sun-treat",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "foraging",
+            "perItem": 30
+          }
+        ]
+      }
+    },
+    {
+      "id": "glimmer-catch",
+      "kind": "gather",
+      "item": "glimmercarp",
+      "count": [
+        1,
+        2
+      ],
+      "needs": {
+        "skill": "fishing",
+        "level": 12
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "rain-treat",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "fishing",
+            "perItem": 42
+          }
+        ]
+      }
+    },
+    {
+      "id": "bake-for-the-post",
+      "kind": "deliver",
+      "item": "sunroot-bake",
+      "count": [
+        1,
+        2
+      ],
+      "to": [
+        "bavko",
+        "vetrinka"
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 14
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "glimmercarp",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
             "perItem": 40
+          }
+        ]
+      }
+    },
+    {
+      "id": "frostcap-hunt",
+      "kind": "gather",
+      "item": "frostcap",
+      "count": [
+        1,
+        2
+      ],
+      "needs": {
+        "skill": "foraging",
+        "level": 15
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "frost-treat",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "foraging",
+            "perItem": 42
+          }
+        ]
+      }
+    },
+    {
+      "id": "pudding-party",
+      "kind": "cook",
+      "item": "frost-pudding",
+      "count": [
+        1,
+        2
+      ],
+      "needs": {
+        "skill": "cooking",
+        "level": 18
+      },
+      "weight": 10,
+      "rewards": {
+        "items": [
+          {
+            "item": "storm-treat",
+            "count": 1
+          }
+        ],
+        "xp": [
+          {
+            "skill": "cooking",
+            "perItem": 50
           }
         ]
       }

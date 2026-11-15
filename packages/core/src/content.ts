@@ -145,6 +145,8 @@ export const REQUIRED_STRING_IDS = [
   'battle.treatLater',
   'battle.noTreats',
   'battle.treats',
+  'battle.favouriteTag',
+  'battle.favourite',
   'battle.back',
   'battle.won',
   'battle.over',

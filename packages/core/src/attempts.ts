@@ -11,8 +11,11 @@ import type { Difficulty, GameKind, GamesRules } from './skill-content.ts';
 export const MIN_ATTEMPT_MS = 1_000;
 /** A tap may claim to be this much later than the server's elapsed time, for clocks that tick a little apart. */
 export const CLOCK_SLACK_MS = 50;
-/** Every window counts this much wider on each side than it is drawn, for frame timing and touch delay. */
-export const GRACE_MS = 150;
+/**
+ * A dipped float and a sparkle fade out over this long once their time is up, and a tap while they
+ * fade still counts: the grace for frame timing and touch delay is drawn, so what counts is what shows.
+ */
+export const FADE_MS = 100;
 /** The server waits the game's own length plus this for `skill.finish`; after that the attempt ends `late`. */
 export const LATE_MS = 5_000;
 /** The first sparkle shows this long after the game is drawn. */
@@ -27,7 +30,11 @@ export const MAX_TAP_MS = 20_000;
 export const MARKER_TRACK = 1_000;
 /** The marker's zone keeps this far from either end of the track, where the marker turns. */
 export const MARKER_MARGIN = 150;
-
+/**
+ * Half the width of the marker's needle, in track units: the needle is drawn this far either side
+ * of its position, and a stop counts for a band whenever any part of the needle touches it.
+ */
+export const MARKER_HALF_WIDTH = 20;
 /** A tap of the player's: `at` ms after the game was drawn, at sparkle `place` (0 for dip and marker). */
 export type Tap = { readonly at: number; readonly place: number };
 
@@ -52,12 +59,12 @@ function planSparkles(rules: GamesRules['sparkle'], difficulty: Difficulty, rng:
   let atMs = SPARKLE_FIRST_MS;
   for (let at = 0; at < rules.count; at += 1) {
     if (at > 0) atMs += rng.int(rules.gapMs[0], rules.gapMs[1]);
-    // A place held by a sparkle whose tap window still overlaps this one's would make a tap count twice.
-    const held = new Set(sparkles.filter((other) => other.atMs + other.showMs + 2 * GRACE_MS >= atMs).map((other) => other.place));
+    // A sparkle at the place of one that still shows or fades would look like that one staying.
+    const held = new Set(sparkles.filter((other) => other.atMs + other.showMs + FADE_MS >= atMs).map((other) => other.place));
     const free = Array.from({ length: SPARKLE_PLACES }, (_, place) => place).filter((place) => !held.has(place));
     sparkles.push({ place: rng.pick(free), atMs, showMs });
   }
-  return { game: 'sparkle', params: { sparkles, need: rules.need }, endsByMs: atMs + showMs };
+  return { game: 'sparkle', params: { sparkles, need: rules.need }, endsByMs: atMs + showMs + FADE_MS };
 }
 
 /** The seeded parameters of one game at `difficulty` (1 to 3), from the numbers in skills.json. */
@@ -65,7 +72,7 @@ export function planAttempt(game: GameKind, difficulty: Difficulty, rng: Rng, ru
   if (game === 'dip') {
     const dipAtMs = rng.int(rules.dip.waitMs[0], rules.dip.waitMs[1]);
     const windowMs = pickBy(rules.dip.windowMs, difficulty);
-    return { game, params: { dipAtMs, windowMs, perfectMs: pickBy(rules.dip.perfectMs, difficulty) }, endsByMs: dipAtMs + windowMs };
+    return { game, params: { dipAtMs, windowMs, perfectMs: pickBy(rules.dip.perfectMs, difficulty) }, endsByMs: dipAtMs + windowMs + FADE_MS };
   }
   if (game === 'sparkle') return planSparkles(rules.sparkle, difficulty, rng);
   const zone = pickBy(rules.marker.zone, difficulty);
@@ -83,38 +90,73 @@ export function markerAt(sweepMs: number, at: number): number {
   return Math.floor((travelled * MARKER_TRACK) / sweepMs);
 }
 
+/** Where the float is `ms` after the game was drawn: bobbing, dipped (tap now!), fading back up, or up again. */
+export type DipPhase = 'wait' | 'dip' | 'fading' | 'over';
+
+export function dipPhase(params: DipParams, ms: number): DipPhase {
+  if (ms < params.dipAtMs) return 'wait';
+  const after = ms - params.dipAtMs;
+  if (after < params.windowMs) return 'dip';
+  return after < params.windowMs + FADE_MS ? 'fading' : 'over';
+}
+
+/**
+ * The sparkle on show `ms` after the game was drawn, given the sparkles already `hit`: the earliest
+ * one not yet tapped whose time has come and whose fade is not over, so only one shows at a time.
+ * Null when none does. The browser draws this one, and only a tap at its place counts.
+ */
+export function shownSparkle(params: SparkleParams, hit: ReadonlySet<number>, ms: number): number | null {
+  const at = params.sparkles.findIndex((sparkle, index) => !hit.has(index) && ms >= sparkle.atMs && ms < sparkle.atMs + sparkle.showMs + FADE_MS);
+  return at >= 0 ? at : null;
+}
+
+/** Whether the sparkle on show at `ms` is fading: its time is up but its fade is not. */
+export function sparkleFading(sparkle: Sparkle, ms: number): boolean {
+  return ms >= sparkle.atMs + sparkle.showMs;
+}
+
+/** The sparkle a tap at `place`, `ms` after the game was drawn, picks: the one on show, if it is at that place. */
+export function sparkleHit(params: SparkleParams, hit: ReadonlySet<number>, place: number, ms: number): number | null {
+  const shown = shownSparkle(params, hit, ms);
+  return shown !== null && params.sparkles[shown]?.place === place ? shown : null;
+}
+
 const within = (value: number, from: number, to: number) => value >= from && value <= to;
 
 function judgeDip(params: DipParams, tap: Tap | undefined): AttemptOutcome {
-  if (!tap || tap.at < params.dipAtMs - GRACE_MS) return 'miss';
-  if (tap.at <= params.dipAtMs + params.perfectMs + GRACE_MS) return 'perfect';
-  return tap.at <= params.dipAtMs + params.windowMs + GRACE_MS ? 'success' : 'miss';
+  if (!tap) return 'miss';
+  const phase = dipPhase(params, tap.at);
+  if (phase === 'wait' || phase === 'over') return 'miss';
+  return tap.at - params.dipAtMs < params.perfectMs ? 'perfect' : 'success';
 }
 
 function judgeSparkles(params: SparkleParams, taps: readonly Tap[]): AttemptOutcome {
   const hit = new Set<number>();
   for (const tap of taps) {
-    const found = params.sparkles.findIndex((sparkle, at) => !hit.has(at) && sparkle.place === tap.place && within(tap.at, sparkle.atMs - GRACE_MS, sparkle.atMs + sparkle.showMs + GRACE_MS));
-    if (found >= 0) hit.add(found);
+    const found = sparkleHit(params, hit, tap.place, tap.at);
+    if (found !== null) hit.add(found);
   }
   if (hit.size === params.sparkles.length) return 'perfect';
   return hit.size >= params.need ? 'success' : 'miss';
 }
 
+/** Whether the needle at `position` touches the band `from` to `to`. */
+const touches = (position: number, from: number, to: number) => within(position, from - MARKER_HALF_WIDTH, to + MARKER_HALF_WIDTH);
+
 function judgeMarker(params: MarkerParams, tap: Tap | undefined): AttemptOutcome {
-  if (!tap || tap.at > params.timeoutMs + GRACE_MS) return 'miss';
+  if (!tap || tap.at > params.timeoutMs) return 'miss';
   const position = markerAt(params.sweepMs, tap.at);
-  // The marker moves this far in GRACE_MS, so its bands widen by that much.
-  const grace = Math.ceil((GRACE_MS * MARKER_TRACK) / params.sweepMs);
-  if (within(position, params.perfectFrom - grace, params.perfectTo + grace)) return 'perfect';
-  return within(position, params.zoneFrom - grace, params.zoneTo + grace) ? 'success' : 'miss';
+  if (touches(position, params.perfectFrom, params.perfectTo)) return 'perfect';
+  return touches(position, params.zoneFrom, params.zoneTo) ? 'success' : 'miss';
 }
 
 /**
  * How an attempt went, from the taps the browser reported and `elapsedMs`, the server's own time
  * since it sent `skill.attempt`. A finish before MIN_ATTEMPT_MS, taps out of order, or a tap later
- * than `elapsedMs` + CLOCK_SLACK_MS (it had not happened yet) is a miss. Dip and marker count the
- * first tap; sparkle counts each tap on a sparkle at its place while it shows.
+ * than `elapsedMs` + CLOCK_SLACK_MS (it had not happened yet) is a miss. What counts is what the
+ * browser draws: a dip tap while the float is dipped or fading, a sparkle tap at the sparkle on show
+ * (`shownSparkle`), and a marker stop where its needle touches the zone. Dip and marker count the
+ * first tap only.
  */
 export function judgeAttempt(plan: AttemptPlan, taps: readonly Tap[], elapsedMs: number): AttemptOutcome {
   if (elapsedMs < MIN_ATTEMPT_MS) return 'miss';

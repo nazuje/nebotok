@@ -130,6 +130,8 @@
   "battle.treatLater": { "en": "Tire it out first, then offer a treat.", "sl": "Najprej ga utrudi, potem mu ponudi poslastico." },
   "battle.noTreats": { "en": "You have no treats left.", "sl": "Nimaš več poslastic." },
   "battle.treats": { "en": "Choose a treat", "sl": "Izberi poslastico" },
+  "battle.favouriteTag": { "en": "Favourite!", "sl": "Najljubše!" },
+  "battle.favourite": { "en": "{creature}'s favourite treat is {treat}!", "sl": "{creature}: najljubša poslastica je {treat}." },
   "battle.back": { "en": "Back", "sl": "Nazaj" },
   "battle.won": { "en": "You win!", "sl": "Zmagaš!" },
   "battle.over": { "en": "The battle is over.", "sl": "Boja je konec." },

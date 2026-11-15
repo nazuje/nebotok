@@ -1,4 +1,4 @@
-import { GAME_SPRITES, GRACE_MS, type DipParams, type Language, type Tap } from '@nebotok/core';
+import { FADE_MS, GAME_SPRITES, dipPhase, type DipParams, type Language, type Tap } from '@nebotok/core';
 import { el } from '../dom.ts';
 import { text } from '../strings.ts';
 import { ACTION_KEYS, onPress, showFrame, spriteCanvas, type MiniGame, type MiniGameOptions } from './mini-game.ts';
@@ -9,16 +9,8 @@ const FLOAT_ART = GAME_SPRITES.dip[0]!.id;
 const BOB_PX = 4;
 const BOB_MS = 900;
 
-export type DipPhase = 'wait' | 'dip' | 'over';
-
-/** Whether the float is waiting, dipped (tap now!) or back up after its window, `ms` after the game was drawn. */
-export function dipPhase(params: DipParams, ms: number): DipPhase {
-  if (ms < params.dipAtMs) return 'wait';
-  return ms < params.dipAtMs + params.windowMs ? 'dip' : 'over';
-}
-
-/** When a game nobody tapped is over: the window and the grace the server allows after it. */
-export const dipEndsMs = (params: DipParams): number => params.dipAtMs + params.windowMs + GRACE_MS;
+/** When a game nobody tapped is over: the window, then the float's fade back up (core `dipPhase`). */
+export const dipEndsMs = (params: DipParams): number => params.dipAtMs + params.windowMs + FADE_MS;
 
 /** How far the waiting float sits from its rest, in CSS px: a gentle bob, or none with reduced motion. */
 export function dipBob(ms: number, reducedMotion: boolean): number {
@@ -27,7 +19,8 @@ export function dipBob(ms: number, reducedMotion: boolean): number {
 
 /**
  * Fishing: a float bobs on the cloud water; when it dips it turns red with a "!", and a tap
- * anywhere (or Space or Enter) pulls. The first tap ends the game, early or not.
+ * anywhere (or Space or Enter) pulls. As its window ends the red fades out, and a pull while it
+ * fades still counts, as core `judgeAttempt` counts it. The first tap ends the game, early or not.
  */
 export function createDip(params: DipParams, options: MiniGameOptions): MiniGame {
   const float = spriteCanvas(FLOAT_ART, 'still', 'dip-float');
@@ -43,7 +36,7 @@ export function createDip(params: DipParams, options: MiniGameOptions): MiniGame
       const at = pulledAt ?? ms;
       const phase = dipPhase(params, at);
       area.dataset.phase = pulledAt === null ? phase : 'pulled';
-      showFrame(float, FLOAT_ART, phase === 'dip' ? 'dip' : 'still');
+      showFrame(float, FLOAT_ART, phase === 'dip' || phase === 'fading' ? 'dip' : 'still');
       bobber.style.transform = phase === 'wait' && pulledAt === null ? `translateY(${dipBob(ms, options.reducedMotion)}px)` : '';
     },
     press: (_place, ms) => {

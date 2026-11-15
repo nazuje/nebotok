@@ -165,7 +165,7 @@ cost the game its seal (details and restore steps in `docs/deploy.md`, "Backups"
 
 | Measure | Where |
 | --- | --- |
-| Litestream, pinned by digest (`litestream/litestream:0.5.17`), replicates the database to `BACKUP_DIR` on the Mac with 7 days of history. Dependabot proposes its updates with the Tailscale image's. | `compose.yaml`, `deploy/litestream/litestream.yml` |
+| Litestream, pinned by digest (`litestream/litestream:0.5.18`), replicates the database to `BACKUP_DIR` on the Mac with 7 days of history. Dependabot proposes its updates with the Tailscale image's. | `compose.yaml`, `deploy/litestream/litestream.yml` |
 | The Litestream container has no network (`network_mode: none`), runs as uid 1000 (not root), with a read-only root, every capability dropped, `no-new-privileges` and limits. Its config is mounted read-only. | `compose.yaml` |
 | It is the only container with a host folder, and that folder is only `BACKUP_DIR`. The game still sees no host folder. A missing `BACKUP_DIR` stops the stack instead of creating a new empty folder (`create_host_path: false`). | `compose.yaml` |
 | The game writes nightly snapshots with `VACUUM INTO` into its own volume; Litestream's container copies them to `BACKUP_DIR/snapshots`. Both keep 30. Copies land under a hidden name and are renamed when whole, and only if the copy is still a plain file, so a file swapped for a link meanwhile is dropped. | `apps/server/src/snapshots.ts`, `deploy/litestream/copy-snapshots.sh` |
@@ -289,7 +289,7 @@ Before `npm install <package>`:
   `apps/server/src/migrations/` run in one transaction and set `user_version`
   (`apps/server/src/db.ts`). Outside the container `DATA_DIR` defaults to `.local-data/`, which
   git and the agent guard both ignore; tests use temporary folders.
-- Litestream 0.5.17 (Debian build) runs as root by default, so compose sets `user: "1000:1000"`,
+- Litestream 0.5.18 (Debian build) runs as root by default, so compose sets `user: "1000:1000"`,
   the game's `node` uid that owns the database files. It needs write access to the data volume: it
   keeps its own notes in `/data/.nebotok.db-litestream` and checkpoints the write-ahead log. Its
   `-exec` child is the snapshot copy loop: Litestream forwards SIGTERM to it, and if the loop exits,
