@@ -1,0 +1,8 @@
+# The voice tool's direct Python dependencies (Python 3.12). requirements.txt pins these and
+# everything they pull in, with a hash for every file. To update, follow the checklist in
+# docs/security.md, then take only versions at least a week old:
+#   uv pip compile requirements.in --generate-hashes --no-annotate --python-version 3.12 \
+#     --exclude-newer <the date a week ago> -o requirements.txt
+numpy==2.5.4
+phonemizer-fork==3.3.2
+piper-tts==1.8.0

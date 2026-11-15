@@ -28,7 +28,11 @@
     "art:sheet": "node scripts/art-sheet.mjs",
     "verify": "node scripts/verify.mjs",
     "verify:container": "node scripts/verify.mjs --level 4 --container",
-    "scene": "node scripts/scene.mjs"
+    "scene": "node scripts/scene.mjs",
+    "voice": "node scripts/voice/voice.mjs generate",
+    "voice:setup": "sh scripts/voice/setup.sh",
+    "voice:words": "node scripts/voice/voice.mjs words",
+    "voice:fix": "node scripts/voice/voice.mjs fix"
   },
   "volta": {
     "node": "26.13.0"

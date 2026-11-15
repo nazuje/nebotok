@@ -34,3 +34,8 @@ npm run verify -- --level 4      # the full proof: tests, build and headless bro
 
 All rights reserved until a licence is chosen. The vendored agent skills in `.agents/skills/` keep
 their own MIT licences; see `.agents/skills/VENDORED.md`.
+
+The voice clips in `apps/game/public/voice/` are made with [Piper](https://github.com/rhasspy/piper-voices)
+voices: "cori" for English (public domain) and "artur" for Slovenian, trained on the
+[Artur dataset](https://huggingface.co/datasets/ppisljar/artur_studio_tts/) by ppisljar
+([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)). See `scripts/voice/README.md`.
