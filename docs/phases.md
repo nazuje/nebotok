@@ -27,8 +27,8 @@ of them are fixed or decided.
 
 ## Phase 2: The whole game in placeholder slices
 
-Rather than wait for real art and real creatures, Phase 2 builds the game in six thin slices, each
-playable on the live server. Everything a slice adds is data with a schema in `content/`:
+Rather than wait for real art and real creatures, Phase 2 builds the game in seven thin slices,
+each playable on the live server. Everything a slice adds is data with a schema in `content/`:
 creatures, moves, treats, encounter zones, shrines, quests, dialogue, recipes, islands and sounds.
 The art test and the creature design day after Slice F then swap new data and images in, and no
 rule has to change. Until the art test, the art is pixel grids drawn in code.
@@ -68,6 +68,22 @@ for skills, attempts, spots, recipes and jobs, see "Skills and the job board" in
 `docs/protocol.md`), then the skills server (#83), the job board server (#84), the games and skills
 screens (#85, after #83), the job board screen (#86, after #84), the placeholder content (#87) and
 its art (#88), all in parallel, and a playtest (#89). Building moves to Slice D.
+
+### Playable without reading
+
+Some players can't read yet. Pictures, motion and an optional computer voice carry every message
+that matters for progress, and text becomes a bonus for readers (see "Who plays" in the
+[design](design.md)).
+
+Built as tickets: these docs (#113), then a picture kit with weather icons (#114) and computer-voice
+clips for talks and quests in both languages (#115) in parallel. After #114, the screens turn into
+pictures in parallel: quests with a banner, journal cards and a compass button (#117), job board
+cards and news (#118), tiny games, results, the recipe book and skills (#119), refusals, level ups,
+shrine rests and connection messages (#120), and the treat picker, battle results, learn prompt and
+team screen (#121). "Read to me" with speaker buttons (#122) follows #115 and #117, and a playtest as
+a child who cannot read (#123) comes last. Battle visuals follow the owner's verdict on the
+battle-feel prototype (branch `prototype/battle-feel`): the battle redesign (#116) is blocked until
+then, and the playtest does not wait for it.
 
 ### Slice D: Better together
 

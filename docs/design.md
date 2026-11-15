@@ -7,14 +7,17 @@ change it here.
 
 ## Who plays, and how it should feel
 
-The players are aged 8 to 16. The game should feel like something rated PEGI 7 to 12: battles are
-cartoon battles where creatures faint and go to rest, with no blood and no death, but spooky places
-and real villains are welcome.
+The players are aged 8 to 16, and they include children who can't read yet. The game should feel
+like something rated PEGI 7 to 12: battles are cartoon battles where creatures faint and go to
+rest, with no blood and no death, but spooky places and real villains are welcome.
 
 - Mostly played on iPhones and iPads, so everything is designed for touch first. A laptop with a
   keyboard and mouse works too.
-- Text in English and Slovenian. There is no recorded speech; characters "talk" in short babble
-  sounds while their words appear.
+- Playable without reading. Every message that matters for progress has a picture or animation
+  that carries its meaning with the sound off, and text is a bonus for readers.
+- Text in English and Slovenian. Characters "talk" in short babble sounds while their words
+  appear. Important lines can also be read aloud with "Read to me": a computer voice now, and the
+  owner's recorded voice for the main characters later.
 
 ## The story
 

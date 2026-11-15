@@ -10,6 +10,7 @@ changing Phaser code, and use Phaser 4 APIs only.
   dialogue, inventory and every piece of text. Phaser draws only the world.
 - **Touch first.** Every control is at least 48 by 48 CSS pixels, works by tap alone (no hover, no
   keyboard needed), and nothing scrolls sideways at 360px wide. The browser check fails on either.
+  A new message or screen that matters for progress needs a picture, not only words.
 - **Text** comes only from `content/strings.json` through `text(id, language)` in `src/strings.ts`,
   never a literal in code.
 - **Own origin only.** The game loads fonts, images and data from its own server. The
