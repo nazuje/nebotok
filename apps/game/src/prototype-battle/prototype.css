@@ -324,3 +324,201 @@ body[data-variant='0'] .battle {
     box-shadow: 0 0 0 4px #ffd43b;
   }
 }
+
+/* Round two: the settings in the top bar. */
+.proto-top-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-turtle.on {
+  background: #8ce99a;
+  box-shadow: 0 0 0 3px #2b8a3e, var(--shadow);
+}
+
+.proto-turtle svg {
+  width: 30px;
+  height: 30px;
+}
+
+.proto-gap {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  min-width: 64px;
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--ink);
+  font-weight: 900;
+  box-shadow: var(--shadow);
+}
+
+.proto-gap-lv {
+  font-size: 0.8rem;
+}
+
+.proto-gap-value {
+  font-size: 1.3rem;
+}
+
+.proto-gap.up {
+  background: #ffc9c9;
+  color: #c92a2a;
+}
+
+.proto-gap.down {
+  background: #d3f9d8;
+  color: #2b8a3e;
+}
+
+@media (max-width: 440px) {
+  .proto-new span {
+    display: none;
+  }
+
+  .proto-new {
+    padding: 0 12px;
+  }
+}
+
+/* Variants 4 and 5: energy, cooldowns, Charge and Dodge. */
+.proto-bottom.five .proto-moves {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.proto-pips.energy {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  min-height: 9px;
+}
+
+.proto-pips.energy .proto-pip {
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid #102a43;
+  border-radius: 50%;
+  background: #22d3ee;
+}
+
+.proto-move.poor {
+  opacity: 0.45;
+  filter: grayscale(0.8);
+}
+
+.proto-cd {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(rgb(16 42 67 / 0.6) calc(var(--cd, 0) * 1turn), transparent 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cooling > .proto-cd {
+  opacity: 1;
+}
+
+.proto-action {
+  position: relative;
+  min-width: 0;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border: 3px solid #102a43;
+  border-radius: 18px;
+  color: #102a43;
+  box-shadow: 0 4px 0 rgb(16 42 67 / 0.3);
+}
+
+.proto-action:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgb(16 42 67 / 0.3);
+}
+
+.proto-action:disabled {
+  opacity: 0.55;
+}
+
+.proto-action svg {
+  width: 44px;
+  height: 44px;
+  fill: currentColor;
+}
+
+.proto-action.charge {
+  background: linear-gradient(to bottom, #e3fafc, #66d9e8);
+  color: #0b7285;
+}
+
+.proto-action.charge svg {
+  animation: proto-charge 800ms ease-in-out infinite alternate;
+}
+
+@keyframes proto-charge {
+  from {
+    filter: drop-shadow(0 0 2px #22d3ee);
+    transform: translateY(2px);
+  }
+  to {
+    filter: drop-shadow(0 0 9px #22d3ee);
+    transform: translateY(-3px);
+  }
+}
+
+.proto-bottom.live {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.proto-bottom.live .proto-moves {
+  width: min(100%, 40rem);
+}
+
+.proto-action.dodge {
+  flex-direction: row;
+  gap: 10px;
+  width: min(100%, 40rem);
+  min-height: 72px;
+  background: linear-gradient(to bottom, #d0ebff, #4dabf7);
+  color: #102a43;
+  font-size: 1.1rem;
+}
+
+.proto-action.dodge .proto-move-name {
+  font-size: 1.2rem;
+}
+
+@media (min-width: 760px) {
+  .proto-bottom.live {
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+  }
+
+  .proto-action.dodge {
+    flex-direction: column;
+    width: 9rem;
+    order: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-action.charge svg {
+    animation: none;
+    filter: drop-shadow(0 0 6px #22d3ee);
+  }
+}

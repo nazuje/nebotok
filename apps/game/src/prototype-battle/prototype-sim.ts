@@ -4,8 +4,9 @@ import { CONTENT } from '../battle-content.ts';
 /**
  * A local stand-in for the server's battle, for the battle-feel prototype only: one creature a side,
  * real species, moves, stats, type chart and damage (`damageOf` from core), with a seeded RNG. It adds
- * two things the real rules do not have: a 1 in 10 critical hit (1.5x), and a damage multiplier the
- * timed-tap variant passes in.
+ * things the real rules do not have: a 1 in 10 critical hit (1.5x), a damage multiplier the timed
+ * variants pass in, a dodge that takes the whole hit, a level gap for the wild side, and bigger health
+ * pools for the live duel.
  */
 
 export type Side = 0 | 1;
@@ -34,6 +35,8 @@ export type Strike = {
   readonly fainted: boolean;
   /** The weather this move called up, or null. */
   readonly weather: string | null;
+  /** True when the target dodged the whole hit. */
+  readonly dodged: boolean;
 };
 
 export type Advantage = 'strong' | 'weak' | 'normal';
@@ -66,12 +69,15 @@ export function setupOf(seed: number): { species: [string, string]; level: numbe
   return { species: [mine, theirs], level: rng.int(10, 16), weather };
 }
 
-export function newBattle(seed: number): ProtoBattle {
+/** The wild creature's level is the seed's level plus `gap`; `hpScale` multiplies both health pools. */
+export function newBattle(seed: number, gap = 0, hpScale = 1): ProtoBattle {
   const setup = setupOf(seed);
   const make = (side: Side): BattleCreature => {
     const species = CONTENT.species.get(setup.species[side]);
     if (!species) throw new Error(`no species ${setup.species[side]}`);
-    return battleCreature(side === 0 ? 'a1' : 'b1', species, setup.level);
+    const made = battleCreature(side === 0 ? 'a1' : 'b1', species, Math.max(1, setup.level + (side === 1 ? gap : 0)));
+    const hp = Math.round(made.maxHp * hpScale);
+    return { ...made, hp, maxHp: hp };
   };
   return { seed, fighters: [make(0), make(1)], weather: setup.weather ? { type: setup.weather, turnsLeft: null } : null, turn: 0, winner: null, rng: createRng(`prototype-battle:${seed}`) };
 }
@@ -123,7 +129,7 @@ export function strike(battle: ProtoBattle, side: Side, slot: number, multiplier
   const id = moveOf(battle, side, slot);
   const move = CONTENT.moves.get(id);
   if (!move) return null;
-  const base = { side, move: id, moveType: move.type, hpBefore: target.hp, maxHp: target.maxHp, weather: null };
+  const base = { side, move: id, moveType: move.type, hpBefore: target.hp, maxHp: target.maxHp, weather: null, dodged: false };
   if (battle.rng.int(1, 100) > move.accuracy) {
     return { ...base, missed: true, damage: 0, effectiveness: 'normal', field: 'none', critical: false, hpAfter: target.hp, fainted: false };
   }
@@ -136,6 +142,14 @@ export function strike(battle: ProtoBattle, side: Side, slot: number, multiplier
   const weather = move.setsWeather ?? null;
   if (weather !== null) battle.weather = { type: weather, turnsLeft: CONTENT.rules.weatherTurns };
   return { ...base, missed: false, damage, effectiveness: roll.effectiveness, field: roll.field, critical, hpAfter, fainted: hpAfter === 0, weather };
+}
+
+/** A damaging move the target dodged completely: nothing changes but the record. */
+export function dodgedStrike(battle: ProtoBattle, side: Side, slot: number): Strike {
+  const target = battle.fighters[side === 0 ? 1 : 0];
+  const id = moveOf(battle, side, slot);
+  const moveType = CONTENT.moves.get(id)?.type ?? '';
+  return { side, move: id, moveType, missed: true, dodged: true, damage: 0, effectiveness: 'normal', field: 'none', critical: false, hpBefore: target.hp, hpAfter: target.hp, maxHp: target.maxHp, fainted: false, weather: null };
 }
 
 /** Counts the turn and wears down called weather. Returns true when the weather just cleared. */

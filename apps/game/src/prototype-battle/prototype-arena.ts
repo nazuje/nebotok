@@ -1,7 +1,10 @@
 import { frameNames, spriteFor } from '@nebotok/core';
 import { Scene, TintModes, type GameObjects } from 'phaser';
+import { moveType } from '../battle-content.ts';
 import { creatureTexture } from '../creature-art.ts';
 import { sprite, spriteTexture } from '../sprites.ts';
+import { ENERGY_COLOUR, drawAlertMark, drawBadge, drawChargeMark, drawEnergyBar, drawHealthBar } from './prototype-bars.ts';
+import { ENERGY_MAX } from './prototype-energy.ts';
 import { typeColour } from './prototype-icons.ts';
 import { duelLayout, wheelLayout, type Layout, type Spot } from './prototype-layout.ts';
 import { drawBurst, drawCloud, drawCrown, drawIsland, drawPuff, drawShield, drawStar, drawTick, lerpColour, strokeLine } from './prototype-shapes.ts';
@@ -13,20 +16,50 @@ export const ARENA_SCENE = 'prototype-arena';
 export type ArenaLayout = 'duel' | 'wheel';
 export type Judgement = 'perfect' | 'good' | 'miss';
 export type RingKind = 'aim' | 'shield';
+/** A picture over a creature: charging up, an attack coming, or a powered-up next hit. */
+export type Mark = 'charge' | 'alert' | 'star';
 export type ArenaOptions = {
   readonly layout: ArenaLayout;
+  /** Variants 4 and 5 show an energy bar under each health bar. */
+  readonly energy: boolean;
   /** The band of the screen the arena may use, top and bottom in CSS pixels. */
   field(): { top: number; bottom: number };
 };
+/** What lands when an attack reaches its target, worked out only at that moment. */
+export type Landed = { readonly strike: Strike; readonly shielded: boolean };
+export type Attack = { readonly side: Side; readonly move: string; readonly quick?: boolean; land(): Landed | null };
 
 /** How an effect has moved, squashed or faded a creature; tweens change these. dx and dy are in art pixels. */
 type Fx = { dx: number; dy: number; sx: number; sy: number; alpha: number };
-type Fighter = { species: string; type: string; maxHp: number; shownHp: number; gone: boolean; image: GameObjects.Image; fx: Fx };
+type Fighter = {
+  species: string;
+  type: string;
+  level: number;
+  maxHp: number;
+  shownHp: number;
+  trailHp: number;
+  flashUntil: number;
+  energy: number;
+  aura: number | null;
+  mark: Mark | null;
+  hopUntil: number;
+  gone: boolean;
+  image: GameObjects.Image;
+  badge: GameObjects.Text;
+  bang: GameObjects.Text;
+  fx: Fx;
+};
 type Flight = { type: string; from: Spot; to: Spot; start: number; ms: number; lift: number };
 type Ring = { kind: RingKind; start: number; target: number; perfectMs: number };
+type Layers = { wheel: GameObjects.Graphics; islands: GameObjects.Graphics; aura: GameObjects.Graphics; bars: GameObjects.Graphics; fx: GameObjects.Graphics; marks: GameObjects.Graphics; ring: GameObjects.Graphics };
 
-const DEPTH = { wheel: 3, islands: 4, creatures: 5, clouds: 6, fx: 7, sparks: 7.5, pop: 8, ring: 9 } as const;
+const DEPTH = { wheel: 3, islands: 4, aura: 4.5, creatures: 5, bars: 6, badges: 6.5, fx: 7, sparks: 7.5, pop: 8, marks: 8.5, bang: 8.6, ring: 9 } as const;
 const HIT_STOP_MS = 70;
+const WIND_MS = 110;
+const FLIGHT_MS = 230;
+/** From the start of an attack to its hit: the lean back plus the flight. Variant 5 times its dodges by it. */
+export const ATTACK_LEAD_MS = WIND_MS + FLIGHT_MS;
+const FONT = 'system-ui, -apple-system, sans-serif';
 const TRAIL: Readonly<Record<string, { colour: number; shape: SparkShape; gravity: number }>> = {
   sun: { colour: 0xffd43b, shape: 'dot', gravity: -40 },
   rain: { colour: 0x4dabf7, shape: 'dot', gravity: 500 },
@@ -39,23 +72,24 @@ const TRAIL: Readonly<Record<string, { colour: number; shape: SparkShape; gravit
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rest = (): Fx => ({ dx: 0, dy: 0, sx: 1, sy: 1, alpha: 1 });
 const centreOf = (spot: Spot, size: number): Spot => ({ x: spot.x, y: spot.y - size / 2 });
+const otherSide = (side: Side): Side => (side === 0 ? 1 : 0);
 
 /**
  * The prototype's battle field: open sky painted by the weather, the two creatures (on floating
- * islands, or on the weather wheel), their health clouds, and every bit of hit juice. The page
- * drives it turn by turn with the async methods; each resolves when its animation is done.
+ * islands, or on the weather wheel), their health and energy bars, and every bit of hit juice. The
+ * page drives it with the async methods; each resolves when its animation is done.
  */
 export class ArenaScene extends Scene {
   readonly ready: Promise<void>;
   private readonly options: ArenaOptions;
   private markReady: () => void = () => undefined;
   private sky: Sky | null = null;
-  private layers: { wheel: GameObjects.Graphics; islands: GameObjects.Graphics; clouds: GameObjects.Graphics; fx: GameObjects.Graphics; ring: GameObjects.Graphics } | null = null;
+  private layers: Layers | null = null;
   private sparks: Sparks | null = null;
   private fighters: [Fighter, Fighter] | null = null;
   private wheelIcons = new Map<string, GameObjects.Image>();
   private weather: string | null = null;
-  private flight: Flight | null = null;
+  private flights = new Set<Flight>();
   private ring: Ring | null = null;
   private frozenUntil = 0;
   private cycle: string[] = [];
@@ -71,7 +105,7 @@ export class ArenaScene extends Scene {
   create(): void {
     this.sky = new Sky(this);
     const layer = (depth: number) => this.add.graphics().setDepth(depth);
-    this.layers = { wheel: layer(DEPTH.wheel), islands: layer(DEPTH.islands), clouds: layer(DEPTH.clouds), fx: layer(DEPTH.fx), ring: layer(DEPTH.ring) };
+    this.layers = { wheel: layer(DEPTH.wheel), islands: layer(DEPTH.islands), aura: layer(DEPTH.aura), bars: layer(DEPTH.bars), fx: layer(DEPTH.fx), marks: layer(DEPTH.marks), ring: layer(DEPTH.ring) };
     this.sparks = new Sparks(layer(DEPTH.sparks));
     this.cycle = weatherCycle();
     if (this.options.layout === 'wheel') {
@@ -83,12 +117,14 @@ export class ArenaScene extends Scene {
     this.markReady();
   }
 
-  show(battle: ProtoBattle): void {
+  show(battle: ProtoBattle, energy: readonly [number, number] = [0, 0]): void {
     const make = (side: Side): Fighter => {
       const creature = battle.fighters[side];
       const texture = creatureTexture(this, creature.species, 'front');
       const image = this.add.image(0, 0, texture.key, texture.frame).setOrigin(0.5, 1).setDepth(DEPTH.creatures);
-      return { species: creature.species, type: creature.type, maxHp: creature.maxHp, shownHp: creature.hp, gone: false, image, fx: rest() };
+      const badge = this.add.text(0, 0, `Lv ${creature.level}`, { fontFamily: FONT, fontStyle: '900', color: '#ffffff' }).setOrigin(0, 0.5).setDepth(DEPTH.badges);
+      const bang = this.add.text(0, 0, '!', { fontFamily: FONT, fontStyle: '900', color: '#e03131' }).setOrigin(0.5).setDepth(DEPTH.bang).setVisible(false);
+      return { species: creature.species, type: creature.type, level: creature.level, maxHp: creature.maxHp, shownHp: creature.hp, trailHp: creature.hp, flashUntil: 0, energy: energy[side], aura: null, mark: null, hopUntil: 0, gone: false, image, badge, bang, fx: rest() };
     };
     this.fighters = [make(0), make(1)];
     this.setWeather(battle.weather?.type ?? null);
@@ -104,7 +140,7 @@ export class ArenaScene extends Scene {
     const width = this.scale.width;
     const fighters = this.fighters;
     if (this.options.layout === 'wheel' && fighters) return wheelLayout(width, top, bottom, [fighters[0].type, fighters[1].type], this.cycle);
-    return duelLayout(width, top, bottom);
+    return duelLayout(width, top, bottom, this.options.energy);
   }
 
   override update(_time: number, delta: number): void {
@@ -115,7 +151,8 @@ export class ArenaScene extends Scene {
     const layout = this.layout();
     this.drawWheel(layout, now);
     this.drawFighters(layout, now);
-    this.drawFlight(layout, now, frozen);
+    this.drawBars(layout, now);
+    this.drawFlights(layout, now, frozen);
     if (!frozen) this.sparks?.update(delta);
     this.sparks?.draw();
     this.drawRing(layout, now);
@@ -127,35 +164,65 @@ export class ArenaScene extends Scene {
 
   private drawFighters(layout: Layout, now: number): void {
     if (!this.layers || !this.fighters) return;
-    const { islands, clouds } = this.layers;
+    const { islands, aura } = this.layers;
     islands.clear();
-    clouds.clear();
+    aura.clear();
     for (const side of [0, 1] as const) {
       const fighter = this.fighters[side];
       const spot = layout.spots[side];
-      const other = layout.spots[side === 0 ? 1 : 0];
+      const other = layout.spots[otherSide(side)];
       const bob = this.bob(side, now, layout);
       if (!layout.wheel) drawIsland(islands, spot.x, spot.y + bob + layout.size * 0.03, layout.size * 1.6, lerpColour(0x69c34d, typeColour(fighter.type), 0.3));
       const { fx } = fighter;
+      if (fighter.aura !== null && !fighter.gone) {
+        const pulse = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(now / 110);
+        const centre = centreOf(spot, layout.size);
+        aura.fillStyle(fighter.aura, 0.18 + 0.14 * pulse);
+        aura.fillCircle(centre.x + fx.dx * layout.scale, centre.y + bob, layout.size * (0.78 + 0.06 * pulse));
+        aura.fillStyle(fighter.aura, 0.3 + 0.15 * pulse);
+        aura.fillCircle(centre.x + fx.dx * layout.scale, centre.y + bob, layout.size * 0.58);
+      }
       fighter.image
         .setPosition(spot.x + fx.dx * layout.scale, spot.y + bob + fx.dy * layout.scale)
         .setScale(layout.scale * fx.sx, layout.scale * fx.sy)
         .setAlpha(fx.alpha)
         .setFlipX(spot.x < other.x);
-      if (fighter.gone) continue;
-      const cloud = layout.clouds[side];
-      const width = Math.max(56, layout.size * 0.95);
-      const share = Math.max(0, fighter.shownHp / fighter.maxHp);
-      const y = cloud.y + bob;
-      drawCloud(clouds, cloud.x, y, width + 8, 0x102a43, 0.28);
-      drawCloud(clouds, cloud.x, y, width, 0xffffff, 0.22);
-      if (share > 0) {
-        const shown = width * (0.28 + 0.72 * share);
-        drawCloud(clouds, cloud.x, y, shown + 7, 0x102a43, 1);
-        drawCloud(clouds, cloud.x, y, shown, lerpColour(0xffffff, 0x6c7a89, 1 - share), 1);
-        clouds.fillStyle(0xffffff, 0.9);
-        clouds.fillEllipse(cloud.x - shown * 0.12, y - shown * 0.16, shown * 0.22, shown * 0.1);
-      }
+    }
+  }
+
+  private badgeColour(side: Side): number {
+    const fighters = this.fighters;
+    if (!fighters || side === 0) return 0x102a43;
+    const gap = fighters[1].level - fighters[0].level;
+    return gap > 0 ? 0xc92a2a : gap < 0 ? 0x2b8a3e : 0x102a43;
+  }
+
+  private drawBars(layout: Layout, now: number): void {
+    if (!this.layers || !this.fighters) return;
+    const { bars, marks } = this.layers;
+    bars.clear();
+    marks.clear();
+    const { barWidth: width, barHeight: height } = layout;
+    for (const side of [0, 1] as const) {
+      const fighter = this.fighters[side];
+      const bar = layout.bars[side];
+      drawHealthBar(bars, { x: bar.x, y: bar.y, width, height, shown: fighter.shownHp, trail: fighter.trailHp, max: fighter.maxHp, flash: now < fighter.flashUntil });
+      const energyHeight = Math.max(9, Math.round(height * 0.55));
+      if (this.options.energy && !fighter.gone) drawEnergyBar(bars, bar.x, bar.y + height / 2 + 7 + energyHeight / 2, width, energyHeight, fighter.energy, ENERGY_MAX, now);
+      const font = Math.max(13, Math.round(height * 0.8));
+      fighter.badge.setFontSize(font);
+      const badgeHeight = font + 6;
+      const badgeY = bar.y - height / 2 - 6 - badgeHeight / 2;
+      drawBadge(bars, bar.x - width / 2 - 3, badgeY - badgeHeight / 2, fighter.badge.width + 14, badgeHeight, this.badgeColour(side));
+      fighter.badge.setPosition(bar.x - width / 2 + 4, badgeY);
+      const r = Math.max(15, height * 0.95);
+      const mx = bar.x + width / 2 - r * 0.6;
+      const my = badgeY - r * 0.35;
+      const mark = fighter.gone ? null : fighter.mark;
+      if (mark === 'charge') drawChargeMark(marks, mx, my, r, now);
+      if (mark === 'alert') drawAlertMark(marks, mx, my, r, now);
+      if (mark === 'star') drawStar(marks, mx, my, r * 0.9, 0xffd43b);
+      fighter.bang.setVisible(mark === 'alert').setPosition(mx, my).setFontSize(Math.round(r * 1.3));
     }
   }
 
@@ -199,12 +266,14 @@ export class ArenaScene extends Scene {
     }
   }
 
-  private drawFlight(layout: Layout, now: number, frozen: boolean): void {
+  private drawFlights(layout: Layout, now: number, frozen: boolean): void {
     const g = this.layers?.fx;
     if (!g) return;
     g.clear();
-    const flight = this.flight;
-    if (!flight) return;
+    for (const flight of this.flights) this.drawFlight(g, flight, layout, now, frozen);
+  }
+
+  private drawFlight(g: GameObjects.Graphics, flight: Flight, layout: Layout, now: number, frozen: boolean): void {
     const p = Math.min(1, (now - flight.start) / flight.ms);
     const x = flight.from.x + (flight.to.x - flight.from.x) * p;
     const y = flight.from.y + (flight.to.y - flight.from.y) * p - Math.sin(p * Math.PI) * flight.lift;
@@ -287,7 +356,7 @@ export class ArenaScene extends Scene {
     if (!ring) return;
     const centre = centreOf(layout.spots[0], layout.size);
     const inner = layout.size * 0.62;
-    const outer = layout.size * 1.7;
+    const outer = layout.size * 1.35;
     const p = Math.min(1.3, (now - ring.start) / (ring.target - ring.start));
     const radius = Math.max(inner * 0.5, inner + (outer - inner) * (1 - p));
     const close = Math.abs(now - ring.target) <= ring.perfectMs;
@@ -309,16 +378,19 @@ export class ArenaScene extends Scene {
     });
   }
 
-  /** Moves a creature's effect values to `to` over `ms`. With reduced motion only the time passes. */
+  /**
+   * Moves a creature's effect values to `to` over `ms`. With reduced motion only the time passes.
+   * The wait is a timer, not the tween's end: a later effect on the same creature kills this tween,
+   * and in the live duel that happens mid-attack.
+   */
   private tweenFx(fighter: Fighter, to: Partial<Fx>, ms: number, ease = 'Sine.easeInOut'): Promise<void> {
     if (reducedMotion()) {
       if (to.alpha !== undefined) fighter.fx.alpha = to.alpha;
       return this.wait(ms);
     }
     this.tweens.killTweensOf(fighter.fx);
-    return new Promise((resolve) => {
-      this.tweens.add({ targets: fighter.fx, ...to, duration: ms, ease, onComplete: () => resolve() });
-    });
+    this.tweens.add({ targets: fighter.fx, ...to, duration: ms, ease });
+    return this.wait(ms);
   }
 
   private fighter(side: Side): Fighter {
@@ -327,27 +399,86 @@ export class ArenaScene extends Scene {
     return fighter;
   }
 
-  /** One creature's action, start to finish: wind up, lunge, the move flying across, and the hit. */
+  setEnergy(side: Side, energy: number, animate = true): void {
+    const fighter = this.fighter(side);
+    if (!animate || reducedMotion()) {
+      fighter.energy = energy;
+      return;
+    }
+    this.tweens.add({ targets: fighter, energy, duration: 260, ease: 'Quad.easeOut' });
+  }
+
+  setAura(side: Side, colour: number | null): void {
+    this.fighter(side).aura = colour;
+  }
+
+  setMark(side: Side, mark: Mark | null): void {
+    this.fighter(side).mark = mark;
+  }
+
+  /** A turn-based strike whose outcome is already known. */
   async playStrike(strike: Strike, options: { shielded?: boolean } = {}): Promise<void> {
+    await this.playAttack({ side: strike.side, move: strike.move, land: () => ({ strike, shielded: options.shielded ?? false }) });
+  }
+
+  /** One creature's attack, start to finish: lean back, lunge, the move flying across, and the hit. */
+  async playAttack(attack: Attack): Promise<Strike | null> {
     const layout = this.layout();
-    const attacker = this.fighter(strike.side);
-    const target = this.fighter(strike.side === 0 ? 1 : 0);
-    const from = centreOf(layout.spots[strike.side], layout.size);
-    const to = centreOf(layout.spots[strike.side === 0 ? 1 : 0], layout.size);
+    const attacker = this.fighter(attack.side);
+    const targetSide = otherSide(attack.side);
+    const target = this.fighter(targetSide);
+    const from = centreOf(layout.spots[attack.side], layout.size);
+    const to = centreOf(layout.spots[targetSide], layout.size);
     const dir = Math.sign(to.x - from.x) || 1;
-    if (movePower(strike.move) === 0) return this.callWeather(strike, attacker, from);
-    await this.tweenFx(attacker, { sx: 1.25, sy: 0.78, dx: -5 * dir }, 110, 'Quad.easeOut');
-    void this.tweenFx(attacker, { sx: 0.82, sy: 1.18, dx: 12 * dir }, 90, 'Quad.easeIn').then(() => this.tweenFx(attacker, { sx: 1, sy: 1, dx: 0 }, 260, 'Back.easeOut'));
-    this.flight = { type: strike.moveType, from, to, start: performance.now(), ms: 230, lift: layout.size * 0.35 };
-    await this.wait(230);
-    this.flight = null;
-    if (strike.missed) {
+    if (movePower(attack.move) === 0) {
+      const landed = attack.land();
+      if (landed) await this.callWeather(landed.strike, attacker, from);
+      return landed?.strike ?? null;
+    }
+    if (!attack.quick) await this.tweenFx(attacker, { sx: 1.25, sy: 0.78, dx: -5 * dir }, WIND_MS, 'Quad.easeOut');
+    void this.tweenFx(attacker, { sx: 0.82, sy: 1.18, dx: 12 * dir }, 90, 'Quad.easeIn').then(() => this.tweenFx(attacker, { sx: 1, sy: 1, dx: 0, dy: 0 }, 260, 'Back.easeOut'));
+    const flightMs = attack.quick ? 150 : FLIGHT_MS;
+    const flight: Flight = { type: moveType(attack.move) ?? 'sun', from, to, start: performance.now(), ms: flightMs, lift: layout.size * (attack.quick ? 0.1 : 0.35) };
+    this.flights.add(flight);
+    await this.wait(flightMs);
+    this.flights.delete(flight);
+    const landed = attack.land();
+    if (!landed) return null;
+    const { strike, shielded } = landed;
+    if (strike.dodged) await this.dodged(targetSide, to, layout);
+    else if (strike.missed) {
       void this.tweenFx(target, { dx: 10 * dir, dy: -6 }, 120, 'Quad.easeOut').then(() => this.tweenFx(target, { dx: 0, dy: 0 }, 160));
       this.popIcon('puff', to.x + dir * layout.size * 0.5, to.y - layout.size * 0.3, layout.size * 0.2);
       await this.wait(260);
+    } else await this.impact(strike, target, to, dir, layout, shielded);
+    return strike;
+  }
+
+  /** A quick hop out of the way; does nothing while already hopping. */
+  dodgeHop(side: Side): void {
+    const fighter = this.fighter(side);
+    const now = performance.now();
+    if (now < fighter.hopUntil) return;
+    fighter.hopUntil = now + 360;
+    const layout = this.layout();
+    const centre = centreOf(layout.spots[side], layout.size);
+    const away = side === 0 ? -1 : 1;
+    this.sparks?.burst(centre.x - away * layout.size * 0.3, centre.y, { colour: 0xffffff, count: 6, speed: 220, size: layout.size * 0.12, shape: 'line', gravity: 0, life: 260 });
+    if (reducedMotion()) {
+      this.sparks?.ring(centre.x, centre.y, 0x4dabf7, layout.size * 0.9, 300);
       return;
     }
-    await this.impact(strike, target, to, dir, layout, options.shielded ?? false);
+    void this.tweenFx(fighter, { dy: -14, dx: 6 * away, sx: 0.9, sy: 1.12 }, 130, 'Quad.easeOut').then(() => this.tweenFx(fighter, { dy: 0, dx: 0, sx: 1, sy: 1 }, 220, 'Quad.easeIn'));
+  }
+
+  /** The whole hit dodged: a hop if the dodge was not already shown, then a gold flash back at the attacker. */
+  private async dodged(side: Side, at: Spot, layout: Layout): Promise<void> {
+    this.dodgeHop(side);
+    this.sky?.flashOnce(0xffffff, 0.35);
+    this.sparks?.ring(at.x, at.y, 0xffd43b, layout.size * 1.2, 380);
+    this.sparks?.burst(at.x, at.y, { colour: 0xffd43b, count: 14, speed: 300, size: 6, shape: 'square', gravity: 0 });
+    this.popIcon('star', at.x, at.y - layout.size * 0.75, Math.max(18, layout.size * 0.24), 360);
+    await this.wait(260);
   }
 
   private async impact(strike: Strike, target: Fighter, to: Spot, dir: number, layout: Layout, shielded: boolean): Promise<void> {
@@ -360,6 +491,7 @@ export class ArenaScene extends Scene {
     this.tweens.killTweensOf(target.fx);
     if (motion) Object.assign(target.fx, { sx: 1.3, sy: 0.72, dx: 4 * dir });
     target.image.setTint(0xffffff).setTintMode(TintModes.FILL);
+    target.flashUntil = performance.now() + HIT_STOP_MS + 110;
     if (shielded) this.sparks?.ring(to.x, to.y, 0x4dabf7, size * 0.9, 420);
     if (weak) this.sparks?.burst(to.x, to.y, { colour: 0xadb5bd, count: 7, speed: 90, size: size * 0.09, shape: 'dot', gravity: -60 });
     else {
@@ -379,9 +511,11 @@ export class ArenaScene extends Scene {
         if (progress === 1) camera.zoomTo(1, 220, 'Quad.easeIn', true);
       });
     }
-    void this.tweenFx(target, { sx: 1, sy: 1, dx: 0 }, 260, 'Back.easeOut');
-    this.tweens.add({ targets: target, shownHp: strike.hpAfter, duration: 340, ease: 'Quad.easeOut' });
-    this.popNumber(strike, to.x - dir * size * 0.15, to.y - size * 0.55, layout);
+    void this.tweenFx(target, { sx: 1, sy: 1, dx: 0, dy: 0 }, 260, 'Back.easeOut');
+    this.tweens.killTweensOf(target);
+    this.tweens.add({ targets: target, shownHp: strike.hpAfter, duration: 180, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: target, trailHp: strike.hpAfter, delay: 450, duration: 420, ease: 'Quad.easeIn' });
+    this.popNumber(strike, to.x - dir * size * (0.7 + Math.random() * 0.15), to.y + size * (Math.random() * 0.2 - 0.05), layout);
     if (strong) this.popIcon('strong', to.x + dir * size * 0.55, to.y - size * 0.45, size * 0.24);
     if (weak) this.popIcon('puff', to.x + dir * size * 0.5, to.y - size * 0.35, size * 0.16);
     await this.wait(240);
@@ -397,6 +531,33 @@ export class ArenaScene extends Scene {
     await this.wait(380);
   }
 
+  /** Charging up: a cyan glow, sparks rising from the feet and a little stretch. */
+  async playCharge(side: Side): Promise<void> {
+    const layout = this.layout();
+    const fighter = this.fighter(side);
+    const spot = layout.spots[side];
+    fighter.aura = ENERGY_COLOUR;
+    this.sparks?.burst(spot.x, spot.y - layout.size * 0.1, { colour: ENERGY_COLOUR, count: 18, speed: 120, size: 7, shape: 'square', gravity: -600, life: 600 });
+    this.sparks?.ring(spot.x, spot.y - layout.size / 2, ENERGY_COLOUR, layout.size * 1.1, 420);
+    await this.tweenFx(fighter, { sx: 0.9, sy: 1.15, dy: -4 }, 160, 'Quad.easeOut');
+    await this.tweenFx(fighter, { sx: 1, sy: 1, dy: 0 }, 200, 'Back.easeOut');
+  }
+
+  /** Leaning back before a big attack, with a glow and a "!" over it. Clear with `endWindUp`. */
+  windUp(side: Side, ms: number): void {
+    const fighter = this.fighter(side);
+    const away = side === 0 ? -1 : 1;
+    fighter.aura = 0xff922b;
+    fighter.mark = 'alert';
+    void this.tweenFx(fighter, { dx: 7 * away, sx: 1.12, sy: 0.9 }, ms * 0.8, 'Quad.easeOut');
+  }
+
+  endWindUp(side: Side): void {
+    const fighter = this.fighter(side);
+    fighter.aura = null;
+    if (fighter.mark === 'alert') fighter.mark = null;
+  }
+
   private popNumber(strike: Strike, x: number, y: number, layout: Layout): void {
     const strong = strike.effectiveness === 'strong';
     const weak = strike.effectiveness === 'weak';
@@ -404,12 +565,12 @@ export class ArenaScene extends Scene {
     const px = Math.round(base * (strong || strike.critical ? 1.45 : weak ? 0.75 : 1));
     const colour = strike.critical ? '#ff922b' : strong ? '#ffd43b' : weak ? '#ced4da' : '#ffffff';
     const label = this.add
-      .text(x, y, String(strike.damage), { fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: `${px}px`, fontStyle: '900', color: colour, stroke: '#102a43', strokeThickness: Math.max(5, Math.round(px * 0.2)) })
+      .text(x, y, String(strike.damage), { fontFamily: FONT, fontSize: `${px}px`, fontStyle: '900', color: colour, stroke: '#102a43', strokeThickness: Math.max(5, Math.round(px * 0.2)) })
       .setOrigin(0.5)
       .setDepth(DEPTH.pop)
       .setScale(0.3);
     this.tweens.add({ targets: label, scale: 1, duration: 160, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: label, y: y - layout.size * 0.45, duration: 750, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: label, y: y - layout.size * 0.3, duration: 750, ease: 'Quad.easeOut' });
     this.tweens.add({ targets: label, alpha: 0, delay: 560, duration: 220, onComplete: () => label.destroy() });
   }
 
@@ -419,7 +580,7 @@ export class ArenaScene extends Scene {
     const parts: GameObjects.GameObject[] = [g];
     if (kind === 'strong') {
       drawBurst(g, 0, 0, r * 1.3, 0xffd43b);
-      parts.push(this.add.text(0, 0, '!!', { fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: `${Math.round(r * 1.2)}px`, fontStyle: '900', color: '#e03131' }).setOrigin(0.5));
+      parts.push(this.add.text(0, 0, '!!', { fontFamily: FONT, fontSize: `${Math.round(r * 1.2)}px`, fontStyle: '900', color: '#e03131' }).setOrigin(0.5));
     } else if (kind === 'puff') drawPuff(g, 0, 0, r);
     else if (kind === 'star') drawStar(g, 0, 0, r, 0xffd43b);
     else if (kind === 'tick') drawTick(g, 0, 0, r);
@@ -429,12 +590,13 @@ export class ArenaScene extends Scene {
     this.tweens.add({ targets: icon, alpha: 0, scale: 0.8, delay: 170 + hold, duration: 180, onComplete: () => icon.destroy() });
   }
 
-  /** The fainted creature turns into a little cloud that floats away. */
+  /** The fainted creature turns into a little cloud that floats away. Its empty bar stays. */
   async playFaint(side: Side): Promise<void> {
     const layout = this.layout();
     const fighter = this.fighter(side);
     const centre = centreOf(layout.spots[side], layout.size);
     fighter.gone = true;
+    fighter.aura = null;
     const puff = this.add.graphics();
     drawCloud(puff, 0, 0, layout.size * 0.7, 0xffffff, 0.95);
     puff.fillStyle(0x102a43, 1);
@@ -484,13 +646,17 @@ export class ArenaScene extends Scene {
     return this.popIcon('star', x, y, r * 1.2, 380);
   }
 
-  /** A bouncing crown over the winner. */
+  /** A bouncing crown over the winner's bar. */
   crown(side: Side): void {
     const layout = this.layout();
-    const cloud = layout.clouds[side];
+    const bar = layout.bars[side];
+    const fighter = this.fighter(side);
+    fighter.mark = null;
+    fighter.aura = null;
+    const r = Math.max(18, layout.size * 0.2);
     const g = this.add.graphics();
-    drawCrown(g, 0, 0, Math.max(18, layout.size * 0.2));
-    const crown = this.add.container(cloud.x, cloud.y - Math.max(56, layout.size * 0.95) * 0.45, [g]).setDepth(DEPTH.pop).setScale(0);
+    drawCrown(g, 0, 0, r);
+    const crown = this.add.container(bar.x, bar.y - layout.barHeight * 2.4 - r, [g]).setDepth(DEPTH.pop).setScale(0);
     this.tweens.add({ targets: crown, scale: 1, duration: 260, ease: 'Back.easeOut' });
     if (!reducedMotion()) this.tweens.add({ targets: crown, y: crown.y - 8, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }

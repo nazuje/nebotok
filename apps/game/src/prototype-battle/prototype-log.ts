@@ -56,6 +56,7 @@ export function createLog(language: Language): BattleLog {
 /** The button that starts a new battle with a new pair of creatures. */
 export function newBattleButton(onTap: () => void): HTMLButtonElement {
   const made = button('proto-new', '', onTap);
+  made.setAttribute('aria-label', 'New battle');
   made.append(icon('M12 4a8 8 0 1 1 -7.4 5h2.7a5.5 5.5 0 1 0 4.7 -2.5v3l-5 -4.25l5 -4.25z'), el('span', { text: 'New battle' }));
   return made;
 }

@@ -1,10 +1,10 @@
 import type { Language } from '@nebotok/core';
-import { AUTO, Game, Scale } from 'phaser';
-import { el } from '../dom.ts';
-import { ArenaScene, type Judgement, type RingKind } from './prototype-arena.ts';
+import type { ArenaScene, RingKind } from './prototype-arena.ts';
 import { moveButtons, moveCards } from './prototype-controls.ts';
-import { createLog, newBattleButton } from './prototype-log.ts';
 import { movePower, newBattle, type Side } from './prototype-sim.ts';
+import { mountStage } from './prototype-stage.ts';
+import { easierWindows, timedTap, type Windows } from './prototype-timing.ts';
+import type { Settings } from './prototype-toggles.ts';
 import { pause, playTurn, type BeforeStrike } from './prototype-turn.ts';
 
 export type PlayOptions = {
@@ -14,51 +14,19 @@ export type PlayOptions = {
   readonly controls: 'buttons' | 'cards';
   /** Variant 2: a shrinking ring to tap on before each damaging move. */
   readonly timed: boolean;
+  readonly settings: Settings;
   newBattle(): void;
 };
 
-/** How long the ring takes to reach the inner circle, and how far off a tap may be. Generous, for small hands. */
-export const RING_MS = 1_000;
-export const PERFECT_MS = 110;
-export const GOOD_MS = 380;
-/** A tap this much earlier than the good window is taken as a stray tap and ignored. */
-const IGNORE_EARLY_MS = 300;
+/** Variant 2's ring: generous, for small hands. */
+export const TIMED_WINDOWS: Windows = { ringMs: 1_000, perfectMs: 110, goodMs: 380 };
 const JUDGED_PAUSE_MS = 200;
 
-/** Waits for a tap or Space while the ring shrinks, and judges how close it came. */
-function timedTap(arena: ArenaScene, kind: RingKind): Promise<Judgement> {
-  const target = arena.startRing(kind, RING_MS, PERFECT_MS);
-  return new Promise((resolve) => {
-    const finish = (judgement: Judgement) => {
-      window.removeEventListener('pointerdown', onPointer, true);
-      window.removeEventListener('keydown', onKey);
-      clearTimeout(timer);
-      arena.stopRing();
-      resolve(judgement);
-    };
-    const judge = () => {
-      const off = performance.now() - target;
-      if (off < -GOOD_MS - IGNORE_EARLY_MS) return;
-      const distance = Math.abs(off);
-      finish(distance <= PERFECT_MS ? 'perfect' : distance <= GOOD_MS ? 'good' : 'miss');
-    };
-    const onPointer = () => judge();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') return;
-      event.preventDefault();
-      judge();
-    };
-    const timer = setTimeout(() => finish('miss'), RING_MS + GOOD_MS);
-    window.addEventListener('pointerdown', onPointer, true);
-    window.addEventListener('keydown', onKey);
-  });
-}
-
-function timedBefore(arena: ArenaScene): BeforeStrike {
+function timedBefore(arena: ArenaScene, windows: Windows): BeforeStrike {
   return async (side: Side, move: string) => {
     if (movePower(move) === 0) return { multiplier: 1, shielded: false };
     const kind: RingKind = side === 0 ? 'aim' : 'shield';
-    const judgement = await timedTap(arena, kind);
+    const judgement = await timedTap(arena, kind, windows);
     arena.showJudgement(judgement, kind);
     await pause(JUDGED_PAUSE_MS);
     if (side === 0) return { multiplier: judgement === 'perfect' ? 1.5 : judgement === 'good' ? 1 : 0.75, shielded: false };
@@ -68,29 +36,11 @@ function timedBefore(arena: ArenaScene): BeforeStrike {
 
 /** Variants 1 to 3: the fast arena with no narration, a log for readers, and picture moves. */
 export async function mountPlay(root: HTMLElement, options: PlayOptions): Promise<void> {
-  const battle = newBattle(options.seed);
-  const log = createLog(options.language);
-  const world = el('div', { attrs: { id: 'world', 'aria-hidden': 'true' } });
-  const top = el('div', { className: 'proto-top' }, [log.button, newBattleButton(options.newBattle)]);
-  const bottom = el('div', { className: `proto-bottom ${options.controls}` });
-  root.append(world, top, bottom, log.panel);
-  const arena = new ArenaScene({
-    layout: options.layout,
-    field: () => ({ top: top.getBoundingClientRect().bottom + 4, bottom: bottom.getBoundingClientRect().top - 4 }),
-  });
-  const game = new Game({
-    type: AUTO,
-    parent: world,
-    pixelArt: true,
-    backgroundColor: '#8fd3ff',
-    banner: false,
-    audio: { noAudio: true },
-    scale: { mode: Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
-    scene: [arena],
-  });
-  await arena.ready;
+  const battle = newBattle(options.seed, options.settings.gap);
+  const { game, arena, log, bottom } = await mountStage(root, { ...options, energy: false });
   arena.show(battle);
-  const before = options.timed ? timedBefore(arena) : undefined;
+  const windows = options.settings.easier ? easierWindows(TIMED_WINDOWS) : TIMED_WINDOWS;
+  const before = options.timed ? timedBefore(arena, windows) : undefined;
   let busy = false;
   const pick = async (slot: number) => {
     if (busy || battle.winner !== null) return;
