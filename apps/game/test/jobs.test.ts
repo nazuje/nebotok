@@ -1,13 +1,14 @@
-import { emptyProgress, emptyStory, newCreature, progressMessage, type JobChanged, type JobView } from '@nebotok/core';
+import { emptyProgress, emptyStory, newCreature, progressMessage, spriteFor, type JobChanged, type JobView, type SkillsMessage } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import { CONTENT, itemName } from '../src/battle-content.ts';
-import { applyJobChange, jobCard, jobToastLines, jobVerb, placeJobs } from '../src/job-board.ts';
+import { applyJobChange, jobArt, jobCard, jobSkill, jobToastLines, jobVerb, placeJobs, xpBar } from '../src/job-board.ts';
 import { STORY } from '../src/story-content.ts';
 import { format, text } from '../src/strings.ts';
 import { headMarks } from '../src/talk.ts';
 
 const job = (number: number, extra: Partial<JobView> = {}): JobView => ({ job: number, template: 'berries-please', kind: 'gather', item: 'cloudberry', count: 5, to: null, progress: 0, ...extra });
 const delivery = (number: number, extra: Partial<JobView> = {}): JobView => job(number, { template: 'fish-for-friends', kind: 'deliver', item: 'pebblefish', count: 3, to: 'mehurka', ...extra });
+const skills = (xp: number, toNext: number): SkillsMessage => ({ skills: [{ skill: 'fishing', level: 3, xp, toNext }], resting: [] });
 
 describe('a job card', () => {
   it('heads each kind with its verb, and a gather of something fished with Catch', () => {
@@ -18,30 +19,50 @@ describe('a job card', () => {
   });
 
   it('shows the item, its count and how far the job has got', () => {
-    const card = jobCard(job(4, { progress: 2 }), [], 'en');
-    expect(card).toMatchObject({ job: 4, heading: 'Gather', item: 'cloudberry', itemName: itemName('cloudberry', 'en'), count: '× 5', progress: '2 / 5', to: null, ready: false });
+    const card = jobCard(job(4, { progress: 2 }), [], null, 'en');
+    expect(card).toMatchObject({ job: 4, heading: 'Gather', item: 'cloudberry', itemName: itemName('cloudberry', 'en'), count: '× 5', progress: '2 / 5', pips: { filled: 2, of: 5 }, to: null, ready: false });
+  });
+
+  it('draws the verb as the skill at work, or an envelope for a delivery', () => {
+    expect(jobSkill({ kind: 'gather', item: 'pebblefish' })).toBe('fishing');
+    expect(jobSkill({ kind: 'cook', item: 'berry-bun' })).toBe('cooking');
+    expect(jobSkill({ kind: 'deliver', item: 'pebblefish' })).toBeNull();
+    expect(jobArt({ kind: 'gather', item: 'cloudberry' })).toEqual({ sprite: spriteFor.action('foraging'), animation: 'play' });
+    expect(jobArt({ kind: 'deliver', item: 'pebblefish' })).toEqual({ sprite: spriteFor.picture('envelope'), animation: null });
   });
 
   it('shows a delivery to its character with what the bag holds, never more than the job wants', () => {
-    const waiting = jobCard(delivery(7), [{ item: 'pebblefish', count: 1 }], 'sl');
+    const waiting = jobCard(delivery(7), [{ item: 'pebblefish', count: 1 }], null, 'sl');
     expect(waiting.to).toEqual({ npc: 'mehurka', line: format('jobs.to', 'sl', { npc: STORY.npcs.get('mehurka')!.name.sl }) });
     expect(waiting.progress).toBe(format('jobs.inBag', 'sl', { count: 1, of: 3 }));
     expect(waiting.ready).toBe(false);
-    const ready = jobCard(delivery(7), [{ item: 'pebblefish', count: 9 }], 'en');
+    expect(waiting.pips).toEqual({ filled: 1, of: 3 });
+    const ready = jobCard(delivery(7), [{ item: 'pebblefish', count: 9 }], null, 'en');
     expect(ready.progress).toBe('In your bag: 3 / 3');
     expect(ready.ready).toBe(true);
+    expect(ready.pips).toEqual({ filled: 3, of: 3 });
   });
 
   it('lists the rewards: the template items, and XP for each item the job wants', () => {
-    const card = jobCard(delivery(7), [], 'en');
+    const card = jobCard(delivery(7), [], null, 'en');
     expect(card.rewards.items).toEqual([{ item: 'skymint', count: '×1' }]);
     const xp = 3 * STORY.skills!.templates.get('fish-for-friends')!.rewards.xp[0]!.perItem;
-    expect(card.rewards.xp).toEqual([`+${xp} Fishing XP`]);
-    expect(jobCard(delivery(7), [], 'sl').rewards.xp).toEqual([format('jobs.rewardXp', 'sl', { skill: STORY.skills!.skills.get('fishing')!.name.sl, xp })]);
+    expect(card.rewards.xp).toMatchObject([{ skill: 'fishing', xp, line: `+${xp} Fishing XP` }]);
+    expect(jobCard(delivery(7), [], null, 'sl').rewards.xp.map((reward) => reward.line)).toEqual([format('jobs.rewardXp', 'sl', { skill: STORY.skills!.skills.get('fishing')!.name.sl, xp })]);
   });
 
   it('never leaves English XP in the Slovenian rewards', () => {
-    expect(jobCard(delivery(7), [], 'sl').rewards.xp.join(' ')).not.toMatch(/XP/);
+    expect(jobCard(delivery(7), [], null, 'sl').rewards.xp.map((reward) => reward.line).join(' ')).not.toMatch(/XP/);
+  });
+
+  it('shows an XP reward as how far it takes the skill toward its next level', () => {
+    expect(xpBar('fishing', 25, skills(50, 50))).toEqual({ before: 50, gain: 25 });
+    expect(xpBar('fishing', 500, skills(50, 50))).toEqual({ before: 50, gain: 50 });
+    expect(xpBar('fishing', 1, skills(0, 1000))).toEqual({ before: 0, gain: 4 });
+    expect(xpBar('fishing', 10, skills(120, 0))).toEqual({ before: 100, gain: 0 });
+    const first = STORY.skills!.levelCosts[0]!;
+    expect(xpBar('fishing', first, null)).toEqual({ before: 0, gain: 100 });
+    expect(jobCard(delivery(7), [], skills(50, 50), 'en').rewards.xp[0]?.bar.before).toBe(50);
   });
 });
 

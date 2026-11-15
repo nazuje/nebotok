@@ -219,6 +219,8 @@ export const REQUIRED_STRING_IDS = [
   'jobs.hint',
   'jobs.toastProgress',
   'jobs.toastDone',
+  'jobs.xpGain',
+  'jobs.more',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 

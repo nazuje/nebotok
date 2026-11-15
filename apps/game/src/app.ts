@@ -146,8 +146,9 @@ const skills = createSkills({
 const jobs = createJobs({
   language: () => language,
   progress: () => battles.progress(),
+  skills: () => skills.message(),
   blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || story.overlay() !== null || skills.overlay() !== null,
-  news: (lines) => story.news(lines, 'good'),
+  news: (lines, picture) => story.news(lines, 'good', picture),
   refused: (id) => hud.toast(id),
   changed: () => {
     input.release();
