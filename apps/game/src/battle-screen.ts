@@ -1,10 +1,13 @@
 import { frameNames, spriteFor, type BattleView, type Language, type ProgressMessage, type StringId } from '@nebotok/core';
+import { itemIcon } from './bag-screen.ts';
 import { isFavourite, isTreat, itemName, moveName, moveType, speciesName, weatherName } from './battle-content.ts';
 import type { ClientMessage } from './battle-link.ts';
-import { resultLines, type BattleScreenState, type Picker } from './battle-model.ts';
+import type { BattleScreenState, Picker } from './battle-model.ts';
 import type { Line } from './battle-playback.ts';
+import { resultPictures } from './battle-result.ts';
 import { creatureSummary } from './creature-card.ts';
 import { button, el } from './dom.ts';
+import { pictureIcon } from './pictures.ts';
 import { paintFrame, sprite } from './sprites.ts';
 import { format, text } from './strings.ts';
 
@@ -121,7 +124,7 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
     return parts;
   }
 
-  /** The treats in the bag, each marked with a heart when the wild creature out loves it most. */
+  /** The treats in the bag, each with its picture, and a heart on the one the wild creature out loves most. */
   function treatPicker(state: BattleScreenState): HTMLElement[] {
     const language = options.language();
     const { creatures, active } = state.view.opponent;
@@ -130,11 +133,13 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
     const choices = treats.map((entry) => {
       const choice = button('battle-choice treat-choice', '', () => choose({ type: 'battle.treat', payload: { itemId: entry.item } }));
       const label = el('span', { className: 'treat-label' }, [el('span', { className: 'treat-name', text: itemName(entry.item, language) })]);
+      const parts: HTMLElement[] = [itemIcon(entry.item), label];
       if (wild !== undefined && isFavourite(entry.item, wild)) {
         choice.dataset.favourite = 'true';
         label.append(el('span', { className: 'treat-favourite', text: t('battle.favouriteTag') }));
+        parts.push(pictureIcon('heart', 32, { className: 'treat-heart' }));
       }
-      choice.append(label, el('span', { className: 'treat-count', text: String(entry.count) }));
+      choice.append(...parts, el('span', { className: 'treat-count', text: String(entry.count) }));
       return el('li', {}, [choice]);
     });
     const parts: HTMLElement[] = [el('p', { className: 'battle-heading', text: t('battle.treats') })];
@@ -145,8 +150,9 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
 
   function result(state: BattleScreenState): HTMLElement[] {
     if (!state.result) return [];
-    const lines = resultLines(state.result, state.befriended, state.view).map((line) => el('li', { text: lineText(line, state.view, options.language()) }));
-    return [el('ul', { className: 'battle-result' }, lines), button('primary battle-continue', t('battle.continue'), () => options.close())];
+    const language = options.language();
+    const pictures = resultPictures(state.result, state.befriended, state.view, language, (line) => lineText(line, state.view, language));
+    return [pictures, button('primary battle-continue', t('battle.continue'), () => options.close())];
   }
 
   function panel(state: BattleScreenState): HTMLElement[] {

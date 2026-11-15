@@ -1148,11 +1148,6 @@ body:not([data-screen='world']) .team-button {
   font-weight: 800;
 }
 
-.treat-favourite::before {
-  content: '♥ ';
-  content: '♥ ' / '';
-}
-
 .treat-choice[data-favourite='true'] {
   border-color: #f783ac;
   background: #fff0f6;
@@ -1164,17 +1159,6 @@ body:not([data-screen='world']) .team-button {
   border-radius: 999px;
   background: #e6eef6;
   font-weight: 800;
-}
-
-.battle-result {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  list-style: none;
 }
 
 .battle[aria-busy='true'] button,

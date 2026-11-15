@@ -50,7 +50,7 @@ export type TestBattle = {
   befriended: { species: string; placedIn: 'team' | 'storage' } | null;
 };
 
-export type TestTeamScreen = { selected: number | null; tab: TeamTab };
+export type TestTeamScreen = { selected: number | null; tab: TeamTab; swapHint: boolean };
 
 /** A player as the server last told this page, and where the page draws them. */
 export type TestPlayer = {
