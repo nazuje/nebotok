@@ -1,6 +1,7 @@
 import type { Language, StringId, Welcome, WelcomeMessageKey } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
 import { element } from './dom.ts';
+import { pictureIcon } from './pictures.ts';
 import { text } from './strings.ts';
 
 const STATUS_TEXT: Readonly<Record<ConnectionStatus, StringId>> = {
@@ -116,25 +117,33 @@ export function createHud(language: Language): Hud {
 }
 
 export type StoryButtons = {
-  /** Shows the bag and journal buttons while `shown`, the journal's dot while it has `news`. */
-  render(shown: boolean, news: boolean, language: Language): void;
+  /** Shows the bag and journal buttons while `shown`, the journal's dot while it has `news`, and the compass while there is `somewhere` to show. */
+  render(shown: boolean, news: boolean, somewhere: boolean, language: Language): void;
 };
 
-/** The bag and journal buttons beside the team button. The world's screens hide all three. */
-export function createStoryButtons(open: { bag(): void; journal(): void }): StoryButtons {
+/**
+ * The bag and journal buttons beside the team button, and the compass at the bottom right, which
+ * shows where to go next on the map. The world's screens hide them all.
+ */
+export function createStoryButtons(open: { bag(): void; journal(): void; whereNext(): void }): StoryButtons {
   const bag = element<HTMLButtonElement>('.bag-button');
   const journal = element<HTMLButtonElement>('.journal-button');
   const dot = element<HTMLElement>('.journal-dot');
+  const compass = element<HTMLButtonElement>('.compass-button');
+  compass.append(pictureIcon('compass', 48));
   bag.addEventListener('click', () => open.bag());
   journal.addEventListener('click', () => open.journal());
+  compass.addEventListener('click', () => open.whereNext());
   return {
-    render: (shown, news, language) => {
+    render: (shown, news, somewhere, language) => {
       bag.hidden = !shown;
       journal.hidden = !shown;
+      compass.hidden = !shown || !somewhere;
       dot.hidden = !news;
       journal.dataset.news = String(news);
       bag.setAttribute('aria-label', text('bag.title', language));
       journal.setAttribute('aria-label', text(news ? 'journal.news' : 'journal.title', language));
+      compass.setAttribute('aria-label', text('journal.whereNext', language));
     },
   };
 }

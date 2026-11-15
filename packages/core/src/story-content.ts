@@ -5,6 +5,7 @@
  * files are checked by `storyProblems` in story.ts; docs/protocol.md explains how talks and quests run.
  */
 import { z } from 'zod';
+import { PICTURES } from './art.ts';
 import { ContentId, ITEM_KINDS, LocalizedText, noRepeatedIds } from './content.ts';
 
 /** Moments the client plays as a little scene: `effects/<cue>` in content/art/ is its picture. */
@@ -178,7 +179,23 @@ export function dialogueFile(npc: string): z.ZodType {
   return DialogueFile.refine((dialogue) => dialogue.npc === npc, `this is dialogue/${npc}.json, so its npc must be "${npc}"`);
 }
 
-const stepBase = { id: ContentId, hint: LocalizedText, effects: z.array(StepEffect).min(1).max(4).optional() };
+/**
+ * The picture of what a step asks for, for players who cannot read yet: one item, character
+ * (their portrait), species, weather type, spot, station or picture of the picture kit. Without
+ * it the game shows a default from the step itself (`stepPictures` in quest-pictures.ts).
+ */
+export const StepPicture = z.union([
+  z.strictObject({ item: ContentId }),
+  z.strictObject({ npc: ContentId }),
+  z.strictObject({ species: ContentId }),
+  z.strictObject({ weather: ContentId }),
+  z.strictObject({ spot: ContentId }),
+  z.strictObject({ station: ContentId }),
+  z.strictObject({ picture: z.enum(PICTURES) }),
+]);
+export type StepPicture = z.infer<typeof StepPicture>;
+
+const stepBase = { id: ContentId, hint: LocalizedText, picture: StepPicture.optional(), effects: z.array(StepEffect).min(1).max(4).optional() };
 
 /**
  * One step of a quest. `talk` and `deliver` steps are completed by a dialogue node of their

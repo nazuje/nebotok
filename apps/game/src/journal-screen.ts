@@ -1,5 +1,7 @@
 import { questLog, type Goal, type Language, type Point, type Progress, type QuestLog, type QuestLogEntry, type QuestStep, type SkillsMessage, type StringId } from '@nebotok/core';
 import { button, el } from './dom.ts';
+import { pictureIcon } from './pictures.ts';
+import { giverPortrait, goalPictures, questGiver, questGoal, questPips, questSteps } from './quest-pictures.ts';
 import { skillsPanel } from './skills-panel.ts';
 import { questName, STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
@@ -75,14 +77,20 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     return choose;
   }
 
+  /** A card: the giver's portrait beside the quest's name, the pictures of what to do now and a dot per step, then the hint and the count. */
   function activeQuest(entry: QuestLogEntry): HTMLElement {
     const language = options.language();
-    const parts = [el('p', { className: 'journal-name', text: questName(entry.quest, language) })];
+    const parts = [
+      el('p', { className: 'journal-name', text: questName(entry.quest, language) }),
+      el('div', { className: 'journal-goal' }, [goalPictures(questGoal(entry.quest, entry.step), 48, 'journal-goal-pictures'), questPips(questSteps(entry.quest), entry.step)]),
+    ];
     const hint = stepHint(entry, language);
     if (hint) parts.push(el('p', { className: 'journal-hint', text: hint }));
     const counted = stepProgress(STORY.quests.get(entry.quest)?.steps[entry.step]?.kind, entry.count, entry.of, language);
     if (counted) parts.push(el('p', { className: 'journal-progress', text: counted }));
-    return el('li', { className: 'journal-quest', attrs: { 'data-quest': entry.quest } }, parts);
+    const giver = questGiver(entry.quest);
+    const card = [...(giver === null ? [] : [giverPortrait(giver, 64, 'journal-giver')]), el('div', { className: 'journal-quest-body' }, parts)];
+    return el('li', { className: 'journal-quest', attrs: { 'data-quest': entry.quest } }, card);
   }
 
   function doneQuests(chapter: string, done: readonly QuestLogEntry[]): HTMLElement[] {
@@ -97,7 +105,8 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     });
     fold.setAttribute('aria-expanded', String(isOpen));
     fold.setAttribute('aria-controls', listId);
-    const list = el('ul', { className: 'journal-done-list', attrs: { id: listId } }, done.map((entry) => el('li', { className: 'journal-done', attrs: { 'data-quest': entry.quest }, text: questName(entry.quest, language) })));
+    const doneQuest = (entry: QuestLogEntry) => el('li', { className: 'journal-done', attrs: { 'data-quest': entry.quest } }, [pictureIcon('stamp', 32), el('span', { className: 'journal-done-name', text: questName(entry.quest, language) })]);
+    const list = el('ul', { className: 'journal-done-list', attrs: { id: listId } }, done.map(doneQuest));
     list.hidden = !isOpen;
     return [fold, list];
   }
@@ -126,7 +135,11 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     const scroll = el('div', { className: 'team-scroll', attrs: { role: 'tabpanel', 'data-tab': tab } }, parts);
     const foot: HTMLElement[] = [];
     const target = goal;
-    if (target) foot.push(button('secondary journal-where', t('journal.whereNext'), () => options.whereNext(target)));
+    if (target) {
+      const where = button('secondary journal-where', t('journal.whereNext'), () => options.whereNext(target));
+      where.prepend(pictureIcon('compass', 32));
+      foot.push(where);
+    }
     foot.push(
       button('primary journal-close', t('team.close'), () => {
         close();

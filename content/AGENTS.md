@@ -190,7 +190,11 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
 - `quests.json`: each quest's `chapter`, `giver`, the quests it `requires`, a `name` and `summary`,
   1 to 10 `steps` (`talk`, `deliver`, `winBattles`, `befriend`, `visitShrine` or `reach`, each with
   a `hint`), `rewards` (items and experience for every team creature) and `effects` when it is done.
-  A `reach` step names a point of a map's `marks` layer.
+  A `reach` step names a point of a map's `marks` layer. The quest banner and journal show each
+  step as pictures (core `stepPictures`): by default the item and the character a delivery goes
+  to, the character of a talk, the creature or weather of a befriend step, a trophy for battles. A
+  step's optional `picture` names one instead: `{ "item" }`, `{ "npc" }`, `{ "species" }`,
+  `{ "weather" }`, `{ "spot" }`, `{ "station" }` or `{ "picture" }` from the picture kit.
 - `story.json`: the `chapters` in order, each listing its quests (each quest in one chapter) and
   an optional closing flag `endsWith`, and every story `flags` id with what it means.
 - `inventory.json`: how many of one item fit in the bag, by kind (`stack`), and the order of the bag

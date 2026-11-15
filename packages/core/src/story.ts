@@ -27,6 +27,7 @@ import {
   type Npc,
   type Quest,
   type QuestStep,
+  type StepPicture,
 } from './story-content.ts';
 
 /** The story files, raw or parsed. `dialogue` is each `dialogue/<npc>.json` by npc id. */
@@ -292,7 +293,19 @@ function stepProblems(quest: Quest, step: QuestStep, content: StoryContent, effe
   if (step.kind === 'gather' && ![...(content.skills?.spots.values() ?? [])].some((spot) => spot.item === step.item)) problems.push(`${label}: no spot in spots.json gives "${step.item}"`);
   if (step.kind === 'cook' && ![...(content.skills?.recipes.values() ?? [])].some((recipe) => recipe.makes === step.treat)) problems.push(`${label}: no recipe in recipes.json makes "${step.treat}"`);
   if (step.kind === 'finishJobs' && (content.skills?.templates.size ?? 0) === 0) problems.push(`${label}: jobs.json has no jobs to finish`);
+  if (step.picture !== undefined) problems.push(...pictureProblems(`${label} picture`, step.picture, content));
   return problems;
+}
+
+/** A step's picture must name something the content has. The picture kit's ids are checked by the schema. */
+function pictureProblems(label: string, picture: StepPicture, content: StoryContent): string[] {
+  if ('item' in picture) return itemProblems(label, picture.item, content);
+  if ('npc' in picture) return content.npcs.has(picture.npc) ? [] : [`${label}: "${picture.npc}" is not in npcs.json`];
+  if ('species' in picture) return content.battle.species.has(picture.species) ? [] : [`${label}: species "${picture.species}" is not in species.json`];
+  if ('weather' in picture) return content.battle.weather.has(picture.weather) ? [] : [`${label}: "${picture.weather}" is not a weather type`];
+  if ('spot' in picture) return content.skills?.spots.has(picture.spot) ? [] : [`${label}: spot "${picture.spot}" is not in spots.json`];
+  if ('station' in picture) return content.skills?.stations.has(picture.station) ? [] : [`${label}: station "${picture.station}" is not in stations.json`];
+  return [];
 }
 
 function questProblems(quest: Quest, content: StoryContent, effects: ReturnType<typeof allEffects>): string[] {
