@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
 import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
-import { battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
+import { animationsSettled, battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -247,6 +247,8 @@ async function offerTreat(page, species, { language, expect, check, seen }) {
   if (!seen.treats) {
     seen.treats = true;
     await nextFrames(page);
+    const pictured = await page.locator('#battle .treat-choice').evaluateAll((choices) => choices.length > 0 && choices.every((choice) => choice.querySelector('canvas.item-icon') !== null));
+    expect(pictured, 'a treat in the picker has no picture');
     if (best.id === CONTENT.species.get(species)?.favouriteTreat && (await wanted.count()) > 0) {
       expect((await wanted.first().locator('.treat-favourite').count()) === 1, `the treat picker does not mark ${best.id} as the wild ${species}'s favourite`);
     }
@@ -255,10 +257,13 @@ async function offerTreat(page, species, { language, expect, check, seen }) {
   await ((await wanted.count()) > 0 ? wanted : page.locator('#battle .treat-choice')).first().tap();
 }
 
-async function resultSays(page, wanted, { expect, check }, step) {
+async function resultSays(page, wanted, kind, { expect, check }, step) {
   await nextFrames(page);
-  const said = await textOf(page, '#battle .battle-result li');
+  const said = await textOf(page, '#battle .result-words');
   expect(said === wanted, `the result says "${said}", not "${wanted}"`);
+  const shown = await page.locator('#battle .result-hero').getAttribute('data-kind');
+  expect(shown === kind, `the result leads with the ${shown} picture, not ${kind}`);
+  await animationsSettled(page);
   await check('the battle result', step);
 }
 
@@ -275,7 +280,7 @@ async function loseAll(page, world, { shrine, language, say, expect, check, note
   const choose = (current) => (current.battle.panel === 'team' ? sendNext(page) : tapMove(page, harmlessSlot(current.battle.menu.moves)));
   state = await nextTurn(page, state, 0, choose, { language, expect, check, notes, seen });
   expect(state.battle.outcome?.winner === 1 && state.battle.woke?.shrine === shrine, `the battle ended ${JSON.stringify(state.battle.outcome)}, waking ${JSON.stringify(state.battle.woke)}, not the team fainting and waking at ${shrine}`);
-  await resultSays(page, say('battle.teamFainted'), { expect, check }, 'f4-result');
+  await resultSays(page, say('battle.teamFainted'), 'fainted', { expect, check }, 'f4-result');
   const back = await continueToWorld(page);
   const self = back.players.find((player) => player.self);
   const at = world.map.shrines[shrine];
@@ -308,7 +313,7 @@ async function befriend(page, world, options, tries = 1) {
   const { outcome, befriended } = state.battle;
   if (outcome?.reason === 'befriended') {
     const wanted = say(befriended?.placedIn === 'storage' ? 'battle.befriendedStored' : 'battle.befriended').replace('{creature}', nameOf(befriended?.species, language));
-    await resultSays(page, wanted, { expect, check }, 'b4-result');
+    await resultSays(page, wanted, befriended?.placedIn === 'storage' ? 'stored' : 'befriended', { expect, check }, 'b4-result');
     await continueToWorld(page);
     return befriended;
   }
@@ -370,12 +375,14 @@ async function teamScreen(page, joined, { language, say, expect, check }) {
   expect((await page.locator('#team .team-pick').count()) === team.length, `the team screen does not list all ${team.length} creatures`);
   const lastCard = (await page.locator('#team .team-card').nth(team.length - 1).textContent()) ?? '';
   expect(lastCard.includes(nameOf(joined.species, language)), `the team screen's last card does not name ${nameOf(joined.species, language)}`);
+  expect(opened.teamScreen.swapHint && (await page.locator('#team .swap-hint').isVisible()), 'the team screen shows no swap hint before the first swap');
   await check('the team screen', 'b5-team');
   const second = team[1]?.species;
   await page.locator('#team .team-pick').nth(0).tap();
   await until(page, (s) => s.teamScreen?.selected === 0, 'the first creature picked');
   await page.locator('#team .team-pick').nth(1).tap();
-  await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === second, 'the two creatures to swap places');
+  const swapped = await until(page, (s) => s.teamScreen?.selected === null && s.progress?.team[0]?.species === second, 'the two creatures to swap places');
+  expect(!swapped.teamScreen.swapHint && (await page.locator('#team .swap-hint').count()) === 0, 'the swap hint stays up after the first swap');
   await closeTeam(page, expect);
 }
 
@@ -397,6 +404,7 @@ async function shrineStorage(page, world, { shrine, say, expect, check, notes })
   expect(team.length === MAX_TEAM, `the team has ${team.length} creatures at the shrine, not a full ${MAX_TEAM}`);
   expect((await page.locator('#team .team-tab').count()) === 2, 'the team screen at the shrine has no Team and Storage tabs');
   expect((await page.locator('#team .team-store').count()) === team.length, 'the team screen does not offer to leave each creature here');
+  expect((await page.locator('#team .team-store canvas.picture[data-picture="pictures/arrow"]:not(.mirrored)').count()) === team.length, 'Leave here does not point toward the shrine’s tab');
   await page.locator('#team .team-card').last().scrollIntoViewIfNeeded();
   await toastGone(page);
   await nextFrames(page);
@@ -404,6 +412,7 @@ async function shrineStorage(page, world, { shrine, say, expect, check, notes })
   await check('the team tab at the shrine', 'b6-team-tab');
   await showTab(page, 'storage');
   expect((await page.locator('#team .storage-take').count()) === stored.length, 'the storage tab does not offer to take along each stored creature');
+  expect((await page.locator('#team .storage-take canvas.picture.mirrored[data-picture="pictures/arrow"]').count()) === stored.length, 'Take along does not point back toward the team’s tab');
   expect(!(await page.locator('#team .storage-take').first().isEnabled()), 'Take along is offered with the team full and no creature picked');
   expect((await textOf(page, '#team .storage-reason')) === say('storage.pickFirst'), `the storage tab says "${await textOf(page, '#team .storage-reason')}", not to pick a creature first`);
   await check('storage at the shrine', 'b6-storage');

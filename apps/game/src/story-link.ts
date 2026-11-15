@@ -4,7 +4,7 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { createStoryButtons } from './hud.ts';
 import { createJournalScreen } from './journal-screen.ts';
-import { createQuestToast, type NewsLines, type NewsTone, type QuestToastState } from './quest-toast.ts';
+import { createQuestToast, type NewsLines, type NewsPicture, type NewsTone, type QuestToastState } from './quest-toast.ts';
 import { STORY, storyProgress } from './story-content.ts';
 
 /** A screen over the world that the bag and the journal put up. */
@@ -44,8 +44,8 @@ export type Story = {
   overlay(): StoryOverlay | null;
   /** Forgets the player's story, as when they leave the world. */
   reset(): void;
-  /** Shows other news in the quest toast's queue. */
-  news(lines: NewsLines, tone: NewsTone): void;
+  /** Shows other news in the quest toast's queue, led by a picture when it has one. */
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
   snapshot(): TestStory;
 };
 
@@ -153,7 +153,7 @@ export function createStory(options: StoryOptions): Story {
       toast.clear();
       close();
     },
-    news: (lines, tone) => toast.news(lines, tone),
+    news: (lines, tone, picture) => toast.news(lines, tone, picture),
     snapshot: () => ({
       story: saved,
       journalNews: news,

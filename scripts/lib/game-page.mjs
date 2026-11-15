@@ -172,6 +172,15 @@ export async function servedMap(serverBase, id) {
 export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
 /**
+ * Waits until every animation that ends has ended, so a screenshot shows pictures where they land;
+ * hints that loop for ever keep going. After `timeoutMs` the screen is taken as it is.
+ */
+export async function animationsSettled(page, timeoutMs = 5_000) {
+  await page.waitForFunction(allSettled, null, { timeout: timeoutMs }).catch(() => {});
+}
+const allSettled = () => document.getAnimations().every((animation) => animation.playState !== 'running' || animation.effect?.getComputedTiming().endTime === Infinity);
+
+/**
  * Waits until the page's state passes `check`, getting a starter on the way when the player has
  * none, as every player entering the world for the first time must: walking up to the character
  * the page's hint points at, talking until they offer the starters, and taking the first. The

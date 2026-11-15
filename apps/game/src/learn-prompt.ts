@@ -4,6 +4,7 @@ import type { ClientMessage, ServerMessage } from './battle-link.ts';
 import { creaturePortrait } from './creature-art.ts';
 import { moveTypeIcon } from './creature-card.ts';
 import { button, el } from './dom.ts';
+import { pictureIcon } from './pictures.ts';
 import { format, text } from './strings.ts';
 
 /** The move the server offers, and whether the player's answer to it is on its way. */
@@ -52,8 +53,9 @@ export type LearnPrompt = {
 };
 
 /**
- * "{creature} wants to learn {move}": the new move, then the four the creature knows, each a button
- * in its type's colour that forgets it for the new one, and a button that keeps them all.
+ * "{creature} wants to learn {move}": the new move, sliding down toward the four the creature knows,
+ * each a button in its type's colour that forgets it for the new one, and a button with a cross
+ * that keeps them all.
  */
 export function createLearnPrompt(root: HTMLElement, options: { language(): Language; answer(forget: number | null): void }): LearnPrompt {
   let shown = '';
@@ -71,17 +73,20 @@ export function createLearnPrompt(root: HTMLElement, options: { language(): Lang
     const wants = format('learn.wants', language, { creature: speciesName(offer.species, language), move: moveName(offer.move, language) });
     const learning = el('p', { className: 'learn-new' }, [
       el('span', { className: 'label', text: t('learn.new') }),
-      el('span', { className: `move-chip type-${moveType(offer.move) ?? 'none'}` }, [...moveTypeIcon(offer.move, language, 32), el('span', { text: moveName(offer.move, language) })]),
+      el('span', { className: `move-chip learn-chip type-${moveType(offer.move) ?? 'none'}` }, [...moveTypeIcon(offer.move, language, 32), el('span', { text: moveName(offer.move, language) })]),
     ]);
     const moves = el('div', { className: 'battle-moves learn-moves', attrs: { role: 'group', 'aria-label': t('learn.forget') } }, offer.moves.map((move, slot) => moveButton(move, slot, language)));
+    const skip = button('secondary learn-skip', '', () => options.answer(null));
+    skip.append(pictureIcon('cross', 32), el('span', { text: t('learn.skip') }));
     root.replaceChildren(
       el('div', { className: 'screen-body' }, [
         el('div', { className: 'learn-creature' }, [creaturePortrait(offer.species)]),
         el('h2', { className: 'screen-title learn-title', text: wants }),
         learning,
         el('p', { className: 'hint centred', text: t('learn.forget') }),
+        el('div', { className: 'learn-toward', attrs: { 'aria-hidden': 'true' } }, [pictureIcon('arrow', 32, { className: 'down' })]),
         moves,
-        button('secondary learn-skip', t('learn.skip'), () => options.answer(null)),
+        skip,
       ]),
     );
   }

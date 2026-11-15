@@ -60,7 +60,10 @@ export type NewsTone = 'good' | 'refused';
 /** A toast's lines, worked out in whatever language is shown when it shows. */
 export type NewsLines = (language: Language) => string[];
 
-type Entry = { readonly kind: 'quest'; readonly change: QuestChanged } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines };
+/** A picture leading a toast's lines, so a player who cannot read gets the news too. */
+export type NewsPicture = (language: Language) => HTMLElement | null;
+
+type Entry = { readonly kind: 'quest'; readonly change: QuestChanged } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines; readonly picture: NewsPicture | null };
 
 /** The toast showing: a quest change (with its quest and banner), or other news (`quest` and `banner` null, `change` its tone). */
 export type QuestToastState = { readonly quest: string | null; readonly change: QuestChanged['change'] | NewsTone; readonly lines: readonly string[]; readonly banner: QuestBanner | null };
@@ -81,8 +84,8 @@ export type QuestToastOptions = {
 export type QuestToast = {
   /** Shows a quest change for QUEST_TOAST_MS of the world being in view, after any shown or waiting before it. */
   show(change: QuestChanged): void;
-  /** Shows other news the same way, in the same queue: what a skill gave, a level up, a refused start. */
-  news(lines: NewsLines, tone: NewsTone): void;
+  /** Shows other news the same way, in the same queue: what a skill gave, a level up, a refused start, a job's progress. */
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
   clear(): void;
   /** Redraws in the current language when it changed. While `inView` is false (a screen covers the world) the toast waits. */
   render(inView: boolean): void;
@@ -167,15 +170,16 @@ export function createQuestToast(root: HTMLElement, language: () => Language, op
       return;
     }
     const [head, ...rest] = lines;
-    root.replaceChildren(el('strong', { className: 'quest-toast-head', text: head ?? '' }), ...rest.map((line) => el('span', { className: 'quest-toast-line', text: line })));
+    const picture = current.picture?.(language());
+    root.replaceChildren(...(picture ? [picture] : []), el('strong', { className: 'quest-toast-head', text: head ?? '' }), ...rest.map((line) => el('span', { className: 'quest-toast-line', text: line })));
   }
 
   return {
     show: (change) => {
       waiting.push({ kind: 'quest', change });
     },
-    news: (lines, tone) => {
-      waiting.push({ kind: 'news', tone, lines });
+    news: (lines, tone, picture) => {
+      waiting.push({ kind: 'news', tone, lines, picture: picture ?? null });
     },
     clear: () => {
       waiting.length = 0;

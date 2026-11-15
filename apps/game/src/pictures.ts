@@ -39,3 +39,8 @@ export function pictureIcon(id: PictureId, sizePx: number, options: PictureOptio
 export function weatherIcon(type: string, sizePx: number, options: PictureOptions = {}): HTMLCanvasElement {
   return spriteIcon(spriteFor.weatherIcon(type), sizePx, options);
 }
+
+/** The shrine as the map draws it, where a team wakes and creatures wait. */
+export function shrineIcon(sizePx: number, options: PictureOptions = {}): HTMLCanvasElement {
+  return spriteIcon('tiles/shrine', sizePx, options);
+}

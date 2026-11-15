@@ -20,8 +20,9 @@
 // and a full stack toasted, are told the spot rests, miss and then win a foraging game, cook from
 // the recipe book and read the Skills tab; at 360px a player opens the book, a game and the tab. The
 // same four then sign in beside the job board (scripts/lib/board-check.mjs): they read its three
-// cards, hand a delivery over in a talk, see the job toast and find the new card in its place; at
-// 360px a player opens the board for the first time. At 360px wide it also checks the lock messages (a first and a
+// cards in pictures, hand a delivery over in a talk, see the job news stamped done and find the new
+// card in its place; at 360px a player opens the board for the first time, and another hands a
+// delivery over. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
 // from the settings (after choosing a starter, whose weather chips must show their icons), then
 // signs in with it and meets a wild creature. Against its own server, a
@@ -44,6 +45,7 @@ import {
   BROWSERS,
   DEVICES,
   HOOK,
+  animationsSettled,
   apiCall,
   battleIdle,
   clearWalk,
@@ -76,7 +78,7 @@ import {
   watch,
 } from './lib/game-page.mjs';
 import { battleSave, chooseStarter, playBattles, weatherChipProblems } from './lib/battle-check.mjs';
-import { learnerSave, playLearning } from './lib/learn-check.mjs';
+import { learnerSave, playLearning, seeSwapHint } from './lib/learn-check.mjs';
 import { learnerStory, playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
 import { boardSave, skillSave } from './lib/skill-saves.mjs';
@@ -440,6 +442,7 @@ async function wildBattle(page, bot, { expect, check, notes }) {
   }
   expect(ended.battle.outcome !== null, 'the wild battle shows a result without an outcome');
   await nextFrames(page);
+  await animationsSettled(page);
   await check('the wild battle result', '12-wild-result');
   await page.locator('#battle .battle-continue').tap();
   const back = await until(page, (s) => s.screen === 'world' && s.battle === null && s.progress !== null, 'the world after the wild battle');
@@ -988,8 +991,8 @@ async function checkAddPin(browser, browserName, language, bot) {
 /**
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
  * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs) with the first
- * quest a battle does not move on active (learnerStory), so its journal shows a quest card, wins a wild
- * battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
+ * quest a battle does not move on active (learnerStory), so its journal shows a quest card, sees the
+ * swap hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
  * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {
@@ -1017,8 +1020,9 @@ async function checkLearn(browser, browserName, bot) {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    await until(page, (s) => inWorld(s) && s.progress?.team.length === 1, 'the world with the learner');
+    await until(page, (s) => inWorld(s) && s.progress?.team.length === 2, 'the world with the learner');
     await storyScreensFit(page, { noSideways, check, expect });
+    await seeSwapHint(page, { expect, check });
     await meetWildCreature(page, bot, { notes });
     await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
     await signOut(page);
@@ -1066,8 +1070,9 @@ async function checkSkillsNarrow(browser, browserName, bot) {
 
 /**
  * At 360px wide, a player beside the job board who never opened it (scripts/lib/skill-saves.mjs)
- * opens it for the first time: three cards and the hint, without scrolling sideways. Chromium plays
- * it in Slovenian, WebKit in English.
+ * opens it for the first time: three cards and the hint, without scrolling sideways. Then a player
+ * with a delivery ready plays the board through, for its job news at 360px. Chromium plays it in
+ * Slovenian, WebKit in English.
  */
 async function checkBoardNarrow(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'sl' : 'en';
@@ -1078,24 +1083,44 @@ async function checkBoardNarrow(browser, browserName, bot) {
   const expect = (ok, message) => {
     if (!ok) problems.push(message);
   };
-  const player = await prepareBoardPlayer(browserName, '360px', language, bot, false);
-  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
-  const check = async (where, step) => {
-    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
-    await shot(step);
+  const narrow = async () => {
+    const opened = await narrowPage(browser, browserName, label, language, problems, screenshots);
+    const check = async (where, step) => {
+      for (const target of await smallTargets(opened.page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+      await opened.shot(step);
+    };
+    return { ...opened, check };
   };
-  try {
+  const signIn = async (page, player, what) => {
     await page.goto(`${server.base}/?test=1`);
-    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await until(page, (s) => s.screen === 'profiles', `the profile list for ${what}`);
     await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
-    await enterWorld(page, bot, inWorld, 'the world as the board player at 360px', { notes });
-    await boardScreenFits(page, player.plan, { language, strings: STRINGS, expect, noSideways, check });
-    await signOut(page);
+    await enterWorld(page, bot, inWorld, `the world as ${what}`, { notes });
+  };
+  const first = await prepareBoardPlayer(browserName, '360px', language, bot, false);
+  const firstPage = await narrow();
+  try {
+    await signIn(firstPage.page, first, 'the board player at 360px');
+    await boardScreenFits(firstPage.page, first.plan, { language, strings: STRINGS, expect, noSideways: firstPage.noSideways, check: firstPage.check, notes });
+    await signOut(firstPage.page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
-    await context.close();
-    deleteProfile(dataDir, player.id);
+    await firstPage.context.close();
+    deleteProfile(dataDir, first.id);
+  }
+  // Made only now, under the same name as the first player, who is gone.
+  const ready = await prepareBoardPlayer(browserName, '360px', language, bot);
+  const readyPage = await narrow();
+  try {
+    await signIn(readyPage.page, ready, 'the board player with a delivery at 360px');
+    await playBoard(readyPage.page, bot, ready.plan, { language, strings: STRINGS, expect, check: readyPage.check, notes });
+    await signOut(readyPage.page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await readyPage.context.close();
+    deleteProfile(dataDir, ready.id);
   }
   results.push({ label: `${label} (job board)`, ok: problems.length === 0, problems, screenshots, notes });
 }

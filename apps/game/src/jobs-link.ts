@@ -1,7 +1,7 @@
-import { CLIENT_MESSAGES, SERVER_MESSAGES, type JobChanged, type JobsMessage, type JobView, type Language, type ProgressMessage, type Refused, type StringId } from '@nebotok/core';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, type JobChanged, type JobsMessage, type JobView, type Language, type ProgressMessage, type Refused, type SkillsMessage, type StringId } from '@nebotok/core';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
-import { applyJobChange, createJobBoard, jobToastLines, type JobBoardState } from './job-board.ts';
+import { applyJobChange, createJobBoard, jobNewsPicture, jobToastLines, type JobBoardState } from './job-board.ts';
 import type { RequestPacer } from './request-pacer.ts';
 
 /** A `board.open` with no answer is given up after this long, so a lost one never blocks the next. */
@@ -14,10 +14,12 @@ export type JobsOptions = {
   language(): Language;
   /** Your bag, as the server last sent it, for how much of a delivery you carry. */
   progress(): ProgressMessage | null;
+  /** Your skills, as the server last sent them, for how far each XP reward takes you. */
+  skills(): SkillsMessage | null;
   /** Something else is in front of the world (a battle, a talk, another screen), so the board stays shut. */
   blocked(): boolean;
-  /** Job news for the quest toast's queue, worked out in whatever language shows when it shows. */
-  news(lines: (language: Language) => string[]): void;
+  /** Job news for the quest toast's queue, in words and a picture, worked out in whatever language shows when it shows. */
+  news(lines: (language: Language) => string[], picture: (language: Language) => HTMLElement | null): void;
   /** A short refusal at the bottom of the screen. */
   refused(id: StringId): void;
   /** The board opened or closed, so the page shows another screen and input may change. */
@@ -61,6 +63,7 @@ export function createJobs(options: JobsOptions): Jobs {
     language: options.language,
     board: () => board ?? [],
     inventory: () => options.progress()?.inventory ?? [],
+    skills: options.skills,
     station: () => opened?.station ?? null,
     hint: () => opened?.first ?? false,
     closed: () => show(null),
@@ -87,7 +90,10 @@ export function createJobs(options: JobsOptions): Jobs {
 
   function changedJob(change: JobChanged) {
     const job = board?.find((each) => each.job === change.job) ?? null;
-    options.news((language) => jobToastLines(change, job, language));
+    options.news(
+      (language) => jobToastLines(change, job, language),
+      (language) => jobNewsPicture(change, job, language),
+    );
     if (board) board = applyJobChange(board, change);
   }
 
