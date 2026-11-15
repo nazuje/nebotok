@@ -3,6 +3,7 @@ import type { BattleScreenState, Menu } from './battle-model.ts';
 import type { BattleDrawn } from './battle-scene.ts';
 import type { BattleOverlay } from './battles.ts';
 import type { ConnectionStatus } from './connection.ts';
+import type { TestVoice } from './clip-player.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { JobsOverlay, TestJobs } from './jobs-link.ts';
@@ -125,6 +126,8 @@ export type TestSnapshot = TestStory &
   /** Whether the settings offer "Add a PIN". */
   canAddPin: boolean;
   settingsOpen: boolean;
+  /** "Read to me" (null before the server has said), the last clip asked for and how many have been. */
+  voice: TestVoice & { readToMe: boolean | null };
   /** The battle on screen, if any. */
   battle: TestBattle | null;
   /** Your creatures, treats and whether you still choose a starter, as the server last sent them. */

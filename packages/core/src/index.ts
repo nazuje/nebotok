@@ -9,6 +9,7 @@ export {
   WalkToMessage,
   WalkHoldMessage,
   WalkStopMessage,
+  SettingsSetMessage,
   walkMessage,
   welcome,
   isCompatibleProtocol,
@@ -16,6 +17,7 @@ export {
   type WelcomeMessageKey,
   type WalkRefused,
   type WorldInfo,
+  type SettingsMessage,
 } from './protocol.ts';
 export {
   LANGUAGES,
@@ -67,10 +69,12 @@ export {
   SkillLevel,
   BoardJob,
   JobsProgress,
+  PlayerSettings,
   SaveData,
   SaveError,
   migrations,
   createSave,
+  defaultSettings,
   migrateSave,
   type Migration,
   type SaveFile,

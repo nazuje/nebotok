@@ -254,13 +254,15 @@ body:not([data-screen='world']) .walk-hint {
 }
 
 .settings-language,
-.settings-controls {
+.settings-controls,
+.settings-read {
   margin: 0;
   font-weight: 700;
 }
 
 .language,
-.controls {
+.controls,
+.read-to-me {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;
@@ -285,6 +287,29 @@ body:not([data-screen='world']) .walk-hint {
 .language-option[aria-current='true'] {
   background: var(--accent);
   color: white;
+}
+
+.read-to-me {
+  align-items: center;
+  gap: 4px;
+}
+
+.read-to-me-picture {
+  flex: none;
+  margin: 0 4px;
+}
+
+/* A speaker that reads a line or a hint aloud: on the talk box and the quest banner. */
+.speaker-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #e6eef6;
 }
 
 /* Buttons */

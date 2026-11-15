@@ -3,6 +3,7 @@ import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
 import { addPin, listProfiles, logout } from './api.ts';
 import { createBattles } from './battles.ts';
+import { createClipPlayer } from './clip-player.ts';
 import { connect, type ConnectionStatus, type WorldConnection, type WorldRoom } from './connection.ts';
 import { initialControls, otherControls, saveControls, type Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
@@ -13,6 +14,7 @@ import { initialLanguage, otherLanguage, saveLanguage } from './language.ts';
 import { loadMap } from './map-loader.ts';
 import { createNameTags } from './names.ts';
 import { createOutbox } from './outbox.ts';
+import { createPlayerSettings } from './player-settings.ts';
 import { createPinSetup } from './pin-setup.ts';
 import { createProfileScreen } from './profile-screen.ts';
 import { createRequestPacer } from './request-pacer.ts';
@@ -59,6 +61,7 @@ let stopTalks: () => void = () => {};
 let stopCues: () => void = () => {};
 let stopSkills: () => void = () => {};
 let stopJobs: () => void = () => {};
+let stopPlayerSettings: () => void = () => {};
 
 /** Talk, battle, skill and board requests share the server's limit, so they share one pacer. */
 const requests = createRequestPacer({
@@ -95,7 +98,9 @@ const battles = createBattles({
   starterOffered: () => talks.offersStarter(),
   requests,
 });
-const speech = createSpeech();
+const playerSettings = createPlayerSettings({ requests, changed: () => settings.setReadToMe(playerSettings.readToMe()) });
+const clips = createClipPlayer();
+const speech = createSpeech({ language: () => language, readToMe: () => playerSettings.readToMe() === true, player: clips });
 const storyCues = createStoryCues({
   scene,
   speech,
@@ -129,6 +134,7 @@ const story = createStory({
     input.release();
     showScreen();
   },
+  speech,
 });
 const skills = createSkills({
   language: () => language,
@@ -169,6 +175,7 @@ const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
+  onReadToMe: () => playerSettings.toggleReadToMe(),
   onAddPin: () => {
     pinSetup.open();
     showScreen();
@@ -352,6 +359,8 @@ function forgetRoom() {
   stopSkills = () => {};
   stopJobs();
   stopJobs = () => {};
+  stopPlayerSettings();
+  stopPlayerSettings = () => {};
   room = null;
   input.release();
   outbox.reset();
@@ -372,6 +381,8 @@ async function leaveWorld() {
   skills.reset();
   jobs.reset();
   storyCues.reset();
+  playerSettings.reset();
+  speech.stop();
   await leaving?.leave();
 }
 
@@ -433,6 +444,7 @@ function enterWorld() {
       stopCues = storyCues.joined(joined);
       stopSkills = skills.joined(joined);
       stopJobs = jobs.joined(joined);
+      stopPlayerSettings = playerSettings.joined(joined);
       stopFeed = feedWorldView(joined, view, {
         map: (id) => {
           roomMap = id;
@@ -463,7 +475,7 @@ const game = new Game({
   pixelArt: true,
   backgroundColor: '#8fd3ff',
   banner: false,
-  // Nothing may ever play sound unasked, and there is no sound yet.
+  // Phaser plays nothing: the only sound is "Read to me", through one audio element of the page's own (clip-player.ts).
   audio: { noAudio: true },
   scale: { mode: Scale.NONE, width: initialView.width, height: initialView.height, zoom: initialView.zoom },
   scene: [scene, battles.scene],
@@ -532,6 +544,7 @@ installTestHook({
       pinStep: adding.step,
       canAddPin,
       settingsOpen: settings.isOpen(),
+      voice: { readToMe: playerSettings.readToMe(), ...clips.state() },
       ...battles.snapshot(performance.now()),
       ...story.snapshot(),
       ...skills.snapshot(performance.now()),

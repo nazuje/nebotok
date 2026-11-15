@@ -4,7 +4,7 @@ import { DirectionSchema } from './grid.ts';
 import { MapId } from './map.ts';
 
 /** The version `createSave` writes. Raise it only together with a migration from the version before. */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /** How many creatures a player's storage holds, besides the team of up to 6. */
 export const STORAGE_LIMIT = 200;
@@ -135,6 +135,15 @@ const SaveDataV5 = z.strictObject({
   jobs: JobsV5.nullable(),
 });
 
+/**
+ * The player's own settings, kept with them so they follow the player to any device: `readToMe`
+ * plays talk lines and quest hints aloud by themselves (a speaker button plays them either way).
+ */
+const SettingsV6 = z.strictObject({ readToMe: z.boolean() });
+
+/** v6 adds the player's settings. */
+const SaveDataV6 = z.strictObject({ ...SaveDataV5.shape, settings: SettingsV6 });
+
 export const CreatureInstance = CreatureV3;
 export type CreatureInstance = z.infer<typeof CreatureInstance>;
 export const StoryProgress = StoryV4;
@@ -146,7 +155,9 @@ export const BoardJob = BoardJobV5;
 export type BoardJob = z.infer<typeof BoardJob>;
 export const JobsProgress = JobsV5;
 export type JobsProgress = z.infer<typeof JobsProgress>;
-export const SaveData = SaveDataV5;
+export const PlayerSettings = SettingsV6;
+export type PlayerSettings = z.infer<typeof PlayerSettings>;
+export const SaveData = SaveDataV6;
 export type SaveData = z.infer<typeof SaveData>;
 export type SaveFile = { readonly v: typeof SAVE_VERSION; readonly data: SaveData };
 
@@ -157,6 +168,7 @@ export const SAVE_SCHEMAS: Readonly<Record<number, z.ZodType>> = {
   3: SaveDataV3,
   4: SaveDataV4,
   5: SaveDataV5,
+  6: SaveDataV6,
 };
 
 export type Migration = (data: unknown) => unknown;
@@ -171,7 +183,14 @@ export const migrations: Readonly<Record<number, Migration>> = {
   3: (data) => ({ ...(data as z.infer<typeof SaveDataV3>), story: { active: [], done: [], flags: [] } }),
   // A v4 player has every skill at level 1 and has never opened the job board.
   4: (data) => ({ ...(data as z.infer<typeof SaveDataV4>), skills: [], jobs: null }),
+  // Sound never plays unasked, so a v5 player has "Read to me" off until they turn it on.
+  5: (data) => ({ ...(data as z.infer<typeof SaveDataV5>), settings: defaultSettings() }),
 };
+
+/** A new player's settings: nothing is read aloud unless they ask. */
+export function defaultSettings(): PlayerSettings {
+  return { readToMe: false };
+}
 
 const Envelope = z.object({ v: z.number().int().min(1), data: z.unknown() });
 

@@ -27,6 +27,7 @@ const CLIENT_SCHEMAS = {
   SkillFinishMessage: core.SkillFinishMessage,
   SkillCancelMessage: core.SkillCancelMessage,
   BoardOpenMessage: core.BoardOpenMessage,
+  SettingsSetMessage: core.SettingsSetMessage,
 };
 
 // The timing rules a skill attempt is judged by: a client that times its taps differently is judged wrong.

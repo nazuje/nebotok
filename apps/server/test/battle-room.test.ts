@@ -4,6 +4,7 @@ import {
   MAX_TEAM,
   PROTOCOL_VERSION,
   createSave,
+  defaultSettings,
   emptyProgress,
   maxHpOf,
   newCreature,
@@ -115,7 +116,7 @@ async function player(name: string, progress: Partial<Progress> = {}, at: Point 
   if (!made.ok) throw new Error(made.error);
   const { id } = made.value;
   const position = { map: map().id, ...at, facing: 'left' as const };
-  temp.services.progress.save(id, createSave({ name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), ...progress }));
+  temp.services.progress.save(id, createSave({ settings: defaultSettings(), name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), ...progress }));
   const login = await temp.services.profiles.login({ profileId: id });
   if (!login.ok) throw new Error(login.error);
   colyseus.sdk.auth.token = login.value.token;

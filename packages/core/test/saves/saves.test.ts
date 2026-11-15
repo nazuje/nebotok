@@ -121,8 +121,20 @@ describe('save migrations', () => {
     expect(top.skills[0]).toEqual({ skill: 'cooking', level: storyContent.skills!.maxLevel, xp: 0 });
   });
 
+  it('gives a v5 player "Read to me" off, and keeps a v6 player\'s setting', () => {
+    const old = migrateSave(JSON.parse(readFileSync(join(SAVES_DIR, 'v5', 'slovenian-name.json'), 'utf8'))).data;
+    expect(old.settings).toEqual({ readToMe: false });
+    const kept = migrateSave(JSON.parse(readFileSync(join(SAVES_DIR, 'v6', 'slovenian-name.json'), 'utf8'))).data;
+    expect(kept).toMatchObject({ name: 'Čmrljček Šumež', settings: { readToMe: true } });
+    for (const settings of [{ readToMe: 'yes' }, { readToMe: true, loud: true }, {}]) {
+      expect(() => migrateSave({ v: 6, data: { ...kept, settings } })).toThrow(SaveError);
+    }
+    const { settings: _missing, ...unset } = kept;
+    expect(() => migrateSave({ v: 6, data: unset })).toThrow(SaveError);
+  });
+
   it('refuses a skill twice, a job past its count, a repeated job and a job never drawn', () => {
-    const data = migrateSave(JSON.parse(readFileSync(join(SAVES_DIR, 'v5', 'basic.json'), 'utf8'))).data;
+    const { settings: _v6Only, ...data } = migrateSave(JSON.parse(readFileSync(join(SAVES_DIR, 'v5', 'basic.json'), 'utf8'))).data;
     const jobs = data.jobs!;
     const [first] = jobs.board;
     for (const bad of [

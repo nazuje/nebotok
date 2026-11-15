@@ -65,8 +65,10 @@ export const reportCspViolations = () => {
 /**
  * Collects every sign of trouble on a page into `problems`, and refuses any request off
  * `allowedHost`. `expectStatus()` says when a refused login (a wrong PIN) is the point.
+ * `mayCancel(url)` says which requests the page may cancel, as an audio element drops the clip it
+ * was loading when the next one starts.
  */
-export function watch(context, page, problems, { allowedHost, expectStatus = () => false }) {
+export function watch(context, page, problems, { allowedHost, expectStatus = () => false, mayCancel = () => false }) {
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     if (shooting.has(page) && SCREENSHOT_STYLE_NOISE.test(message.text())) return;
@@ -75,7 +77,10 @@ export function watch(context, page, problems, { allowedHost, expectStatus = () 
     problems.push(`console error: ${message.text()}`);
   });
   page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
-  context.on('requestfailed', (request) => problems.push(`failed request: ${request.url()} (${request.failure()?.errorText})`));
+  context.on('requestfailed', (request) => {
+    if (request.failure()?.errorText === 'net::ERR_ABORTED' && mayCancel(new URL(request.url()))) return;
+    problems.push(`failed request: ${request.url()} (${request.failure()?.errorText})`);
+  });
   context.on('request', (request) => {
     const url = new URL(request.url());
     if (['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) && url.host !== allowedHost) {

@@ -15,7 +15,9 @@ changing Phaser code, and use Phaser 4 APIs only.
   never a literal in code.
 - **Own origin only.** The game loads fonts, images and data from its own server. The
   Content-Security-Policy refuses anything else, and the browser check fails on any outside request.
-- **Sound** never plays unasked: Phaser starts with audio off until sound is designed in.
+- **Sound** never plays unasked: Phaser starts with audio off until sound is designed in. The only
+  sound is "Read to me" (`src/speech.ts`), the voice clips through one audio element
+  (`src/clip-player.ts`), while the player has it on or taps a speaker button.
 - **Test hook.** With `?test=1` only, `window.__nebotok` exposes `ready` (true once the map is
   drawn and the connection settled, with your own courier on it when connected), `stateAsText()`
   (JSON from `src/test-hook.ts`, including every player's tile and drawn position) and
