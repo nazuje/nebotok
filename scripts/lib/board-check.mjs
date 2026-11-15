@@ -30,8 +30,72 @@ async function closeBoard(page) {
   await until(page, (s) => s.screen === 'world', 'the world after the board');
 }
 
+/**
+ * What a child who cannot read sees on the board: each card's verb as a picture (the skill at work,
+ * or the envelope for a delivery), its pips, and its XP rewards as a bar. The prepared delivery
+ * also shows its character's face and the check of a job ready to hand over.
+ */
+async function boardPictures(page, plan, { expect }) {
+  const cards = await page.locator('#job-board .job-card').evaluateAll((list) =>
+    list.map((card) => ({
+      job: Number(card.dataset.job),
+      kind: card.dataset.kind,
+      verb: card.querySelector('.job-verb-art')?.dataset.picture ?? null,
+      pips: card.querySelectorAll('.job-pip').length,
+      of: Number(card.querySelector('.job-pips')?.dataset.of ?? 0),
+      xpBars: card.querySelectorAll('.job-xp .job-xp-bar').length,
+      xp: card.querySelectorAll('.job-xp').length,
+      portrait: card.querySelector('.job-to canvas.job-portrait') !== null,
+      check: card.querySelector('.job-ready-check') !== null,
+      filled: Number(card.querySelector('.job-pips')?.dataset.filled ?? -1),
+    })),
+  );
+  for (const card of cards) {
+    const verb = card.kind === 'deliver' ? card.verb === 'pictures/envelope' : card.verb?.startsWith('actions/');
+    expect(verb, `the ${card.kind} card ${card.job} shows the verb picture ${card.verb}`);
+    expect(card.pips > 0 && card.pips === card.of, `the card ${card.job} shows ${card.pips} pips for ${card.of} items`);
+    expect(card.xp > 0 && card.xpBars === card.xp, `the card ${card.job} shows ${card.xpBars} XP bars for ${card.xp} XP rewards`);
+  }
+  const delivery = cards.find((card) => card.job === plan.deliver?.job);
+  if (delivery) {
+    expect(delivery.portrait, 'the delivery card shows no face of the character it goes to');
+    expect(delivery.check && delivery.filled === plan.deliver.count, `the ready delivery shows ${delivery.filled} pips filled and ${delivery.check ? 'a' : 'no'} check`);
+  }
+}
+
+/**
+ * Every card is in view on the board, or the arrow at its bottom says more are below and a tap on
+ * it scrolls them up. A card is in view when its bottom is.
+ */
+async function cardsReachable(page, where, { expect, notes }) {
+  const fold = () =>
+    page.evaluate(() => {
+      const scroll = document.querySelector('#job-board .job-board-scroll');
+      const bottom = scroll.getBoundingClientRect().bottom;
+      const below = [...scroll.querySelectorAll('.job-card')].filter((card) => card.getBoundingClientRect().bottom > bottom + 8).map((card) => card.dataset.job);
+      const more = document.querySelector('#job-board .job-more');
+      return { below, more: more !== null && !more.hidden, top: scroll.scrollTop };
+    });
+  const before = await fold();
+  if (before.below.length === 0) {
+    expect(!before.more, `${where}: the arrow for more cards shows with every card in view`);
+    return;
+  }
+  notes.push(`${where}: card ${before.below.join(', ')} starts below the board's bottom, with the arrow`);
+  expect(before.more, `${where}: card ${before.below.join(', ')} is below the board's bottom with no arrow to say so`);
+  if (!before.more) return;
+  await page.locator('#job-board .job-more').tap();
+  const scrolled = await page
+    .waitForFunction((top) => (document.querySelector('#job-board .job-board-scroll')?.scrollTop ?? 0) > top, before.top, { timeout: 3_000 })
+    .then(() => true)
+    .catch(() => false);
+  expect(scrolled, `${where}: a tap on the arrow does not scroll the board`);
+  await page.locator('#job-board .job-board-scroll').evaluate((scroll) => scroll.scrollTo({ top: 0 }));
+  await nextFrames(page);
+}
+
 /** The board as prepared: three cards in the save's order, the delivery ready, its character named, and no first-visit hint. */
-async function readBoard(page, plan, { language, say, expect, check }) {
+async function readBoard(page, plan, { language, say, expect, check, notes }) {
   const opened = await openBoard(page, plan, 'the job board');
   const { cards, hint } = opened.jobs.screen;
   const wanted = plan.jobs.map((job) => job.job);
@@ -45,6 +109,8 @@ async function readBoard(page, plan, { language, say, expect, check }) {
   const inBag = fill(say('jobs.inBag'), { count: plan.deliver.count, of: plan.deliver.count });
   expect((await textOf(card, '.job-progress')) === inBag, `the delivery card says "${await textOf(card, '.job-progress')}", not "${inBag}"`);
   expect((await card.getAttribute('data-ready')) !== null, 'the delivery card is not marked ready with its items in the bag');
+  await boardPictures(page, plan, { expect });
+  await cardsReachable(page, 'the job board', { expect, notes });
   await check('the job board', 'j1-board');
   await closeBoard(page);
 }
@@ -60,6 +126,10 @@ async function deliver(page, world, plan, { say, expect, check, notes }) {
   expect(!board.some((job) => job.job === plan.deliver.job), `the delivered job ${plan.deliver.job} is still on the board`);
   expect(board.length === plan.jobs.length && board.some((job) => job.job > plan.drawn), `the board after the delivery is ${JSON.stringify(board.map((job) => job.job))}, with no new job`);
   expect(toasted.questToast.lines.length > 1, `the job toast lists no rewards: ${JSON.stringify(toasted.questToast.lines)}`);
+  const news = await page.locator('.quest-toast .job-news[data-change="done"]').evaluateAll((list) => list.map((each) => ({ stamp: each.querySelector('.job-stamp') !== null, rewards: each.querySelectorAll('.job-news-reward').length })));
+  expect(news.length === 1 && news[0].stamp && news[0].rewards > 0, `the job toast shows no stamp and reward pictures: ${JSON.stringify(news)}`);
+  // The stamp comes down in 0.45 s; the screenshot shows it landed.
+  await page.waitForTimeout(500);
   await nextFrames(page);
   await check('the job toast', 'j2-job-toast');
 }
@@ -84,20 +154,26 @@ async function newCard(page, world, plan, { expect, check, notes }) {
 export async function playBoard(page, world, plan, { language, strings, expect, check, notes }) {
   const say = (id) => strings[id][language];
   await until(page, (s) => s.screen === 'world' && s.progress !== null && s.jobs.board?.length === plan.jobs.length, 'the world with the job board');
-  await readBoard(page, plan, { language, say, expect, check });
+  await readBoard(page, plan, { language, say, expect, check, notes });
   await deliver(page, world, plan, { say, expect, check, notes });
   await newCard(page, world, plan, { expect, check, notes });
   const { jobs } = await readState(page);
   expect(jobs.screen === null, 'the board screen is still open');
 }
 
-/** At 360px, a player who never opened the board opens it: three new cards and the first-visit hint, with nothing scrolling sideways. */
-export async function boardScreenFits(page, plan, { language, strings, expect, noSideways, check }) {
+/**
+ * At 360px, a player who never opened the board opens it: three new cards with their pictures and
+ * the first-visit hint, each card in view or the arrow saying more are below, and nothing
+ * scrolling sideways.
+ */
+export async function boardScreenFits(page, plan, { language, strings, expect, noSideways, check, notes }) {
   await until(page, (s) => s.screen === 'world' && s.progress !== null && s.jobs.board === null, 'the world with the board never opened');
   const opened = await openBoard(page, plan, 'the first job board at 360px');
   expect(opened.jobs.board?.length === plan.slots && opened.jobs.screen.cards.length === plan.slots, `the first board shows ${opened.jobs.screen.cards.length} cards, not ${plan.slots}`);
   expect(opened.jobs.screen.hint && (await textOf(page, '#job-board .job-hint')) === strings['jobs.hint'][language], 'the first visit shows no hint');
   expect(opened.jobs.screen.flipped.length === 0, 'a first board turns cards over');
+  await boardPictures(page, { deliver: null }, { expect });
+  await cardsReachable(page, 'the first job board at 360px', { expect, notes });
   await noSideways('the job board');
   await check('the job board at 360px', 'board');
   await closeBoard(page);
