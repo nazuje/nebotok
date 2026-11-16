@@ -1,7 +1,8 @@
 // A save beside the gathering spots, for the browser check's skill part, its 360px runs and the
-// scenes (scripts/lib/prepared-saves.mjs writes it). The player has the first starter, every skill
-// at level 1, and one stack nearly full: the fish a level 1 fishing spot gives, one short of a
-// stack, so a perfect catch (two fish) fits one and toasts that the other had no room. A board save
+// scenes (scripts/lib/prepared-saves.mjs writes it). The player has the first starter, fishing one
+// XP short of the level that unlocks the next fishing spot (so the catch toasts a level up) and the
+// other skills at level 1, and one stack nearly full: the fish a level 1 fishing spot gives, one
+// short of a stack, so a perfect catch (two fish) fits one and toasts that the other had no room. A board save
 // (boardSave) stands beside the job board instead, with a delivery ready to hand over.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +19,7 @@ const CONTENT = loadBattleContent({
   items: readContent('items.json'),
 });
 const SKILLS = readContent('skills.json').skills;
+const LEVEL_COSTS = readContent('skills.json').levelCosts;
 const SPOTS = readContent('spots.json').spots;
 const RECIPES = readContent('recipes.json').recipes;
 const STATIONS = readContent('stations.json').stations;
@@ -36,11 +38,27 @@ const facingTo = (from, to) => AROUND.find(([, dx, dy]) => from.x + dx === to.x 
 const besideOf = (map, at) => AROUND.map(([, dx, dy]) => ({ x: at.x + dx, y: at.y + dy })).filter((tile) => isWalkable(map, tile) && encounterZoneAt(map, tile) === null);
 const skillUses = (game) => SKILLS.find((skill) => skill.game === game);
 const level1Spots = (map, skill) => SPOTS.filter((spot) => spot.skill === skill.id && spot.level === 1 && map.spots[spot.id]);
+const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/** The level above 1 that first unlocks a spot of `skill`, and the items its spots give: what a level up toasts. */
+function firstUnlock(skill) {
+  const level = Math.min(...SPOTS.filter((spot) => spot.skill === skill.id && spot.level > 1).map((spot) => spot.level));
+  return { skill: skill.id, level, items: [...new Set(SPOTS.filter((spot) => spot.skill === skill.id && spot.level === level).map((spot) => spot.item))] };
+}
+
+/** The spot on `map` above the player's `levels` with open ground beside it nearest `from`, and that ground: a start there needs a higher level. */
+function lockedSpot(map, from, levels) {
+  const spots = SPOTS.filter((spot) => spot.level > (levels[spot.skill] ?? 1) && map.spots[spot.id]).flatMap((spot) => besideOf(map, map.spots[spot.id]).map((stand) => ({ spot, stand })));
+  const [near] = spots.toSorted((a, b) => distance(a.stand, from) - distance(b.stand, from));
+  if (!near) throw new Error(`${map.id} has no spot above level 1 with open ground beside it`);
+  return { spot: near.spot.id, item: near.spot.item, level: near.spot.level, tile: map.spots[near.spot.id], stand: near.stand };
+}
 
 /**
  * What the skill part plays on `map`: a level 1 fishing spot and where to stand beside it; a level
- * 1 foraging spot and a cooking pot with one tile beside both; and a level 1 recipe made from what
- * that spot gives. Throws when the map has no such place, since the part cannot be played there.
+ * 1 foraging spot and a cooking pot with one tile beside both; a level 1 recipe made from what
+ * that spot gives; the fishing level the catch reaches; and the spot nearest the pot the player's
+ * levels do not reach yet. Throws when the map has no such place, since the part cannot be played there.
  */
 export function skillPlan(map) {
   const fishing = skillUses('dip');
@@ -48,6 +66,7 @@ export function skillPlan(map) {
   const fish = level1Spots(map, fishing)[0];
   const fishAt = fish && besideOf(map, map.spots[fish.id])[0];
   if (!fishAt) throw new Error(`${map.id} has no level 1 fishing spot with open ground beside it`);
+  const levelUp = firstUnlock(fishing);
   const pots = STATIONS.filter((station) => station.kind === 'cookingPot' && map.stations[station.id]);
   for (const bush of level1Spots(map, foraging)) {
     const recipe = RECIPES.find((each) => each.level === 1 && each.ingredients.every((ingredient) => ingredient.item === bush.item));
@@ -60,6 +79,8 @@ export function skillPlan(map) {
           pot: { station: pot.id, tile: map.stations[pot.id] },
           stand: shared,
           facing: facingTo(shared, map.spots[bush.id]),
+          levelUp,
+          locked: lockedSpot(map, shared, { [fishing.id]: levelUp.level - 1 }),
           recipe: { id: recipe.id, makes: recipe.makes, ingredients: recipe.ingredients },
         };
       }
@@ -68,9 +89,13 @@ export function skillPlan(map) {
   throw new Error(`${map.id} has no tile beside both a level 1 foraging spot and a cooking pot, with a level 1 recipe from that spot`);
 }
 
-/** The bag the skill part starts with: the fish one short of a stack, and enough of the bush's item to cook twice. */
-export const skillInventory = (plan) => [
-  { item: plan.fish.item, count: STACK - 1 },
+/**
+ * The bag the skill part starts with: the fish one short of a stack (a whole stack beside the bush,
+ * where the 360px run is turned away from the fishing spot for it), and enough of the bush's item
+ * to cook twice.
+ */
+export const skillInventory = (plan, where = 'fish') => [
+  { item: plan.fish.item, count: where === 'fish' ? STACK - 1 : STACK },
   { item: plan.bush.item, count: plan.recipe.ingredients.reduce((sum, ingredient) => sum + ingredient.count, 0) * 2 },
 ];
 
@@ -92,12 +117,12 @@ export function skillSave(world, { name, language, where = 'fish' }) {
       position: { map: world.map.id, x: stand.x, y: stand.y, facing },
       team: [newCreature(starter, STARTERS.level, CONTENT)],
       storage: [],
-      inventory: skillInventory(plan),
+      inventory: skillInventory(plan, where),
       lastShrine: null,
       seen: [starter],
       befriended: [starter],
       story: { active: [], done: [], flags: [] },
-      skills: [],
+      skills: [{ skill: plan.levelUp.skill, level: plan.levelUp.level - 1, xp: LEVEL_COSTS[plan.levelUp.level - 2] - 1 }],
       jobs: null,
     },
   };

@@ -6,8 +6,9 @@ import { BATTLE_SCENE, BattleScene } from './battle-scene.ts';
 import { createBattleScreen, lineText } from './battle-screen.ts';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
-import type { ToastKind } from './hud.ts';
+import { TOAST_MS, type ToastKind } from './hud.ts';
 import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
+import { pictureIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
 import { createStarterScreen } from './starter-screen.ts';
@@ -70,6 +71,8 @@ export function createBattles(options: BattlesOptions): Battles {
   };
 
   const teamButton = element<HTMLButtonElement>('.team-button');
+  teamButton.append(pictureIcon('star-burst', 32, { className: 'team-sparkle' }));
+  let restedTimer: ReturnType<typeof setTimeout> | undefined;
   const battleScreen = createBattleScreen(element<HTMLElement>('#battle'), {
     language: options.language,
     progress: () => model.progress(),
@@ -117,6 +120,14 @@ export function createBattles(options: BattlesOptions): Battles {
     update();
   }
 
+  /** Resting at a shrine heals the team: its button sparkles while the news shows. */
+  function rested() {
+    options.toast('shrine.rested', 'news');
+    teamButton.dataset.rested = 'true';
+    clearTimeout(restedTimer);
+    restedTimer = setTimeout(() => delete teamButton.dataset.rested, TOAST_MS);
+  }
+
   function receive(message: ServerMessage) {
     const wasFighting = unfinished();
     const restedAt = model.storage()?.shrine;
@@ -128,7 +139,7 @@ export function createBattles(options: BattlesOptions): Battles {
       else options.toast(`refused.${message.payload.reason}`);
     }
     // Storage comes again after every swap at the shrine; only arriving there is news, and a toast then would cover Close.
-    if (message.type === SERVER_MESSAGES.storage && message.payload.shrine !== restedAt) options.toast('shrine.rested', 'news');
+    if (message.type === SERVER_MESSAGES.storage && message.payload.shrine !== restedAt) rested();
   }
 
   function update(now = performance.now()) {

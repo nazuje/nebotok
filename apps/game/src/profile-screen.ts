@@ -3,6 +3,7 @@ import { createProfile, listProfiles, login, type ApiProblem } from './api.ts';
 import { AVATARS, avatarPortrait } from './avatars.ts';
 import { button, el, icon } from './dom.ts';
 import { lockedNotice, lockedTag } from './lock-wait.ts';
+import { noticePicture } from './message-pictures.ts';
 import { createPinPad } from './pin-pad.ts';
 import { text } from './strings.ts';
 
@@ -82,7 +83,10 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   };
 
   const noticeLine = () => {
-    const line = el('p', { className: 'notice', text: notice ? noticeText(notice) : '', attrs: { role: 'alert' } });
+    const picture = notice ? noticePicture(notice) : null;
+    const words = notice ? noticeText(notice) : '';
+    const line = el('p', { className: 'notice', attrs: { role: 'alert' } }, picture ? [picture, el('span', { className: 'notice-words', text: words })] : []);
+    if (!picture) line.textContent = words;
     line.hidden = notice === null;
     noticeShown = line;
     return line;

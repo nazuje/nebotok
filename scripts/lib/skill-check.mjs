@@ -1,8 +1,8 @@
 // Gathering, cooking and the Skills tab, played the way a player would against the real server.
 // The player starts from a save the check prepares (scripts/lib/skill-saves.mjs) beside a fishing
 // spot, with the fish one short of a stack. They tap the spot and pull when the float dips, read
-// from the test hook, and see the catch toasted with the fish that had no room; press Space at the
-// resting spot and are told how long it rests; walk to a bush beside a cooking pot, let the
+// from the test hook, and see the catch toasted with the fish that had no room, then fishing's level
+// up with what it unlocks; press Space at the resting spot and are told how long it rests; walk to a bush beside a cooking pot, let the
 // sparkles go by once (a miss), try again and tap each sparkle; open the recipe book at the pot,
 // cook and stop the marker in the zone (in Chromium, focus moves into the book and Escape closes
 // it); and find the three skills in the journal's Skills tab. Each kind of game shows the demo hand
@@ -10,7 +10,7 @@
 // for one fish, a miss, a success (two sparkles of three) and the cooked dish.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { HOOK, nextFrames, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
+import { HOOK, animationsSettled, nextFrames, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const ITEMS = new Map(JSON.parse(readFileSync(join(ROOT, 'content/items.json'), 'utf8')).items.map((item) => [item.id, item]));
@@ -95,13 +95,28 @@ async function fish(page, plan, { say, name, expect, check }) {
   expect(rested.spots.some((spot) => spot.id === plan.fish.spot && spot.resting), `${plan.fish.spot} is not drawn resting`);
 }
 
-/** Space at the resting spot: the courier faces it, and the start is turned down with how long it rests. */
-async function restingRefused(page, { say, expect }) {
+/** The catch took fishing up a level: its toast shows the skill's icon in a burst, the new level and the items it unlocks. */
+async function levelUp(page, plan, { expect, check }) {
+  const { skill, level, items } = plan.levelUp;
+  await until(page, (s) => s.questToast?.change === 'good' && s.questToast.pictures.includes(`skills/${skill}`), `the toast of ${skill} level ${level}`, 10_000);
+  const badge = await textOf(page, '.quest-toast .level-up .level-badge');
+  expect(badge === String(level), `the level-up toast's badge says "${badge}", not ${level}`);
+  const unlocked = await page.locator('.quest-toast .level-up [data-picture^="items/"]').count();
+  expect(unlocked === items.length, `the level-up toast shows ${unlocked} unlocked items, not ${items.length}`);
+  await animationsSettled(page);
+  await check('the level-up toast', 'k2b-level-up');
+}
+
+/** Space at the resting spot: the courier faces it, and the start is turned down with how long it rests and a clock. */
+async function restingRefused(page, { say, expect, check }) {
   await page.keyboard.press('Space');
   const refused = await until(page, (s) => s.questToast?.change === 'refused', 'the toast that the spot rests', 15_000);
   const [line] = refused.questToast.lines;
   const seconds = Number(/\d+/.exec(line ?? '')?.[0]);
   expect(line === fill(say('skill.resting'), { seconds }) && seconds > 0, `the resting toast says "${line}"`);
+  expect(refused.questToast.pictures.includes('pictures/clock'), `the resting toast shows ${JSON.stringify(refused.questToast.pictures)}, no clock`);
+  await animationsSettled(page);
+  await check('the resting toast', 'k2c-resting');
 }
 
 /** Taps each sparkle as it shows, up to `left` of them, until the game is over or `deadline` passes. */
@@ -237,7 +252,8 @@ export async function playSkills(page, world, plan, { language, strings, expect,
   const name = (item) => ITEMS.get(item)?.name[language] ?? item;
   await until(page, (s) => s.screen === 'world' && s.skills !== null && s.progress !== null, 'the world with the skills');
   await fish(page, plan, { say, name, expect, check });
-  await restingRefused(page, { say, expect });
+  await levelUp(page, plan, { expect, check });
+  await restingRefused(page, { say, expect, check });
   await walkByTaps(page, world, plan.stand, { notes });
   await forage(page, plan, { say, expect, check });
   await cook(page, plan, { name, expect, check, keys });
@@ -246,9 +262,10 @@ export async function playSkills(page, world, plan, { language, strings, expect,
 
 /**
  * At 360px wide, from beside the bush and the pot: the recipe book, a game's card with the demo
- * hand, its missed result and the Skills tab fit.
+ * hand, its missed result and the Skills tab fit; then, beside a spot that needs a higher level, the
+ * refusal shows its item locked and the level it needs.
  */
-export async function skillScreensFit(page, plan, { expect, noSideways, check }) {
+export async function skillScreensFit(page, world, plan, { expect, noSideways, check, notes }) {
   await until(page, (s) => s.screen === 'world' && s.skills !== null && s.progress !== null, 'the world with the skills at 360px');
   await tapTile(page, plan.pot.tile);
   await until(page, (s) => s.screen === 'recipeBook' && s.recipeBook !== null, 'the recipe book at 360px', 10_000);
@@ -277,4 +294,21 @@ export async function skillScreensFit(page, plan, { expect, noSideways, check })
   await check('the Skills tab at 360px', 'skills');
   await page.locator('#journal .journal-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the journal');
+  await refusedAt(page, world, plan.locked, 'pictures/lock', 'needs-level', { expect, noSideways, check, notes });
+  const badge = await textOf(page, '.quest-toast .level-badge');
+  expect(badge === String(plan.locked.level), `the toast that ${plan.locked.spot} needs a level shows the level "${badge}", not ${plan.locked.level}`);
+  await until(page, (s) => s.questToast === null, 'the toast of the locked spot to go', 10_000);
+  await refusedAt(page, world, plan.fish, 'pictures/bag-full', 'bag-full', { expect, noSideways, check, notes });
+}
+
+/** Walks beside `spot` and taps it, and sees the start turned down with `picture` and the spot's item, at 360px. */
+async function refusedAt(page, world, { spot, tile, stand, item }, picture, step, { expect, noSideways, check, notes }) {
+  await walkByTaps(page, world, stand, { notes });
+  await tapTile(page, tile);
+  const refused = await until(page, (s) => s.questToast?.change === 'refused', `the toast that ${spot} turns the start down`, 10_000);
+  const { pictures } = refused.questToast;
+  expect(pictures.includes(picture) && pictures.includes(`items/${item}`), `the toast that ${spot} turns the start down shows ${JSON.stringify(pictures)}, not ${picture} and items/${item}`);
+  await animationsSettled(page);
+  await noSideways(`the toast that ${spot} turns the start down`);
+  await check(`the toast that ${spot} turns the start down at 360px`, step);
 }

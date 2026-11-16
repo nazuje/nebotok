@@ -71,8 +71,12 @@ export type NewsPicture = (language: Language) => HTMLElement | null;
 /** `heard`: the banner has come into view once, so coming back after a screen covered it is not news again. */
 type Entry = { readonly kind: 'quest'; readonly change: QuestChanged; heard: boolean } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines; readonly picture: NewsPicture | null };
 
-/** The toast showing: a quest change (with its quest and banner), or other news (`quest` and `banner` null, `change` its tone). */
-export type QuestToastState = { readonly quest: string | null; readonly change: QuestChanged['change'] | NewsTone; readonly lines: readonly string[]; readonly banner: QuestBanner | null };
+/**
+ * The toast showing: a quest change (with its quest and banner), or other news (`quest` and
+ * `banner` null, `change` its tone). `pictures` are the sprites of the picture kit, skills and
+ * tiles it shows.
+ */
+export type QuestToastState = { readonly quest: string | null; readonly change: QuestChanged['change'] | NewsTone; readonly lines: readonly string[]; readonly banner: QuestBanner | null; readonly pictures: readonly string[] };
 
 const entryLines = (entry: Entry, language: Language): string[] => (entry.kind === 'quest' ? questToastLines(entry.change, language) : entry.lines(language));
 const entryChange = (entry: Entry): QuestToastState['change'] => (entry.kind === 'quest' ? entry.change.change : entry.tone);
@@ -204,7 +208,7 @@ export function createQuestToast(root: HTMLElement, language: () => Language, op
     render,
     state: () =>
       current && showing
-        ? { quest: current.kind === 'quest' ? current.change.quest : null, change: entryChange(current), lines: entryLines(current, language()), banner: current.kind === 'quest' ? questBanner(current.change) : null }
+        ? { quest: current.kind === 'quest' ? current.change.quest : null, change: entryChange(current), lines: entryLines(current, language()), banner: current.kind === 'quest' ? questBanner(current.change) : null, pictures: [...root.querySelectorAll<HTMLElement>('[data-picture]')].map((drawn) => drawn.dataset.picture ?? '') }
         : null,
   };
 }

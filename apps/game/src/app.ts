@@ -83,6 +83,10 @@ const scene = new WorldScene({
     const of = restMs(spot);
     return left > 0 && of > 0 ? Math.min(1, left / of) : 0;
   },
+  wakeShrine: () => {
+    const progress = battles.progress();
+    return progress ? progress.lastShrine : undefined;
+  },
 });
 const hud = createHud(language);
 const battles = createBattles({
@@ -141,7 +145,7 @@ const skills = createSkills({
   player: () => session?.profile?.id ?? null,
   progress: () => battles.progress(),
   blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || jobs.overlay() !== null,
-  news: (lines, tone) => story.news(lines, tone),
+  news: (lines, tone, picture) => story.news(lines, tone, picture),
   openBoard: (station) => jobs.open(station),
   changed: () => {
     input.release();
@@ -235,10 +239,7 @@ const input = createInput({
   active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
-  marker: (tile, refused) => {
-    scene.setMarker(tile, refused);
-    if (refused) hud.toast('walk.blocked');
-  },
+  marker: (tile, refused) => scene.setMarker(tile, refused),
   ...useControls(view, talks, skills),
 });
 
@@ -419,7 +420,8 @@ function enterWorld() {
       // A drop stands the courier still on the server, so after a reconnect what the outbox last
       // sent no longer holds: the same walk asked again is a new request, not a repeat to swallow.
       if (status !== was) startClean();
-      hud.setStatus(status);
+      // A page that had a status this session and is connecting again lost touch with the server.
+      hud.setStatus(status, status === 'unreachable' || (status === 'connecting' && was !== null));
       updates.connection(status);
       if (status === 'signedOut') sessionEnded('connection.signedOut');
       else if (status === 'replaced') sessionEnded('profile.takenOver');
@@ -451,8 +453,10 @@ function enterWorld() {
           void showMap(id);
         },
         refused: () => {
+          // The walk the server turned down flashes the same cross as a tap on a tile out of reach.
+          const tile = scene.markerTile;
           scene.setMarker(null);
-          hud.toast('walk.blocked');
+          if (tile) scene.setMarker(tile, true);
         },
       });
     },
@@ -523,6 +527,7 @@ installTestHook({
       playerCount,
       welcome: hud.state().welcome,
       toast: hud.state().toast,
+      toastPicture: hud.state().toastPicture,
       hint: hint.shown(),
       talkHint: talkHint.shown() ? talks.starterNpc() : null,
       npcs: scene.drawnNpcs(),
@@ -534,6 +539,8 @@ installTestHook({
       tags: names.boxes().map(({ name, x, y, width, height }) => ({ name, x: round(x), y: round(y), width: round(width), height: round(height) })),
       controls,
       marker: scene.markerTile,
+      refusedMarker: scene.refusedTile,
+      wakeFlag: scene.flagTile,
       predicted: view.predicted(),
       input: input.state(),
       profile: session?.profile ?? null,
