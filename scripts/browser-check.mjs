@@ -17,8 +17,9 @@
 // shrine (scripts/lib/story-check.mjs): they open the bag and the journal, ask "Where next?", walk
 // to the shrine for the quest toast and see the journal move on. Four more (the other language on
 // each device) sign in beside a fishing spot (scripts/lib/skill-check.mjs): they fish, see the catch
-// and a full stack toasted, are told the spot rests, miss and then win a foraging game, cook from
-// the recipe book and read the Skills tab; at 360px a player opens the book, a game and the tab. The
+// and a full stack toasted and fishing's level up, are told the spot rests, miss and then win a
+// foraging game, cook from the recipe book and read the Skills tab; at 360px a player opens the
+// book, a game and the tab, and taps a spot that needs a higher level. The
 // same four then sign in beside the job board (scripts/lib/board-check.mjs): they read its three
 // cards in pictures, hand a delivery over in a talk, see the job news stamped done and find the new
 // card in its place; at 360px a player opens the board for the first time, and another hands a
@@ -455,13 +456,20 @@ async function wildBattle(page, bot, { expect, check, notes }) {
 }
 
 /**
- * At a shrine with only the starter, the team screen never offers to leave it there (the server
- * refuses, core `swapStorage`) and says it stays with you instead.
+ * Resting at a shrine shows the shrine beside the news, sparkles on the team button and puts the
+ * flag of where you wake on the shrine. With only the starter there, the team screen never offers
+ * to leave it (the server refuses, core `swapStorage`) and says it stays with you instead.
  */
 async function keepOne(page, bot, { language, expect, check, notes }) {
   const shrine = Object.keys(bot.map.shrines).toSorted()[0];
-  await walkByTaps(page, bot, bot.map.shrines[shrine], { notes });
+  const at = bot.map.shrines[shrine];
+  await walkByTaps(page, bot, at, { notes });
   await until(page, (s) => s.storage?.shrine === shrine, `the storage of ${shrine} after resting there`);
+  const rested = await until(page, (s) => s.toast === 'shrine.rested' && s.wakeFlag !== null, `the news of resting at ${shrine} with its flag`, 2_000);
+  expect(rested.toastPicture === 'tiles/shrine', `the news of resting shows ${rested.toastPicture}, not the shrine`);
+  expect(rested.wakeFlag.x === at.x && rested.wakeFlag.y === at.y, `the flag stands at ${JSON.stringify(rested.wakeFlag)}, not on ${shrine}`);
+  expect((await page.locator('.team-button[data-rested]').count()) === 1, 'the team button does not sparkle after resting');
+  await check('the rest at a shrine', 'b4-rested');
   await page.locator('.team-button').tap();
   const opened = await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
   await until(page, (s) => s.toast === null, 'the toast about resting to go', 6_000);
@@ -896,6 +904,22 @@ async function checkNarrow(browser, browserName, language, { lockedId, twiceId }
 }
 
 /**
+ * The session ends on the server while the player is in the world, as when it runs out: the page
+ * goes back to the profile list, which says so beside the courier walking back to it.
+ */
+async function sessionEndedElsewhere(page, { language, expect, noSideways, shot }) {
+  const token = await page.evaluate(() => JSON.parse(localStorage.getItem('nebotok:session') ?? 'null')?.token ?? null);
+  const ended = await apiCall(server.base, '/sessions/current', { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+  expect(ended.status === 204, `ending the session from outside answered ${ended.status}`);
+  await until(page, (s) => s.screen === 'profiles' && s.notice === 'connection.signedOut', 'the profile list saying the session ended', 10_000);
+  expect((await textOf(page, '#profiles .notice-words')) === STRINGS['connection.signedOut'][language], `the session-ended notice says "${await textOf(page, '#profiles .notice-words')}"`);
+  expect((await page.locator('#profiles .notice .notice-courier').count()) === 1, 'the session-ended notice shows no courier walking back');
+  await animationsSettled(page);
+  await noSideways('the session-ended notice');
+  await shot('add-pin-6-session-ended');
+}
+
+/**
  * A player made without a PIN adds one from the settings: typed twice, wrong the second time once,
  * then confirmed. After switching player, the profile asks for that PIN and signs in with it.
  */
@@ -983,7 +1007,7 @@ async function checkAddPin(browser, browserName, language, bot) {
     await keepOne(page, bot, { language, expect, check, notes });
     await page.locator('#team .team-close').tap();
     await until(page, (s) => s.screen === 'world', 'the world after closing the team');
-    await signOut(page);
+    await sessionEndedElsewhere(page, { language, expect, noSideways, shot });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
@@ -1064,7 +1088,7 @@ async function checkSkillsNarrow(browser, browserName, bot) {
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
     await enterWorld(page, bot, inWorld, 'the world as the skill player at 360px', { notes });
-    await skillScreensFit(page, player.plan, { expect, noSideways, check });
+    await skillScreensFit(page, bot, player.plan, { expect, noSideways, check, notes });
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -1225,23 +1249,25 @@ async function timed(check) {
   for (const result of results.slice(from)) result.durationMs = Math.round(performance.now() - started);
 }
 
-/** A part's device runs (each device in each language), then its 360px runs. */
+/** A part's device runs (each device in each language), then the groups of 360px runs it names. */
 async function playPart(browser, part, bot) {
   const name = part.browser;
+  const plays = (group) => part.narrow.includes(group);
   // A lock lasts a minute and needs five logins at once, which only our own server can spare.
   // The second lock waits for the first to end, so it starts before the device runs.
-  const relock = part.narrow && LOCAL ? await lockedTwiceLater(name) : null;
+  const relock = plays('locks') && LOCAL ? await lockedTwiceLater(name) : null;
   const runs = DEVICES.filter((device) => part.devices.includes(device.name)).flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
   await inTurn(runs, ({ device, language }) => timed(() => checkDevice(browser, name, device, language, bot)));
   if (part.voice && LOCAL) await inTurn(LANGUAGES, (language) => timed(() => checkVoice(browser, name, language, bot)));
-  if (!part.narrow) return;
-  const lockedId = LOCAL ? await lockedProfile(name) : null;
-  const twiceId = relock ? await relock() : null;
-  await inTurn(LANGUAGES, (language) => timed(() => checkNarrow(browser, name, language, { lockedId, twiceId })));
-  await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
-  if (LOCAL) await timed(() => checkLearn(browser, name, bot));
-  if (LOCAL) await timed(() => checkSkillsNarrow(browser, name, bot));
-  if (LOCAL) await timed(() => checkBoardNarrow(browser, name, bot));
+  if (plays('locks')) {
+    const lockedId = LOCAL ? await lockedProfile(name) : null;
+    const twiceId = relock ? await relock() : null;
+    await inTurn(LANGUAGES, (language) => timed(() => checkNarrow(browser, name, language, { lockedId, twiceId })));
+  }
+  if (plays('addPin')) await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
+  if (LOCAL && plays('learn')) await timed(() => checkLearn(browser, name, bot));
+  if (LOCAL && plays('skills')) await timed(() => checkSkillsNarrow(browser, name, bot));
+  if (LOCAL && plays('board')) await timed(() => checkBoardNarrow(browser, name, bot));
 }
 
 let bot = null;

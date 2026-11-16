@@ -83,7 +83,6 @@ export const REQUIRED_STRING_IDS = [
   'profile.error.signedOut',
   'profile.error.hasPin',
   'profile.error.unknown',
-  'walk.blocked',
   'bag.title',
   'bag.hint',
   'bag.empty',

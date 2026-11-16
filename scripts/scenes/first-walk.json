@@ -1,6 +1,6 @@
 {
   "name": "first-walk",
-  "about": "A new device shows the wordless walking hint until the first walk, never again after a reload, and a tap on a wall shows a cross and a short message.",
+  "about": "A new device shows the wordless walking hint until the first walk, never again after a reload, and a tap on a wall flashes a cross with no message over it.",
   "players": [
     { "id": "lan", "name": "Scena Lan", "browser": "chromium", "device": "iphone-portrait", "language": "en" },
     { "id": "zarja", "name": "Scena Zarja", "browser": "webkit", "device": "ipad-landscape", "language": "sl" }
@@ -22,9 +22,9 @@
     { "do": "waitFor", "player": "lan", "until": { "hint": "hidden", "settled": true } },
     { "do": "waitFor", "player": "zarja", "until": { "hint": "hidden", "settled": true }, "shot": "reloaded" },
     { "do": "tap", "player": "lan", "tile": { "x": 17, "y": 9 } },
+    { "do": "waitFor", "player": "lan", "until": { "refused": true, "toast": "hidden", "at": { "x": 19, "y": 11 } } },
     { "do": "tap", "player": "zarja", "tile": { "x": 22, "y": 9 } },
-    { "do": "waitFor", "player": "lan", "until": { "toast": "blocked", "at": { "x": 19, "y": 11 } } },
-    { "do": "waitFor", "player": "zarja", "until": { "toast": "blocked", "at": { "x": 20, "y": 11 } }, "shot": "wall" },
+    { "do": "waitFor", "player": "zarja", "until": { "refused": true, "toast": "hidden", "at": { "x": 20, "y": 11 } }, "shot": "wall" },
     { "do": "wait", "ms": 2500 },
     { "do": "waitFor", "player": "lan", "until": { "toast": "hidden", "unmarked": true } },
     { "do": "waitFor", "player": "zarja", "until": { "toast": "hidden", "unmarked": true }, "shot": "gone" }

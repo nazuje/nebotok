@@ -4,6 +4,7 @@ import {
   recipeSkill,
   type Language,
   type ProgressMessage,
+  type RefusalReason,
   type Refused,
   type SkillAttemptMessage,
   type SkillResultMessage,
@@ -14,11 +15,12 @@ import {
 import { itemName } from './battle-content.ts';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
-import type { NewsLines, NewsTone } from './quest-toast.ts';
+import { levelUpPicture, skillRefusalPicture, type SkillNeeds } from './message-pictures.ts';
+import type { NewsLines, NewsPicture, NewsTone } from './quest-toast.ts';
 import { createRecipeBook, type TestRecipeBook } from './recipe-book.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { createSkillCard, type TestAttempt } from './skill-game.ts';
-import { unlockedAt } from './skills-panel.ts';
+import { unlockedAt, unlockedItems } from './skills-panel.ts';
 import { STORY, storyProgress } from './story-content.ts';
 import { format, text } from './strings.ts';
 
@@ -34,7 +36,7 @@ export type Started = { readonly spot: string } | { readonly recipe: string; rea
 const skillName = (skill: string, content: StoryContent, language: Language) => content.skills?.skills.get(skill)?.name[language] ?? skill;
 
 /** The skill, level and item a start is about. */
-function startNeeds(started: Started, content: StoryContent): { readonly skill: string; readonly level: number; readonly item: string } | null {
+function startNeeds(started: Started, content: StoryContent): SkillNeeds | null {
   const skills = content.skills;
   if (!skills) return null;
   if ('spot' in started) {
@@ -61,9 +63,18 @@ export function refusalLines(reason: Refused['reason'], started: Started | null,
   };
 }
 
+/** The picture leading a refused start's toast: the item it is about, with why it cannot be had. */
+export function refusalPicture(reason: RefusalReason, started: Started | null, content: StoryContent): NewsPicture {
+  const needs = started ? startNeeds(started, content) : null;
+  return () => skillRefusalPicture(reason, needs);
+}
+
+/** One toast in the quest toast's queue, with the picture leading it, if any. */
+export type News = { readonly lines: NewsLines; readonly tone: NewsTone; readonly picture?: NewsPicture };
+
 /** The toasts a result brings: what went into the bag and what did not fit, then a level up with what it unlocks. */
-export function resultNews(result: SkillResultMessage, content: StoryContent): { readonly lines: NewsLines; readonly tone: NewsTone }[] {
-  const news: { lines: NewsLines; tone: NewsTone }[] = [];
+export function resultNews(result: SkillResultMessage, content: StoryContent): News[] {
+  const news: News[] = [];
   if (result.outcome !== 'perfect' && result.outcome !== 'success') return news;
   if (result.items.length > 0 || result.extra.length > 0) {
     news.push({
@@ -83,6 +94,7 @@ export function resultNews(result: SkillResultMessage, content: StoryContent): {
         const head = format('skill.levelUp', language, { skill: skillName(result.skill, content, language), level: result.level });
         return unlocked.length > 0 ? [head, unlocked.join(', ')] : [head];
       },
+      picture: () => levelUpPicture(result.skill, result.level, unlockedItems(result.skill, result.level, content)),
     });
   }
   return news;
@@ -96,8 +108,8 @@ export type SkillsOptions = {
   progress(): ProgressMessage | null;
   /** Something else is in front of the world (a battle, a talk, a story cue): the card and the book close. */
   blocked(): boolean;
-  /** Shows news in the quest toast's queue. */
-  news(lines: NewsLines, tone: NewsTone): void;
+  /** Shows news in the quest toast's queue, led by its picture. */
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
   /** The job board was walked up to. */
   openBoard(station: string): void;
   /** Which overlay is up changed, so the page shows another screen and input may change. */
@@ -207,7 +219,7 @@ export function createSkills(options: SkillsOptions): Skills {
     card.result(result, now);
     const spot = lastAttempt?.attempt === result.attempt ? lastAttempt.spot : null;
     if (result.restMs > 0 && spot !== null) rests.set(spot, now + result.restMs);
-    for (const { lines, tone } of resultNews(result, STORY)) options.news(lines, tone);
+    for (const { lines, tone, picture } of resultNews(result, STORY)) options.news(lines, tone, picture);
     update();
   }
 
@@ -216,7 +228,7 @@ export function createSkills(options: SkillsOptions): Skills {
     card.refused();
     if (refused.request === CLIENT_MESSAGES.gatherStart || refused.request === CLIENT_MESSAGES.cookStart) {
       const restMs = started && 'spot' in started ? Math.max(0, (rests.get(started.spot) ?? 0) - performance.now()) : 0;
-      options.news(refusalLines(refused.reason, started, restMs, STORY), 'refused');
+      options.news(refusalLines(refused.reason, started, restMs, STORY), 'refused', refusalPicture(refused.reason, started, STORY));
     }
     update();
   }

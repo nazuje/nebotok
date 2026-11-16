@@ -32,7 +32,7 @@ import { MARKER_STEP, markerEndsMs, markerInZone, markerShown } from '../src/ski
 import { sparkleEndsMs } from '../src/skill-games/sparkle.ts';
 import { skillResultKind } from '../src/skill-pictures.ts';
 import { SKILL_REQUESTS, refusalLines, resultNews } from '../src/skills-link.ts';
-import { nextUnlock, skillRows } from '../src/skills-panel.ts';
+import { nextUnlock, skillRows, unlockedItems } from '../src/skills-panel.ts';
 import { STORY } from '../src/story-content.ts';
 import { goalTile, spotUsable } from '../src/story-link.ts';
 import { format } from '../src/strings.ts';
@@ -256,6 +256,10 @@ describe('skill news', () => {
     expect(news[0]!.lines('en')).toEqual([format('skill.gained', 'en', { item: itemName(pebbleCove.item, 'en'), count: 1 }), `No room for more: ${itemName(pebbleCove.item, 'en')}`]);
     const ledge = SKILLS.spots.get('breezy-ledge')!;
     expect(news[1]!.lines('en')).toEqual([`${SKILLS.skills.get('fishing')!.name.en} level 6!`, ledge.name.en]);
+    expect(news[1]!.picture).toBeTypeOf('function');
+    expect(unlockedItems('fishing', 6, STORY)).toEqual([ledge.item]);
+    expect(unlockedItems('cooking', SKILLS.recipes.get('fish-biscuit')!.level, STORY)).toContain(SKILLS.recipes.get('fish-biscuit')!.makes);
+    expect(unlockedItems('fishing', 2, STORY)).toEqual([...SKILLS.spots.values()].filter((spot) => spot.skill === 'fishing' && spot.level === 2).map((spot) => spot.item));
   });
 
   it('explains a start turned down: the rest left, the level needed, a full bag', () => {

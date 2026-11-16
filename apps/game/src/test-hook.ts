@@ -89,8 +89,10 @@ export type TestSnapshot = TestStory &
   playerCount: number | null;
   /** The welcome line shown at the bottom, if any. */
   welcome: WelcomeMessageKey | null;
-  /** The short message shown at the bottom, such as walk.blocked, if any. */
+  /** The short message shown at the bottom, such as refused.tooFar, if any. */
   toast: StringId | null;
+  /** The sprite shown beside that message, if any. */
+  toastPicture: string | null;
   /** The first-visit walking hint, for the controls it shows, if it is up. */
   hint: Controls | null;
   /** The character the new player's hint points at, if it is up. */
@@ -110,6 +112,10 @@ export type TestSnapshot = TestStory &
   controls: Controls;
   /** The tile the walk marker shows, if any. */
   marker: Point | null;
+  /** The tile the short "can't go there" cross flashes on, while it shows. */
+  refusedMarker: Point | null;
+  /** The shrine tile the flag of the shrine you wake at stands on, if it is on this map. */
+  wakeFlag: Point | null;
   /** Your own courier as this page predicts it, before the server confirms. */
   predicted: ReturnType<WorldView['predicted']>;
   input: ReturnType<Input['state']>;

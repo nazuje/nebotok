@@ -66,7 +66,6 @@
   "profile.error.signedOut": { "en": "Your session ended. Pick your profile again.", "sl": "Seja se je končala. Znova izberi svoj profil." },
   "profile.error.hasPin": { "en": "This profile already has a PIN.", "sl": "Ta profil že ima PIN." },
   "profile.error.unknown": { "en": "Something went wrong. Try again.", "sl": "Nekaj je šlo narobe. Poskusi znova." },
-  "walk.blocked": { "en": "You can't get there.", "sl": "Tja ne moreš priti." },
   "bag.title": { "en": "Bag", "sl": "Torba" },
   "bag.hint": { "en": "Tap something to read about it.", "sl": "Dotakni se predmeta, da prebereš več o njem." },
   "bag.empty": { "en": "Your bag is empty.", "sl": "Torba je prazna." },

@@ -250,7 +250,8 @@ function shownInWorld(state, wanted, other) {
     (!wanted.tagsApart || tagsApart(state)) &&
     (!wanted.unmarked || state.marker === null) &&
     (!wanted.welcome || wanted.welcome.includes(state.welcome === null ? 'hidden' : state.welcome.replace('welcome.', ''))) &&
-    (!wanted.toast || wanted.toast === (state.toast === null ? 'hidden' : state.toast.replace('walk.', ''))) &&
+    (!wanted.refused || state.refusedMarker !== null) &&
+    (!wanted.toast || state.toast === null) &&
     (!wanted.hint || wanted.hint === (state.hint ?? 'hidden'))
   );
 }

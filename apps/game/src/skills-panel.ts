@@ -44,6 +44,17 @@ export function unlockedAt(skill: string, level: number, content: StoryContent, 
   return [...new Set(names)];
 }
 
+/** The items the spots and recipes a level of `skill` unlocks give, each once: the pictures of a level-up toast. */
+export function unlockedItems(skill: string, level: number, content: StoryContent): string[] {
+  const skills = content.skills;
+  if (!skills) return [];
+  const items =
+    skills.skills.get(skill)?.uses === 'recipes'
+      ? [...skills.recipes.values()].filter((recipe) => recipe.level === level).map((recipe) => recipe.makes)
+      : [...skills.spots.values()].filter((spot) => spot.skill === skill && spot.level === level).map((spot) => spot.item);
+  return [...new Set(items)];
+}
+
 /** The Skills tab's rows, in the order the server lists the skills. */
 export function skillRows(message: SkillsMessage, content: StoryContent): SkillRow[] {
   return message.skills.map(({ skill, level, xp, toNext }) => ({ skill, level, xp, of: toNext === 0 ? 0 : xp + toNext, next: nextUnlock(skill, level, content) }));

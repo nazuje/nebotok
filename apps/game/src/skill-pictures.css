@@ -319,3 +319,60 @@
   right: -6px;
   bottom: -6px;
 }
+
+/* A toast's picture (message-pictures.ts): why a start was turned down, or a level up's fanfare. */
+
+.message-picture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.level-up-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+}
+
+.level-up-icon > * {
+  grid-area: 1 / 1;
+}
+
+.level-up-skill {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .quest-toast:not([hidden]) .level-up-burst {
+    animation: level-up-burst 1.2s 0.15s ease-out 2 backwards;
+  }
+
+  .quest-toast:not([hidden]) .level-up-skill {
+    animation: level-up-hop 0.5s 0.1s cubic-bezier(0.3, 1.6, 0.6, 1) backwards;
+  }
+
+  .quest-toast:not([hidden]) .level-up .level-badge {
+    animation: level-up-hop 0.45s 0.35s cubic-bezier(0.3, 1.6, 0.6, 1) backwards;
+  }
+}
+
+@keyframes level-up-burst {
+  from {
+    opacity: 0;
+    transform: scale(0.3) rotate(-45deg);
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes level-up-hop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.6);
+  }
+}
