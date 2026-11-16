@@ -2,6 +2,7 @@ import type { Language } from '@nebotok/core';
 import type { Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
 import { otherLanguage } from './language.ts';
+import { pictureIcon } from './pictures.ts';
 import { text } from './strings.ts';
 
 export type Settings = {
@@ -11,6 +12,8 @@ export type Settings = {
   setSignedIn(signedIn: boolean): void;
   /** "Add a PIN" shows only while the player is known to have none. */
   setCanAddPin(canAddPin: boolean): void;
+  /** The player's "Read to me"; null hides it, before the server has said or while no one plays. */
+  setReadToMe(readToMe: boolean | null): void;
   isOpen(): boolean;
 };
 
@@ -18,7 +21,7 @@ export type Settings = {
 export function createSettings(
   language: Language,
   controls: Controls,
-  actions: { onLanguage(): void; onControls(): void; onAddPin(): void; onSwitchPlayer(): void },
+  actions: { onLanguage(): void; onControls(): void; onReadToMe(): void; onAddPin(): void; onSwitchPlayer(): void },
 ): Settings {
   const toggle = element<HTMLButtonElement>('.settings-button');
   const panel = element<HTMLElement>('#settings');
@@ -28,12 +31,16 @@ export function createSettings(
   const switchButton = element<HTMLButtonElement>('.switch-player');
   const controlsLabel = element<HTMLElement>('.settings-controls');
   const controlsButton = element<HTMLButtonElement>('.controls');
+  const readLabel = element<HTMLElement>('.settings-read');
+  const readButton = element<HTMLButtonElement>('.read-to-me');
+  readButton.prepend(pictureIcon('speaker', 32, { className: 'read-to-me-picture' }));
 
   let current = language;
   let currentControls = controls;
   let open = false;
   let signedIn = false;
   let canAddPin = false;
+  let readToMe: boolean | null = null;
 
   const render = () => {
     toggle.setAttribute('aria-expanded', String(open));
@@ -51,6 +58,16 @@ export function createSettings(
       option.setAttribute('aria-current', String(option.dataset.controls === currentControls));
     }
     controlsButton.setAttribute('aria-label', `${text('settings.controls', current)}: ${text(`settings.controls.${currentControls}`, current)}`);
+    readLabel.textContent = text('settings.readToMe', current);
+    readLabel.hidden = readToMe === null;
+    readButton.hidden = readToMe === null;
+    readButton.setAttribute('aria-pressed', String(readToMe === true));
+    readButton.setAttribute('aria-label', text('settings.readToMe', current));
+    for (const option of readButton.querySelectorAll<HTMLElement>('[data-read]')) {
+      const on = option.dataset.read === 'on';
+      option.textContent = text(on ? 'settings.readToMe.on' : 'settings.readToMe.off', current);
+      option.setAttribute('aria-current', String(on === (readToMe === true)));
+    }
     addPinButton.textContent = text('settings.addPin', current);
     addPinButton.hidden = !signedIn || !canAddPin;
     switchButton.textContent = text('profile.switch', current);
@@ -70,6 +87,7 @@ export function createSettings(
   });
   languageButton.addEventListener('click', () => actions.onLanguage());
   controlsButton.addEventListener('click', () => actions.onControls());
+  readButton.addEventListener('click', () => actions.onReadToMe());
   addPinButton.addEventListener('click', () => {
     setOpen(false);
     actions.onAddPin();
@@ -103,6 +121,10 @@ export function createSettings(
     },
     setCanAddPin: (next) => {
       canAddPin = next;
+      render();
+    },
+    setReadToMe: (next) => {
+      readToMe = next;
       render();
     },
     isOpen: () => open,

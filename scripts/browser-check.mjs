@@ -28,7 +28,10 @@
 // signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px, sees the fainted wild
 // creature's favourite marked in the treat picker, and answers the offer of a new move
-// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
+// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. At 360px in muted
+// Chromium, against its own server, a player hears "Read to me" (scripts/lib/voice-check.mjs): the
+// right clip asked for each line and quest hint with it on, none with it off but from a speaker
+// button, every clip answered with silence by the check. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>] [--part <name>]
@@ -87,7 +90,8 @@ import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
-import { battlerName, boardName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName } from './lib/test-players.mjs';
+import { battlerName, boardName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName, voiceName } from './lib/test-players.mjs';
+import { playVoice, silenceClips } from './lib/voice-check.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
 const parts = values.part === undefined ? BROWSER_CHECK_PARTS : BROWSER_CHECK_PARTS.filter((part) => part.name === values.part);
@@ -815,13 +819,13 @@ async function lockedTwiceLater(browserName) {
   };
 }
 
-async function narrowPage(browser, browserName, label, language, problems, screenshots) {
+async function narrowPage(browser, browserName, label, language, problems, screenshots, { contextOptions = {}, mayCancel } = {}) {
   await spaceRuns();
-  const context = await browser.newContext({ viewport: NARROW, hasTouch: true, isMobile: browserName === 'chromium', extraHTTPHeaders: asDevice(nextAddress()) });
+  const context = await browser.newContext({ viewport: NARROW, hasTouch: true, isMobile: browserName === 'chromium', extraHTTPHeaders: asDevice(nextAddress()), ...contextOptions });
   await context.addInitScript(presetLanguage, language);
   await context.addInitScript(reportCspViolations);
   const page = await context.newPage();
-  watch(context, page, problems, { allowedHost });
+  watch(context, page, problems, { allowedHost, mayCancel });
   const shot = async (step) => {
     const path = join(shots, `${label}-${step}.png`);
     await screenshot(page, path);
@@ -1128,6 +1132,56 @@ async function checkBoardNarrow(browser, browserName, bot) {
   results.push({ label: `${label} (job board)`, ok: problems.length === 0, problems, screenshots, notes });
 }
 
+/**
+ * "Read to me" at 360px, on our own server only (scripts/lib/voice-check.mjs): a player prepared
+ * with the story check's save, carrying a delivery, hears nothing until a speaker button is tapped,
+ * turns "Read to me" on, finds it still on after a reload, and hands the delivery over with each
+ * line's clip and the banner's hint asked for. Every clip is answered with silence and service
+ * workers are blocked, so each one asked for reaches the check. The player is deleted afterwards.
+ */
+async function checkVoice(browser, browserName, language, bot) {
+  const label = `${browserName}-360px-${language}`;
+  const problems = [];
+  const screenshots = [];
+  const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
+  const name = voiceName(browserName, language, TAG);
+  const made = await api('/profiles', { body: { name, avatar: 'blue' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { plan, data } = storySave(bot, { name, language });
+  prepareSave(dataDir, made.data.id, data);
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots, {
+    contextOptions: { serviceWorkers: 'block' },
+    mayCancel: (url) => url.pathname.startsWith('/voice/'),
+  });
+  const asked = await silenceClips(context);
+  const check = async (where, step) => {
+    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await noSideways(where);
+    await shot(step);
+  };
+  const reload = async () => {
+    await page.reload();
+    await until(page, (s) => inWorld(s), 'the world after a reload');
+  };
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
+    await until(page, (s) => inWorld(s) && s.progress !== null, 'the world as the "Read to me" player');
+    await playVoice(page, bot, plan, { language, asked, base: server.base, expect, check, notes, reload });
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+    deleteProfile(dataDir, made.data.id);
+  }
+  results.push({ label: `${label} (read to me)`, ok: problems.length === 0, problems, screenshots, notes });
+}
+
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
 async function fillProfiles() {
   const listed = await api('/profiles', { address: nextAddress() });
@@ -1179,6 +1233,7 @@ async function playPart(browser, part, bot) {
   const relock = part.narrow && LOCAL ? await lockedTwiceLater(name) : null;
   const runs = DEVICES.filter((device) => part.devices.includes(device.name)).flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
   await inTurn(runs, ({ device, language }) => timed(() => checkDevice(browser, name, device, language, bot)));
+  if (part.voice && LOCAL) await inTurn(LANGUAGES, (language) => timed(() => checkVoice(browser, name, language, bot)));
   if (!part.narrow) return;
   const lockedId = LOCAL ? await lockedProfile(name) : null;
   const twiceId = relock ? await relock() : null;

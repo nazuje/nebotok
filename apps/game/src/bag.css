@@ -406,6 +406,11 @@ body:not([data-screen='world']) .compass-button {
   display: none;
 }
 
+/* The pictures keep clear of the speaker in the corner; on one side only, so they still fit at 360px. */
+.quest-toast:has(.quest-banner-speaker:not(:empty)) .quest-banner {
+  padding-right: calc(var(--tap) + 4px);
+}
+
 .quest-banner-rewards {
   display: flex;
   flex-wrap: wrap;

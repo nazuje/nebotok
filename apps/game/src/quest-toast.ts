@@ -19,7 +19,7 @@ export function questToastLines(change: QuestChanged, language: Language): strin
   const quest = questName(change.quest, language);
   if (change.change !== 'done') {
     const head = format(change.change === 'started' ? 'quest.started' : 'quest.stepDone', language, { quest });
-    const hint = STORY.quests.get(change.quest)?.steps[change.step]?.hint[language];
+    const hint = questHint(change, language);
     return hint ? [head, hint] : [head];
   }
   const lines = [format('quest.done', language, { quest })];
@@ -30,6 +30,11 @@ export function questToastLines(change: QuestChanged, language: Language): strin
   if (given.length > 0) lines.push(given.join(', '));
   if (rewards.extra.length > 0) lines.push(format('quest.noRoom', language, { items: itemList(rewards.extra, language) }));
   return lines;
+}
+
+/** What to do now after a quest started or a step was done, the line read aloud for it; null once the quest is done. */
+export function questHint(change: QuestChanged, language: Language): string | null {
+  return change.change === 'done' ? null : (STORY.quests.get(change.quest)?.steps[change.step]?.hint[language] ?? null);
 }
 
 /**
@@ -63,7 +68,8 @@ export type NewsLines = (language: Language) => string[];
 /** A picture leading a toast's lines, so a player who cannot read gets the news too. */
 export type NewsPicture = (language: Language) => HTMLElement | null;
 
-type Entry = { readonly kind: 'quest'; readonly change: QuestChanged } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines; readonly picture: NewsPicture | null };
+/** `heard`: the banner has come into view once, so coming back after a screen covered it is not news again. */
+type Entry = { readonly kind: 'quest'; readonly change: QuestChanged; heard: boolean } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines; readonly picture: NewsPicture | null };
 
 /** The toast showing: a quest change (with its quest and banner), or other news (`quest` and `banner` null, `change` its tone). */
 export type QuestToastState = { readonly quest: string | null; readonly change: QuestChanged['change'] | NewsTone; readonly lines: readonly string[]; readonly banner: QuestBanner | null };
@@ -79,6 +85,8 @@ export type QuestToastOptions = {
    * taps through to the world everywhere but this slot.
    */
   readonly speaker?: (change: QuestChanged, language: Language) => HTMLElement | null;
+  /** A quest banner came into view for the first time, such as to read its hint aloud. */
+  readonly shown?: (change: QuestChanged, language: Language) => void;
 };
 
 export type QuestToast = {
@@ -148,7 +156,13 @@ export function createQuestToast(root: HTMLElement, language: () => Language, op
   function render(inView: boolean) {
     if (current === null && inView) next();
     const visible = current !== null && inView;
-    if (visible && !showing) timer = setTimeout(next, QUEST_TOAST_MS);
+    if (visible && !showing) {
+      timer = setTimeout(next, QUEST_TOAST_MS);
+      if (current?.kind === 'quest' && !current.heard) {
+        current.heard = true;
+        options.shown?.(current.change, language());
+      }
+    }
     if (!visible && showing) {
       clearTimeout(timer);
       timer = undefined;
@@ -176,7 +190,7 @@ export function createQuestToast(root: HTMLElement, language: () => Language, op
 
   return {
     show: (change) => {
-      waiting.push({ kind: 'quest', change });
+      waiting.push({ kind: 'quest', change, heard: false });
     },
     news: (lines, tone, picture) => {
       waiting.push({ kind: 'news', tone, lines, picture: picture ?? null });

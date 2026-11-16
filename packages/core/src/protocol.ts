@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DirectionSchema, type Point } from './grid.ts';
 import type { WalkCommand } from './movement.ts';
+import type { PlayerSettings } from './save.ts';
 
 /**
  * Bumped whenever a client and server of different versions could misunderstand each other,
@@ -11,8 +12,9 @@ import type { WalkCommand } from './movement.ts';
  * refusals `resting`, `needsLevel` and `bagFull`.
  * 9: the tiny games are judged as they are drawn: no grace before a dip or sparkle, a fade after
  * it (`FADE_MS`), one sparkle at a time, and the marker's needle width (`MARKER_HALF_WIDTH`).
+ * 10: the player's settings: `settings.set` and `settings` ("Read to me").
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -23,6 +25,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   7: '153c0d940d945b',
   8: '08338db2ebbc37',
   9: '134099ff291a6b',
+  10: '085c82893f62a3',
 };
 
 export type WorldInfo = {
@@ -79,6 +82,7 @@ export const CLIENT_MESSAGES = {
   skillFinish: 'skill.finish',
   skillCancel: 'skill.cancel',
   boardOpen: 'board.open',
+  settingsSet: 'settings.set',
 } as const;
 
 /** Messages the world room sends to a client, by type. Each goes only to the player it is about. */
@@ -104,6 +108,7 @@ export const SERVER_MESSAGES = {
   jobs: 'jobs',
   jobChanged: 'job.changed',
   refused: 'refused',
+  settings: 'settings',
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);
@@ -129,6 +134,13 @@ export function walkMessage(command: WalkCommand, from: Point): { readonly type:
   if (command.kind === 'hold') return { type: CLIENT_MESSAGES.walkHold, payload: { direction: command.direction, from: at } };
   return { type: CLIENT_MESSAGES.walkStop, payload: { from: at } };
 }
+
+/** Changes the player's own settings, which are saved with them. */
+export const SettingsSetMessage = z.strictObject({ readToMe: z.boolean() });
+export type SettingsSetMessage = z.infer<typeof SettingsSetMessage>;
+
+/** `settings`: the player's settings, sent on joining and after each `settings.set`. */
+export type SettingsMessage = PlayerSettings;
 
 /** Sent back when a walk-to target cannot be reached, so the client can drop its prediction. */
 export type WalkRefused = { readonly x: number; readonly y: number };

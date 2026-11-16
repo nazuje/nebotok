@@ -34,6 +34,9 @@ export const skillerName = (browserName, device, language, tag) => `Lov ${browse
 /** A profile the check starts from a prepared save beside the job board: "Oglas" with the browser and device in two letters. */
 export const boardName = (browserName, device, language, tag) => `Oglas ${browserName === 'chromium' ? 'K' : 'W'}${device.startsWith('iphone') ? 'T' : 'P'} ${language === 'sl' ? 'Čž' : 'Ab'} ${tag}`;
 
+/** A profile the check starts from a prepared save, to hear "Read to me": "Glas" with the browser in a letter. */
+export const voiceName = (browserName, language, tag) => `Glas ${browserName === 'chromium' ? 'K' : 'W'} ${language === 'sl' ? 'Čž' : 'Ab'} ${tag}`;
+
 // Without a tag too: runs before tags left their players under the bare names.
-const TEST_PLAYER = /^(?:Bot Oblak|(?:Kro|Web) (?:Tel|Tab) (?:Abc|Čšž)|(?:Zaklep|Dvakrat) (?:Kro|Web)|Dodaj (?:Kro|Web) (?:Abc|Čšž|Ab|Čž)|(?:Boj|Pot|Lov|Oglas) [KW][TP] (?:Ab|Čž)|Uči (?:Kro|Web) (?:Ab|Čž))(?: [A-Z][a-z]{2})?$/;
+const TEST_PLAYER = /^(?:Bot Oblak|(?:Kro|Web) (?:Tel|Tab) (?:Abc|Čšž)|(?:Zaklep|Dvakrat) (?:Kro|Web)|Dodaj (?:Kro|Web) (?:Abc|Čšž|Ab|Čž)|(?:Boj|Pot|Lov|Oglas) [KW][TP] (?:Ab|Čž)|Glas [KW] (?:Ab|Čž)|Uči (?:Kro|Web) (?:Ab|Čž))(?: [A-Z][a-z]{2})?$/;
 export const isTestPlayer = (name) => TEST_PLAYER.test(name);

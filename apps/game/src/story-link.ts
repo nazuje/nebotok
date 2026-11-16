@@ -4,8 +4,11 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { createStoryButtons } from './hud.ts';
 import { createJournalScreen } from './journal-screen.ts';
-import { createQuestToast, type NewsLines, type NewsPicture, type NewsTone, type QuestToastState } from './quest-toast.ts';
+import { createQuestToast, questHint, type NewsLines, type NewsPicture, type NewsTone, type QuestToastState } from './quest-toast.ts';
+import { speakerButton } from './speaker-button.ts';
+import type { Speech } from './speech.ts';
 import { STORY, storyProgress } from './story-content.ts';
+import { text } from './strings.ts';
 
 /** A screen over the world that the bag and the journal put up. */
 export type StoryOverlay = 'bag' | 'journal';
@@ -22,6 +25,8 @@ export type StoryOptions = {
   lookAt(tile: Point): void;
   /** Which overlay is up changed, so the page shows another screen and input may change. */
   changed(): void;
+  /** Reads a new quest banner's hint aloud, and again from its speaker button. */
+  speech: Speech;
 };
 
 export type TestStory = {
@@ -61,7 +66,17 @@ export function createStory(options: StoryOptions): Story {
   let news = false;
 
   const current = () => (progress ? storyProgress(progress, saved, options.skills()) : null);
-  const toast = createQuestToast(element<HTMLElement>('.quest-toast'), options.language);
+  const { speech } = options;
+  const toast = createQuestToast(element<HTMLElement>('.quest-toast'), options.language, {
+    speaker: (change, language) => {
+      const hint = questHint(change, language);
+      return hint !== null && speech.has(null, hint) ? speakerButton('quest-speaker', text('speech.play', language), () => speech.say(null, hint)) : null;
+    },
+    shown: (change, language) => {
+      const hint = questHint(change, language);
+      if (hint !== null) speech.onHint(hint);
+    },
+  });
   const close = () => open(null);
   const bag = createBagScreen(element<HTMLElement>('#bag'), { language: options.language, progress: current, closed: close });
   const tileOf = (goal: Goal): Point | null => {

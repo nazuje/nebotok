@@ -16,6 +16,7 @@ import {
   MoveChooseMessage,
   PLAYER_SPAWN,
   SERVER_MESSAGES,
+  SettingsSetMessage,
   SkillCancelMessage,
   SkillFinishMessage,
   StarterChooseMessage,
@@ -34,6 +35,7 @@ import {
   createRng,
   createSave,
   createWalker,
+  defaultSettings,
   emptyProgress,
   encounterZoneAt,
   freeTileNear,
@@ -67,6 +69,7 @@ import {
   type Language,
   type MoveOffer,
   type PendingMove,
+  type PlayerSettings,
   type Point,
   type Progress,
   type QuestChanged,
@@ -74,6 +77,7 @@ import {
   type Refused,
   type Rng,
   type SaveFile,
+  type SettingsMessage,
   type StorageMessage,
   type StoryMessage,
   type TalkEnded,
@@ -157,6 +161,8 @@ type Seat = {
   readonly name: string;
   readonly createdAt: string;
   readonly language: Language;
+  /** The player's own settings, such as "Read to me", saved with them. */
+  settings: PlayerSettings;
   /** False when the stored save could not be read: what we could not understand is never overwritten. */
   readonly canSave: boolean;
   /** The creatures, treats and shrine of the save. During a battle the team keeps its health from before it. */
@@ -277,6 +283,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       [CLIENT_MESSAGES.skillFinish]: validate(SkillFinishMessage, (client: Client, { attempt, taps }) => this.skillRequest(client, (room) => skillFinish(room, attempt, taps))),
       [CLIENT_MESSAGES.skillCancel]: validate(SkillCancelMessage, (client: Client, { attempt }) => this.skillRequest(client, (room) => skillCancel(room, attempt))),
       [CLIENT_MESSAGES.boardOpen]: validate(BoardOpenMessage, (client: Client, { station }) => this.skillRequest(client, (room) => boardOpen(room, station))),
+      [CLIENT_MESSAGES.settingsSet]: validate(SettingsSetMessage, (client: Client, { readToMe }) => this.setSettings(client, { readToMe })),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -309,7 +316,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       }
       // Taking over from another device continues from where that device's character stands.
       const start = earlier
-        ? { walker: withIntent(earlier.seat.walker, IDLE), canSave: earlier.seat.canSave, language: earlier.seat.language, progress: earlier.seat.progress }
+        ? { walker: withIntent(earlier.seat.walker, IDLE), canSave: earlier.seat.canSave, language: earlier.seat.language, settings: earlier.seat.settings, progress: earlier.seat.progress }
         : this.load(auth.playerId);
       if (earlier) earlier.room.replace(earlier.sessionId, earlier.seat);
 
@@ -319,6 +326,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         name: profile.name,
         createdAt: new Date(profile.createdAt).toISOString(),
         language: auth.language ?? start.language,
+        settings: start.settings,
         canSave: start.canSave,
         progress: start.progress,
         walker: start.walker,
@@ -347,6 +355,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
       client.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
       this.sendSkills(client.sessionId, seat);
+      client.send(SERVER_MESSAGES.settings, seat.settings satisfies SettingsMessage);
       log.info('player joined', { roomId: this.roomId, sessionId: client.sessionId, playerId: seat.playerId, playerCount: this.state.playerCount, tookOver: earlier !== undefined });
     }
 
@@ -487,14 +496,14 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     }
 
     /** The saved position when it is still a walkable tile of this map, else the free tile nearest the spawn. */
-    private load(playerId: number): { walker: Walker; canSave: boolean; language: Language; progress: Progress } {
+    private load(playerId: number): { walker: Walker; canSave: boolean; language: Language; settings: PlayerSettings; progress: Progress } {
       let save: SaveFile | null = null;
       try {
         save = progress.load(playerId);
       } catch (error) {
         // Only the name: a parse error's message can quote the save.
         log.warn('save unreadable; this player will not be saved', { playerId, error: error instanceof Error ? error.name : typeof error });
-        return { walker: createWalker(this.arrival()), canSave: false, language: 'en', progress: emptyProgress() };
+        return { walker: createWalker(this.arrival()), canSave: false, language: 'en', settings: defaultSettings(), progress: emptyProgress() };
       }
       const position = save?.data.position;
       const usable = position && position.map === map.id && isWalkable(map, position);
@@ -502,6 +511,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         walker: usable ? createWalker(position, position.facing) : createWalker(this.arrival()),
         canSave: true,
         language: save?.data.language ?? 'en',
+        settings: save?.data.settings ?? defaultSettings(),
         progress: save ? progressOf(save.data) : emptyProgress(),
       };
     }
@@ -797,6 +807,16 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (done && seat) this.endTalk(client.sessionId, seat, 'starter');
     }
 
+    /** The player changed their settings: saved at once, and sent back so every page shows what was saved. */
+    private setSettings(client: Client, settings: PlayerSettings) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      seat.settings = settings;
+      this.changed(seat);
+      client.send(SERVER_MESSAGES.settings, seat.settings satisfies SettingsMessage);
+      log.info('settings changed', { roomId: this.roomId, playerId: seat.playerId, readToMe: settings.readToMe });
+    }
+
     private talkStart(client: Client, npc: string) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
@@ -1021,7 +1041,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (!profiles.get(seat.playerId)) return;
       const { x, y, facing } = seat.walker;
       try {
-        progress.save(seat.playerId, createSave({ name: seat.name, language: seat.language, createdAt: seat.createdAt, position: { map: map.id, x, y, facing }, ...seat.progress }));
+        progress.save(seat.playerId, createSave({ name: seat.name, language: seat.language, createdAt: seat.createdAt, position: { map: map.id, x, y, facing }, settings: seat.settings, ...seat.progress }));
         seat.dirty = false;
         seat.savedAt = now();
       } catch (error) {

@@ -36,6 +36,7 @@ import {
   PROTOCOL_VERSION,
   createRng,
   createSave,
+  defaultSettings,
   emptyProgress,
   encounterZoneAt,
   inBounds,
@@ -394,7 +395,7 @@ function seedCourier(profile, job, at) {
       story: { active: [], done: [...WORLD.story.quests.keys()], flags: [] },
       jobs: { seed: 1, drawn: job.job, done: 0, board: [job] },
     };
-    store.save(profile.id, createSave({ name: profile.name, language: 'en', createdAt: new Date().toISOString(), position: { map: WORLD.map.id, ...at, facing: 'down' }, ...progress }));
+    store.save(profile.id, createSave({ settings: defaultSettings(), name: profile.name, language: 'en', createdAt: new Date().toISOString(), position: { map: WORLD.map.id, ...at, facing: 'down' }, ...progress }));
   } finally {
     db.close();
   }
@@ -498,7 +499,7 @@ async function gatherRun(dir) {
     if (!made.ok) throw new Error(made.error);
     const team = [newCreature(STARTERS[0], 5, WORLD.battle)];
     const position = { map: WORLD.map.id, ...server.stand, facing: 'down' };
-    server.services.progress.save(made.value.id, createSave({ name: GATHERER.name, language: 'sl', createdAt: new Date().toISOString(), position, ...emptyProgress(), team }));
+    server.services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name: GATHERER.name, language: 'sl', createdAt: new Date().toISOString(), position, ...emptyProgress(), team }));
     const session = await server.services.profiles.login({ profileId: made.value.id });
     if (!session.ok) throw new Error(session.error);
     const client = new Client(server.base);
