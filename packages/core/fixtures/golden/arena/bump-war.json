@@ -1,0 +1,156 @@
+{
+  "description": "Arena golden: two baskits walk into each other and trade dashes, one at a time and both at once, bumping and tumbling, until the storm has started.",
+  "setup": {
+    "seed": "nebotok-arena-bump-war",
+    "species": [
+      "baskit",
+      "baskit"
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 30,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": true
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 60,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 150,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": true
+        },
+        {
+          "dir": 8,
+          "dash": true
+        }
+      ]
+    },
+    {
+      "ticks": 80,
+      "sides": [
+        {
+          "dir": 1,
+          "dash": false
+        },
+        {
+          "dir": 9,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 120,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": true
+        }
+      ]
+    },
+    {
+      "ticks": 200,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": true
+        },
+        {
+          "dir": 8,
+          "dash": true
+        }
+      ]
+    },
+    {
+      "ticks": 700,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    }
+  ],
+  "expectedHash": "1eaafbf59c6cfe"
+}

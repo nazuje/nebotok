@@ -510,3 +510,35 @@ export {
   type JobsMessage,
   type JobChanged,
 } from './skill-messages.ts';
+export {
+  SUBUNITS,
+  TICKS_PER_SECOND,
+  DIRECTION_COUNT,
+  DIRECTION_VECTORS,
+  directionVector,
+  oppositeDirection,
+  isqrt,
+} from './arena/fixed.ts';
+export { ArenaIslandRules, ArenaDashRules, ArenaStormRules, ArenaRules, type ArenaContent } from './arena/rules.ts';
+export {
+  ARENA_SIDES,
+  ARENA_IDLE,
+  ArenaInput,
+  ArenaSetup,
+  otherSide,
+  walkCapOf,
+  arenaStart,
+  arenaHash,
+  type Side,
+  type Body,
+  type ArenaInputs,
+  type StormPhase,
+  type ArenaStorm,
+  type ArenaOutcome,
+  type ArenaState,
+  type ArenaEvent,
+  type ArenaStepResult,
+} from './arena/state.ts';
+export { stormRadius, stormAtStart } from './arena/storm.ts';
+export { arenaStep, knockFor, bodySpeed } from './arena/step.ts';
+export { ArenaInputRun, ArenaGoldenFile, arenaReplay, arenaReplayHash, type ArenaReplay } from './arena/golden.ts';

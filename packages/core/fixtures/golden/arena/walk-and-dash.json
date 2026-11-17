@@ -1,0 +1,143 @@
+{
+  "description": "Arena golden: a quick pinwhirl walks a curve and dashes along the stick, then on its facing after the cooldown, while a slow glaciyak walks up and down and dashes; nobody touches.",
+  "setup": {
+    "seed": "nebotok-arena-walk-and-dash",
+    "species": [
+      "pinwhirl",
+      "glaciyak"
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 40,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 12,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 20,
+      "sides": [
+        {
+          "dir": 2,
+          "dash": false
+        },
+        {
+          "dir": 12,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 2,
+          "dash": true
+        },
+        {
+          "dir": 4,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 30,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false
+        },
+        {
+          "dir": 4,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false
+        },
+        {
+          "dir": null,
+          "dash": true
+        }
+      ]
+    },
+    {
+      "ticks": 60,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false
+        },
+        {
+          "dir": null,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 30,
+      "sides": [
+        {
+          "dir": 14,
+          "dash": false
+        },
+        {
+          "dir": 4,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 150,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": true
+        },
+        {
+          "dir": null,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 60,
+      "sides": [
+        {
+          "dir": 9,
+          "dash": false
+        },
+        {
+          "dir": 12,
+          "dash": false
+        }
+      ]
+    }
+  ],
+  "expectedHash": "09a41b0944709d"
+}

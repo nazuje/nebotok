@@ -1,0 +1,32 @@
+{
+  "island": {
+    "radius": 520,
+    "body": 46,
+    "frictionPermille": 901,
+    "plantedPermille": 756,
+    "walkBase": 330,
+    "walkPerSpeedPercent": 220,
+    "topSpeed": 1800,
+    "hpScale": 7,
+    "knockBasePercent": 45,
+    "knockLostPercent": 175,
+    "knockedTicks": 22,
+    "bumpKnock": 700,
+    "limitTicks": 10800
+  },
+  "dash": {
+    "speed": 1100,
+    "ticks": 12,
+    "cooldownTicks": 180
+  },
+  "storm": {
+    "firstTicks": 1200,
+    "everyTicks": 600,
+    "warnTicks": 120,
+    "shrinkTicks": 30,
+    "bigSteps": 5,
+    "bigStepPercent": 10,
+    "smallStepPercent": 5,
+    "floorPercent": 25
+  }
+}

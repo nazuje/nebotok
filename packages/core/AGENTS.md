@@ -22,6 +22,12 @@ in the browser later.
   returns the next state and the events the client animates. Bots in `bots.ts` drive the tests, and
   `node scripts/battle-sim.mjs` prints how greedy and random bots fare against each other, and how
   each species and weather type fares one on one (`roundRobin` in `simulate.ts`).
+- **Arena fights** live in `src/arena/` (rules in `docs/arena.md`): `arenaStep(state, inputs, content)`
+  is a pure 60 Hz step in whole numbers only (`fixed.ts`: a direction table, `isqrt`, division
+  that truncates towards zero), so V8 and Safari agree and mirrored fights end mirrored. A unit test
+  refuses `Math.random`, `Date.now`, trigonometry and `sqrt` there. Arena goldens
+  (`fixtures/golden/arena/`) replay against `fixtures/golden/arena/content/` and are recorded by
+  `npm run golden:update`, after the same check as battle goldens.
 - **Wild creatures and progress:** `rollEncounter` (`src/encounter.ts`), `befriendChance`
   (`src/befriend.ts`), team, storage, treat and shrine rules (`src/creatures.ts`, pure functions on a
   `Progress`), experience (`src/growth.ts`) and the moves a level up teaches or offers
