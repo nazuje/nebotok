@@ -31,7 +31,7 @@ export const DEFAULT_COURIER = 'couriers/courier';
  * The picture kit: small pictures that say on screen what words would, for players who cannot read
  * yet. `arrow` points right; the game mirrors it to point left.
  */
-export const PICTURES = ['check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation'] as const;
+export const PICTURES = ['check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation', 'puff'] as const;
 export type PictureId = (typeof PICTURES)[number];
 
 /** The sprite each kind of content needs, by its id. */

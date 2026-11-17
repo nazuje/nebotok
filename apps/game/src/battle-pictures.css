@@ -153,11 +153,81 @@
   overflow-wrap: anywhere;
 }
 
-/* Learning a move: the new move points down at the moves it can replace; keeping them is a cross. */
+/* Learning a move: the new move, sparkling, points down at the moves it can replace, each with a puff
+   of smoke for forgetting; keeping them is a cross. A picked move is struck out with the new one in
+   its place, above a check to swap and a loop to choose again. */
 
 .learn-toward {
   display: flex;
   justify-content: center;
+}
+
+#learn[data-chosen] .learn-toward {
+  visibility: hidden;
+}
+
+#learn[data-chosen] .learn-new {
+  opacity: 0.45;
+}
+
+.learn-going {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* On the button's corner, so the move's name keeps the whole width. */
+.learn-puff {
+  position: absolute;
+  top: -12px;
+  right: -4px;
+}
+
+.learn-moves {
+  row-gap: 16px;
+  padding-top: 8px;
+}
+
+.learn-forget[aria-pressed='true'] {
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 20px;
+  box-shadow:
+    0 0 0 4px var(--ink),
+    var(--shadow);
+}
+
+.learn-forget[aria-pressed='true'] .learn-going {
+  opacity: 0.6;
+}
+
+.learn-forget[aria-pressed='true'] .learn-name {
+  text-decoration: line-through 3px;
+}
+
+.learn-coming {
+  flex-wrap: wrap;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  font-size: 1rem;
+}
+
+.learn-confirm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.learn-confirm button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 4px 10px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .learn-skip,
@@ -234,6 +304,18 @@
 
   .learn-toward .picture {
     animation: learn-nudge 2.2s ease-in-out infinite;
+  }
+
+  #learn[data-chosen] .learn-chip {
+    animation: none;
+  }
+
+  .learn-coming {
+    animation: learn-arrive 0.5s ease-out both;
+  }
+
+  .learn-forget[aria-pressed='true'] .learn-puff {
+    animation: learn-puff 0.7s ease-out both;
   }
 
   .swap-a {
@@ -333,6 +415,23 @@
   100% {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* From the new move above the arrow, down into the picked move's place. */
+@keyframes learn-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.8);
+  }
+}
+
+@keyframes learn-puff {
+  0% {
+    transform: scale(0.5);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.4);
   }
 }
 
