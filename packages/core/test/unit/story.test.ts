@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CHOICE_PICTURES,
   DialogueFile,
   InventoryFile,
   NpcsFile,
@@ -8,6 +9,8 @@ import {
   advanceConversation,
   bagView,
   checkContentFile,
+  choiceKind,
+  choicePicture,
   chooseStarter,
   conversationView,
   emptyProgress,
@@ -119,6 +122,36 @@ describe('story content files', () => {
     expect(dialogueIssues({ npc: 'bavko', entries: [{ node: 'hi' }], nodes: { hi: { say, choices: fourChoices } } })).not.toEqual([]);
     const twoCues = { say, cue: 'storm-glimpse', effects: [{ offerStarter: true }] };
     expect(dialogueIssues({ npc: 'bavko', entries: [{ node: 'hi' }], nodes: { hi: twoCues } })).not.toEqual([]);
+  });
+
+  it('gives a choice its own picture, a tick when it takes a quest, a clock when it declines, and none otherwise', () => {
+    const nodes = {
+      ask: { say, choices: [{ say, next: 'yes' }, { say, next: 'no' }, { say, next: 'gift' }] },
+      yes: { say, next: 'start' },
+      start: { say, effects: [{ startQuest: 'first-round' }] },
+      no: { say, next: 'bye' },
+      bye: { say },
+      gift: { say, effects: [{ give: 'plain-treat', count: 1 }], next: 'more' },
+      more: { say, choices: [{ say, next: 'bye', picture: 'heart' }] },
+    };
+    const parsed = DialogueFile.parse({ npc: 'bavko', entries: [{ node: 'ask' }], nodes });
+    const choices = parsed.nodes['ask']!.choices!;
+    expect(choices.map((choice) => choiceKind(parsed.nodes, choice))).toEqual(['takes', 'declines', null]);
+    expect(choices.map((choice) => choicePicture(parsed.nodes, choice))).toEqual([CHOICE_PICTURES.takes, CHOICE_PICTURES.declines, null]);
+    const own = parsed.nodes['more']!.choices![0]!;
+    expect([choiceKind(parsed.nodes, own), choicePicture(parsed.nodes, own)]).toEqual(['declines', 'heart']);
+    expect(CHOICE_PICTURES).toEqual({ takes: 'check', declines: 'clock' });
+    const looped = DialogueFile.parse({ npc: 'bavko', entries: [{ node: 'ask' }], nodes: { ask: { say, choices: [{ say, next: 'round' }] }, round: { say, next: 'round' } } });
+    expect(choiceKind(looped.nodes, looped.nodes['ask']!.choices![0]!)).toBeNull();
+    expect(dialogueIssues({ npc: 'bavko', entries: [{ node: 'ask' }], nodes: { ...nodes, ask: { say, choices: [{ say, next: 'bye', picture: 'banana' }] } } })).not.toEqual([]);
+  });
+
+  it('shows a picture on every choice of the real story', () => {
+    for (const dialogue of liveStory.content.dialogue.values()) {
+      for (const [id, node] of Object.entries(dialogue.nodes)) {
+        for (const choice of node.choices ?? []) expect(choicePicture(dialogue.nodes, choice), `${dialogue.npc} ${id} "${choice.say.en}"`).not.toBeNull();
+      }
+    }
   });
 
   it('refuses quests that require themselves, an unknown quest, or each other in a circle', () => {

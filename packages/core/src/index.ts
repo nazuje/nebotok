@@ -337,6 +337,10 @@ export {
   InventoryFile,
   nodeTargets,
   reachableNodes,
+  CHOICE_PICTURES,
+  choiceKind,
+  choicePicture,
+  type ChoiceKind,
   type StoryCue,
   type Mood,
 } from './story-content.ts';

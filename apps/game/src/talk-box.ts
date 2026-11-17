@@ -1,10 +1,21 @@
 import { frameNames, spriteFor } from '@nebotok/core';
 import { button, el, icon } from './dom.ts';
+import { pictureIcon } from './pictures.ts';
 import { speakerButton } from './speaker-button.ts';
 import { paintFrame, sprite } from './sprites.ts';
-import { portraitFrame, type TalkLine } from './talk.ts';
+import { portraitFrame, type TalkChoice, type TalkLine } from './talk.ts';
 
 const CLOSE_ICON = 'M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z';
+
+/** A choice's button: its picture, then its words; its kind picks the strong or the quiet look. */
+function choiceButton(choice: TalkChoice, choose: (index: number) => void): HTMLButtonElement {
+  const made = button('talk-choice', '', () => choose(choice.index));
+  made.dataset.choice = String(choice.index);
+  if (choice.kind !== null) made.dataset.kind = choice.kind;
+  if (choice.picture !== null) made.append(pictureIcon(choice.picture, 32, { className: 'talk-choice-picture' }));
+  made.append(el('span', { className: 'talk-choice-say', text: choice.say }));
+  return made;
+}
 
 /** What the talk box shows this frame. */
 export type TalkBoxView = {
@@ -16,8 +27,10 @@ export type TalkBoxView = {
   /** An answer is on its way to the server. */
   readonly waiting: boolean;
   readonly closeLabel: string;
-  /** The speaker button's label, or null when the line has no clip and the button hides. */
+  /** The speaker button's label, or null when neither the line nor a choice has a clip and the button hides. */
   readonly speakLabel: string | null;
+  /** The choice being read aloud, by its index, which glows (and pulses, motion allowing) meanwhile. */
+  readonly reading: number | null;
 };
 
 export type TalkBoxOptions = {
@@ -26,7 +39,7 @@ export type TalkBoxOptions = {
   /** One of the choices, by the index `talk.node` gave it. */
   choose(index: number): void;
   close(): void;
-  /** The speaker button: reads the line aloud again. */
+  /** The speaker button: reads the line aloud again, then its choices. */
   speak(): void;
 };
 
@@ -34,9 +47,9 @@ export type TalkBox = { render(view: TalkBoxView | null): void };
 
 /**
  * The talk box at the bottom of the screen: the speaker's portrait and name, their line typed
- * letter by letter, a speaker button that reads it aloud, up to three choices and a close button. The whole screen above it takes taps
- * and ignores them, so walking stays paused and a tap on the map neither goes on nor ends the talk;
- * only a tap on the box goes on.
+ * letter by letter, a speaker button that reads it aloud, up to three choices with pictures and a
+ * close button. The whole screen above it takes taps and ignores them, so walking stays paused and
+ * a tap on the map neither goes on nor ends the talk; only a tap on the box goes on.
  */
 export function createTalkBox(root: HTMLElement, options: TalkBoxOptions): TalkBox {
   const portrait = el('canvas', { className: 'talk-portrait', attrs: { 'aria-hidden': 'true' } });
@@ -76,13 +89,7 @@ export function createTalkBox(root: HTMLElement, options: TalkBoxOptions): TalkB
     close.setAttribute('aria-label', view.closeLabel);
     readAloud.hidden = view.speakLabel === null;
     readAloud.setAttribute('aria-label', view.speakLabel ?? '');
-    choices.replaceChildren(
-      ...view.line.choices.map((choice) => {
-        const made = button('talk-choice', choice.say, () => options.choose(choice.index));
-        made.dataset.choice = String(choice.index);
-        return made;
-      }),
-    );
+    choices.replaceChildren(...view.line.choices.map((choice) => choiceButton(choice, options.choose)));
     shownTyped = -1;
   }
 
@@ -105,6 +112,7 @@ export function createTalkBox(root: HTMLElement, options: TalkBoxOptions): TalkB
       }
       const done = view.typed >= say.length;
       choices.hidden = !done || view.line.choices.length === 0;
+      for (const shown of choices.children) shown.classList.toggle('reading', shown instanceof HTMLElement && shown.dataset.choice === String(view.reading));
       more.hidden = !done || view.line.choices.length > 0 || view.waiting;
       // While no choice is up, the line is what Space or Enter goes on with, so it takes focus.
       if (choices.hidden) line.tabIndex = 0;

@@ -195,14 +195,16 @@
             "en": "Leave it to me!",
             "sl": "Prepusti meni!"
           },
-          "next": "grass-accept"
+          "next": "grass-accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Not now.",
             "sl": "Ne zdaj."
           },
-          "next": "not-now"
+          "next": "not-now",
+          "picture": "clock"
         }
       ]
     },
@@ -258,14 +260,16 @@
             "en": "I'll try it!",
             "sl": "Poskusim!"
           },
-          "next": "friend-accept"
+          "next": "friend-accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Not now.",
             "sl": "Ne zdaj."
           },
-          "next": "not-now"
+          "next": "not-now",
+          "picture": "clock"
         }
       ]
     },
@@ -339,14 +343,16 @@
             "en": "Let's cook!",
             "sl": "Kuhajmo!"
           },
-          "next": "scratch-accept"
+          "next": "scratch-accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Not now.",
             "sl": "Ne zdaj."
           },
-          "next": "not-now"
+          "next": "not-now",
+          "picture": "clock"
         }
       ]
     },

@@ -207,14 +207,16 @@
             "en": "I'll take it!",
             "sl": "Prevzamem!"
           },
-          "next": "accept"
+          "next": "accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Later.",
             "sl": "Kasneje."
           },
-          "next": "later"
+          "next": "later",
+          "picture": "clock"
         }
       ]
     },
@@ -258,14 +260,16 @@
             "en": "I'll take it!",
             "sl": "Prevzamem!"
           },
-          "next": "bell-accept"
+          "next": "bell-accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Later.",
             "sl": "Kasneje."
           },
-          "next": "later"
+          "next": "later",
+          "picture": "clock"
         }
       ]
     },
@@ -310,14 +314,16 @@
             "en": "I'll take it!",
             "sl": "Prevzamem!"
           },
-          "next": "wind-accept"
+          "next": "wind-accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Later.",
             "sl": "Kasneje."
           },
-          "next": "later"
+          "next": "later",
+          "picture": "clock"
         }
       ]
     },
@@ -363,14 +369,16 @@
             "en": "I'll take it!",
             "sl": "Prevzamem!"
           },
-          "next": "grey-accept"
+          "next": "grey-accept",
+          "picture": "check"
         },
         {
           "say": {
             "en": "Later.",
             "sl": "Kasneje."
           },
-          "next": "later"
+          "next": "later",
+          "picture": "clock"
         }
       ]
     },
