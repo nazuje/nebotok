@@ -1480,6 +1480,7 @@ body:not([data-screen='world']) .team-button {
 }
 
 .learn-forget {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
