@@ -314,22 +314,108 @@ export const WeatherFile = z
   });
 export type WeatherFile = z.infer<typeof WeatherFile>;
 
-/** A move with `power` 0 only changes the weather, so it must name the weather it calls. */
+/**
+ * Arena fights (docs/arena.md). A move's `kind` says which button it sits on, in button order;
+ * its `shape` says what it does on the island.
+ */
+export const ARENA_KINDS = ['quick', 'special', 'ultimate'] as const;
+export type ArenaKind = (typeof ARENA_KINDS)[number];
+export const ARENA_SHAPES = ['bolt', 'spray', 'cone', 'snare', 'lunge', 'burst', 'puddle', 'shield', 'strike', 'wall', 'freeze', 'zone', 'weather'] as const;
+export type ArenaShape = (typeof ARENA_SHAPES)[number];
+
+// Arena numbers are whole numbers only, so every engine gets the same island: arena units (and
+// units a second), ticks at 60 a second, percents, and angles as their cosine in 1/4096.
+const ArenaUnits = z.number().int().min(0).max(5_000);
+const PositiveUnits = ArenaUnits.min(1);
+const ArenaTicks = z.number().int().min(0).max(36_000);
+const ArenaPercent = z.number().int().min(0).max(100);
+/** The share of a full hit one hit of the shape deals, in percent. */
+const HitShare = z.number().int().min(1).max(200);
+const Cosine = z.number().int().min(0).max(4_096);
+const PieceCount = z.number().int().min(1).max(5);
+
+const shot = { speed: PositiveUnits, radius: PositiveUnits, reach: PositiveUnits, knock: ArenaUnits, sharePercent: HitShare };
+
+/**
+ * Each shape's numbers. `arena.json` `shapes` gives every one of them; a move's `arena` block may
+ * override any of its shape's. `reach` is how far a shot flies or where a thrown shape lands;
+ * `armTicks` the wait before a thrown shape works; `slowPercent` the share of the walk cap left.
+ */
+export const ARENA_SHAPE_NUMBERS = {
+  bolt: z.strictObject(shot),
+  /** `count` bolts in a fan; `spreadCosine` is the angle between neighbouring bolts. */
+  spray: z.strictObject({ ...shot, count: PieceCount, spreadCosine: Cosine }),
+  cone: z.strictObject({ radius: PositiveUnits, halfAngleCosine: Cosine, knock: ArenaUnits, sharePercent: HitShare }),
+  /** A bolt that roots for `rootTicks` and pulls the target `pull` units towards the caster. */
+  snare: z.strictObject({ ...shot, rootTicks: ArenaTicks, pull: ArenaUnits }),
+  lunge: z.strictObject({ speed: PositiveUnits, ticks: ArenaTicks.min(1), knock: ArenaUnits, sharePercent: HitShare }),
+  burst: z.strictObject({ radius: PositiveUnits, knock: ArenaUnits, sharePercent: HitShare }),
+  puddle: z.strictObject({ reach: PositiveUnits, radius: PositiveUnits, armTicks: ArenaTicks, ticks: ArenaTicks.min(1), slowPercent: ArenaPercent, sharePercent: HitShare }),
+  shield: z.strictObject({ ticks: ArenaTicks.min(1), reflectPercent: ArenaPercent, knock: ArenaUnits }),
+  /** `count` marks in a line along the aim, `spacing` units apart, the first at `reach`. */
+  strike: z.strictObject({ reach: PositiveUnits, radius: PositiveUnits, armTicks: ArenaTicks, knock: ArenaUnits, count: PieceCount, spacing: ArenaUnits, sharePercent: HitShare }),
+  wall: z.strictObject({ speed: PositiveUnits, radius: PositiveUnits, ticks: ArenaTicks.min(1), knock: ArenaUnits, sharePercent: HitShare }),
+  freeze: z.strictObject({ reach: PositiveUnits, radius: PositiveUnits, armTicks: ArenaTicks, rootTicks: ArenaTicks, sharePercent: HitShare }),
+  /** Pulses every `zonePulseTicks` for `sharePercent` of a hit, heals the caster `healPercent` of its health a pulse. */
+  zone: z.strictObject({ radius: PositiveUnits, ticks: ArenaTicks.min(1), sharePercent: HitShare, healPercent: ArenaPercent, slowPercent: ArenaPercent }),
+  /** No damage: a push ring, and the move's `setsWeather` for `weatherTicks`. */
+  weather: z.strictObject({ radius: PositiveUnits, knock: ArenaUnits, weatherTicks: ArenaTicks.min(1) }),
+} as const;
+
+/** The farthest a shape's numbers reach from the caster, or undefined for a shape that stays by it. */
+export function arenaReach(numbers: Readonly<Record<string, number>>): number | undefined {
+  if (numbers.reach === undefined) return undefined;
+  return numbers.reach + ((numbers.count ?? 1) - 1) * (numbers.spacing ?? 0);
+}
+
+const kindAndCooldown = { kind: z.enum(ARENA_KINDS), cooldownTicks: ArenaTicks.min(1).optional() };
+
+/** A move's `arena` block: its kind and shape, a cooldown other than its kind's, and any of its shape's numbers. */
+export const ArenaMove = z.discriminatedUnion('shape', [
+  ARENA_SHAPE_NUMBERS.bolt.partial().extend({ shape: z.literal('bolt'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.spray.partial().extend({ shape: z.literal('spray'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.cone.partial().extend({ shape: z.literal('cone'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.snare.partial().extend({ shape: z.literal('snare'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.lunge.partial().extend({ shape: z.literal('lunge'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.burst.partial().extend({ shape: z.literal('burst'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.puddle.partial().extend({ shape: z.literal('puddle'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.shield.partial().extend({ shape: z.literal('shield'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.strike.partial().extend({ shape: z.literal('strike'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.wall.partial().extend({ shape: z.literal('wall'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.freeze.partial().extend({ shape: z.literal('freeze'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.zone.partial().extend({ shape: z.literal('zone'), ...kindAndCooldown }),
+  ARENA_SHAPE_NUMBERS.weather.partial().extend({ shape: z.literal('weather'), ...kindAndCooldown }),
+]);
+export type ArenaMove = z.infer<typeof ArenaMove>;
+
+/**
+ * A move with `power` 0 only changes the weather, so it must name the weather it calls. `arena` is
+ * how it works in an arena fight; content/ gives every move one (`ArenaMovesFile`), while frozen
+ * golden copies from before the arena load without.
+ */
 export const Move = z
   .strictObject({
     id: ContentId,
     name: LocalizedText,
     type: ContentId,
     power: z.number().int().min(0).max(200),
-    /** The chance to hit, in percent. */
+    /** The chance to hit, in percent. Turn battles only: aiming and dodging replace it in the arena. */
     accuracy: z.number().int().min(1).max(100),
     setsWeather: ContentId.optional(),
+    arena: ArenaMove.optional(),
   })
   .refine((move) => move.power > 0 || move.setsWeather !== undefined, 'a move needs power, setsWeather or both');
 export type Move = z.infer<typeof Move>;
 
 export const MovesFile = z.strictObject({ moves: z.array(Move).min(1).max(1_000) }).superRefine(({ moves }, ctx) => noRepeatedIds(moves, 'moves', ctx));
 export type MovesFile = z.infer<typeof MovesFile>;
+
+/** `content/creatures/moves.json`: every move also says how it works in the arena. */
+export const ArenaMovesFile = MovesFile.superRefine(({ moves }, ctx) => {
+  moves.forEach((move, at) => {
+    if (move.arena === undefined) ctx.addIssue({ code: 'custom', message: `"${move.id}" needs an arena block with its kind and shape`, path: ['moves', at, 'arena'] });
+  });
+});
 
 const BaseStat = z.number().int().min(1).max(255);
 
@@ -532,3 +618,113 @@ export const RenamedFile = z
     }
   });
 export type RenamedFile = z.infer<typeof RenamedFile>;
+
+const ArenaKindRules = z.strictObject({
+  /** Ticks a move of this kind cools down after use, unless the move gives its own. */
+  cooldownTicks: ArenaTicks.min(1),
+  /** Ticks the button cools down at the start of a fight. */
+  openingTicks: ArenaTicks,
+  /** Ticks the computer's creature winds up, shown by a telegraph, before casting. */
+  windupTicks: ArenaTicks,
+});
+
+/**
+ * Every number of an arena fight (docs/arena.md, "Every tunable"), in whole numbers: arena units,
+ * units a second, ticks at 60 a second, permille, percents and cosines in 1/4096. `buttons` are the
+ * levels buttons 1 to 3 unlock at. The checks keep the island fair to play on: the storm's floor
+ * fits two creatures side by side, nothing reaches across the whole island, and each kind of
+ * button cools down quicker than the next. Checks that need moves and species are in
+ * `arenaLinkProblems` (arena-links.ts).
+ */
+const ArenaRulesObject = z.strictObject({
+  island: z.strictObject({
+    radius: ArenaUnits.min(100),
+    /** A creature's body radius. A body falls (ring-out) once it is a whole body past the edge. */
+    body: PositiveUnits,
+    frictionPermille: z.number().int().min(0).max(1_000),
+    plantedPermille: z.number().int().min(0).max(1_000),
+    walkBase: PositiveUnits,
+    walkPerSpeedPercent: z.number().int().min(0).max(1_000),
+    topSpeed: PositiveUnits,
+    hpScale: z.number().int().min(1).max(20),
+    knockBasePercent: z.number().int().min(0).max(500),
+    knockLostPercent: z.number().int().min(0).max(500),
+    knockedTicks: ArenaTicks,
+    bumpKnock: ArenaUnits,
+    limitTicks: ArenaTicks.min(60),
+  }),
+  dash: z.strictObject({ speed: PositiveUnits, ticks: ArenaTicks.min(1), cooldownTicks: ArenaTicks }),
+  swap: z.strictObject({ cooldownTicks: ArenaTicks }),
+  storm: z.strictObject({
+    firstTicks: ArenaTicks,
+    everyTicks: ArenaTicks.min(1),
+    warnTicks: ArenaTicks,
+    shrinkTicks: ArenaTicks.min(1),
+    bigSteps: z.number().int().min(0).max(20),
+    bigStepPercent: ArenaPercent,
+    smallStepPercent: ArenaPercent.min(1),
+    floorPercent: ArenaPercent.min(1),
+  }),
+  treat: z.strictObject({
+    windowPercent: ArenaPercent.min(1),
+    likedWindowPercent: ArenaPercent.min(1),
+    favouriteWindowPercent: ArenaPercent.min(1),
+    speed: PositiveUnits,
+    range: PositiveUnits,
+    radius: PositiveUnits,
+    likedRadius: PositiveUnits,
+    favouriteRadius: PositiveUnits,
+    groundTicks: ArenaTicks,
+    againTicks: ArenaTicks,
+  }),
+  kinds: z.strictObject({ quick: ArenaKindRules, special: ArenaKindRules, ultimate: ArenaKindRules }),
+  buttons: z.tuple([CreatureLevel, CreatureLevel, CreatureLevel]),
+  /** The turtle setting. */
+  easier: z.strictObject({
+    walkPercent: ArenaPercent.min(1),
+    windupPercent: z.number().int().min(100).max(400),
+    cooldownPercent: z.number().int().min(100).max(400),
+    damageTakenPercent: ArenaPercent.min(1),
+  }),
+  /** A cast bends towards the other creature within this angle of the facing and this distance. */
+  aimHelp: z.strictObject({ cosine: Cosine, range: ArenaUnits }),
+  zonePulseTicks: ArenaTicks.min(1),
+  wallThickness: PositiveUnits,
+  /** How long an ultimate's own type's weather lasts on the island. */
+  ultimateWeatherTicks: ArenaTicks,
+  shapes: z.strictObject(ARENA_SHAPE_NUMBERS),
+});
+
+export const ArenaRules = ArenaRulesObject.superRefine((rules, ctx) => {
+  for (const { message, path } of arenaRuleIssues(rules)) ctx.addIssue({ code: 'custom', message, path });
+});
+export type ArenaRules = z.infer<typeof ArenaRules>;
+
+type RuleIssue = { readonly message: string; readonly path: (string | number)[] };
+
+const KIND_PAIRS = [
+  ['quick', 'special'],
+  ['special', 'ultimate'],
+] as const;
+
+function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes }: z.infer<typeof ArenaRulesObject>): RuleIssue[] {
+  const issues: RuleIssue[] = [];
+  const diameter = 2 * island.radius;
+  const floorDiameter = 2 * Math.floor((island.radius * storm.floorPercent) / 100);
+  if (floorDiameter <= 4 * island.body) issues.push({ message: `the storm's floor, ${floorDiameter} across, must be wider than two bodies side by side (${4 * island.body})`, path: ['storm', 'floorPercent'] });
+  for (const shape of ARENA_SHAPES) {
+    const reach = arenaReach(shapes[shape]);
+    if (reach !== undefined && reach >= diameter) issues.push({ message: `a ${shape} reaches ${reach}, which must be shorter than the island's diameter (${diameter})`, path: ['shapes', shape] });
+  }
+  if (treat.range >= diameter) issues.push({ message: `a treat flies ${treat.range}, which must be shorter than the island's diameter (${diameter})`, path: ['treat', 'range'] });
+  for (const [quicker, kind] of KIND_PAIRS) {
+    if (kinds[quicker].cooldownTicks >= kinds[kind].cooldownTicks) {
+      issues.push({ message: `${quicker} moves cool down in ${kinds[quicker].cooldownTicks} ticks, which must be quicker than ${kind} moves (${kinds[kind].cooldownTicks})`, path: ['kinds', quicker, 'cooldownTicks'] });
+    }
+  }
+  if (buttons[0] !== 1) issues.push({ message: 'button 1 is there from level 1', path: ['buttons', 0] });
+  if (buttons[1] <= buttons[0] || buttons[2] <= buttons[1]) issues.push({ message: 'buttons unlock at rising levels', path: ['buttons'] });
+  if (treat.likedWindowPercent < treat.windowPercent || treat.favouriteWindowPercent < treat.likedWindowPercent) issues.push({ message: 'a liked treat must not open a smaller window than a plain one, nor a favourite than a liked one', path: ['treat'] });
+  if (treat.likedRadius < treat.radius || treat.favouriteRadius < treat.likedRadius) issues.push({ message: 'a liked treat must not be smaller than a plain one, nor a favourite than a liked one', path: ['treat'] });
+  return issues;
+}

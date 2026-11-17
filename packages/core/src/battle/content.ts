@@ -1,7 +1,12 @@
 import type { ZodType } from 'zod';
-import { BattleRules, BefriendRules, ItemsFile, MovesFile, SpeciesFile, WeatherFile, type Item, type Move, type Species, type WeatherType } from '../content.ts';
+import { arenaLinkProblems } from '../arena-links.ts';
+import { ArenaRules, BattleRules, BefriendRules, ItemsFile, MovesFile, SpeciesFile, WeatherFile, type Item, type Move, type Species, type WeatherType } from '../content.ts';
 
-/** The files a battle reads, raw or parsed: the four in `content/creatures/`, befriending.json and items.json. */
+/**
+ * The files a battle reads, raw or parsed: the four in `content/creatures/`, befriending.json and
+ * items.json, and arena.json for arena fights. Without `arena`, the arena checks are skipped, as for
+ * the frozen turn-battle golden content.
+ */
 export type BattleContentFiles = {
   readonly weather: unknown;
   readonly moves: unknown;
@@ -9,6 +14,7 @@ export type BattleContentFiles = {
   readonly rules: unknown;
   readonly befriending: unknown;
   readonly items: unknown;
+  readonly arena?: unknown;
 };
 
 /** Everything a battle reads, looked up by id. */
@@ -19,6 +25,7 @@ export type BattleContent = {
   readonly rules: BattleRules;
   readonly befriending: BefriendRules;
   readonly items: ReadonlyMap<string, Item>;
+  readonly arena?: ArenaRules;
 };
 
 export class BattleContentError extends Error {
@@ -31,8 +38,8 @@ export class BattleContentError extends Error {
   }
 }
 
-/** Links between files: every type, weather, move, species and treat a file names must exist. */
-function linkProblems({ weather, moves, species, items }: BattleContent): string[] {
+/** Links between files: every type, weather, move, species and treat a file names must exist, and the arena's checks. */
+function linkProblems({ weather, moves, species, items, arena }: BattleContent): string[] {
   const problems: string[] = [];
   for (const move of moves.values()) {
     if (!weather.has(move.type)) problems.push(`moves.json "${move.id}": type "${move.type}" is not a weather type`);
@@ -56,6 +63,7 @@ function linkProblems({ weather, moves, species, items }: BattleContent): string
     for (const id of item.likedBy.species) if (!species.has(id)) problems.push(`items.json "${item.id}": likedBy.species names "${id}", which is not in species.json`);
     for (const id of item.likedBy.types) if (!weather.has(id)) problems.push(`items.json "${item.id}": likedBy.types names "${id}", which is not a weather type`);
   }
+  if (arena) problems.push(...arenaLinkProblems(arena, moves, species));
   return problems;
 }
 
@@ -73,7 +81,8 @@ function analyse(files: BattleContentFiles): { content: BattleContent | null; pr
   const rules = parse('battle-rules.json', BattleRules, files.rules);
   const befriending = parse('befriending.json', BefriendRules, files.befriending);
   const items = parse('items.json', ItemsFile, files.items);
-  if (!weather || !moves || !species || !rules || !befriending || !items) return { content: null, problems };
+  const arena = files.arena === undefined ? undefined : parse('arena.json', ArenaRules, files.arena);
+  if (!weather || !moves || !species || !rules || !befriending || !items || arena === null) return { content: null, problems };
   const content: BattleContent = {
     weather: new Map(weather.types.map((type) => [type.id, type])),
     moves: new Map(moves.moves.map((move) => [move.id, move])),
@@ -81,6 +90,7 @@ function analyse(files: BattleContentFiles): { content: BattleContent | null; pr
     rules,
     befriending,
     items: new Map(items.items.map((item) => [item.id, item])),
+    ...(arena ? { arena } : {}),
   };
   const links = linkProblems(content);
   return links.length > 0 ? { content: null, problems: links } : { content, problems };

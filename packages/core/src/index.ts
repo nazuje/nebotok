@@ -194,10 +194,20 @@ export {
   WeatherFile,
   Move,
   MovesFile,
+  ArenaMovesFile,
   Species,
   SpeciesFile,
   BattleRules,
+  ARENA_KINDS,
+  ARENA_SHAPES,
+  ARENA_SHAPE_NUMBERS,
+  ArenaMove,
+  ArenaRules,
+  arenaReach,
+  type ArenaKind,
+  type ArenaShape,
 } from './content.ts';
+export { arenaLinkProblems } from './arena-links.ts';
 export {
   MAX_TEAM,
   MOVES_PER_CREATURE,

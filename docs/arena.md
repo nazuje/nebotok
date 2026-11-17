@@ -132,35 +132,43 @@ does on the island (#142, the move's `arena` block in `content/creatures/moves.j
 
 ## The 13 shapes
 
-Numbers are the shape's defaults in `arena.json`; a move's `arena` block may override them, in
-whole numbers. "Prototype" names the kit in `arena-kits.ts` KITS a number comes from.
+Numbers are the shape's defaults in `arena.json` `shapes` (their keys are in core
+`ARENA_SHAPE_NUMBERS`); a move's `arena` block may override any of its own shape's numbers and its
+kind's `cooldownTicks`, in whole numbers. Every shape that deals damage has a `sharePercent`, the
+share of a full hit one hit deals (100 unless the table says otherwise). "Prototype" names the kit
+in `arena-kits.ts` KITS a number comes from.
 
 | Shape | What it does | Numbers |
 | --- | --- | --- |
 | bolt | A shot along the aim; hits the first body it touches | Gale: 900 u/s, radius 22, reach 560, knock 420. Rain: 1000 u/s, radius 18, reach 620, knock 300 (prototype) |
-| spray | Three small bolts in a 20° fan, a third of the damage each | **plan** |
+| spray | Three small bolts in a 20° fan, a third of the damage each | 950 u/s, radius 16, reach 460, knock 160, 10° between bolts (cosine 4034), 33% each (**plan**) |
 | cone | A wedge in front, hits at once | Radius 230, half-angle 0.7 rad (cosine 3133), knock 560 (prototype sun quick) |
-| snare | A bolt that roots (icicle-poke: 48 ticks) or pulls 120 units towards the caster (vine-tickle) | **plan** |
+| snare | A bolt that roots (icicle-poke: 48 ticks) or pulls 120 units towards the caster (vine-tickle) | 900 u/s, radius 20, reach 520, no knock, `rootTicks` 48, `pull` 0; vine-tickle has `rootTicks` 0 and `pull` 120 (**plan**) |
 | lunge | The caster drives forward and hits on touch | 1350 u/s for 14 ticks, knock 1150 (prototype gale special) |
 | burst | A ring around the caster that knocks outward | Radius 170, knock 900 (**plan**) |
 | puddle | Lands at the aim, slows whoever stands in it | Reach 300, radius 115, arms in 18 ticks, slows to 45% for 4 s (prototype rain special) |
 | shield | Guards the caster: reflects damage and shots, knocks on touch | 4 s, reflects 40%, knock 500 (prototype sun special) |
-| strike | A mark at the aim that lands later | Lands after 30 ticks, radius 90; sky-crackle drops 3 in a line (**plan**) |
+| strike | A mark at the aim that lands later | Reach 300, lands after 30 ticks, radius 90, knock 600; sky-crackle drops 3 in a line along the aim, 150 apart, 60% each (**plan**) |
 | wall | A wide wave that rolls forward | 650 u/s, radius 190, 60 ticks, knock 1250, thickness 50 (prototype gale ultimate) |
 | freeze | A circle that forms at the aim and roots | Reach 200, radius 190, arms in 30 ticks, roots 96 ticks, 1.6 s (prototype rain ultimate) |
-| zone | A circle around the caster that pulses | Radius 210 for 5 s, a pulse every 30 ticks for 20% of a hit; noon-blaze also heals the caster 3% a pulse (prototype sun ultimate); pollen-burst slows to 60% instead |
-| weather | No damage: a push ring and the move's weather on the island | Ring radius 150, knock 500; weather for 900 ticks, 15 s (**plan**) |
+| zone | A circle around the caster that pulses | Radius 210 for 5 s, a pulse every 30 ticks for 20% of a hit; noon-blaze also heals the caster 3% a pulse (`healPercent`, prototype sun ultimate); pollen-burst slows to 60% instead (`slowPercent`) |
+| weather | No damage: a push ring and the move's weather on the island | Ring radius 150, knock 500; weather for 900 ticks (`weatherTicks`), 15 s (**plan**) |
 
 Where the aim lands: a thrown puddle or freeze lands at the other creature's distance when the aim
 help has it, clamped to 120 to 420 units, else at the shape's reach (prototype `aimOf`).
 
 **Weather on the island:** a `weather` move sets its weather for 900 ticks; every ultimate also sets
-its own type's weather for 600 ticks (10 s). A new weather ends the old one early. The weather chart
+its own type's weather for 600 ticks (10 s, `ultimateWeatherTicks`). A new weather ends the old one early. The weather chart
 in `content/creatures/weather.json` applies to every hit, as in turns.
 
 ### Every move's kind and shape
 
 Taps are always bolts, wallops always lunges, calls always weather (#142).
+
+A move's own numbers, where it differs from its shape: gale-tap, gust-push, heat-shimmer and
+snow-puff cool down in 54 ticks (the prototype's gale bolt and sun cone are quicker), other quick
+moves in 60; gust-push knocks 700; drip-drop flies as the prototype's rain bolt (1000 u/s, radius
+18, reach 620, knock 300); the rest are named in the shapes table.
 
 | Type | Quick (tap, 40) | Quick (50) | Special (65) | Special (wallop, 80) | Ultimate (100) | Ultimate (call) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -267,9 +275,20 @@ pair at levels 5, 10 and 20. The targets:
 - no shape deals more than 1.5 times the average of its kind;
 - ring-outs end 20 to 45% of fights.
 
-Load-time checks in the content schema: dash faster than every walk cap; ring-out distance beyond
-the island's radius; the storm floor wider than four bodies; every shot's reach shorter than the
-island's diameter; quick cooldowns shorter than special ones, special shorter than ultimate.
+Load-time checks (`npm run content:validate`): `ArenaRules` in core `content.ts` checks
+`arena.json` on its own, and `arenaLinkProblems` (`arena-links.ts`) checks it against
+`moves.json` and `species.json`:
+
+- a dash is faster than every species' walk cap;
+- the ring-out line, one body past the edge, lies beyond the island's radius (a body is at least 1
+  unit);
+- the storm's floor is wider than four body radii, so two creatures fit side by side;
+- every reach (a shot, a thrown shape, a strike's farthest mark, a treat's flight) is shorter than
+  the island's diameter;
+- every quick move cools down quicker than every special one, and every special quicker than every
+  ultimate;
+- buttons unlock at rising levels from 1, and every species learns a move of each kind by the level
+  its button unlocks.
 
 ## Events
 
@@ -298,19 +317,21 @@ marked.
 | `dash` | `speed`, `ticks`, `cooldownTicks` | 1100, 12, 180 | ARENA `dashSpeed`, `dashTicks`, `dashCooldown` |
 | `swap` | `cooldownTicks` | 300 | ARENA `swapCooldown` |
 | `storm` | `firstTicks`, `everyTicks`, `warnTicks`, `shrinkTicks` | 1200, 600, 120, 30 | STORM |
-| `storm` | `bigSteps` at 10%, then 5% steps, `floorPercent` | 5, 25 | STORM |
+| `storm` | `bigSteps`, `bigStepPercent`, `smallStepPercent`, `floorPercent` | 5, 10, 5, 25 | STORM |
 | `treat` | `windowPercent`, `speed`, `range`, `radius` | 30, 800, 560, 26 | TREAT |
 | `treat` | `groundTicks`, `againTicks` | 300, 120 | TREAT |
 | `treat` | `likedRadius`, `favouriteRadius` | 33, 40 | **plan** |
 | `treat` | `likedWindowPercent`, `favouriteWindowPercent` | 35, 40 | **plan** |
-| `kinds` | cooldowns quick, special, ultimate | 54 to 60, 360, 1200 | KITS (quick: **plan**) |
-| `kinds` | opening cooldowns | 0, 180, 720 | ARENA `openingCooldown` |
-| `kinds` | wild wind-up | 36 | ARENA `windup` |
-| `buttons` | unlock levels | 1, 7, 12 | **plan**, settled by the owner |
+| `kinds` | `quick`, `special`, `ultimate`: `cooldownTicks` | 60, 360, 1200 (a quick move may say 54) | KITS (quick: **plan**) |
+| `kinds` | `openingTicks` | 0, 180, 720 | ARENA `openingCooldown` |
+| `kinds` | `windupTicks` (the wild wind-up) | 0, 36, 36 | ARENA `windup` |
+| `buttons` | unlock levels of buttons 1 to 3 | `[1, 7, 12]` | **plan**, settled by the owner |
 | `easier` | `walkPercent`, `windupPercent`, `cooldownPercent`, `damageTakenPercent` | 80, 150, 130, 70 | EASIER |
-| | `aimHelpDegrees` | 30, kept as cosine 3547 | `AIM_ASSIST` |
+| `aimHelp` | `cosine`, `range` | 3547 (30°), 900 | `AIM_ASSIST`, `aimOf` |
 | | `zonePulseTicks` | 30 | `ZONE_PULSE` |
 | | `wallThickness` | 50 | `WALL_THICKNESS` |
+| | `ultimateWeatherTicks` | 600 | **plan** |
+| `shapes` | each shape's numbers | see "The 13 shapes" | KITS |
 | `minds` | `WILD`, `WILD_EASIER`, `BOT` | see "Minds" | `arena-ai.ts` |
 
 The shapes' numbers are in "The 13 shapes". The network and screen numbers are in
