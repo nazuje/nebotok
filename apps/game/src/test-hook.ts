@@ -3,6 +3,7 @@ import type { BattleScreenState, Menu } from './battle-model.ts';
 import type { BattleDrawn } from './battle-scene.ts';
 import type { BattleOverlay } from './battles.ts';
 import type { ConnectionStatus } from './connection.ts';
+import type { TestVoice } from './clip-player.ts';
 import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { JobsOverlay, TestJobs } from './jobs-link.ts';
@@ -50,7 +51,7 @@ export type TestBattle = {
   befriended: { species: string; placedIn: 'team' | 'storage' } | null;
 };
 
-export type TestTeamScreen = { selected: number | null; tab: TeamTab };
+export type TestTeamScreen = { selected: number | null; tab: TeamTab; swapHint: boolean };
 
 /** A player as the server last told this page, and where the page draws them. */
 export type TestPlayer = {
@@ -88,8 +89,10 @@ export type TestSnapshot = TestStory &
   playerCount: number | null;
   /** The welcome line shown at the bottom, if any. */
   welcome: WelcomeMessageKey | null;
-  /** The short message shown at the bottom, such as walk.blocked, if any. */
+  /** The short message shown at the bottom, such as refused.tooFar, if any. */
   toast: StringId | null;
+  /** The sprite shown beside that message, if any. */
+  toastPicture: string | null;
   /** The first-visit walking hint, for the controls it shows, if it is up. */
   hint: Controls | null;
   /** The character the new player's hint points at, if it is up. */
@@ -109,6 +112,10 @@ export type TestSnapshot = TestStory &
   controls: Controls;
   /** The tile the walk marker shows, if any. */
   marker: Point | null;
+  /** The tile the short "can't go there" cross flashes on, while it shows. */
+  refusedMarker: Point | null;
+  /** The shrine tile the flag of the shrine you wake at stands on, if it is on this map. */
+  wakeFlag: Point | null;
   /** Your own courier as this page predicts it, before the server confirms. */
   predicted: ReturnType<WorldView['predicted']>;
   input: ReturnType<Input['state']>;
@@ -125,6 +132,8 @@ export type TestSnapshot = TestStory &
   /** Whether the settings offer "Add a PIN". */
   canAddPin: boolean;
   settingsOpen: boolean;
+  /** "Read to me" (null before the server has said), the last clip asked for and how many have been. */
+  voice: TestVoice & { readToMe: boolean | null };
   /** The battle on screen, if any. */
   battle: TestBattle | null;
   /** Your creatures, treats and whether you still choose a starter, as the server last sent them. */

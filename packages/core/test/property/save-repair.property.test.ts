@@ -31,7 +31,7 @@ const progress: fc.Arbitrary<Progress> = fc.record({
   jobs: fc.constant(null),
 });
 
-const SAVE = { name: 'Test Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null } as const;
+const SAVE = { name: 'Test Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false } } as const;
 
 describe('save repair properties', () => {
   it('keeps the story exactly as saved', () => {

@@ -4,10 +4,11 @@ How the browser talks to the server: an HTTP API for profiles and sessions, then
 `world`, for the shared island. The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
 `src/skill-messages.ts` for skills and jobs), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **9**),
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **10**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
-protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board, and
-protocol 9 judges the tiny games exactly as they are drawn.
+protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board,
+protocol 9 judges the tiny games exactly as they are drawn, and protocol 10 adds the player's
+settings ("Read to me").
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants and server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`, and
 fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -123,6 +124,7 @@ Client to server:
 | `walk.to` | `{ x, y, from? }`, integers 0 to 1023 | Walk along the cheapest path (core `findPath`: around tall grass unless the tile is grass or the way around is much longer) to that tile. A tile off the map is ignored. |
 | `walk.hold` | `{ direction, from? }` | Walk that way tile after tile until `walk.stop` or another intent. At a blocked tile the player turns to face it and waits. |
 | `walk.stop` | `{ from? }` | Finish the current step and stand still |
+| `settings.set` | `{ readToMe: boolean }` | Change the player's own settings: saved with the player at once and sent back as `settings`. Counts against the request limit of talks, battles and skills. |
 
 A new intent replaces the old one. A step that has started always finishes, so the player ends on a
 whole tile.
@@ -144,6 +146,14 @@ Server to client:
 | `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey }` | Right after joining |
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
+| `settings` | `{ readToMe }` | On joining, after `skills`, and after each `settings.set`. Only this seat changes them, so a reconnection keeps what the page has. |
+
+**Settings.** The player's own settings live in their save, so they follow the player to any
+device. Today that is only `readToMe` ("Read to me", off for every player until they turn it on):
+while it is on, the page reads each talk line aloud in its speaker's voice and the hint of each new
+quest banner in the narrator's, from the clips in `apps/game/public/voice/`. A speaker button on the
+talk box and the quest banner reads its words whatever the setting; a line without a clip is silent.
+Language and controls stay settings of the device.
 
 The battle, team and starter messages are in the next section, the talk and quest messages in
 "Talking, quests and the bag", and the skill and job messages in "Skills and the job board".
@@ -524,8 +534,9 @@ before `welcome` does, and may already count a player who joined in between.
 
 ## Saves
 
-The server saves each player (save format v5, `packages/core/src/save.ts`) when they leave or
-their seat expires, every 30 seconds for players who moved, when a battle starts, and when it shuts down. A save holds the
+The server saves each player (save format v6, `packages/core/src/save.ts`) when they leave or
+their seat expires, every 30 seconds for players who moved, when a battle starts, when they change
+a setting, and when it shuts down. A save holds the
 position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
 an optional nickname), storage (up to `STORAGE_LIMIT`, 200), the inventory (item id and count),
 `lastShrine`, and the `seen` and `befriended` species. A save from v2 or earlier has no
@@ -556,6 +567,9 @@ save gets `skills: []` and `jobs: null`. The save repair applies core `pruneSkil
 that are gone, holds levels at `maxLevel`) and `pruneJobs` (drops board jobs whose template, item
 or character is gone; the next `board.open` refills the board), and the `save repaired` line then
 also lists `droppedSkills` and `droppedJobs`.
+
+Since v6 a save also holds `settings`, the player's own settings: `{ readToMe }`. A v5 save gets
+`readToMe: false`, since sound never plays unasked.
 
 **The Slice B story is a placeholder.** When the real story replaces it, a new save version resets
 every player's `story` to empty, so everyone starts it from the beginning, and keeps their

@@ -1,6 +1,8 @@
 import type { Language, StringId, Welcome, WelcomeMessageKey } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
-import { element } from './dom.ts';
+import { el, element } from './dom.ts';
+import { toastPicture } from './message-pictures.ts';
+import { pictureIcon, spriteIcon } from './pictures.ts';
 import { text } from './strings.ts';
 
 const STATUS_TEXT: Readonly<Record<ConnectionStatus, StringId>> = {
@@ -14,7 +16,7 @@ const STATUS_TEXT: Readonly<Record<ConnectionStatus, StringId>> = {
 
 /** How long the welcome line stays before it gets out of the way. */
 const WELCOME_MS = 6_000;
-/** How long a short message, such as "You can't get there.", stays. */
+/** How long a short message, such as "Walk up to them first.", stays. */
 export const TOAST_MS = 2_000;
 
 /**
@@ -31,14 +33,15 @@ export function welcomeLine(shown: WelcomeMessageKey | null, company: boolean | 
 export type ToastKind = 'refused' | 'news';
 
 export type Hud = {
-  setStatus(status: ConnectionStatus): void;
+  /** The connection's status, and whether it was lost: a drop or a retry, not the first try. */
+  setStatus(status: ConnectionStatus, lost?: boolean): void;
   setWelcome(welcome: Welcome | undefined): void;
   /** Whether anyone else is in the world right now, away players included. */
   setCompany(company: boolean): void;
-  /** A short message at the bottom of the screen for TOAST_MS: something refused, or good news. */
+  /** A short message at the bottom of the screen for TOAST_MS, with its picture: something refused, or good news. */
   toast(id: StringId, kind?: ToastKind): void;
   setLanguage(language: Language): void;
-  state(): { welcome: WelcomeMessageKey | null; toast: StringId | null };
+  state(): { welcome: WelcomeMessageKey | null; toast: StringId | null; toastPicture: string | null };
 };
 
 /** The interface is plain HTML over the canvas, so it stays sharp, readable and accessible. */
@@ -48,23 +51,32 @@ export function createHud(language: Language): Hud {
   const badgeText = element<HTMLElement>('.badge-text');
   const welcomeText = element<HTMLElement>('.welcome');
   const toastText = element<HTMLElement>('.toast');
+  // Lost touch with the server: a cloud with its plug pulled, and a ring turning while the page tries again.
+  badge.prepend(el('span', { className: 'badge-lost', attrs: { 'aria-hidden': 'true' } }, [pictureIcon('cloud-off', 32), el('span', { className: 'badge-spinner' })]));
 
   let current = language;
   let status: ConnectionStatus = 'connecting';
+  let lost = false;
   let welcome: WelcomeMessageKey | null = null;
   let company: boolean | null = null;
   let welcomeTimer: ReturnType<typeof setTimeout> | undefined;
   let toast: StringId | null = null;
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  let toastShown = '';
 
   const render = () => {
     document.documentElement.lang = current;
     title.textContent = text('game.title', current);
     badge.dataset.status = status;
+    badge.dataset.lost = String(lost);
     badgeText.textContent = text(STATUS_TEXT[status], current);
     // Both sit in the same spot at the bottom; a toast answers a tap, so it goes in front.
     toastText.hidden = toast === null;
-    if (toast) toastText.textContent = text(toast, current);
+    if (toast && toastShown !== `${toast}:${current}`) {
+      toastShown = `${toast}:${current}`;
+      const picture = toastPicture(toast);
+      toastText.replaceChildren(...(picture ? [spriteIcon(picture, 32, { className: 'toast-picture' })] : []), el('span', { text: text(toast, current) }));
+    }
     welcomeText.hidden = welcome === null || toast !== null;
     if (welcome) welcomeText.textContent = text(welcome, current);
   };
@@ -72,8 +84,9 @@ export function createHud(language: Language): Hud {
   render();
 
   return {
-    setStatus: (next) => {
+    setStatus: (next, wasLost = next === 'unreachable') => {
       status = next;
+      lost = wasLost;
       render();
     },
     setWelcome: (next) => {
@@ -111,30 +124,38 @@ export function createHud(language: Language): Hud {
       current = next;
       render();
     },
-    state: () => ({ welcome, toast }),
+    state: () => ({ welcome, toast, toastPicture: toast ? toastPicture(toast) : null }),
   };
 }
 
 export type StoryButtons = {
-  /** Shows the bag and journal buttons while `shown`, the journal's dot while it has `news`. */
-  render(shown: boolean, news: boolean, language: Language): void;
+  /** Shows the bag and journal buttons while `shown`, the journal's dot while it has `news`, and the compass while there is `somewhere` to show. */
+  render(shown: boolean, news: boolean, somewhere: boolean, language: Language): void;
 };
 
-/** The bag and journal buttons beside the team button. The world's screens hide all three. */
-export function createStoryButtons(open: { bag(): void; journal(): void }): StoryButtons {
+/**
+ * The bag and journal buttons beside the team button, and the compass at the bottom right, which
+ * shows where to go next on the map. The world's screens hide them all.
+ */
+export function createStoryButtons(open: { bag(): void; journal(): void; whereNext(): void }): StoryButtons {
   const bag = element<HTMLButtonElement>('.bag-button');
   const journal = element<HTMLButtonElement>('.journal-button');
   const dot = element<HTMLElement>('.journal-dot');
+  const compass = element<HTMLButtonElement>('.compass-button');
+  compass.append(pictureIcon('compass', 48));
   bag.addEventListener('click', () => open.bag());
   journal.addEventListener('click', () => open.journal());
+  compass.addEventListener('click', () => open.whereNext());
   return {
-    render: (shown, news, language) => {
+    render: (shown, news, somewhere, language) => {
       bag.hidden = !shown;
       journal.hidden = !shown;
+      compass.hidden = !shown || !somewhere;
       dot.hidden = !news;
       journal.dataset.news = String(news);
       bag.setAttribute('aria-label', text('bag.title', language));
       journal.setAttribute('aria-label', text(news ? 'journal.news' : 'journal.title', language));
+      compass.setAttribute('aria-label', text('journal.whereNext', language));
     },
   };
 }

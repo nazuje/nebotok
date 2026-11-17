@@ -15,14 +15,14 @@
 
 body:not([data-screen='world']) .talk,
 body:not([data-screen='world']) .talk-hint,
-body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .welcome) {
+body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .compass-button, .welcome) {
   display: none;
 }
 
-/* A grid, so the close button sits beside the head while coming last in the tab order. */
+/* A grid, so the speaker and close buttons sit beside the head while coming last in the tab order. */
 .talk-box {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   width: min(100%, 40rem);
@@ -69,9 +69,14 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
   overflow-wrap: anywhere;
 }
 
-.talk-close {
+.talk-speaker {
   grid-row: 1;
   grid-column: 2;
+}
+
+.talk-close {
+  grid-row: 1;
+  grid-column: 3;
   display: grid;
   place-items: center;
   width: var(--tap);
@@ -127,8 +132,11 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
 }
 
 .talk-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: var(--tap);
-  padding: 8px 16px;
+  padding: 8px 16px 8px 10px;
   border: 2px solid var(--accent);
   border-radius: 14px;
   background: white;
@@ -137,6 +145,35 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
   font-weight: 800;
   text-align: left;
   overflow-wrap: anywhere;
+}
+
+.talk-choice-picture {
+  flex: none;
+}
+
+.talk-choice-say {
+  min-width: 0;
+}
+
+/* The choice that takes the quest is the strong button; the one that puts it off is the quiet one. */
+.talk-choice[data-kind='takes'] {
+  border-color: #2f855a;
+  background: #2f855a;
+  color: white;
+  box-shadow: 0 3px 0 #22643f;
+}
+
+.talk-choice[data-kind='declines'] {
+  border-color: #c9d6e3;
+  background: #eef3f8;
+  color: #3e5368;
+  font-weight: 700;
+}
+
+/* The choice being read aloud. */
+.talk-choice.reading {
+  outline: 4px solid #f6c544;
+  outline-offset: 2px;
 }
 
 .talk[aria-busy='true'] .talk-choice {
@@ -177,6 +214,16 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .w
 
   .talk-more {
     animation: talk-more 1s ease-in-out infinite;
+  }
+
+  .talk-choice.reading {
+    animation: talk-choice-reading 0.9s ease-in-out infinite;
+  }
+}
+
+@keyframes talk-choice-reading {
+  50% {
+    transform: scale(1.03);
   }
 }
 

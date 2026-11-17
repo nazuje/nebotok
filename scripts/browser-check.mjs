@@ -17,16 +17,22 @@
 // shrine (scripts/lib/story-check.mjs): they open the bag and the journal, ask "Where next?", walk
 // to the shrine for the quest toast and see the journal move on. Four more (the other language on
 // each device) sign in beside a fishing spot (scripts/lib/skill-check.mjs): they fish, see the catch
-// and a full stack toasted, are told the spot rests, miss and then win a foraging game, cook from
-// the recipe book and read the Skills tab; at 360px a player opens the book, a game and the tab. The
+// and a full stack toasted and fishing's level up, are told the spot rests, miss and then win a
+// foraging game, cook from the recipe book and read the Skills tab; at 360px a player opens the
+// book, a game and the tab, and taps a spot that needs a higher level. The
 // same four then sign in beside the job board (scripts/lib/board-check.mjs): they read its three
-// cards, hand a delivery over in a talk, see the job toast and find the new card in its place; at
-// 360px a player opens the board for the first time. At 360px wide it also checks the lock messages (a first and a
+// cards in pictures, hand a delivery over in a talk, see the job news stamped done and find the new
+// card in its place; at 360px a player opens the board for the first time, and another hands a
+// delivery over. At 360px wide it also checks the lock messages (a first and a
 // second lock), the PIN hint and a full profile list, and adds a PIN to a profile made without one
-// from the settings, then signs in with it and meets a wild creature. Against its own server, a
+// from the settings (after choosing a starter, whose weather chips must show their icons), then
+// signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px, sees the fainted wild
 // creature's favourite marked in the treat picker, and answers the offer of a new move
-// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. Fails on any console
+// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. At 360px in muted
+// Chromium, against its own server, a player hears "Read to me" (scripts/lib/voice-check.mjs): the
+// right clip asked for each line and quest hint with it on, none with it off but from a speaker
+// button, every clip answered with silence by the check. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>] [--part <name>]
@@ -43,6 +49,7 @@ import {
   BROWSERS,
   DEVICES,
   HOOK,
+  animationsSettled,
   apiCall,
   battleIdle,
   clearWalk,
@@ -74,9 +81,9 @@ import {
   walkByTaps,
   watch,
 } from './lib/game-page.mjs';
-import { battleSave, chooseStarter, playBattles } from './lib/battle-check.mjs';
-import { learnerSave, playLearning } from './lib/learn-check.mjs';
-import { playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
+import { battleSave, chooseStarter, playBattles, weatherChipProblems } from './lib/battle-check.mjs';
+import { learnerSave, playLearning, seeSwapHint } from './lib/learn-check.mjs';
+import { learnerStory, playStory, storySave, storyScreensFit } from './lib/story-check.mjs';
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
 import { boardSave, skillSave } from './lib/skill-saves.mjs';
 import { boardScreenFits, playBoard } from './lib/board-check.mjs';
@@ -84,7 +91,8 @@ import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
-import { battlerName, boardName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName } from './lib/test-players.mjs';
+import { battlerName, boardName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName, voiceName } from './lib/test-players.mjs';
+import { playVoice, silenceClips } from './lib/voice-check.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
 const parts = values.part === undefined ? BROWSER_CHECK_PARTS : BROWSER_CHECK_PARTS.filter((part) => part.name === values.part);
@@ -360,9 +368,24 @@ async function talkIgnoresMapAndTabsToChoice(page, talk, { expect, tabs }) {
   await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
 }
 
+/** The banner of a quest just taken: `giver`'s portrait, the pictures of the first step and a dot per step, none done. */
+async function bannerOfNewQuest(page, giver, { expect, check }) {
+  const { questToast } = await until(page, (s) => s.questToast?.change === 'started', `the banner of ${giver}'s new quest`, 10_000);
+  const { banner } = questToast;
+  expect(banner.giver === giver && banner.done === 0 && banner.goal.length > 0, `the banner of ${giver}'s new quest shows ${JSON.stringify(banner)}`);
+  const shown = await page.locator('.quest-toast [data-goal]').first().getAttribute('data-goal');
+  expect(shown === banner.goal.join(' '), `the banner of the new quest shows the pictures "${shown}", not "${banner.goal.join(' ')}"`);
+  expect(await page.locator('.quest-toast .quest-banner-giver').isVisible(), `the banner of the new quest shows no portrait of ${giver}`);
+  expect((await page.locator('.quest-toast .quest-pip').count()) === banner.of, `the banner of the new quest shows ${await page.locator('.quest-toast .quest-pip').count()} dots for ${banner.of} steps`);
+  // Past the banner's quarter-second fade in, so the screenshot shows it as it stays.
+  await page.waitForTimeout(400);
+  await check('the banner of a new quest', 't3-banner-start');
+}
+
 /**
  * A quest by talking, against the real server: the character marked with a new quest is tapped,
- * their choices show and the one that takes the quest is tapped; the quest item they give is
+ * their choices show, each with a picture and the one that takes the quest as the strong button
+ * with the tick, and that one is tapped; the quest item they give is
  * carried to the character marked to take it, who takes it in a talk tapped through 8 times a
  * second, and their mark goes.
  */
@@ -375,6 +398,9 @@ async function questTalk(page, bot, { expect, check, notes, tabs }) {
     if (choices > 0 || s.talk.choices.length === 0) return;
     choices = s.talk.choices.length;
     expect((await page.locator('#talk .talk-choice:visible').count()) === choices, `the talk box shows ${await page.locator('#talk .talk-choice:visible').count()} choices, not the ${choices} the talk has`);
+    const looks = await page.locator('#talk .talk-choice:visible').evaluateAll((buttons) => buttons.map((button) => ({ picture: button.querySelector('[data-picture]')?.getAttribute('data-picture') ?? null, kind: button.getAttribute('data-kind') })));
+    expect(looks.every((look) => look.picture !== null), `a choice in the talk box shows no picture: ${JSON.stringify(looks)}`);
+    expect(looks.some((look) => look.kind === 'takes' && look.picture === 'pictures/check'), `no choice that takes ${giver}'s quest shows the tick as the strong button: ${JSON.stringify(looks)}`);
     await check('choices in the talk box', 't1-choices');
     await talkIgnoresMapAndTabsToChoice(page, s.talk, { expect, tabs });
   };
@@ -383,6 +409,7 @@ async function questTalk(page, bot, { expect, check, notes, tabs }) {
   const carrying = await until(page, (s) => s.talk === null && s.npcs.some((npc) => npc.mark === 'turnIn'), `a character to take ${giver}'s quest to`);
   const to = carrying.npcs.find((npc) => npc.mark === 'turnIn').id;
   expect(questItems(carrying) > questItems(offered), `${giver}'s quest gave no quest item to deliver: ${JSON.stringify(carrying.progress?.inventory)}`);
+  await bannerOfNewQuest(page, giver, { expect, check });
   await openTalk(page, bot, to, { notes });
   await until(page, (s) => s.talk === null || (s.talk.typed && !s.talk.waiting), `${to}'s first line`);
   await nextFrames(page);
@@ -424,6 +451,7 @@ async function wildBattle(page, bot, { expect, check, notes }) {
   }
   expect(ended.battle.outcome !== null, 'the wild battle shows a result without an outcome');
   await nextFrames(page);
+  await animationsSettled(page);
   await check('the wild battle result', '12-wild-result');
   await page.locator('#battle .battle-continue').tap();
   const back = await until(page, (s) => s.screen === 'world' && s.battle === null && s.progress !== null, 'the world after the wild battle');
@@ -432,13 +460,20 @@ async function wildBattle(page, bot, { expect, check, notes }) {
 }
 
 /**
- * At a shrine with only the starter, the team screen never offers to leave it there (the server
- * refuses, core `swapStorage`) and says it stays with you instead.
+ * Resting at a shrine shows the shrine beside the news, sparkles on the team button and puts the
+ * flag of where you wake on the shrine. With only the starter there, the team screen never offers
+ * to leave it (the server refuses, core `swapStorage`) and says it stays with you instead.
  */
 async function keepOne(page, bot, { language, expect, check, notes }) {
   const shrine = Object.keys(bot.map.shrines).toSorted()[0];
-  await walkByTaps(page, bot, bot.map.shrines[shrine], { notes });
+  const at = bot.map.shrines[shrine];
+  await walkByTaps(page, bot, at, { notes });
   await until(page, (s) => s.storage?.shrine === shrine, `the storage of ${shrine} after resting there`);
+  const rested = await until(page, (s) => s.toast === 'shrine.rested' && s.wakeFlag !== null, `the news of resting at ${shrine} with its flag`, 2_000);
+  expect(rested.toastPicture === 'tiles/shrine', `the news of resting shows ${rested.toastPicture}, not the shrine`);
+  expect(rested.wakeFlag.x === at.x && rested.wakeFlag.y === at.y, `the flag stands at ${JSON.stringify(rested.wakeFlag)}, not on ${shrine}`);
+  expect((await page.locator('.team-button[data-rested]').count()) === 1, 'the team button does not sparkle after resting');
+  await check('the rest at a shrine', 'b4-rested');
   await page.locator('.team-button').tap();
   const opened = await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
   await until(page, (s) => s.toast === null, 'the toast about resting to go', 6_000);
@@ -446,6 +481,7 @@ async function keepOne(page, bot, { language, expect, check, notes }) {
   expect(opened.progress?.team.length === 1, `the new player has ${opened.progress?.team.length} creatures, not just the starter`);
   expect((await page.locator('#team .team-store').count()) === 0, 'the team screen offers to leave the only creature at the shrine');
   expect((await textOf(page, '#team .team-keep')) === STRINGS['storage.keepOne'][language], `the team screen says "${await textOf(page, '#team .team-keep')}" about the only creature`);
+  for (const problem of await weatherChipProblems(page, '#team', language)) expect(false, problem);
   await check('the team screen with one creature at a shrine', 'b5-team');
 }
 
@@ -671,7 +707,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     await shot('3-new-player');
 
     await page.locator('.create').tap();
-    await chooseStarter(page, bot, { say, expect, check, notes });
+    await chooseStarter(page, bot, { language, say, expect, check, notes });
     state = await enterWorld(page, bot, inWorld, 'the world after making a player', { notes });
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
     expect(state.playerCount >= 1, `player count is ${state.playerCount}`);
@@ -795,13 +831,13 @@ async function lockedTwiceLater(browserName) {
   };
 }
 
-async function narrowPage(browser, browserName, label, language, problems, screenshots) {
+async function narrowPage(browser, browserName, label, language, problems, screenshots, { contextOptions = {}, mayCancel } = {}) {
   await spaceRuns();
-  const context = await browser.newContext({ viewport: NARROW, hasTouch: true, isMobile: browserName === 'chromium', extraHTTPHeaders: asDevice(nextAddress()) });
+  const context = await browser.newContext({ viewport: NARROW, hasTouch: true, isMobile: browserName === 'chromium', extraHTTPHeaders: asDevice(nextAddress()), ...contextOptions });
   await context.addInitScript(presetLanguage, language);
   await context.addInitScript(reportCspViolations);
   const page = await context.newPage();
-  watch(context, page, problems, { allowedHost });
+  watch(context, page, problems, { allowedHost, mayCancel });
   const shot = async (step) => {
     const path = join(shots, `${label}-${step}.png`);
     await screenshot(page, path);
@@ -872,6 +908,22 @@ async function checkNarrow(browser, browserName, language, { lockedId, twiceId }
 }
 
 /**
+ * The session ends on the server while the player is in the world, as when it runs out: the page
+ * goes back to the profile list, which says so beside the courier walking back to it.
+ */
+async function sessionEndedElsewhere(page, { language, expect, noSideways, shot }) {
+  const token = await page.evaluate(() => JSON.parse(localStorage.getItem('nebotok:session') ?? 'null')?.token ?? null);
+  const ended = await apiCall(server.base, '/sessions/current', { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+  expect(ended.status === 204, `ending the session from outside answered ${ended.status}`);
+  await until(page, (s) => s.screen === 'profiles' && s.notice === 'connection.signedOut', 'the profile list saying the session ended', 10_000);
+  expect((await textOf(page, '#profiles .notice-words')) === STRINGS['connection.signedOut'][language], `the session-ended notice says "${await textOf(page, '#profiles .notice-words')}"`);
+  expect((await page.locator('#profiles .notice .notice-courier').count()) === 1, 'the session-ended notice shows no courier walking back');
+  await animationsSettled(page);
+  await noSideways('the session-ended notice');
+  await shot('add-pin-6-session-ended');
+}
+
+/**
  * A player made without a PIN adds one from the settings: typed twice, wrong the second time once,
  * then confirmed. After switching player, the profile asks for that PIN and signs in with it.
  */
@@ -890,11 +942,20 @@ async function checkAddPin(browser, browserName, language, bot) {
   const targets = async (where) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
   };
+  const check = async (where, step) => {
+    await targets(where);
+    await noSideways(where);
+    await shot(step);
+  };
   try {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    let state = await enterWorld(page, bot, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add', { notes });
+    const atStarter = async () => {
+      for (const problem of await weatherChipProblems(page, '#starter', language)) problems.push(problem);
+      await check('the starter choice at 360px', 'add-pin-0-starter');
+    };
+    let state = await enterWorld(page, bot, (s) => inWorld(s) && s.canAddPin, 'the world, with a PIN to add', { notes, atStarter });
     expect(state.profile?.name === name, `signed in as ${state.profile?.name}, not ${name}`);
 
     await page.locator('.settings-button').tap();
@@ -946,16 +1007,11 @@ async function checkAddPin(browser, browserName, language, bot) {
     state = await until(page, inWorld, 'the world after signing in with the added PIN');
     expect(state.profile?.name === name, 'the added PIN signed in as someone else');
     await shot('add-pin-5-signed-in');
-    const check = async (where, step) => {
-      await targets(where);
-      await noSideways(where);
-      await shot(step);
-    };
     await wildBattle(page, bot, { expect, check, notes });
     await keepOne(page, bot, { language, expect, check, notes });
     await page.locator('#team .team-close').tap();
     await until(page, (s) => s.screen === 'world', 'the world after closing the team');
-    await signOut(page);
+    await sessionEndedElsewhere(page, { language, expect, noSideways, shot });
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
@@ -966,9 +1022,11 @@ async function checkAddPin(browser, browserName, language, bot) {
 
 /**
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
- * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs), wins a wild
- * battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
- * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
+ * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs) with the first
+ * quest a battle does not move on active (learnerStory), so its journal shows a quest card, sees the
+ * swap hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English,
+ * after picking another and going back; WebKit picks, switches and goes back, then keeps them all,
+ * in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'en' : 'sl';
@@ -982,7 +1040,9 @@ async function checkLearn(browser, browserName, bot) {
   };
   const made = await api('/profiles', { body: { name, avatar: 'green' }, address: nextAddress() });
   if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
-  prepareSave(dataDir, made.data.id, learnerSave({ name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } }));
+  const learner = learnerSave({ name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } });
+  const { story, carried } = learnerStory();
+  prepareSave(dataDir, made.data.id, story ? { ...learner, story, inventory: [...carried, ...learner.inventory] } : learner);
   const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
   const check = async (where, step) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
@@ -993,8 +1053,9 @@ async function checkLearn(browser, browserName, bot) {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
-    await until(page, (s) => inWorld(s) && s.progress?.team.length === 1, 'the world with the learner');
-    await storyScreensFit(page, { noSideways, check });
+    await until(page, (s) => inWorld(s) && s.progress?.team.length === 2, 'the world with the learner');
+    await storyScreensFit(page, { noSideways, check, expect });
+    await seeSwapHint(page, { expect, check });
     await meetWildCreature(page, bot, { notes });
     await playLearning(page, { language, strings: STRINGS, forget: browserName === 'chromium' ? 1 : null, expect, check });
     await signOut(page);
@@ -1009,8 +1070,8 @@ async function checkLearn(browser, browserName, bot) {
 
 /**
  * At 360px wide, a player prepared beside a bush and a cooking pot (scripts/lib/skill-saves.mjs)
- * opens the recipe book, a tiny game's card and the Skills tab, which must fit without scrolling
- * sideways. Chromium plays it in Slovenian, WebKit in English.
+ * opens the recipe book, a tiny game's card with its demo hand and missed result, and the Skills
+ * tab, which must fit without scrolling sideways. Chromium plays it in Slovenian, WebKit in English.
  */
 async function checkSkillsNarrow(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'sl' : 'en';
@@ -1018,6 +1079,9 @@ async function checkSkillsNarrow(browser, browserName, bot) {
   const problems = [];
   const screenshots = [];
   const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
   const player = await prepareSkillPlayer(browserName, '360px', language, bot, 'bush');
   const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
   const check = async (where, step) => {
@@ -1029,7 +1093,7 @@ async function checkSkillsNarrow(browser, browserName, bot) {
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
     await enterWorld(page, bot, inWorld, 'the world as the skill player at 360px', { notes });
-    await skillScreensFit(page, player.plan, { noSideways, check });
+    await skillScreensFit(page, bot, player.plan, { expect, noSideways, check, notes });
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -1042,8 +1106,9 @@ async function checkSkillsNarrow(browser, browserName, bot) {
 
 /**
  * At 360px wide, a player beside the job board who never opened it (scripts/lib/skill-saves.mjs)
- * opens it for the first time: three cards and the hint, without scrolling sideways. Chromium plays
- * it in Slovenian, WebKit in English.
+ * opens it for the first time: three cards and the hint, without scrolling sideways. Then a player
+ * with a delivery ready plays the board through, for its job news at 360px. Chromium plays it in
+ * Slovenian, WebKit in English.
  */
 async function checkBoardNarrow(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'sl' : 'en';
@@ -1054,26 +1119,96 @@ async function checkBoardNarrow(browser, browserName, bot) {
   const expect = (ok, message) => {
     if (!ok) problems.push(message);
   };
-  const player = await prepareBoardPlayer(browserName, '360px', language, bot, false);
-  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots);
+  const narrow = async () => {
+    const opened = await narrowPage(browser, browserName, label, language, problems, screenshots);
+    const check = async (where, step) => {
+      for (const target of await smallTargets(opened.page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+      await opened.shot(step);
+    };
+    return { ...opened, check };
+  };
+  const signIn = async (page, player, what) => {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', `the profile list for ${what}`);
+    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    await enterWorld(page, bot, inWorld, `the world as ${what}`, { notes });
+  };
+  const first = await prepareBoardPlayer(browserName, '360px', language, bot, false);
+  const firstPage = await narrow();
+  try {
+    await signIn(firstPage.page, first, 'the board player at 360px');
+    await boardScreenFits(firstPage.page, first.plan, { language, strings: STRINGS, expect, noSideways: firstPage.noSideways, check: firstPage.check, notes });
+    await signOut(firstPage.page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await firstPage.context.close();
+    deleteProfile(dataDir, first.id);
+  }
+  // Made only now, under the same name as the first player, who is gone.
+  const ready = await prepareBoardPlayer(browserName, '360px', language, bot);
+  const readyPage = await narrow();
+  try {
+    await signIn(readyPage.page, ready, 'the board player with a delivery at 360px');
+    await playBoard(readyPage.page, bot, ready.plan, { language, strings: STRINGS, expect, check: readyPage.check, notes });
+    await signOut(readyPage.page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await readyPage.context.close();
+    deleteProfile(dataDir, ready.id);
+  }
+  results.push({ label: `${label} (job board)`, ok: problems.length === 0, problems, screenshots, notes });
+}
+
+/**
+ * "Read to me" at 360px, on our own server only (scripts/lib/voice-check.mjs): a player prepared
+ * with the story check's save, carrying a delivery, hears nothing until a speaker button is tapped,
+ * turns "Read to me" on, finds it still on after a reload, and hands the delivery over with each
+ * line's clip and the banner's hint asked for. Every clip is answered with silence and service
+ * workers are blocked, so each one asked for reaches the check. The player is deleted afterwards.
+ */
+async function checkVoice(browser, browserName, language, bot) {
+  const label = `${browserName}-360px-${language}`;
+  const problems = [];
+  const screenshots = [];
+  const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
+  const name = voiceName(browserName, language, TAG);
+  const made = await api('/profiles', { body: { name, avatar: 'blue' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  const { plan, data } = storySave(bot, { name, language });
+  prepareSave(dataDir, made.data.id, data);
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots, {
+    contextOptions: { serviceWorkers: 'block' },
+    mayCancel: (url) => url.pathname.startsWith('/voice/'),
+  });
+  const asked = await silenceClips(context);
   const check = async (where, step) => {
     for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await noSideways(where);
     await shot(step);
+  };
+  const reload = async () => {
+    await page.reload();
+    await until(page, (s) => inWorld(s), 'the world after a reload');
   };
   try {
     await page.goto(`${server.base}/?test=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
-    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
-    await enterWorld(page, bot, inWorld, 'the world as the board player at 360px', { notes });
-    await boardScreenFits(page, player.plan, { language, strings: STRINGS, expect, noSideways, check });
+    await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
+    await until(page, (s) => inWorld(s) && s.progress !== null, 'the world as the "Read to me" player');
+    await playVoice(page, bot, plan, { language, asked, base: server.base, expect, check, notes, reload });
     await signOut(page);
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
     await context.close();
-    deleteProfile(dataDir, player.id);
+    deleteProfile(dataDir, made.data.id);
   }
-  results.push({ label: `${label} (job board)`, ok: problems.length === 0, problems, screenshots, notes });
+  results.push({ label: `${label} (read to me)`, ok: problems.length === 0, problems, screenshots, notes });
 }
 
 /** Fills our own server's list to MAX_PROFILES over the API, the way a big family would. */
@@ -1119,22 +1254,25 @@ async function timed(check) {
   for (const result of results.slice(from)) result.durationMs = Math.round(performance.now() - started);
 }
 
-/** A part's device runs (each device in each language), then its 360px runs. */
+/** A part's device runs (each device in each language), then the groups of 360px runs it names. */
 async function playPart(browser, part, bot) {
   const name = part.browser;
+  const plays = (group) => part.narrow.includes(group);
   // A lock lasts a minute and needs five logins at once, which only our own server can spare.
   // The second lock waits for the first to end, so it starts before the device runs.
-  const relock = part.narrow && LOCAL ? await lockedTwiceLater(name) : null;
+  const relock = plays('locks') && LOCAL ? await lockedTwiceLater(name) : null;
   const runs = DEVICES.filter((device) => part.devices.includes(device.name)).flatMap((device) => LANGUAGES.map((language) => ({ device, language })));
   await inTurn(runs, ({ device, language }) => timed(() => checkDevice(browser, name, device, language, bot)));
-  if (!part.narrow) return;
-  const lockedId = LOCAL ? await lockedProfile(name) : null;
-  const twiceId = relock ? await relock() : null;
-  await inTurn(LANGUAGES, (language) => timed(() => checkNarrow(browser, name, language, { lockedId, twiceId })));
-  await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
-  if (LOCAL) await timed(() => checkLearn(browser, name, bot));
-  if (LOCAL) await timed(() => checkSkillsNarrow(browser, name, bot));
-  if (LOCAL) await timed(() => checkBoardNarrow(browser, name, bot));
+  if (part.voice && LOCAL) await inTurn(LANGUAGES, (language) => timed(() => checkVoice(browser, name, language, bot)));
+  if (plays('locks')) {
+    const lockedId = LOCAL ? await lockedProfile(name) : null;
+    const twiceId = relock ? await relock() : null;
+    await inTurn(LANGUAGES, (language) => timed(() => checkNarrow(browser, name, language, { lockedId, twiceId })));
+  }
+  if (plays('addPin')) await inTurn(LANGUAGES, (language) => timed(() => checkAddPin(browser, name, language, bot)));
+  if (LOCAL && plays('learn')) await timed(() => checkLearn(browser, name, bot));
+  if (LOCAL && plays('skills')) await timed(() => checkSkillsNarrow(browser, name, bot));
+  if (LOCAL && plays('board')) await timed(() => checkBoardNarrow(browser, name, bot));
 }
 
 let bot = null;

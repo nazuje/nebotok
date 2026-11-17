@@ -213,6 +213,53 @@ body:not([data-screen='world']) .walk-hint {
   background: var(--bad);
 }
 
+/* Lost touch with the server: the unplugged cloud takes the dot's place, a ring turning on it. */
+.badge-lost {
+  position: relative;
+  flex: none;
+  display: none;
+}
+
+.badge[data-lost='true'] .badge-lost {
+  display: block;
+}
+
+.badge[data-lost='true'] .badge-dot {
+  display: none;
+}
+
+.badge-spinner {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--bad);
+  border-top-color: transparent;
+  border-radius: 50%;
+  background: var(--panel);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .badge-spinner {
+    animation: badge-spin 1s linear infinite;
+  }
+}
+
+@keyframes badge-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Four round buttons share a 360px top bar with the badge, which must keep "Connected" on one line. */
+@media (max-width: 400px) {
+  .badge {
+    gap: 6px;
+    padding: 0 10px;
+  }
+}
+
 .settings-button {
   flex: none;
   display: grid;
@@ -254,13 +301,15 @@ body:not([data-screen='world']) .walk-hint {
 }
 
 .settings-language,
-.settings-controls {
+.settings-controls,
+.settings-read {
   margin: 0;
   font-weight: 700;
 }
 
 .language,
-.controls {
+.controls,
+.read-to-me {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;
@@ -285,6 +334,29 @@ body:not([data-screen='world']) .walk-hint {
 .language-option[aria-current='true'] {
   background: var(--accent);
   color: white;
+}
+
+.read-to-me {
+  align-items: center;
+  gap: 4px;
+}
+
+.read-to-me-picture {
+  flex: none;
+  margin: 0 4px;
+}
+
+/* A speaker that reads a line or a hint aloud: on the talk box and the quest banner. */
+.speaker-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #e6eef6;
 }
 
 /* Buttons */
@@ -358,6 +430,32 @@ button:active {
   color: #7a3e00;
   font-weight: 600;
   text-align: center;
+}
+
+/* A session that ended: the courier walks back to this list, after the arrow. */
+.notice:has(.notice-picture) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.notice-picture {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .notice-courier {
+    animation: notice-walk 0.5s steps(2) 4;
+  }
+}
+
+@keyframes notice-walk {
+  from {
+    translate: 12px -3px;
+  }
 }
 
 .hint {
@@ -622,6 +720,10 @@ button:active {
   transform: translateX(-50%);
   width: min(90vw, 32rem);
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 10px 16px;
   border: 3px solid var(--bad);
   border-radius: 14px;
@@ -632,17 +734,9 @@ button:active {
   pointer-events: none;
 }
 
-/* The same red cross the world flashes on the tile. */
-.toast::before {
-  content: '';
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  margin-right: 8px;
-  vertical-align: -2px;
-  background:
-    linear-gradient(45deg, transparent 40%, var(--bad) 40% 60%, transparent 60%),
-    linear-gradient(-45deg, transparent 40%, var(--bad) 40% 60%, transparent 60%);
+/* Why, as a picture: footprints for too far, a lock for a level, a clock for a rest. */
+.toast-picture {
+  flex: none;
 }
 
 /* The first-visit hint: no words, nothing to tap, gone after the first walk. */
@@ -837,11 +931,54 @@ canvas.creature {
   gap: 6px;
 }
 
+/* The picture kit and weather icons (src/pictures.ts), scaled up with sharp pixels. */
+.picture {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.picture.mirrored {
+  transform: scaleX(-1);
+}
+
+/* A button with pictures before its words (withPicture in src/dom.ts); a tab puts them above. */
+.with-picture {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.button-pictures {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.picture-words {
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.team-tab.with-picture {
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* A weather type: its icon, with its name small underneath. */
 .type-chip {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 0.85rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px 2px;
+  border-radius: 12px;
+  font-size: 0.7rem;
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .move-chips {
@@ -854,7 +991,10 @@ canvas.creature {
 }
 
 .move-chip {
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 4px;
   border-radius: 8px;
   font-size: 0.85rem;
 }
@@ -905,11 +1045,56 @@ canvas.creature {
   border-radius: 50%;
   background: var(--panel);
   color: var(--ink);
+  position: relative;
 }
 
 .team-button svg {
   width: 30px;
   height: 30px;
+}
+
+/* A rest at the shrine healed the team: the button glows green with a sparkle on it. */
+.team-sparkle {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  display: none;
+  pointer-events: none;
+}
+
+.team-button[data-rested] {
+  box-shadow: 0 0 0 4px var(--ok);
+}
+
+.team-button[data-rested] .team-sparkle {
+  display: block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .team-button[data-rested] {
+    animation: team-heal 0.8s ease-out 2;
+  }
+
+  .team-button[data-rested] .team-sparkle {
+    animation: team-sparkle 1s ease-out 2;
+  }
+}
+
+@keyframes team-heal {
+  from {
+    box-shadow: 0 0 0 0 var(--ok);
+  }
+}
+
+@keyframes team-sparkle {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-40deg);
+  }
+
+  60% {
+    opacity: 1;
+  }
 }
 
 body:not([data-screen='world']) .team-button {
@@ -1130,11 +1315,6 @@ body:not([data-screen='world']) .team-button {
   font-weight: 800;
 }
 
-.treat-favourite::before {
-  content: '♥ ';
-  content: '♥ ' / '';
-}
-
 .treat-choice[data-favourite='true'] {
   border-color: #f783ac;
   background: #fff0f6;
@@ -1146,17 +1326,6 @@ body:not([data-screen='world']) .team-button {
   border-radius: 999px;
   background: #e6eef6;
   font-weight: 800;
-}
-
-.battle-result {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  list-style: none;
 }
 
 .battle[aria-busy='true'] button,
@@ -1338,6 +1507,14 @@ body:not([data-screen='world']) .team-button {
   font-weight: 800;
 }
 
+.learn-forget {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 #learn[aria-busy='true'] button {
   opacity: 0.6;
   pointer-events: none;
@@ -1345,8 +1522,4 @@ body:not([data-screen='world']) .team-button {
 
 .toast[data-kind='news'] {
   border-color: var(--ok);
-}
-
-.toast[data-kind='news']::before {
-  display: none;
 }

@@ -6,6 +6,7 @@ import {
   MIN_ATTEMPT_MS,
   PROTOCOL_VERSION,
   createSave,
+  defaultSettings,
   emptyProgress,
   encounterZoneAt,
   inBounds,
@@ -82,7 +83,7 @@ async function skillsServer() {
     const made = await temp.services.profiles.create({ name, avatar: 'green' });
     if (!made.ok) throw new Error(made.error);
     const position = { map: world.map.id, ...at, facing: 'left' as const };
-    temp.services.progress.save(made.value.id, createSave({ name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), ...progress }));
+    temp.services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), ...progress }));
     return enter(made.value.id);
   }
 

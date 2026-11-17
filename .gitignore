@@ -15,6 +15,8 @@ dist-prototype/
 /saves/
 # The development database (DATA_DIR outside the container).
 /.local-data/
+# A voice clip still being written by npm run voice.
+*.mp3.partial
 playwright-report/
 test-results/
 blob-report/

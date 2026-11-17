@@ -1,11 +1,14 @@
-import { SERVER_MESSAGES, type Goal, type Language, type Point, type ProgressMessage, type QuestChanged, type SkillsMessage, type StationKind, type StoryMessage, type WorldMap } from '@nebotok/core';
+import { nextGoal, SERVER_MESSAGES, type Goal, type Language, type Point, type ProgressMessage, type QuestChanged, type SkillsMessage, type StationKind, type StoryMessage, type WorldMap } from '@nebotok/core';
 import { createBagScreen } from './bag-screen.ts';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { createStoryButtons } from './hud.ts';
 import { createJournalScreen } from './journal-screen.ts';
-import { createQuestToast, type NewsLines, type NewsTone, type QuestToastState } from './quest-toast.ts';
+import { createQuestToast, questHint, type NewsLines, type NewsPicture, type NewsTone, type QuestToastState } from './quest-toast.ts';
+import { speakerButton } from './speaker-button.ts';
+import type { Speech } from './speech.ts';
 import { STORY, storyProgress } from './story-content.ts';
+import { text } from './strings.ts';
 
 /** A screen over the world that the bag and the journal put up. */
 export type StoryOverlay = 'bag' | 'journal';
@@ -18,10 +21,12 @@ export type StoryOptions = {
   standing(): { map: WorldMap; tile: Point } | null;
   /** The player's skills, as the server last sent them. */
   skills(): SkillsMessage | null;
-  /** Shows the player a tile on the map: the journal's "Where next?". */
+  /** Shows the player a tile on the map: the compass, and the journal's "Where next?". */
   lookAt(tile: Point): void;
   /** Which overlay is up changed, so the page shows another screen and input may change. */
   changed(): void;
+  /** Reads a new quest banner's hint aloud, and again from its speaker button. */
+  speech: Speech;
 };
 
 export type TestStory = {
@@ -29,6 +34,8 @@ export type TestStory = {
   /** The journal has news the player has not opened it for. */
   journalNews: boolean;
   questToast: QuestToastState | null;
+  /** The tile the compass button shows, while it is on screen. */
+  compass: Point | null;
   /** The item the bag shows about, if the bag is open. */
   bag: { selected: string | null } | null;
   journal: { unfolded: string[]; goal: Point | null } | null;
@@ -42,8 +49,8 @@ export type Story = {
   overlay(): StoryOverlay | null;
   /** Forgets the player's story, as when they leave the world. */
   reset(): void;
-  /** Shows other news in the quest toast's queue. */
-  news(lines: NewsLines, tone: NewsTone): void;
+  /** Shows other news in the quest toast's queue, led by a picture when it has one. */
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
   snapshot(): TestStory;
 };
 
@@ -59,24 +66,55 @@ export function createStory(options: StoryOptions): Story {
   let news = false;
 
   const current = () => (progress ? storyProgress(progress, saved, options.skills()) : null);
-  const toast = createQuestToast(element<HTMLElement>('.quest-toast'), options.language);
+  const { speech } = options;
+  const toast = createQuestToast(element<HTMLElement>('.quest-toast'), options.language, {
+    speaker: (change, language) => {
+      const hint = questHint(change, language);
+      return hint !== null && speech.has(null, hint) ? speakerButton('quest-speaker', text('speech.play', language), () => speech.say(null, hint)) : null;
+    },
+    shown: (change, language) => {
+      const hint = questHint(change, language);
+      if (hint !== null) speech.onHint(hint);
+    },
+  });
   const close = () => open(null);
   const bag = createBagScreen(element<HTMLElement>('#bag'), { language: options.language, progress: current, closed: close });
+  const tileOf = (goal: Goal): Point | null => {
+    const standing = options.standing();
+    return standing ? goalTile(goal, standing.map, { from: standing.tile, usable: (spot) => spotUsable(spot, options.skills()) }) : null;
+  };
   const journal = createJournalScreen(element<HTMLElement>('#journal'), {
     language: options.language,
     progress: () => (saved ? current() : null),
     skills: options.skills,
-    goalTile: (goal) => {
-      const standing = options.standing();
-      return standing ? goalTile(goal, standing.map, { from: standing.tile, usable: (spot) => spotUsable(spot, options.skills()) }) : null;
-    },
+    goalTile: tileOf,
     whereNext: (tile) => {
       close();
       options.lookAt(tile);
     },
     closed: close,
   });
-  const buttons = createStoryButtons({ bag: () => open('bag'), journal: () => open('journal') });
+  // The compass's goal is worked out again only when the story, the skills or where the player stands changed.
+  let compassFrom: readonly unknown[] = [];
+  let compassTile: Point | null = null;
+  function compassGoal(): Point | null {
+    const standing = options.standing();
+    const from = [progress, saved, options.skills(), standing?.map, standing?.tile.x, standing?.tile.y];
+    if (from.length === compassFrom.length && from.every((value, at) => value === compassFrom[at])) return compassTile;
+    compassFrom = from;
+    const story = saved ? current() : null;
+    const goal = story ? nextGoal(story, STORY) : null;
+    compassTile = goal ? tileOf(goal) : null;
+    return compassTile;
+  }
+  let compass: Point | null = null;
+  const buttons = createStoryButtons({
+    bag: () => open('bag'),
+    journal: () => open('journal'),
+    whereNext: () => {
+      if (compass) options.lookAt(compass);
+    },
+  });
 
   function open(next: StoryOverlay | null) {
     if (next !== null && (options.blocked() || progress === null)) return;
@@ -116,7 +154,8 @@ export function createStory(options: StoryOptions): Story {
     },
     frame: () => {
       if (overlay !== null && options.blocked()) close();
-      buttons.render(progress !== null, news, options.language());
+      compass = overlay === null && !options.blocked() ? compassGoal() : null;
+      buttons.render(progress !== null, news, compass !== null, options.language());
       bag.render();
       journal.render();
       toast.render(overlay === null && !options.blocked());
@@ -129,11 +168,12 @@ export function createStory(options: StoryOptions): Story {
       toast.clear();
       close();
     },
-    news: (lines, tone) => toast.news(lines, tone),
+    news: (lines, tone, picture) => toast.news(lines, tone, picture),
     snapshot: () => ({
       story: saved,
       journalNews: news,
       questToast: toast.state(),
+      compass,
       bag: overlay === 'bag' ? bag.state() : null,
       journal: overlay === 'journal' ? journal.state() : null,
     }),

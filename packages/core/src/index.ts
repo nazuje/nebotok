@@ -9,6 +9,7 @@ export {
   WalkToMessage,
   WalkHoldMessage,
   WalkStopMessage,
+  SettingsSetMessage,
   walkMessage,
   welcome,
   isCompatibleProtocol,
@@ -16,6 +17,7 @@ export {
   type WelcomeMessageKey,
   type WalkRefused,
   type WorldInfo,
+  type SettingsMessage,
 } from './protocol.ts';
 export {
   LANGUAGES,
@@ -67,10 +69,12 @@ export {
   SkillLevel,
   BoardJob,
   JobsProgress,
+  PlayerSettings,
   SaveData,
   SaveError,
   migrations,
   createSave,
+  defaultSettings,
   migrateSave,
   type Migration,
   type SaveFile,
@@ -153,6 +157,7 @@ export {
   COURIER_POSES,
   DEFAULT_COURIER,
   GAME_SPRITES,
+  PICTURES,
   SpriteId,
   PixelSprite,
   PngSprite,
@@ -177,6 +182,7 @@ export {
   type SpriteAnimation,
   type CourierFacing,
   type CourierPose,
+  type PictureId,
   type Art,
   type ArtResult,
   type ArtUsers,
@@ -322,6 +328,7 @@ export {
   DialogueFile,
   DIALOGUE_FILE,
   QuestStep,
+  StepPicture,
   Quest,
   QuestsFile,
   Chapter,
@@ -330,6 +337,10 @@ export {
   InventoryFile,
   nodeTargets,
   reachableNodes,
+  CHOICE_PICTURES,
+  choiceKind,
+  choicePicture,
+  type ChoiceKind,
   type StoryCue,
   type Mood,
 } from './story-content.ts';
@@ -345,6 +356,7 @@ export {
   type StoryContentFiles,
   type StoryWorld,
 } from './story.ts';
+export { pictureSprite, stepPictures } from './quest-pictures.ts';
 export { MAX_BAG_ENTRIES, stackLimit, giveItems, takeItems, bagView, type BagRules, type ItemCount, type Gift, type BagEntry, type BagSection } from './inventory.ts';
 export {
   questState,

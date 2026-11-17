@@ -5,6 +5,7 @@
  * files are checked by `storyProblems` in story.ts; docs/protocol.md explains how talks and quests run.
  */
 import { z } from 'zod';
+import { PICTURES, type PictureId } from './art.ts';
 import { ContentId, ITEM_KINDS, LocalizedText, noRepeatedIds } from './content.ts';
 
 /** Moments the client plays as a little scene: `effects/<cue>` in content/art/ is its picture. */
@@ -89,8 +90,8 @@ export type StepEffect = z.infer<typeof StepEffect>;
 
 const NodeId = z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'node ids are short lowercase words, such as "offer"');
 
-/** A choice the player can pick, shown only while its `if` holds. */
-export const DialogueChoice = z.strictObject({ say: LocalizedText, next: NodeId, if: Conditions.optional() });
+/** A choice the player can pick, shown only while its `if` holds, with a picture of the picture kit (`picture`, else `choicePicture`'s default). */
+export const DialogueChoice = z.strictObject({ say: LocalizedText, next: NodeId, if: Conditions.optional(), picture: z.enum(PICTURES).optional() });
 export type DialogueChoice = z.infer<typeof DialogueChoice>;
 
 const cueCount = (node: { cue?: unknown; effects?: readonly Effect[] | undefined }) =>
@@ -124,6 +125,37 @@ export type DialogueEntry = z.infer<typeof DialogueEntry>;
 /** The node ids a node leads to, in order. */
 export function nodeTargets(node: DialogueNode): string[] {
   return [...(node.next === undefined ? [] : [node.next]), ...(node.choices ?? []).map((choice) => choice.next)];
+}
+
+/**
+ * What a choice does, for players who cannot read its words: `takes` when the lines it leads to
+ * (through `next`, up to the next choices) start a quest, `declines` when they end the talk with
+ * nothing done. Null for any other choice.
+ */
+export type ChoiceKind = 'takes' | 'declines';
+
+/** The picture a choice of each kind shows unless its own `picture` names another. */
+export const CHOICE_PICTURES: Readonly<Record<ChoiceKind, PictureId>> = { takes: 'check', declines: 'clock' };
+
+export function choiceKind(nodes: Readonly<Record<string, DialogueNode>>, choice: DialogueChoice): ChoiceKind | null {
+  const seen = new Set<string>();
+  let didSomething = false;
+  for (let id: string | undefined = choice.next; id !== undefined; ) {
+    const node: DialogueNode | undefined = Object.hasOwn(nodes, id) ? nodes[id] : undefined;
+    if (!node || seen.has(id) || node.choices) return null;
+    seen.add(id);
+    if ((node.effects ?? []).some((effect) => 'startQuest' in effect)) return 'takes';
+    didSomething ||= node.effects !== undefined || node.cue !== undefined;
+    id = node.next;
+  }
+  return didSomething ? null : 'declines';
+}
+
+/** The picture a choice shows: its own `picture`, else the one for its kind, else none. */
+export function choicePicture(nodes: Readonly<Record<string, DialogueNode>>, choice: DialogueChoice): PictureId | null {
+  if (choice.picture !== undefined) return choice.picture;
+  const kind = choiceKind(nodes, choice);
+  return kind === null ? null : CHOICE_PICTURES[kind];
 }
 
 /** Every node an entry can lead to. */
@@ -178,7 +210,23 @@ export function dialogueFile(npc: string): z.ZodType {
   return DialogueFile.refine((dialogue) => dialogue.npc === npc, `this is dialogue/${npc}.json, so its npc must be "${npc}"`);
 }
 
-const stepBase = { id: ContentId, hint: LocalizedText, effects: z.array(StepEffect).min(1).max(4).optional() };
+/**
+ * The picture of what a step asks for, for players who cannot read yet: one item, character
+ * (their portrait), species, weather type, spot, station or picture of the picture kit. Without
+ * it the game shows a default from the step itself (`stepPictures` in quest-pictures.ts).
+ */
+export const StepPicture = z.union([
+  z.strictObject({ item: ContentId }),
+  z.strictObject({ npc: ContentId }),
+  z.strictObject({ species: ContentId }),
+  z.strictObject({ weather: ContentId }),
+  z.strictObject({ spot: ContentId }),
+  z.strictObject({ station: ContentId }),
+  z.strictObject({ picture: z.enum(PICTURES) }),
+]);
+export type StepPicture = z.infer<typeof StepPicture>;
+
+const stepBase = { id: ContentId, hint: LocalizedText, picture: StepPicture.optional(), effects: z.array(StepEffect).min(1).max(4).optional() };
 
 /**
  * One step of a quest. `talk` and `deliver` steps are completed by a dialogue node of their

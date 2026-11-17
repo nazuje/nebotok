@@ -1,12 +1,15 @@
 import { CLOCK_SLACK_MS, MIN_ATTEMPT_MS, type DipParams, type Language, type MarkerParams, type SkillAttemptMessage, type SkillOutcome, type SkillResultMessage, type SparkleParams, type StringId, type Tap } from '@nebotok/core';
 import { itemIcon } from './bag-screen.ts';
 import { itemName } from './battle-content.ts';
-import { el, icon } from './dom.ts';
+import { el, icon, withPicture } from './dom.ts';
+import { createGameHint } from './game-hint.ts';
+import { pictureIcon } from './pictures.ts';
 import { ANSWER_MS } from './request-pacer.ts';
 import { createDip } from './skill-games/dip.ts';
 import { createMarker } from './skill-games/marker.ts';
 import type { MiniGame, MiniGameOptions } from './skill-games/mini-game.ts';
 import { createSparkle } from './skill-games/sparkle.ts';
+import { outcomePictures, skillResultKind, type SkillResultKind } from './skill-pictures.ts';
 import { STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
 
@@ -15,8 +18,8 @@ import { format, text } from './strings.ts';
  * clock started earlier, never judges it too quick.
  */
 export const EARLIEST_FINISH_MS = MIN_ATTEMPT_MS + CLOCK_SLACK_MS;
-/** How long a won game's result stays before the card closes by itself. */
-export const RESULT_SHOW_MS = 2_000;
+/** How long a won game's result stays before the card closes by itself: its pictures land in about half that. */
+export const RESULT_SHOW_MS = 2_500;
 
 const HINTS: Readonly<Record<SkillAttemptMessage['game'], StringId>> = { dip: 'skill.dip.hint', sparkle: 'skill.sparkle.hint', marker: 'skill.marker.hint' };
 const CLOSE_ICON = 'M6.4 4.6 12 10.2l5.6-5.6 1.8 1.8-5.6 5.6 5.6 5.6-1.8 1.8-5.6-5.6-5.6 5.6-1.8-1.8 5.6-5.6-5.6-5.6z';
@@ -39,6 +42,10 @@ export type TestAttempt = {
   readonly taps: readonly Tap[];
   readonly outcome: SkillOutcome | null;
   readonly line: string | null;
+  /** The first-time demo hand is showing. */
+  readonly demo: boolean;
+  /** The result's pictures, once they show. */
+  readonly pictures: SkillResultKind | null;
 };
 
 const WON: ReadonlySet<SkillOutcome> = new Set(['perfect', 'success']);
@@ -80,6 +87,8 @@ function miniGame(attempt: SkillAttemptMessage, options: MiniGameOptions): MiniG
 export type SkillCardOptions = {
   language(): Language;
   reducedMotion(): boolean;
+  /** The signed-in player's profile id, so each player sees the demo hand until they have tapped. */
+  player(): number | null;
   /** The game is over: report these taps. */
   finish(attempt: number, taps: readonly Tap[]): void;
   /** The card was closed before the game was over. */
@@ -128,14 +137,19 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
   let shown: Shown | null = null;
   let lastItems: SkillResultMessage['items'] = [];
   let lastExtra: SkillResultMessage['extra'] = [];
+  let pictures: SkillResultKind | null = null;
   const title = el('h2', { className: 'skill-title', attrs: { id: 'skill-title' } });
   const picture = el('div', { className: 'skill-picture' });
   const close = el('button', { className: 'skill-close', attrs: { type: 'button' } }, [icon(CLOSE_ICON)]);
   const hint = el('p', { className: 'skill-hint' });
   const play = el('div', { className: 'skill-play' });
   const line = el('p', { className: 'skill-result', attrs: { role: 'status', 'aria-live': 'polite' } });
-  const again = el('button', { className: 'primary skill-again', attrs: { type: 'button' } });
-  const done = el('button', { className: 'secondary skill-done', attrs: { type: 'button' } });
+  const againWords = el('span');
+  const again = el('button', { className: 'primary skill-again', attrs: { type: 'button' } }, [pictureIcon('again', 32), againWords]);
+  const demo = createGameHint();
+  const outcomeLayer = el('div', { className: 'skill-outcome-layer' });
+  const doneWords = el('span');
+  const done = withPicture(el('button', { className: 'secondary skill-done', attrs: { type: 'button' } }, [doneWords]), pictureIcon('cross', 32));
   const actions = el('div', { className: 'skill-actions' }, [again, done]);
   const card = el('div', { className: 'skill-card', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'skill-title' } }, [
     el('div', { className: 'skill-head' }, [picture, title, close]),
@@ -174,7 +188,10 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
     if (shown?.phase !== 'playing') return;
     const now = performance.now();
     const ms = Math.max(0, Math.round(now - shown.drawnAt));
-    if (shown.game.press(place, ms)) shown.taps.push({ at: ms, place });
+    if (shown.game.press(place, ms)) {
+      shown.taps.push({ at: ms, place });
+      demo.tapped();
+    }
     step(now);
     shown.game.frame(now - shown.drawnAt);
   }
@@ -186,8 +203,8 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
     title.textContent = attemptTitle(shown.attempt, language);
     hint.textContent = text(HINTS[shown.attempt.game], language);
     close.setAttribute('aria-label', text('team.close', language));
-    again.textContent = text('skill.tryAgain', language);
-    done.textContent = text('team.close', language);
+    againWords.textContent = text('skill.tryAgain', language);
+    doneWords.textContent = text('team.close', language);
     shown.game.relabel(language);
     showResult();
   }
@@ -200,6 +217,9 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
     const language = shown.language;
     line.textContent = phase === 'sent' || phase === 'starting' ? text('skill.waiting', language) : '';
     if (phase === 'result' && outcome !== null) line.textContent = resultLine({ outcome, items: lastItems, extra: lastExtra }, language);
+    const judged = phase === 'result' && outcome !== null ? { outcome, items: lastItems, extra: lastExtra } : null;
+    outcomeLayer.replaceChildren(...(judged ? [outcomePictures(judged, attemptItem(shown.attempt), language)] : []));
+    pictures = judged && skillResultKind(judged);
     actions.hidden = phase !== 'result';
     again.hidden = outcome === null || WON.has(outcome);
   }
@@ -238,7 +258,8 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
       const item = attemptItem(attempt);
       picture.replaceChildren(...(item ? [itemIcon(item)] : []));
       card.dataset.game = attempt.game;
-      play.replaceChildren(game.element);
+      demo.start(attempt.game, options.player());
+      play.replaceChildren(game.element, demo.element, outcomeLayer);
       root.hidden = false;
       label();
       game.frame(0);
@@ -275,6 +296,7 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
       if (shown.language !== options.language()) label();
       step(now);
       if (shown.phase !== 'starting') shown.game.frame(now - shown.drawnAt);
+      demo.aim(shown.phase === 'playing' ? shown.game.aim(now - shown.drawnAt) : null);
       if (shown.phase !== card.dataset.phase) showResult();
       if (shown.phase === 'result' && shown.outcome !== null && WON.has(shown.outcome) && now - shown.resultAt >= RESULT_SHOW_MS) shut();
     },
@@ -294,6 +316,8 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
         taps: [...shown.taps],
         outcome: shown.outcome,
         line: line.textContent || null,
+        demo: demo.shown(),
+        pictures,
       },
   };
 }

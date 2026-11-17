@@ -1,7 +1,7 @@
 import { matchMaker } from '@colyseus/core';
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, MAX_PROFILES, MAX_TAPS, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, MAX_PROFILES, MAX_TAPS, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
@@ -405,7 +405,7 @@ describe('saving positions', () => {
   it('starts at the spawn when the saved tile is no longer walkable', async () => {
     const { id, token } = await profile('Lost Courier');
     const blocked = blockedTile();
-    temp.services.progress.save(id, createSave({ name: 'Lost Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: { map: map().id, ...blocked, facing: 'up' }, ...emptyProgress() }));
+    temp.services.progress.save(id, createSave({ settings: defaultSettings(), name: 'Lost Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: { map: map().id, ...blocked, facing: 'up' }, ...emptyProgress() }));
     const room = await join(token);
     expect(at(room, room.sessionId, spawn())).toBe(true);
   });
@@ -420,7 +420,7 @@ describe('saving positions', () => {
       seen: ['puddlepip'],
       befriended: ['puddlepip'],
     };
-    temp.services.progress.save(id, createSave({ name: 'Team Courier', language: 'sl', createdAt: '2026-05-01T09:00:00.000Z', position: null, ...progress }));
+    temp.services.progress.save(id, createSave({ settings: defaultSettings(), name: 'Team Courier', language: 'sl', createdAt: '2026-05-01T09:00:00.000Z', position: null, ...progress }));
     const room = await join(token);
     expect(room.state.players.get(room.sessionId)?.inBattle).toBe(false);
     const target = tileAway(2);
@@ -462,6 +462,36 @@ describe('messages', () => {
     await until(() => refusals.length === requests.length, 'every request to be refused');
     expect(refusals).toEqual(requests.map(([type]) => ({ request: type, reason: 'notNow' })));
     expect(room.state.players.get(room.sessionId)?.skill).toBe('');
+  });
+
+  it('keeps "Read to me" with the player: off for a new one, saved at once when changed, sent on each join', async () => {
+    const { id, token } = await profile('Listening Courier');
+    const joinSeeing = async () => {
+      colyseus.sdk.auth.token = token;
+      const room = await colyseus.sdk.joinOrCreate<WorldState>('world', { protocol: PROTOCOL_VERSION });
+      room.reconnection.enabled = false;
+      const settings: unknown[] = [];
+      room.onMessage('settings', (message: unknown) => {
+        settings.push(message);
+      });
+      await room.waitForMessage('welcome');
+      await until(() => settings.length > 0, 'the settings on joining');
+      return { room, settings };
+    };
+    const first = await joinSeeing();
+    expect(first.settings).toEqual([{ readToMe: false }]);
+    first.room.send('settings.set', { readToMe: true });
+    await until(() => first.settings.length === 2, 'the settings sent back');
+    expect(first.settings[1]).toEqual({ readToMe: true });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true });
+    await first.room.leave();
+
+    const again = await joinSeeing();
+    expect(again.settings).toEqual([{ readToMe: true }]);
+    const left = leftWith(again.room);
+    again.room.send('settings.set', { readToMe: 'yes' });
+    expect(await left).toBe(4002);
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true });
   });
 
   it('disconnects a client that sends more taps than a game takes', async () => {

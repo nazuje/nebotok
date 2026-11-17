@@ -194,6 +194,7 @@ try {
   await server.kill();
   await until(lan.page, (s) => s.connection !== 'connected', 'the page to notice the server is gone', 20_000, { ready: false });
   await sleep(DOWN_MS);
+  expect(await lan.page.locator('.badge[data-lost="true"] .badge-lost').isVisible(), 'the badge shows no unplugged cloud while the server is gone');
   await shot('2-outage', [lan]);
 
   server = await startServer({ env, port, logFile: join(logs, 'restart-check-server-2.log') });

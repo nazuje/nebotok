@@ -12,6 +12,9 @@ export type MiniGameOptions = {
   press(place: number): void;
 };
 
+/** Where the first-time demo hand points, and whether now is the moment it taps there. */
+export type Aim = { readonly target: HTMLElement; readonly now: boolean };
+
 /**
  * One tiny game inside the card. The card owns the clock and the taps: it draws the game `ms`
  * after it first showed it, passes each press on, keeps only those the game accepts, and finishes
@@ -29,6 +32,8 @@ export type MiniGame = {
   over(taps: readonly Tap[], ms: number): boolean;
   /** Labels the game again in another language. */
   relabel(language: Language): void;
+  /** What a player should tap `ms` after the game was drawn, for the demo hand; null while there is nothing to tap. */
+  aim(ms: number): Aim | null;
 };
 
 /** Keys that play dip and marker. */

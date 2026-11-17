@@ -7,7 +7,7 @@ import { z } from 'zod';
  * frames side by side. `docs/art.md` is the guide.
  */
 
-export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather', 'characters', 'portraits', 'effects', 'spots', 'stations', 'actions', 'games', 'skills'] as const;
+export const SPRITE_KINDS = ['tiles', 'couriers', 'creatures', 'icons', 'backgrounds', 'items', 'weather', 'characters', 'portraits', 'effects', 'spots', 'stations', 'actions', 'games', 'skills', 'pictures'] as const;
 export type SpriteKind = (typeof SPRITE_KINDS)[number];
 
 /** "." is always transparent, so it can never be a palette colour. */
@@ -26,6 +26,13 @@ export const courierFrame = (facing: CourierFacing, pose: CourierPose) => `${fac
 export const courierWalk = (facing: CourierFacing) => `walk-${facing}`;
 /** The courier drawn for an avatar id that has no sprite of its own. */
 export const DEFAULT_COURIER = 'couriers/courier';
+
+/**
+ * The picture kit: small pictures that say on screen what words would, for players who cannot read
+ * yet. `arrow` points right; the game mirrors it to point left.
+ */
+export const PICTURES = ['check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation', 'puff'] as const;
+export type PictureId = (typeof PICTURES)[number];
 
 /** The sprite each kind of content needs, by its id. */
 export const spriteFor = {
@@ -51,6 +58,8 @@ export const spriteFor = {
   action: (skill: string) => `actions/${skill}`,
   /** A skill's icon, by skill id. */
   skill: (skill: string) => `skills/${skill}`,
+  /** A picture of the picture kit. */
+  picture: (id: PictureId) => `pictures/${id}`,
 } as const;
 
 /** The pictures of each tiny game, and the frames each needs beyond its kind's own. */
@@ -83,6 +92,7 @@ export const SPRITE_RULES: Readonly<Record<SpriteKind, KindRule>> = {
   actions: { sizes: [[16, 16]], frames: [], animations: ['play'] },
   games: { sizes: [[32, 32]], frames: [], animations: [] },
   skills: { sizes: [[16, 16]], frames: [], animations: [] },
+  pictures: { sizes: [[16, 16]], frames: [], animations: [] },
 };
 
 const NAME = '[a-z][a-z0-9-]{0,31}';
@@ -320,6 +330,7 @@ export type ArtUsers = {
 export function missingArt(art: Art, users: ArtUsers): string[] {
   const needs: [string, string][] = [
     ['the game, for avatars without a courier of their own,', DEFAULT_COURIER],
+    ...PICTURES.map((id): [string, string] => ['the picture kit', spriteFor.picture(id)]),
     ...users.avatars.map((id): [string, string] => [`avatar "${id}"`, spriteFor.avatar(id)]),
     ...users.species.flatMap((id): [string, string][] => [
       [`species "${id}"`, spriteFor.species(id)],

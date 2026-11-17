@@ -15,7 +15,9 @@ changing Phaser code, and use Phaser 4 APIs only.
   never a literal in code.
 - **Own origin only.** The game loads fonts, images and data from its own server. The
   Content-Security-Policy refuses anything else, and the browser check fails on any outside request.
-- **Sound** never plays unasked: Phaser starts with audio off until sound is designed in.
+- **Sound** never plays unasked: Phaser starts with audio off until sound is designed in. The only
+  sound is "Read to me" (`src/speech.ts`), the voice clips through one audio element
+  (`src/clip-player.ts`), while the player has it on or taps a speaker button.
 - **Test hook.** With `?test=1` only, `window.__nebotok` exposes `ready` (true once the map is
   drawn and the connection settled, with your own courier on it when connected), `stateAsText()`
   (JSON from `src/test-hook.ts`, including every player's tile and drawn position) and
@@ -40,7 +42,10 @@ changing Phaser code, and use Phaser 4 APIs only.
   couriers are HTML (`src/names.ts`).
 - **Art** comes from `content/art/`, bundled by `src/sprites.ts`, which makes each sprite a
   Phaser texture with its frames and animations; `src/tileset-art.ts` draws and animates map
-  tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`).
+  tilesets. Never hard-code pixels or load an image by URL; add a sprite (`docs/art.md`). HTML
+  screens show pictures with `pictureIcon(id, sizePx)` (the picture kit, `content/art/pictures/`)
+  and `weatherIcon(type, sizePx)` from `src/pictures.ts`, hidden from screen readers unless given
+  a `label`.
 - **Input** (`src/input.ts`) sends every movement command through `src/outbox.ts`, which keeps
   a page under the server's message limits however fast it is tapped or mashed. Battle, talk,
   skill and board requests go through the page's one `src/request-pacer.ts` for the same reason,

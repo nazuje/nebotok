@@ -53,5 +53,11 @@ export function createSparkle(params: SparkleParams, options: MiniGameOptions): 
     relabel: (language: Language) => {
       for (const spot of places) spot.setAttribute('aria-label', text('skill.sparkle.place', language));
     },
+    aim: (ms) => {
+      const shown = shownSparkle(params, hit, ms);
+      const place = shown === null ? undefined : params.sparkles[shown]?.place;
+      const spot = place === undefined ? undefined : places[place];
+      return spot ? { target: spot, now: true } : null;
+    },
   };
 }

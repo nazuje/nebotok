@@ -55,6 +55,35 @@ export const presetLanguage = (chosen) => {
   if (localStorage.getItem('nebotok:language') === null) localStorage.setItem('nebotok:language', JSON.stringify(chosen));
 };
 
+/** The picture each kind of screen control holds (`data-picture`), for a player who cannot read yet. */
+export const CONTROL_PICTURES = {
+  close: 'pictures/cross',
+  back: 'pictures/arrow',
+  quests: 'pictures/exclamation',
+  skills: JSON.parse(readFileSync(join(ROOT, 'content/skills.json'), 'utf8')).skills.map((skill) => `skills/${skill.id}`),
+  done: 'pictures/stamp',
+  team: 'team-button',
+  shrine: 'tiles/shrine',
+};
+
+/**
+ * What is wrong with the pictures of the controls `wanted` names: each selector must find at least
+ * one control, and every control it finds must hold all the picture ids given for it.
+ */
+export async function pictureProblems(page, wanted) {
+  const found = await Promise.all(
+    Object.entries(wanted).map(async ([selector, ids]) => ({
+      selector,
+      ids: [ids].flat(),
+      held: await page.locator(selector).evaluateAll((controls) => controls.map((control) => [...control.querySelectorAll('[data-picture]')].map((picture) => picture.dataset.picture))),
+    })),
+  );
+  return found.flatMap(({ selector, ids, held }) => {
+    if (held.length === 0) return [`${selector} is not on the screen`];
+    return held.filter((shown) => !ids.every((id) => shown.includes(id))).map((shown) => `${selector} shows the pictures ${JSON.stringify(shown)}, not ${JSON.stringify(ids)}`);
+  });
+}
+
 /** Any Content-Security-Policy violation is a bug: the page tried to load or run something it must not. */
 export const reportCspViolations = () => {
   document.addEventListener('securitypolicyviolation', (event) => {
@@ -65,8 +94,10 @@ export const reportCspViolations = () => {
 /**
  * Collects every sign of trouble on a page into `problems`, and refuses any request off
  * `allowedHost`. `expectStatus()` says when a refused login (a wrong PIN) is the point.
+ * `mayCancel(url)` says which requests the page may cancel, as an audio element drops the clip it
+ * was loading when the next one starts.
  */
-export function watch(context, page, problems, { allowedHost, expectStatus = () => false }) {
+export function watch(context, page, problems, { allowedHost, expectStatus = () => false, mayCancel = () => false }) {
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     if (shooting.has(page) && SCREENSHOT_STYLE_NOISE.test(message.text())) return;
@@ -75,7 +106,10 @@ export function watch(context, page, problems, { allowedHost, expectStatus = () 
     problems.push(`console error: ${message.text()}`);
   });
   page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
-  context.on('requestfailed', (request) => problems.push(`failed request: ${request.url()} (${request.failure()?.errorText})`));
+  context.on('requestfailed', (request) => {
+    if (request.failure()?.errorText === 'net::ERR_ABORTED' && mayCancel(new URL(request.url()))) return;
+    problems.push(`failed request: ${request.url()} (${request.failure()?.errorText})`);
+  });
   context.on('request', (request) => {
     const url = new URL(request.url());
     if (['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) && url.host !== allowedHost) {
@@ -98,10 +132,13 @@ export const HOOK = '__nebotok';
 export const readState = (page) => page.evaluate((key) => JSON.parse(window[key].stateAsText()), HOOK);
 // Clear of the connection badge at the top, the toasts at the bottom and the screen's edges.
 const TAP_MARGIN = { side: 40, top: 100, bottom: 90 };
+// Clear of the compass button above the toasts at the bottom right (apps/game/src/bag.css), from the right and bottom edges.
+const COMPASS_CORNER = { right: 96, bottom: 180 };
 /** Whether a spot on the page is somewhere a tap reaches the map rather than the interface. */
 export const tappable = (page, spot) => {
   const { width, height } = page.viewportSize();
-  return Boolean(spot) && spot.x > TAP_MARGIN.side && spot.x < width - TAP_MARGIN.side && spot.y > TAP_MARGIN.top && spot.y < height - TAP_MARGIN.bottom;
+  const onCompass = Boolean(spot) && spot.x > width - COMPASS_CORNER.right && spot.y > height - COMPASS_CORNER.bottom;
+  return Boolean(spot) && !onCompass && spot.x > TAP_MARGIN.side && spot.x < width - TAP_MARGIN.side && spot.y > TAP_MARGIN.top && spot.y < height - TAP_MARGIN.bottom;
 };
 
 /** Where each tile's centre is on the page, in CSS pixels, or null before a map is drawn. */
@@ -169,17 +206,28 @@ export async function servedMap(serverBase, id) {
 export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
 /**
+ * Waits until every animation that ends has ended, so a screenshot shows pictures where they land;
+ * hints that loop for ever keep going. After `timeoutMs` the screen is taken as it is.
+ */
+export async function animationsSettled(page, timeoutMs = 5_000) {
+  await page.waitForFunction(allSettled, null, { timeout: timeoutMs }).catch(() => {});
+}
+const allSettled = () => document.getAnimations().every((animation) => animation.playState !== 'running' || animation.effect?.getComputedTiming().endTime === Infinity);
+
+/**
  * Waits until the page's state passes `check`, getting a starter on the way when the player has
  * none, as every player entering the world for the first time must: walking up to the character
  * the page's hint points at, talking until they offer the starters, and taking the first. The
  * world can show before the server's progress arrives, so it counts only once the progress says
- * there is a starter. `world` is a servedMap.
+ * there is a starter. `world` is a servedMap. `atStarter`, if given, runs once the starter screen
+ * shows, before the choice.
  */
-export async function enterWorld(page, world, check, what, { notes = [], timeoutMs = 20_000 } = {}) {
+export async function enterWorld(page, world, check, what, { notes = [], timeoutMs = 20_000, atStarter = async () => {} } = {}) {
   const state = await until(page, (s) => inWorld(s) && s.progress !== null && (s.progress.needsStarter || check(s)), what, timeoutMs);
   if (!state.progress.needsStarter) return state;
   await talkForStarter(page, world, { notes });
   await nextFrames(page);
+  await atStarter();
   await page.locator('.starter-choice').first().tap();
   return until(page, (s) => s.progress?.needsStarter === false && check(s), `${what} after choosing a starter`, timeoutMs);
 }

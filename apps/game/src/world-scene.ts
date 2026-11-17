@@ -18,6 +18,9 @@ const MARKER_DEPTH = PLAYER_DEPTH - 1;
 const MARKER_COLOUR = 0xffffff;
 const REFUSED_COLOUR = 0xd64545;
 const REFUSED_MS = 450;
+/** The flag on the shrine you wake at: how far it drops in from when a rest moves it there. */
+const FLAG_DROP_PX = 10;
+const FLAG_DROP_MS = 500;
 /** The ring under your own courier, so you can find yourself among others. */
 const SELF_RING_COLOUR = 0xffffff;
 const SELF_RING_OUTLINE = 0x1b1b2f;
@@ -96,6 +99,8 @@ export type WorldSceneOptions = {
   npcLook(npc: string, at: Point): NpcLook;
   /** How much of its rest a spot still has for you at `now`, 1 just picked to 0 ready. */
   spotRest(spot: string, now: number): number;
+  /** The shrine you wake at, null for none yet, or undefined while the page does not know. */
+  wakeShrine(): { readonly map: string; readonly shrine: string } | null | undefined;
 };
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -134,6 +139,14 @@ export class WorldScene extends Scene {
   private markerTimer: Time.TimerEvent | null = null;
   /** The tile the marker shows, unless it is only a short "can't go there". */
   markerTile: Point | null = null;
+  /** The tile the short "can't go there" cross shows on, while it shows. */
+  refusedTile: Point | null = null;
+  private shrines: Readonly<Record<string, Point>> = {};
+  private flag: GameObjects.Sprite | null = null;
+  /** The shrine the flag was last put on (`map/shrine`, or '' for none), or undefined before it is known. */
+  private flagKey: string | undefined = undefined;
+  /** The shrine tile the flag stands on, if one shows. */
+  flagTile: Point | null = null;
   /** The tile the camera was sent to show, while it is on its way there or showing it. */
   lookingAt: Point | null = null;
   private goalRing: GameObjects.Graphics | null = null;
@@ -187,6 +200,8 @@ export class WorldScene extends Scene {
     this.spawnTile = map.world.spawns[PLAYER_SPAWN] ?? { x: 0, y: 0 };
     this.placeNpcs(map.world);
     this.placeThings(map.world);
+    this.shrines = map.world.shrines;
+    this.flagKey = undefined;
     this.mapId = map.id;
     if (!this.followed) this.centreOnSpawn();
   }
@@ -215,6 +230,7 @@ export class WorldScene extends Scene {
     for (const spot of this.spots.values()) this.drawSpot(spot, now);
     this.shownPlayers = shown;
     for (const npc of this.npcs.values()) this.drawNpc(npc);
+    this.drawFlag(this.options.wakeShrine());
     const self = shown.find((player) => player.self);
     const selfSprite = self ? this.sprites.get(self.id) : undefined;
     this.ring(selfSprite);
@@ -249,6 +265,7 @@ export class WorldScene extends Scene {
     this.markerPulse?.remove();
     this.markerPulse = null;
     this.markerTile = refused ? this.markerTile : tile;
+    this.refusedTile = refused ? tile : null;
     const marker = (this.marker ??= this.add.graphics().setDepth(MARKER_DEPTH));
     marker.clear().setAlpha(1);
     if (!tile) return;
@@ -265,6 +282,29 @@ export class WorldScene extends Scene {
     for (const [x, y] of [[0, 0], [TILE - 5, 0], [0, TILE - 2], [TILE - 5, TILE - 2]] as const) marker.fillRect(x, y, 5, 2);
     for (const [x, y] of [[0, 0], [TILE - 2, 0], [0, TILE - 5], [TILE - 2, TILE - 5]] as const) marker.fillRect(x, y, 2, 5);
     if (!reducedMotion()) this.markerPulse = this.tweens.add({ targets: marker, alpha: 0.45, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  /**
+   * A flag on the shrine you wake at, so you can see where you will be back after a lost battle.
+   * One a rest just moved drops in, unless motion is reduced.
+   */
+  private drawFlag(wake: { readonly map: string; readonly shrine: string } | null | undefined): void {
+    if (wake === undefined || this.mapId === null) return;
+    const key = wake ? `${wake.map}/${wake.shrine}` : '';
+    if (key === this.flagKey) return;
+    const moved = this.flagKey !== undefined;
+    this.flagKey = key;
+    const tile = wake && wake.map === this.mapId ? (this.shrines[wake.shrine] ?? null) : null;
+    this.flagTile = tile;
+    this.flag?.destroy();
+    this.flag = null;
+    if (!tile) return;
+    const art = spriteFor.picture('flag');
+    // The pole stands at the shrine's right edge, its cloth over the next tile, so a courier resting on the shrine leaves it in view.
+    const x = tile.x * TILE + TILE + 3;
+    const y = tile.y * TILE + 2;
+    this.flag = this.add.sprite(x, y, spriteTexture(this, art), firstFrame(art)).setDepth(PLAYER_DEPTH + tile.y * TILE + TILE / 2 - 1);
+    if (moved && !reducedMotion()) this.tweens.add({ targets: this.flag, y: { from: y - FLAG_DROP_PX, to: y }, alpha: { from: 0, to: 1 }, duration: FLAG_DROP_MS, ease: 'Bounce.easeOut' });
   }
 
   /** Pans the camera to a tile and pulses a ring on it, then glides back to your courier. */

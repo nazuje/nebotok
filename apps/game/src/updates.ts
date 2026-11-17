@@ -1,5 +1,7 @@
 import type { Language, StringId } from '@nebotok/core';
 import type { ConnectionStatus } from './connection.ts';
+import { el } from './dom.ts';
+import { pictureIcon } from './pictures.ts';
 import { text } from './strings.ts';
 
 /** Set while this tab's one automatic reload for an out-of-date page has been spent. */
@@ -105,6 +107,9 @@ export function createUpdates({ language, busy }: UpdateSources): Updates {
   button.type = 'button';
   button.className = 'update-button';
   button.hidden = true;
+  const again = pictureIcon('again', 32, { className: 'update-picture' });
+  const words = el('span');
+  button.append(again, words);
   document.body.append(button);
 
   let current = language;
@@ -122,7 +127,7 @@ export function createUpdates({ language, busy }: UpdateSources): Updates {
     button.disabled = reloading;
     if (shown) {
       button.dataset.offer = shown;
-      button.textContent = text(OFFER_TEXT[shown], current);
+      words.textContent = text(OFFER_TEXT[shown], current);
     }
     // While a new build waits behind a battle or a talk, look again until it can be offered.
     if (newBuild && !outdated && busyTimer === undefined) busyTimer = setInterval(render, BUSY_CHECK_MS);

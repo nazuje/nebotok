@@ -55,8 +55,8 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs th
 - `"unmarked": true`: no walk marker is shown.
 - `"welcome": ["together", "hidden"]`: the welcome line at the bottom says one of these (`"alone"`,
   `"together"`) or is `"hidden"`.
-- `"toast": "blocked"`: the short message at the bottom says the tapped tile cannot be reached
-  (`walk.blocked`), or `"hidden"`: no short message shows.
+- `"refused": true`: the red cross flashes on a tapped tile that cannot be reached.
+- `"toast": "hidden"`: no short message shows at the bottom.
 - `"hint": "tap"` / `"joystick"`: the first-visit walking hint shows for those controls, or
   `"hidden"`: it does not. Each scene browser starts with fresh storage, so a player sees it until
   their first walk.

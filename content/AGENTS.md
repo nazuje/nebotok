@@ -13,6 +13,14 @@ content follows the `add-content` skill.
   (`Povezovanje …`) and lowercase language names (`angleščina`).
 - Names are original. Players' and real children's names never appear here.
 
+## Voice clips
+
+Every dialogue `say` and choice, and every quest `name`, `summary` and step `hint`, has a
+computer-voice clip in each language, named by a hash of its exact text. After changing any of them,
+run `npm run voice` on a Mac (`scripts/voice/README.md`) and commit the clips with the manifest;
+`content:validate` fails until then. A line with a `{placeholder}` gets no clip. A character's
+`voice` in `npcs.json` sets the pitch and pace of their clips, so changing it remakes them.
+
 ## Maps
 
 Maps are Tiled JSON files, `content/maps/<id>.tmj`, checked by `readTiledMap` and
@@ -48,7 +56,7 @@ is their guide. Keep to these conventions or validation fails:
 
 `art/` holds every sprite as JSON, one character per pixel, and `art/png/` the real art that
 replaces them. `docs/art.md` is the format and style guide. `content:validate` fails while any
-avatar, species, weather type, item, character, story cue, spot, station, skill or map lacks the sprite it needs; `npm run art:sheet` draws
+avatar, species, weather type, item, character, story cue, spot, station, skill, map or picture of the picture kit lacks the sprite it needs; `npm run art:sheet` draws
 them all onto `.proof/art/sheet.png` to look at.
 
 ## Creatures and battles
@@ -171,7 +179,11 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
   to no effects and is passed over while a delivery is ready (see the job conditions above). Each node has a line `say` in both
   languages, an optional `speaker` (another character or `narrator`), a `mood` (`calm`, `happy`,
   `worried` or `surprised`), and then `next`, up to 3 `choices` (each with its own `if`) or
-  neither, which ends the talk. Entering a node does its `effects` all together or not at all:
+  neither, which ends the talk. Each choice shows a picture so a player who cannot read knows what
+  it does: by default (core `choicePicture`) a tick on one leading to a quest start and a clock on
+  one ending the talk with nothing done, or the picture-kit id its `picture` names. Give every
+  other choice a `picture`. With "Read to me" on, the choices are read after the line in the
+  narrator's voice. Entering a node does its `effects` all together or not at all:
   `startQuest` (only the quest's giver), `completeStep` (a talk or deliver step of this character),
   `give` and `take` an item, `setFlag`, `cue` (a scene: `effects/<cue>` in art) and
   `{ "offerStarter": true }`, which opens the starter screen for a player with no creature. A node
@@ -182,7 +194,11 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
 - `quests.json`: each quest's `chapter`, `giver`, the quests it `requires`, a `name` and `summary`,
   1 to 10 `steps` (`talk`, `deliver`, `winBattles`, `befriend`, `visitShrine` or `reach`, each with
   a `hint`), `rewards` (items and experience for every team creature) and `effects` when it is done.
-  A `reach` step names a point of a map's `marks` layer.
+  A `reach` step names a point of a map's `marks` layer. The quest banner and journal show each
+  step as pictures (core `stepPictures`): by default the item and the character a delivery goes
+  to, the character of a talk, the creature or weather of a befriend step, a trophy for battles. A
+  step's optional `picture` names one instead: `{ "item" }`, `{ "npc" }`, `{ "species" }`,
+  `{ "weather" }`, `{ "spot" }`, `{ "station" }` or `{ "picture" }` from the picture kit.
 - `story.json`: the `chapters` in order, each listing its quests (each quest in one chapter) and
   an optional closing flag `endsWith`, and every story `flags` id with what it means.
 - `inventory.json`: how many of one item fit in the bag, by kind (`stack`), and the order of the bag

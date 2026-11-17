@@ -24,13 +24,15 @@ import {
 } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import { itemName } from '../src/battle-content.ts';
-import { recipePage, recipeStars } from '../src/recipe-book.ts';
+import { parseSeen, withSeen } from '../src/game-hint.ts';
+import { needPips, recipePage, recipeStars } from '../src/recipe-book.ts';
 import { EARLIEST_FINISH_MS, attemptItem, resultLine } from '../src/skill-game.ts';
 import { dipBob, dipEndsMs } from '../src/skill-games/dip.ts';
-import { MARKER_STEP, markerEndsMs, markerShown } from '../src/skill-games/marker.ts';
+import { MARKER_STEP, markerEndsMs, markerInZone, markerShown } from '../src/skill-games/marker.ts';
 import { sparkleEndsMs } from '../src/skill-games/sparkle.ts';
+import { skillResultKind } from '../src/skill-pictures.ts';
 import { SKILL_REQUESTS, refusalLines, resultNews } from '../src/skills-link.ts';
-import { nextUnlock, skillRows } from '../src/skills-panel.ts';
+import { nextUnlock, skillRows, unlockedItems } from '../src/skills-panel.ts';
 import { STORY } from '../src/story-content.ts';
 import { goalTile, spotUsable } from '../src/story-link.ts';
 import { format } from '../src/strings.ts';
@@ -152,6 +154,14 @@ describe('cooking (marker)', () => {
       expect(markerShown(params, params.timeoutMs + 400, true)).toBe(markerShown(params, params.timeoutMs, true));
     }
   });
+
+  it('has the demo hand tap Stop exactly while a stop there would count', () => {
+    for (const plan of plans('marker')) {
+      const { params } = plan;
+      const wrong = ticks(params.timeoutMs, 13).filter((ms) => markerInZone(params, markerShown(params, ms, false)) !== (judged(plan, [{ at: ms, place: 0 }]) !== 'miss'));
+      expect(wrong).toEqual([]);
+    }
+  });
 });
 
 const cookingLevel = (level: number, inventory: Progress['inventory']): Progress => ({ ...emptyProgress(), inventory, skills: [{ skill: 'cooking', level, xp: 0 }] });
@@ -174,6 +184,12 @@ describe('the recipe book', () => {
       { item: bun.makes, count: 99 },
     ];
     expect(recipePage(cookingLevel(1, full), STORY).rows[0]?.blocked).toBe('bagFull');
+  });
+
+  it('shows a pip for each ingredient needed, filled for each the bag has', () => {
+    expect(needPips(0, 2)).toEqual([false, false]);
+    expect(needPips(1, 2)).toEqual([true, false]);
+    expect(needPips(5, 2)).toEqual([true, true]);
   });
 
   it('shows strength as one to five stars', () => {
@@ -200,6 +216,28 @@ describe('the Skills tab', () => {
 
 const result = (fields: Partial<SkillResultMessage>): SkillResultMessage => ({ attempt: 1, outcome: 'perfect', items: [], used: [], extra: [], skill: 'fishing', xp: 10, level: 2, levelUp: false, restMs: 30_000, ...fields });
 
+describe('tiny game pictures', () => {
+  const item = 'pebblefish';
+
+  it('picks the result picture: a burst for perfect, the catch for success, the full bag, or another go', () => {
+    expect(skillResultKind(result({ items: [{ item, count: 2 }] }))).toBe('perfect');
+    expect(skillResultKind(result({ outcome: 'success', items: [{ item, count: 1 }], extra: [{ item, count: 1 }] }))).toBe('success');
+    expect(skillResultKind(result({ outcome: 'success', extra: [{ item, count: 1 }] }))).toBe('bagFull');
+    expect(skillResultKind(result({ outcome: 'miss' }))).toBe('miss');
+    expect(skillResultKind(result({ outcome: 'late' }))).toBe('miss');
+  });
+
+  it("remembers each player's games on the device, and nothing from storage it cannot read", () => {
+    expect(parseSeen(null)).toEqual({});
+    expect(parseSeen('not json')).toEqual({});
+    expect(parseSeen('{"7":["dip","juggle"]}')).toEqual({});
+    const seen = withSeen(withSeen(parseSeen('{"7":["dip"]}'), 7, 'marker'), 8, 'dip');
+    expect(seen).toEqual({ 7: ['dip', 'marker'], 8: ['dip'] });
+    expect(withSeen(seen, 7, 'dip')).toBe(seen);
+    expect(parseSeen(JSON.stringify(seen))).toEqual(seen);
+  });
+});
+
 describe('skill news', () => {
   const pebbleCove = SKILLS.spots.get('pebble-cove')!;
 
@@ -218,6 +256,10 @@ describe('skill news', () => {
     expect(news[0]!.lines('en')).toEqual([format('skill.gained', 'en', { item: itemName(pebbleCove.item, 'en'), count: 1 }), `No room for more: ${itemName(pebbleCove.item, 'en')}`]);
     const ledge = SKILLS.spots.get('breezy-ledge')!;
     expect(news[1]!.lines('en')).toEqual([`${SKILLS.skills.get('fishing')!.name.en} level 6!`, ledge.name.en]);
+    expect(news[1]!.picture).toBeTypeOf('function');
+    expect(unlockedItems('fishing', 6, STORY)).toEqual([ledge.item]);
+    expect(unlockedItems('cooking', SKILLS.recipes.get('fish-biscuit')!.level, STORY)).toContain(SKILLS.recipes.get('fish-biscuit')!.makes);
+    expect(unlockedItems('fishing', 2, STORY)).toEqual([...SKILLS.spots.values()].filter((spot) => spot.skill === 'fishing' && spot.level === 2).map((spot) => spot.item));
   });
 
   it('explains a start turned down: the rest left, the level needed, a full bag', () => {

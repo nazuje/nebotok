@@ -1,6 +1,8 @@
 import {
   DIRECTIONS,
   NARRATOR,
+  choiceKind,
+  choicePicture,
   findPath,
   isWalkable,
   nextGoal,
@@ -10,10 +12,12 @@ import {
   samePoint,
   stepFrom,
   type BoardJob,
+  type ChoiceKind,
   type Direction,
   type Language,
   type Mood,
   type NpcMark,
+  type PictureId,
   type Point,
   type ProgressMessage,
   type StoryContent,
@@ -22,6 +26,13 @@ import {
   type WorldMap,
 } from '@nebotok/core';
 
+/**
+ * A choice as the talk box shows it: what it says, the index to answer with, its picture (core
+ * `choicePicture`) and its kind (core `choiceKind`), which makes the one that takes a quest the
+ * strong button and the one that declines the quiet one.
+ */
+export type TalkChoice = { readonly say: string; readonly index: number; readonly picture: PictureId | null; readonly kind: ChoiceKind | null };
+
 /** A line of a talk as the talk box shows it, in one language. */
 export type TalkLine = {
   /** The character who says it, or null for the narrator. */
@@ -29,21 +40,22 @@ export type TalkLine = {
   readonly name: string | null;
   readonly say: string;
   readonly mood: Mood | null;
-  /** The choices `talk.node` shows, in its order: what each says and the index to answer with. */
-  readonly choices: readonly { readonly say: string; readonly index: number }[];
+  /** The choices `talk.node` shows, in its order. */
+  readonly choices: readonly TalkChoice[];
   /** How quickly the speaker talks, 1 (slow) to 3 (quick). */
   readonly pace: number;
 };
 
 /** The words of the node a `talk.node` names, or null when this page's content does not know it. */
 export function talkLine(talk: Pick<TalkNode, 'npc' | 'node' | 'choices'>, content: StoryContent, language: Language): TalkLine | null {
-  const node = content.dialogue.get(talk.npc)?.nodes[talk.node];
-  if (!node) return null;
+  const nodes = content.dialogue.get(talk.npc)?.nodes;
+  const node = nodes?.[talk.node];
+  if (!nodes || !node) return null;
   const speakerId = node.speaker ?? talk.npc;
   const speaker = speakerId === NARRATOR ? null : (content.npcs.get(speakerId) ?? null);
   const choices = talk.choices.flatMap((index) => {
     const choice = node.choices?.[index];
-    return choice ? [{ say: choice.say[language], index }] : [];
+    return choice ? [{ say: choice.say[language], index, picture: choicePicture(nodes, choice), kind: choiceKind(nodes, choice) }] : [];
   });
   return {
     speaker: speaker?.id ?? null,

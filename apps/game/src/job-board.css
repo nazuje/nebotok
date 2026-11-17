@@ -1,5 +1,6 @@
 /* The job board: a cork board with a pinned card per job. Title at the top, Close at the bottom,
-   only the board between them scrolls. */
+   only the board between them scrolls. Each card says its job in pictures first, with small words
+   under them for readers. */
 
 #job-board {
   display: flex;
@@ -18,13 +19,66 @@
   font-weight: 700;
 }
 
+/* The scrolling board, with the arrow that says more cards are below laid over its bottom. */
+.job-board-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 8rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.job-board-frame .job-board-scroll {
+  min-height: 0;
+}
+
+/* Over the board's bottom edge, so it covers as little as it can of the card peeking above. */
+.job-more {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 3px solid #8a5a2b;
+  border-radius: 50%;
+  background: #fffdf4;
+  box-shadow: 0 4px 0 rgb(60 35 10 / 0.3);
+}
+
+.job-more[hidden] {
+  display: none;
+}
+
+.job-more-arrow {
+  width: 32px;
+  height: 32px;
+  transform: rotate(90deg);
+}
+
+/* The arrow bobs inside a still button, so the button stays put under a finger. */
+@media (prefers-reduced-motion: no-preference) {
+  .job-more:not([hidden]) .job-more-arrow {
+    animation: job-more-bob 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes job-more-bob {
+  50% {
+    translate: 0 5px;
+  }
+}
+
 .job-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   align-items: start;
-  gap: 16px;
+  gap: 12px;
   margin: 0;
-  padding: 18px 14px;
+  padding: 14px 10px;
   border: 6px solid #8a5a2b;
   border-radius: 14px;
   background-color: #c79a5f;
@@ -41,8 +95,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 18px 14px 14px;
+  gap: 6px;
+  padding: 14px 12px 10px;
   border-radius: 6px;
   background: #fffdf4;
   box-shadow: 0 4px 0 rgb(60 35 10 / 0.3);
@@ -53,7 +107,7 @@
 .job-card::before {
   content: '';
   position: absolute;
-  top: 5px;
+  top: 4px;
   left: 50%;
   width: 12px;
   height: 12px;
@@ -63,33 +117,45 @@
   box-shadow: inset -2px -2px 0 rgb(0 0 0 / 0.25);
 }
 
+/* A delivery with everything in the bag glows green, with a big check by its pips. */
 .job-card[data-ready] {
+  background: #f1fbef;
   box-shadow:
     0 4px 0 rgb(60 35 10 / 0.3),
-    inset 0 0 0 3px var(--ok);
+    inset 0 0 0 3px var(--ok),
+    0 0 14px 3px rgb(80 200 110 / 0.75);
 }
 
-.job-verb {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 800;
-  text-align: center;
+@media (prefers-reduced-motion: no-preference) {
+  .job-card[data-ready] {
+    animation: job-ready-glow 1.6s ease-in-out infinite;
+  }
 }
 
-.job-item,
-.job-to {
-  margin: 0;
+@keyframes job-ready-glow {
+  50% {
+    box-shadow:
+      0 4px 0 rgb(60 35 10 / 0.3),
+      inset 0 0 0 3px var(--ok),
+      0 0 4px 1px rgb(80 200 110 / 0.4);
+  }
+}
+
+/* The job in pictures: the verb, the item, how many and who it goes to. The right end stays free
+   for a read-aloud button in the card's corner. */
+.job-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  gap: 6px;
+  min-height: 48px;
+  padding-right: 52px;
 }
 
-.job-item-name,
-.job-to-name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 800;
+.job-head canvas.item-icon,
+canvas.job-verb-art {
+  width: 48px;
+  height: 48px;
 }
 
 .job-count {
@@ -97,7 +163,14 @@
   padding: 2px 10px;
   border-radius: 999px;
   background: #e6eef6;
+  font-size: 1.2rem;
   font-weight: 800;
+}
+
+.job-to {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 canvas.job-portrait {
@@ -109,12 +182,59 @@ canvas.job-portrait {
   image-rendering: pixelated;
 }
 
-.job-progress {
-  align-self: flex-start;
+/* The same in words, small, for readers. */
+.job-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.job-verb {
   margin: 0;
-  padding: 2px 10px;
+  font-size: inherit;
+  font-weight: 800;
+}
+
+.job-progress-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+/* One copy of the item per item the job wants: in colour once done or in the bag, faded until then. */
+.job-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.job-pip canvas.item-icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  filter: grayscale(1) opacity(0.35);
+}
+
+.job-pips.many .job-pip canvas.item-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.job-pip[data-filled] canvas.item-icon {
+  filter: none;
+}
+
+.job-progress {
+  padding: 1px 8px;
   border-radius: 999px;
   background: #fff1cc;
+  font-size: 0.85rem;
   font-weight: 700;
 }
 
@@ -125,17 +245,10 @@ canvas.job-portrait {
 
 .job-rewards {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-top: 8px;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
   border-top: 2px dashed #e0d6bc;
-}
-
-.job-rewards-title {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 800;
 }
 
 .job-reward-list {
@@ -164,6 +277,24 @@ canvas.job-portrait {
   color: var(--accent);
 }
 
+/* How far the reward's XP takes the skill: what is earned already, then what the job adds. */
+.job-xp-bar {
+  display: flex;
+  width: 48px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e0d6bc;
+}
+
+.job-xp-before {
+  background: #8fb3d9;
+}
+
+.job-xp-gain {
+  background: var(--accent);
+}
+
 /* A job done since the last visit turns over in its place to show the new one. Reduced motion
    shows the new card straight away. */
 @media (prefers-reduced-motion: no-preference) {
@@ -176,5 +307,54 @@ canvas.job-portrait {
 @keyframes job-card-turn {
   from {
     transform: rotateY(180deg);
+  }
+}
+
+/* Job news in the toast, before its words: the item with its pips, or a stamp and the rewards. */
+.job-news {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 10px;
+}
+
+.job-news-reward canvas.item-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.job-news-reward,
+.job-news-extra {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+}
+
+.job-news-xp {
+  color: var(--accent);
+}
+
+.job-news-extra {
+  padding-left: 8px;
+  border-left: 2px dashed var(--muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .job-stamp {
+    animation: job-stamp-down 0.45s cubic-bezier(0.3, 1.6, 0.6, 1) both;
+  }
+}
+
+@keyframes job-stamp-down {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(1.8) rotate(-18deg);
+  }
+
+  70% {
+    opacity: 1;
+    transform: scale(0.9) rotate(4deg);
   }
 }

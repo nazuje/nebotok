@@ -171,6 +171,53 @@ cost the game its seal (details and restore steps in `docs/deploy.md`, "Backups"
 | The game writes nightly snapshots with `VACUUM INTO` into its own volume; Litestream's container copies them to `BACKUP_DIR/snapshots`. Both keep 30. Copies land under a hidden name and are renamed when whole, and only if the copy is still a plain file, so a file swapped for a link meanwhile is dropped. | `apps/server/src/snapshots.ts`, `deploy/litestream/copy-snapshots.sh` |
 | A restore checks the rebuilt database (full integrity check, a known schema) before swapping it in, and moves, never deletes, what it replaces, so every restore can be undone. | `scripts/restore.sh`, `apps/server/src/check-database.ts` |
 | The local test backs up to its own folder (`NEBOTOK_LOCAL_BACKUP_DIR`), never `BACKUP_DIR`. `npm run verify:container` proves the seal of both containers and a full restore on every run. | `compose.local.yaml`, `scripts/lib/backup-check.mjs` |
+
+## The voice tool
+
+The game's spoken lines are MP3 clips made ahead of time by `npm run voice` (`scripts/voice/`,
+details in its `README.md`) with Piper, a text-to-speech program in Python. It is a tool
+dependency of a different kind from npm's, so it has its own rules.
+
+| Measure | Where |
+| --- | --- |
+| It runs only on a developer's Mac. CI, the image, the server and the game never run it, and none of it is installed by `npm ci`. CI only checks the committed clips against content (`content:validate`), in plain JavaScript. | `scripts/voice/`, `scripts/voice/clips.mjs` |
+| Everything it installs lives outside the repository, in `~/.cache/nebotok-voice/` (`NEBOTOK_VOICE_HOME`), so none of it can be committed or copied into the image. | `scripts/voice/setup.sh`, `config.mjs` |
+| Python packages: exact versions with a SHA-256 hash for every file, installed by uv with `--require-hashes` (a file that changed on PyPI is refused) and `--only-binary :all:` (wheels only, so no package builds or runs setup code while installing). | `scripts/voice/requirements.txt`, `setup.sh` |
+| Voice models: one Hugging Face revision of `rhasspy/piper-voices`, downloaded over HTTPS only and refused unless each file's SHA-256 matches, at setup and again before every use. | `scripts/voice/setup.sh`, `models.sha256`, `voice.mjs` |
+| What ships is only MP3 files and a JSON manifest, served from the game's own origin like its other files. No outside request, and the Content-Security-Policy is unchanged (`default-src 'self'` covers audio). | `apps/game/public/voice/`, `apps/game/src/voice-clips.json` |
+| The game plays a clip only by a path the manifest gives (`/voice/<language>/<hash>.mp3`), through one audio element of its own that refuses anything outside `/voice/`; never a URL from the server, a message or another player. Phaser's audio stays off. Sound starts only when the player asks: "Read to me" is off until the player turns it on, and a speaker button plays only when tapped. | `apps/game/src/voice-clips.ts`, `clip-player.ts`, `speech.ts` |
+| The service worker precaches only the app's code, styles and pictures, never the clips (5 MB and growing); the browser fetches a clip when it is first played and keeps it in its ordinary HTTP cache, revalidated (`no-cache`) like the game's other files outside `assets/`. | `apps/game/vite.config.ts` (`globPatterns`), `apps/server/src/http.ts` |
+
+What `npm run voice:setup` uses and downloads, as of its first install (November 2026):
+
+- **From Homebrew, installed by the developer:** `uv` 0.12.5, `ffmpeg` 9.0.2 and `espeak-ng`
+  1.52.0. `espeak-ng` turns text into sounds; Piper's own bundled copy is broken on macOS.
+- **Python 3.12.14:** uv's own managed CPython build (Astral's `python-build-standalone`), which uv
+  downloads once per machine.
+- **31 Python packages from PyPI**, every one listed with its hashes in `requirements.txt`, from the
+  three in `requirements.in`: `piper-tts` 1.8.0 (the Open Home Foundation, GPL-3.0; it pulls in
+  Microsoft's `onnxruntime` 1.31.1, which runs the voice model), `phonemizer-fork` 3.3.2 (a packaged
+  fork of bootphon's `phonemizer`, GPL-3.0) and `numpy` 2.5.4. Every pinned version was published
+  before 2026-11-01 (checked with `uv pip compile --exclude-newer 2026-11-01`), so each was at least
+  a week old when pinned, as npm's `min-release-age=7` asks. Dependabot does not watch these;
+  update them by hand with the command in `requirements.in`, after the checklist below.
+- **Two voice models** from `https://huggingface.co/rhasspy/piper-voices`, revision
+  `5041a7a49ae5b3a0f30e6837769eb03fdbb231bd`:
+
+  | File | SHA-256 | Licence |
+  | --- | --- | --- |
+  | `en/en_GB/cori/medium/en_GB-cori-medium.onnx` (63.5 MB) | `1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d` | Public domain (LibriVox recordings) |
+  | `en/en_GB/cori/medium/en_GB-cori-medium.onnx.json` | `e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36` | |
+  | `sl/sl_SI/artur/medium/sl_SI-artur-medium.onnx` (63.2 MB) | `9222ed93ef425524ad4be0b083369af8ea8db18455576a6016b154192f4ed38c` | CC BY 4.0 (Artur dataset) |
+  | `sl/sl_SI/artur/medium/sl_SI-artur-medium.onnx.json` | `741283430f1fa2be5c61717c6f1fe795a7b9f537491927340dd12f90f3b3cc04` | |
+
+  The `.onnx` hashes match the SHA-256 Hugging Face publishes for each file at that revision. It
+  publishes only a git object id for the small `.json` files, so they were downloaded at that
+  revision, checked to give that id (`git hash-object`), then hashed. `scripts/voice/models.sha256`
+  holds all four sums; `npm run voice` checks them again before every use, so a model changed in the
+  cache after setup is refused. The Slovenian model and its hashes are the same ones the owner's
+  Playroom project already uses.
+
 ## Residual risks
 
 What these measures do not stop, in rough order of importance:
@@ -233,6 +280,12 @@ What these measures do not stop, in rough order of importance:
     snapshots, to attack Litestream or to fill the Mac's disk. The copy loop takes only plain files
     named like snapshots, never symbolic links, and keeps 30. Time Machine's older copies of the
     folder are the fallback.
+14. **The voice tool runs other people's code on the developer's Mac.** Piper, `onnxruntime`,
+    `numpy` and the other Python packages, and `espeak-ng` and `ffmpeg` from Homebrew, run as your
+    user outside any container whenever someone runs `npm run voice`, like the npm tools in risk 5.
+    Hashes stop a swapped file, not a poisoned release that was pinned. What they make reaches the
+    game only as MP3 files, which browsers decode in their own sandbox, and like any change they
+    reach the Mac mini only when a person deploys (risk 2).
 
 ## Known advisories
 

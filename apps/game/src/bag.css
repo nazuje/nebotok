@@ -162,14 +162,67 @@ canvas.item-icon {
   font-weight: 700;
 }
 
+/* A quest card: the giver's portrait beside its name, what to do as pictures with a dot per step, then the words. */
 .journal-quest {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
   border-left: 6px solid var(--wait);
   border-radius: 16px;
   background: var(--panel);
+}
+
+canvas.journal-giver,
+canvas.quest-banner-giver {
+  flex: none;
+  border-radius: 12px;
+  background: #e6eef6;
+}
+
+.journal-quest-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.journal-goal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.journal-goal-pictures {
+  display: flex;
+  gap: 6px;
+}
+
+/* A dot per step of a quest: green once done, ringed for the step on now. */
+.quest-pips {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.quest-pip {
+  width: 14px;
+  height: 14px;
+  border: 3px solid #bcccdc;
+  border-radius: 50%;
+  background: white;
+}
+
+.quest-pip[data-state='done'] {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+.quest-pip[data-state='now'] {
+  border-color: var(--wait);
+  box-shadow: 0 0 0 2px rgb(232 163 23 / 0.35);
 }
 
 .journal-quest p {
@@ -209,7 +262,10 @@ canvas.item-icon {
 }
 
 .journal-done {
-  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
   border-radius: 12px;
   background: rgb(255 255 255 / 0.6);
   color: var(--muted);
@@ -217,10 +273,36 @@ canvas.item-icon {
   overflow-wrap: anywhere;
 }
 
-.journal-done::before {
-  content: '✓';
-  margin-right: 8px;
-  color: var(--ok);
+.journal-done-name {
+  min-width: 0;
+}
+
+.journal-where {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Where next: the compass at the bottom right, above the messages at the bottom and in reach of a thumb. */
+.compass-button {
+  position: fixed;
+  z-index: 3;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 84px);
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+body:not([data-screen='world']) .compass-button {
+  display: none;
 }
 
 .journal-continued {
@@ -240,7 +322,7 @@ canvas.item-icon {
   left: 50%;
   top: calc(var(--top) + var(--tap) + 8px);
   transform: translateX(-50%);
-  width: min(90vw, 30rem);
+  width: min(92vw, 30rem);
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -263,9 +345,108 @@ canvas.item-icon {
   font-size: 1.1rem;
 }
 
+/*
+ * A quest change as pictures: the giver, what to do now (a tick and an arrow first for a step just
+ * done, a stamp for a quest done), a dot per step and the items it gives. The words are smaller,
+ * for readers. Only the speaker slot in the top right corner takes taps.
+ */
+.quest-toast[data-kind='quest'] {
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.quest-toast[data-kind='quest'] .quest-toast-head {
+  font-size: 0.95rem;
+}
+
+.quest-toast[data-kind='quest'] .quest-toast-line {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.quest-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.quest-banner-goal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quest-banner-stamp {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.quest-banner-stamp canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.quest-banner-seal {
+  transform: rotate(-8deg);
+}
+
+.quest-banner-speaker {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  pointer-events: auto;
+}
+
+.quest-banner-speaker:empty {
+  display: none;
+}
+
+/* The pictures keep clear of the speaker in the corner; on one side only, so they still fit at 360px. */
+.quest-toast:has(.quest-banner-speaker:not(:empty)) .quest-banner {
+  padding-right: calc(var(--tap) + 4px);
+}
+
+.quest-banner-rewards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quest-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 800;
+}
+
+.quest-banner-extra {
+  color: var(--bad);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .quest-toast:not([hidden]) {
     animation: quest-toast-in 0.25s ease-out;
+  }
+
+  .quest-toast:not([hidden]) .quest-banner-seal {
+    animation: quest-stamp 0.45s 0.2s cubic-bezier(0.3, 1.6, 0.6, 1) backwards;
+  }
+
+  .quest-toast:not([hidden]) .quest-banner-burst {
+    animation: quest-burst 1.2s 0.3s ease-out 2 backwards;
+  }
+
+  .quest-toast:not([hidden]) :is(.quest-pip[data-fresh], .quest-banner-check) {
+    animation: quest-pop 0.4s 0.2s ease-out backwards;
   }
 }
 
@@ -273,5 +454,33 @@ canvas.item-icon {
   from {
     opacity: 0;
     transform: translate(-50%, -8px);
+  }
+}
+
+@keyframes quest-stamp {
+  from {
+    opacity: 0;
+    transform: scale(2.2) rotate(-25deg);
+  }
+}
+
+@keyframes quest-burst {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-45deg);
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  to {
+    transform: scale(1.15) rotate(20deg);
+  }
+}
+
+@keyframes quest-pop {
+  from {
+    transform: scale(1.8);
   }
 }

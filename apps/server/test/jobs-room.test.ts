@@ -3,6 +3,7 @@ import {
   DIRECTIONS,
   PROTOCOL_VERSION,
   createSave,
+  defaultSettings,
   emptyProgress,
   newCreature,
   samePoint,
@@ -84,7 +85,7 @@ async function player(name: string, progress: Partial<Progress> = {}, at: Point 
   if (!made.ok) throw new Error(made.error);
   const { id } = made.value;
   const position = { map: world.map.id, ...at, facing: 'left' as const };
-  temp.services.progress.save(id, createSave({ name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), team: [strong()], story: ALL_DONE, ...progress }));
+  temp.services.progress.save(id, createSave({ settings: defaultSettings(), name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), team: [strong()], story: ALL_DONE, ...progress }));
   return join(id);
 }
 
@@ -159,11 +160,11 @@ describe('opening the board', () => {
     await colyseus.shutdown();
     colyseus = await boot();
     const back = await join(who.id);
-    await until(() => back.box.has('jobs'), 'the board on joining');
+    await until(() => back.box.has('settings'), 'the settings, last on joining');
     const types = back.box.types();
     expect(types.indexOf('story')).toBeLessThan(types.indexOf('skills'));
     expect(types.indexOf('skills')).toBeLessThan(types.indexOf('jobs'));
-    expect(types.at(-1)).toBe('jobs');
+    expect(types.slice(-2)).toEqual(['jobs', 'settings']);
     expect(await back.box.take<JobsMessage>('jobs')).toEqual(first);
   });
 

@@ -1,0 +1,482 @@
+/* Pictures on the screens around a battle (#battle's treat picker and result, #learn, #team), so a
+   player who cannot read follows them with the sound off. Every movement is a bonus: reduced
+   motion shows the same pictures standing still. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.picture.up {
+  transform: rotate(-90deg);
+}
+
+.picture.down {
+  transform: rotate(90deg);
+}
+
+/* The treat picker: each treat's picture, and a heart before the count on the favourite. */
+
+.treat-heart {
+  margin-left: auto;
+}
+
+.treat-heart + .treat-count {
+  margin-left: 0;
+}
+
+/* The result: how it ended, then each creature's gains. */
+
+.battle-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.result-pictures {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.result-pictures:empty {
+  display: none;
+}
+
+.result-words {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.result-burst {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+}
+
+.result-burst > * {
+  grid-area: 1 / 1;
+}
+
+/* Above the rays even while they turn, which lifts them into a layer of their own. */
+.result-trophy {
+  position: relative;
+  z-index: 1;
+}
+
+.result-portrait {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.result-resting canvas.creature {
+  filter: grayscale(1) opacity(0.6);
+}
+
+.result-rewards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result-reward {
+  position: relative;
+}
+
+.result-gains {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 6px 6px;
+  border-radius: 16px;
+  background: #f0f4f8;
+}
+
+.result-level-up {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 8px 1px 2px;
+  border-radius: 999px;
+  background: var(--ok);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.result-gain-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.result-xp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.result-move {
+  font-size: 0.95rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* Learning a move: the new move, sparkling, points down at the moves it can replace, each with a puff
+   of smoke for forgetting; keeping them is a cross. A picked move is struck out with the new one in
+   its place, above a check to swap and a loop to choose again. */
+
+.learn-toward {
+  display: flex;
+  justify-content: center;
+}
+
+#learn[data-chosen] .learn-toward {
+  visibility: hidden;
+}
+
+#learn[data-chosen] .learn-new {
+  opacity: 0.45;
+}
+
+.learn-going {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* On the button's corner, so the move's name keeps the whole width. */
+.learn-puff {
+  position: absolute;
+  top: -12px;
+  right: -4px;
+}
+
+.learn-moves {
+  row-gap: 16px;
+  padding-top: 8px;
+}
+
+.learn-forget[aria-pressed='true'] {
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 20px;
+  box-shadow:
+    0 0 0 4px var(--ink),
+    var(--shadow);
+}
+
+.learn-forget[aria-pressed='true'] .learn-going {
+  opacity: 0.6;
+}
+
+.learn-forget[aria-pressed='true'] .learn-name {
+  text-decoration: line-through 3px;
+}
+
+.learn-coming {
+  flex-wrap: wrap;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  font-size: 1rem;
+}
+
+.learn-confirm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.learn-confirm button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 4px 10px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.learn-skip,
+.team-store,
+.storage-take {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* The team: two little cards trading places, until the first swap on this device. */
+
+.swap-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 0 8px;
+}
+
+.swap-card {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid var(--accent);
+  border-radius: 12px;
+  background: white;
+}
+
+.swap-card canvas.creature {
+  width: 48px;
+  height: 48px;
+}
+
+.swap-arrows {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .result-pictures {
+    animation: result-pop 0.45s ease-out both;
+  }
+
+  .result-rays {
+    animation: result-rays 1.2s ease-out both;
+  }
+
+  .result-heart {
+    animation: result-heart 0.9s ease-in-out 0.3s 2 both;
+  }
+
+  .result-flyer {
+    animation: result-fly 1.8s ease-in-out 0.4s 2 both;
+  }
+
+  .result-run {
+    animation: result-run 0.8s ease-out both;
+  }
+
+  .result-level-up {
+    animation: result-rise 0.5s ease-out 0.5s both;
+  }
+
+  .result-move {
+    animation: result-slide 0.5s ease-out 0.7s both;
+  }
+
+  .learn-chip {
+    animation: learn-slide 2.2s ease-in-out infinite;
+  }
+
+  .learn-toward .picture {
+    animation: learn-nudge 2.2s ease-in-out infinite;
+  }
+
+  #learn[data-chosen] .learn-chip {
+    animation: none;
+  }
+
+  .learn-coming {
+    animation: learn-arrive 0.5s ease-out both;
+  }
+
+  .learn-forget[aria-pressed='true'] .learn-puff {
+    animation: learn-puff 0.7s ease-out both;
+  }
+
+  .swap-a {
+    animation: swap-a 2.8s ease-in-out infinite;
+  }
+
+  .swap-b {
+    animation: swap-b 2.8s ease-in-out infinite;
+  }
+}
+
+@keyframes result-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes result-rays {
+  from {
+    opacity: 0;
+    transform: rotate(0) scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(90deg) scale(1);
+  }
+}
+
+@keyframes result-heart {
+  0%,
+  50%,
+  100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.35);
+  }
+}
+
+/* From the portrait's centre to the shrine's: half a portrait, the gap, the arrow, the gap, half a shrine. */
+@keyframes result-fly {
+  0%,
+  15% {
+    opacity: 1;
+    transform: none;
+  }
+  65% {
+    opacity: 0;
+    transform: translateX(104px) scale(0.3);
+  }
+  66% {
+    opacity: 0;
+    transform: none;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes result-run {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes result-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+@keyframes result-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes learn-slide {
+  0%,
+  20% {
+    opacity: 1;
+    transform: none;
+  }
+  60% {
+    opacity: 0.2;
+    transform: translateY(28px);
+  }
+  61% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* From the new move above the arrow, down into the picked move's place. */
+@keyframes learn-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.8);
+  }
+}
+
+@keyframes learn-puff {
+  0% {
+    transform: scale(0.5);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.4);
+  }
+}
+
+@keyframes learn-nudge {
+  0%,
+  20%,
+  100% {
+    transform: rotate(90deg);
+  }
+  60% {
+    transform: rotate(90deg) translateX(6px);
+  }
+}
+
+/* The cards are 120px apart, centre to centre: a card, the gap, the arrows and the gap. One passes over, the other under. */
+@keyframes swap-a {
+  0%,
+  15%,
+  95%,
+  100% {
+    transform: none;
+  }
+  30%,
+  80% {
+    transform: translate(60px, -14px);
+  }
+  45%,
+  65% {
+    transform: translate(120px, 0);
+  }
+}
+
+@keyframes swap-b {
+  0%,
+  15%,
+  95%,
+  100% {
+    transform: none;
+  }
+  30%,
+  80% {
+    transform: translate(-60px, 14px);
+  }
+  45%,
+  65% {
+    transform: translate(-120px, 0);
+  }
+}

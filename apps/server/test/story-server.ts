@@ -1,6 +1,6 @@
 import { ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from '@colyseus/sdk';
-import { DIRECTIONS, PROTOCOL_VERSION, createSave, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
+import { DIRECTIONS, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
 import { createGameServer } from '../src/app.ts';
 import { REQUESTS_PER_SECOND } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
@@ -152,7 +152,7 @@ export async function storyServer() {
     if (!made.ok) throw new Error(made.error);
     const { id } = made.value;
     const position = { map: world.map.id, ...at, facing: 'left' as const };
-    temp.services.progress.save(id, createSave({ name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), ...progress }));
+    temp.services.progress.save(id, createSave({ settings: defaultSettings(), name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position, ...emptyProgress(), ...progress }));
     const login = await temp.services.profiles.login({ profileId: id });
     if (!login.ok) throw new Error(login.error);
     colyseus.sdk.auth.token = login.value.token;

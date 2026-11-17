@@ -24,6 +24,9 @@ export function markerShown(params: MarkerParams, ms: number, reducedMotion: boo
 /** When a game nobody stopped is over: its timeout, after which a stop is a miss. */
 export const markerEndsMs = (params: MarkerParams): number => params.timeoutMs;
 
+/** Whether a needle drawn at `at` touches the zone, so a stop there counts. */
+export const markerInZone = (params: MarkerParams, at: number): boolean => at + MARKER_HALF_WIDTH >= params.zoneFrom && at - MARKER_HALF_WIDTH <= params.zoneTo;
+
 const share = (value: number) => `${(value * 100) / MARKER_TRACK}%`;
 
 /**
@@ -64,5 +67,6 @@ export function createMarker(params: MarkerParams, options: MiniGameOptions): Mi
     relabel: (language: Language) => {
       stop.textContent = text('skill.marker.stop', language);
     },
+    aim: (ms) => ({ target: stop, now: markerInZone(params, markerShown(params, ms, options.reducedMotion)) }),
   };
 }

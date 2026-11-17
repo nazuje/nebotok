@@ -2,6 +2,7 @@ import type { Language } from '@nebotok/core';
 import { moveName, moveType, speciesName, speciesType, weatherName } from './battle-content.ts';
 import { creaturePortrait } from './creature-art.ts';
 import { el } from './dom.ts';
+import { weatherIcon } from './pictures.ts';
 import { format } from './strings.ts';
 
 /** What every creature card shows, from a battle view or a saved creature. */
@@ -18,9 +19,17 @@ export function healthBar(hp: number, maxHp: number, language: Language, labelle
   return labelled ? el('div', { className: 'health' }, [bar, el('span', { className: 'health-text', text: label, attrs: { 'aria-hidden': 'true' } })]) : bar;
 }
 
-/** A small chip naming a weather type, in that type's colour. */
+/** A weather type's chip in its colour: its icon, with its name small underneath and as the chip's accessible name. */
 export function typeChip(type: string | null, language: Language): HTMLElement {
-  return el('span', { className: `type-chip type-${type ?? 'none'}`, text: type ? weatherName(type, language) : '' });
+  if (!type) return el('span', { className: 'type-chip type-none' });
+  const name = weatherName(type, language);
+  return el('span', { className: `type-chip type-${type}`, attrs: { role: 'img', 'aria-label': name, 'data-type': type } }, [weatherIcon(type, 32), el('span', { className: 'type-name', text: name, attrs: { 'aria-hidden': 'true' } })]);
+}
+
+/** A move's weather icon, named for screen readers, to stand before the move's name; nothing for a move without a type. */
+export function moveTypeIcon(move: string, language: Language, sizePx: number): HTMLElement[] {
+  const type = moveType(move);
+  return type ? [weatherIcon(type, sizePx, { label: weatherName(type, language) })] : [];
 }
 
 /** The name, level and health of a creature, with its picture unless `portrait` is false. */
@@ -37,6 +46,6 @@ export function creatureSummary(creature: CardCreature, language: Language, opti
 
 /** The creature's weather type and moves, each move in its type's colour. */
 export function creatureDetails(creature: Pick<CardCreature, 'species' | 'moves'>, language: Language): HTMLElement {
-  const moves = (creature.moves ?? []).map((move) => el('li', { className: `move-chip type-${moveType(move) ?? 'none'}`, text: moveName(move, language) }));
+  const moves = (creature.moves ?? []).map((move) => el('li', { className: `move-chip type-${moveType(move) ?? 'none'}` }, [...moveTypeIcon(move, language, 16), el('span', { text: moveName(move, language) })]));
   return el('div', { className: 'creature-details' }, [typeChip(speciesType(creature.species), language), el('ul', { className: 'move-chips' }, moves)]);
 }
