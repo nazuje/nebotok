@@ -3,8 +3,8 @@ import { CONTENT } from './battle-content.ts';
 import type { ClientMessage } from './battle-link.ts';
 import { creaturePortrait } from './creature-art.ts';
 import { creatureDetails, creatureSummary, type CardCreature } from './creature-card.ts';
-import { button, el } from './dom.ts';
-import { pictureIcon } from './pictures.ts';
+import { button, el, pictureButton, withPicture } from './dom.ts';
+import { closeButton, pictureIcon, shrineIcon, teamIcon } from './pictures.ts';
 import { text } from './strings.ts';
 
 /** The team order after swapping places `a` and `b`, as `team.reorder` wants it. */
@@ -65,13 +65,6 @@ const swapCard = (creature: CreatureInstance, side: 'a' | 'b') => el('span', { c
 function swapHint(first: CreatureInstance, second: CreatureInstance): HTMLElement {
   const arrows = el('span', { className: 'swap-arrows' }, [pictureIcon('arrow', 32), pictureIcon('arrow', 32, { mirrored: true })]);
   return el('div', { className: 'swap-hint', attrs: { 'aria-hidden': 'true' } }, [swapCard(first, 'a'), arrows, swapCard(second, 'b')]);
-}
-
-/** A button with a picture before its words. */
-function pictureButton(className: string, picture: HTMLElement, label: string, onTap: () => void): HTMLButtonElement {
-  const made = button(className, '', onTap);
-  made.append(picture, el('span', { text: label }));
-  return made;
 }
 
 /**
@@ -139,7 +132,7 @@ export function createTeamScreen(root: HTMLElement, options: TeamScreenOptions):
     choose.setAttribute('aria-selected', String(tab === which));
     choose.dataset.tab = which;
     choose.append(el('span', { text: label }), el('span', { className: 'tab-count', text: String(count) }));
-    return choose;
+    return withPicture(choose, which === 'team' ? teamIcon(32) : shrineIcon(32));
   }
 
   const hintShown = (team: readonly CreatureInstance[]) => !swapped && team.length >= 2;
@@ -167,7 +160,7 @@ export function createTeamScreen(root: HTMLElement, options: TeamScreenOptions):
     const keepScroll = before?.dataset.tab === showing ? before.scrollTop : 0;
     const scroll = el('div', { className: 'team-scroll', attrs: { role: storage ? 'tabpanel' : 'group', 'data-tab': showing } }, showing === 'storage' && storage ? storagePart(storage, team) : teamPart(team, storage !== null));
     const foot = el('div', { className: 'team-foot' }, [
-      button('primary team-close', t('team.close'), () => {
+      closeButton('primary team-close', t('team.close'), () => {
         close();
         options.closed();
       }),

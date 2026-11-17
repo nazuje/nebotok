@@ -1,6 +1,6 @@
-import { questLog, type Goal, type Language, type Point, type Progress, type QuestLog, type QuestLogEntry, type QuestStep, type SkillsMessage, type StringId } from '@nebotok/core';
-import { button, el } from './dom.ts';
-import { pictureIcon } from './pictures.ts';
+import { questLog, spriteFor, type Goal, type Language, type Point, type Progress, type QuestLog, type QuestLogEntry, type QuestStep, type SkillsMessage, type StringId } from '@nebotok/core';
+import { button, el, withPicture } from './dom.ts';
+import { closeButton, pictureIcon, spriteIcon } from './pictures.ts';
 import { giverPortrait, goalPictures, questGiver, questGoal, questPips, questSteps } from './quest-pictures.ts';
 import { skillsPanel } from './skills-panel.ts';
 import { questName, STORY } from './story-content.ts';
@@ -29,6 +29,12 @@ export function toBeContinued(log: QuestLog): boolean {
 const chapterName = (id: string, language: Language): string => STORY.chapters.find((chapter) => chapter.id === id)?.name[language] ?? id;
 
 export type JournalTab = 'quests' | 'skills';
+
+/** Each tab's pictures: the mark over a character with a new quest, and every skill's icon. */
+const TAB_PICTURES: Readonly<Record<JournalTab, () => Element[]>> = {
+  quests: () => [pictureIcon('exclamation', 32)],
+  skills: () => [...(STORY.skills?.skills.keys() ?? [])].map((skill) => spriteIcon(spriteFor.skill(skill), 32)),
+};
 
 export type JournalScreenOptions = {
   language(): Language;
@@ -67,10 +73,13 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
   const unfolded = new Set<string>();
 
   function tabButton(which: JournalTab, label: string): HTMLElement {
-    const choose = button('team-tab journal-tab', label, () => {
-      tab = which;
-      render(true);
-    });
+    const choose = withPicture(
+      button('team-tab journal-tab', label, () => {
+        tab = which;
+        render(true);
+      }),
+      ...TAB_PICTURES[which](),
+    );
     choose.setAttribute('role', 'tab');
     choose.setAttribute('aria-selected', String(tab === which));
     choose.dataset.tab = which;
@@ -98,11 +107,14 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
     const language = options.language();
     const isOpen = unfolded.has(chapter);
     const listId = `journal-done-${chapter}`;
-    const fold = button('secondary journal-fold', format('journal.done', language, { count: done.length }), () => {
-      if (isOpen) unfolded.delete(chapter);
-      else unfolded.add(chapter);
-      render(true);
-    });
+    const fold = withPicture(
+      button('secondary journal-fold', format('journal.done', language, { count: done.length }), () => {
+        if (isOpen) unfolded.delete(chapter);
+        else unfolded.add(chapter);
+        render(true);
+      }),
+      pictureIcon('stamp', 32),
+    );
     fold.setAttribute('aria-expanded', String(isOpen));
     fold.setAttribute('aria-controls', listId);
     const doneQuest = (entry: QuestLogEntry) => el('li', { className: 'journal-done', attrs: { 'data-quest': entry.quest } }, [pictureIcon('stamp', 32), el('span', { className: 'journal-done-name', text: questName(entry.quest, language) })]);
@@ -141,7 +153,7 @@ export function createJournalScreen(root: HTMLElement, options: JournalScreenOpt
       foot.push(where);
     }
     foot.push(
-      button('primary journal-close', t('team.close'), () => {
+      closeButton('primary journal-close', t('team.close'), () => {
         close();
         options.closed();
       }),

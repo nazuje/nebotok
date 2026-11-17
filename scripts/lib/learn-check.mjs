@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { emptyProgress, loadBattleContent, newCreature, xpToNextLevel } from '../../packages/core/src/index.ts';
-import { animationsSettled, battleIdle, nextFrames, readState, until, untilTappingThrough } from './game-page.mjs';
+import { CONTROL_PICTURES, animationsSettled, battleIdle, nextFrames, pictureProblems, readState, until, untilTappingThrough } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -60,6 +60,7 @@ export async function seeSwapHint(page, { expect, check }) {
   const opened = await until(page, (s) => s.screen === 'team' && s.teamScreen !== null, 'the team screen');
   await nextFrames(page);
   expect(opened.teamScreen.swapHint && (await page.locator('#team .swap-hint').isVisible()), 'the team of two shows no swap hint before the first swap');
+  for (const problem of await pictureProblems(page, { '#team .team-close': CONTROL_PICTURES.close })) expect(false, `the team screen: ${problem}`);
   await check('the team screen with the swap hint', 'l0-team');
   await page.locator('#team .team-close').tap();
   return until(page, (s) => s.screen === 'world', 'the world after closing the team');
@@ -98,6 +99,8 @@ async function seeFavourite(page, state, { language, strings, expect, check }) {
     expect(shown.inside && shown.oneLine, `the favourite tag does not fit its button on one line: ${JSON.stringify(shown)}`);
     expect((await marked.locator('canvas.picture[data-picture="pictures/heart"]').count()) === 1, 'the favourite treat shows no heart');
   }
+  for (const problem of await pictureProblems(page, { '#battle .battle-back': CONTROL_PICTURES.back })) expect(false, `the treat picker: ${problem}`);
+  expect((await page.locator('#battle .battle-back canvas.picture.mirrored').count()) === 1, 'Back in the treat picker does not point back');
   await check('the treat picker with the favourite', 'b3-favourite');
   await page.locator('#battle .battle-back').tap();
   return until(page, (s) => s.battle?.panel === 'menu', 'the battle menu after the treat picker');

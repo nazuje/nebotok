@@ -55,6 +55,35 @@ export const presetLanguage = (chosen) => {
   if (localStorage.getItem('nebotok:language') === null) localStorage.setItem('nebotok:language', JSON.stringify(chosen));
 };
 
+/** The picture each kind of screen control holds (`data-picture`), for a player who cannot read yet. */
+export const CONTROL_PICTURES = {
+  close: 'pictures/cross',
+  back: 'pictures/arrow',
+  quests: 'pictures/exclamation',
+  skills: JSON.parse(readFileSync(join(ROOT, 'content/skills.json'), 'utf8')).skills.map((skill) => `skills/${skill.id}`),
+  done: 'pictures/stamp',
+  team: 'team-button',
+  shrine: 'tiles/shrine',
+};
+
+/**
+ * What is wrong with the pictures of the controls `wanted` names: each selector must find at least
+ * one control, and every control it finds must hold all the picture ids given for it.
+ */
+export async function pictureProblems(page, wanted) {
+  const found = await Promise.all(
+    Object.entries(wanted).map(async ([selector, ids]) => ({
+      selector,
+      ids: [ids].flat(),
+      held: await page.locator(selector).evaluateAll((controls) => controls.map((control) => [...control.querySelectorAll('[data-picture]')].map((picture) => picture.dataset.picture))),
+    })),
+  );
+  return found.flatMap(({ selector, ids, held }) => {
+    if (held.length === 0) return [`${selector} is not on the screen`];
+    return held.filter((shown) => !ids.every((id) => shown.includes(id))).map((shown) => `${selector} shows the pictures ${JSON.stringify(shown)}, not ${JSON.stringify(ids)}`);
+  });
+}
+
 /** Any Content-Security-Policy violation is a bug: the page tried to load or run something it must not. */
 export const reportCspViolations = () => {
   document.addEventListener('securitypolicyviolation', (event) => {

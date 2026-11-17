@@ -6,7 +6,7 @@
 // delivered card's place. At 360px a player who never opened the board opens it for the first time.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { nextFrames, openTalk, readState, settledOn, tilesToScreen, talkThrough, until, walkByTaps } from './game-page.mjs';
+import { CONTROL_PICTURES, nextFrames, openTalk, pictureProblems, readState, settledOn, tilesToScreen, talkThrough, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const NPCS = new Map(JSON.parse(readFileSync(join(ROOT, 'content/npcs.json'), 'utf8')).npcs.map((npc) => [npc.id, npc]));
@@ -175,6 +175,7 @@ export async function boardScreenFits(page, plan, { language, strings, expect, n
   await boardPictures(page, { deliver: null }, { expect });
   await cardsReachable(page, 'the first job board at 360px', { expect, notes });
   await noSideways('the job board');
+  for (const problem of await pictureProblems(page, { '#job-board .job-board-close': CONTROL_PICTURES.close })) expect(false, `the job board at 360px: ${problem}`);
   await check('the job board at 360px', 'board');
   await closeBoard(page);
 }
