@@ -12,7 +12,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadBattleContent, loadStoryContent, newCreature, PLAYER_SPAWN, stepPictures } from '../../packages/core/src/index.ts';
 import { inTurn } from './in-turn.mjs';
-import { hurryThrough, nextFrames, openTalk, readState, tilesToScreen, until, walkByTaps } from './game-page.mjs';
+import { CONTROL_PICTURES, hurryThrough, nextFrames, openTalk, pictureProblems, readState, tilesToScreen, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -109,6 +109,17 @@ export function storySave(world, { name, language }) {
   };
 }
 
+/** The pictures on the bag's Close, and on the journal's tabs, Close and, when `folded`, the fold of done quests. */
+const SCREEN_PICTURES = {
+  bag: () => ({ '#bag .bag-close': CONTROL_PICTURES.close }),
+  journal: (folded) => ({
+    '#journal .journal-tab[data-tab="quests"]': CONTROL_PICTURES.quests,
+    '#journal .journal-tab[data-tab="skills"]': CONTROL_PICTURES.skills,
+    '#journal .journal-close': CONTROL_PICTURES.close,
+    ...(folded ? { '#journal .journal-fold': CONTROL_PICTURES.done } : {}),
+  }),
+};
+
 /** The bag: a section per kind it holds, in inventory.json order, each treat named and counted, and a tap saying what one is. */
 async function lookInBag(page, plan, { language, say, expect, check }) {
   await page.locator('.bag-button').tap();
@@ -129,6 +140,7 @@ async function lookInBag(page, plan, { language, say, expect, check }) {
   await nextFrames(page);
   const about = TREATS[0].description?.[language] ?? say('bag.treatAbout');
   expect((await textOf(page, '#bag .bag-about p')) === about, `the bag says "${await textOf(page, '#bag .bag-about p')}" about ${TREATS[0].id}`);
+  for (const problem of await pictureProblems(page, SCREEN_PICTURES.bag(false))) expect(false, `the bag: ${problem}`);
   await check('the bag', 's1-bag');
   await page.locator('#bag .bag-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the bag');
@@ -167,6 +179,7 @@ async function readJournal(page, plan, { language, say, expect, check }) {
   expect((await chapter.locator('.journal-done-list').isVisible()) === false, 'the journal’s done quests are not folded');
   if (plan.tile) expect(state.journal.goal?.x === plan.tile.x && state.journal.goal?.y === plan.tile.y, `"Where next?" goes to ${JSON.stringify(state.journal.goal)}, not ${plan.tile.x},${plan.tile.y}`);
   else expect(state.journal.goal !== null, '"Where next?" has nowhere to go');
+  for (const problem of await pictureProblems(page, SCREEN_PICTURES.journal(doneHere > 0))) expect(false, `the journal: ${problem}`);
   await check('the journal', 's2-journal');
 }
 
@@ -285,6 +298,8 @@ export async function storyScreensFit(page, { noSideways, check, expect }) {
     await nextFrames(page);
     await noSideways(`the ${screen}`);
     if (screen === 'journal') for (const problem of await cardsProblems(page, state.story?.active ?? [])) expect(false, problem);
+    const folded = (await page.locator('#journal .journal-fold').count()) > 0;
+    for (const problem of await pictureProblems(page, SCREEN_PICTURES[screen](folded))) expect(false, `the ${screen} at 360px: ${problem}`);
     await check(`the ${screen} at 360px`, screen);
     await page.locator(`#${screen} .team-foot .primary`).tap();
     await until(page, (s) => s.screen === 'world', `the world after the ${screen}`);

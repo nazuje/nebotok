@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
 import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
-import { animationsSettled, battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, untilTappingThrough, walkByTaps } from './game-page.mjs';
+import { CONTROL_PICTURES, animationsSettled, battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, pictureProblems, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
@@ -405,6 +405,8 @@ async function shrineStorage(page, world, { shrine, say, expect, check, notes })
   expect((await page.locator('#team .team-tab').count()) === 2, 'the team screen at the shrine has no Team and Storage tabs');
   expect((await page.locator('#team .team-store').count()) === team.length, 'the team screen does not offer to leave each creature here');
   expect((await page.locator('#team .team-store canvas.picture[data-picture="pictures/arrow"]:not(.mirrored)').count()) === team.length, 'Leave here does not point toward the shrine’s tab');
+  const pictured = { '#team .team-tab[data-tab="team"]': CONTROL_PICTURES.team, '#team .team-tab[data-tab="storage"]': CONTROL_PICTURES.shrine, '#team .team-close': CONTROL_PICTURES.close };
+  for (const problem of await pictureProblems(page, pictured)) expect(false, `the team screen at the shrine: ${problem}`);
   await page.locator('#team .team-card').last().scrollIntoViewIfNeeded();
   await toastGone(page);
   await nextFrames(page);

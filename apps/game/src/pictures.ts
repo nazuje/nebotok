@@ -1,4 +1,5 @@
 import { spriteFor, type PictureId } from '@nebotok/core';
+import { element, icon, pictureButton } from './dom.ts';
 import { spriteCanvas } from './skill-games/mini-game.ts';
 
 /**
@@ -45,4 +46,19 @@ export function weatherIcon(type: string, sizePx: number, options: PictureOption
 /** The shrine as the map draws it, where a team wakes and creatures wait. */
 export function shrineIcon(sizePx: number, options: PictureOptions = {}): HTMLCanvasElement {
   return spriteIcon('tiles/shrine', sizePx, options);
+}
+
+/** The face on the world's team button (index.html), so what that button opens shows the same picture. */
+export function teamIcon(sizePx: number): SVGSVGElement {
+  const face = icon(element<SVGPathElement>('.team-button path').getAttribute('d') ?? '');
+  face.classList.add('picture');
+  face.style.width = `${sizePx}px`;
+  face.style.height = `${sizePx}px`;
+  face.dataset.picture = 'team-button';
+  return face;
+}
+
+/** Close on a screen: a cross before the word. */
+export function closeButton(className: string, label: string, onTap: () => void): HTMLButtonElement {
+  return pictureButton(className, pictureIcon('cross', 32), label, onTap);
 }

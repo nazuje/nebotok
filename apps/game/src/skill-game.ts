@@ -1,7 +1,7 @@
 import { CLOCK_SLACK_MS, MIN_ATTEMPT_MS, type DipParams, type Language, type MarkerParams, type SkillAttemptMessage, type SkillOutcome, type SkillResultMessage, type SparkleParams, type StringId, type Tap } from '@nebotok/core';
 import { itemIcon } from './bag-screen.ts';
 import { itemName } from './battle-content.ts';
-import { el, icon } from './dom.ts';
+import { el, icon, withPicture } from './dom.ts';
 import { createGameHint } from './game-hint.ts';
 import { pictureIcon } from './pictures.ts';
 import { ANSWER_MS } from './request-pacer.ts';
@@ -148,7 +148,8 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
   const again = el('button', { className: 'primary skill-again', attrs: { type: 'button' } }, [pictureIcon('again', 32), againWords]);
   const demo = createGameHint();
   const outcomeLayer = el('div', { className: 'skill-outcome-layer' });
-  const done = el('button', { className: 'secondary skill-done', attrs: { type: 'button' } });
+  const doneWords = el('span');
+  const done = withPicture(el('button', { className: 'secondary skill-done', attrs: { type: 'button' } }, [doneWords]), pictureIcon('cross', 32));
   const actions = el('div', { className: 'skill-actions' }, [again, done]);
   const card = el('div', { className: 'skill-card', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'skill-title' } }, [
     el('div', { className: 'skill-head' }, [picture, title, close]),
@@ -203,7 +204,7 @@ export function createSkillCard(root: HTMLElement, options: SkillCardOptions): S
     hint.textContent = text(HINTS[shown.attempt.game], language);
     close.setAttribute('aria-label', text('team.close', language));
     againWords.textContent = text('skill.tryAgain', language);
-    done.textContent = text('team.close', language);
+    doneWords.textContent = text('team.close', language);
     shown.game.relabel(language);
     showResult();
   }

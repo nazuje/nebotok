@@ -1,6 +1,7 @@
 import { bagView, frameNames, spriteFor, type ItemKind, type Language, type Progress, type StringId } from '@nebotok/core';
 import { CONTENT, itemName } from './battle-content.ts';
 import { button, el } from './dom.ts';
+import { closeButton } from './pictures.ts';
 import { paintFrame, sprite } from './sprites.ts';
 import { questName, STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
@@ -89,7 +90,7 @@ export function createBagScreen(root: HTMLElement, options: BagScreenOptions): B
           ];
     const scroll = el('div', { className: 'team-scroll', attrs: { role: 'group' } }, parts);
     const foot = el('div', { className: 'team-foot' }, [
-      button('primary bag-close', t('team.close'), () => {
+      closeButton('primary bag-close', t('team.close'), () => {
         close();
         options.closed();
       }),

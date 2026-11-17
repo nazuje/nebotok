@@ -1,8 +1,8 @@
 import { frameNames, jobRewards, spriteFor, type ItemCount, type JobChanged, type JobView, type Language, type SkillsMessage, type StringId } from '@nebotok/core';
 import { itemIcon } from './bag-screen.ts';
 import { itemName } from './battle-content.ts';
-import { button, el } from './dom.ts';
-import { pictureIcon, spriteIcon } from './pictures.ts';
+import { el } from './dom.ts';
+import { closeButton, pictureIcon, spriteIcon } from './pictures.ts';
 import { showFrame } from './skill-games/mini-game.ts';
 import { paintFrame, sprite } from './sprites.ts';
 import { STORY } from './story-content.ts';
@@ -328,7 +328,7 @@ export function createJobBoard(root: HTMLElement, options: JobBoardOptions): Job
     scroll = scrolled;
     more = down;
     const foot = el('div', { className: 'team-foot' }, [
-      button('primary job-board-close', text('team.close', language), () => {
+      closeButton('primary job-board-close', text('team.close', language), () => {
         close();
         options.closed();
       }),
