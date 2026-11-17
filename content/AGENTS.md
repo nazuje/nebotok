@@ -179,7 +179,11 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
   to no effects and is passed over while a delivery is ready (see the job conditions above). Each node has a line `say` in both
   languages, an optional `speaker` (another character or `narrator`), a `mood` (`calm`, `happy`,
   `worried` or `surprised`), and then `next`, up to 3 `choices` (each with its own `if`) or
-  neither, which ends the talk. Entering a node does its `effects` all together or not at all:
+  neither, which ends the talk. Each choice shows a picture so a player who cannot read knows what
+  it does: by default (core `choicePicture`) a tick on one leading to a quest start and a clock on
+  one ending the talk with nothing done, or the picture-kit id its `picture` names. Give every
+  other choice a `picture`. With "Read to me" on, the choices are read after the line in the
+  narrator's voice. Entering a node does its `effects` all together or not at all:
   `startQuest` (only the quest's giver), `completeStep` (a talk or deliver step of this character),
   `give` and `take` an item, `setFlag`, `cue` (a scene: `effects/<cue>` in art) and
   `{ "offerStarter": true }`, which opens the starter screen for a player with no creature. A node

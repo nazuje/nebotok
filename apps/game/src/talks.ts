@@ -2,7 +2,7 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type BoardJob, type Direction, type L
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { ANSWER_MS, type RequestPacer } from './request-pacer.ts';
-import type { Speech, Voice } from './speech.ts';
+import type { Speech, Spoken, Voice } from './speech.ts';
 import { talkCueKey } from './storm-plan.ts';
 import { text } from './strings.ts';
 import { createTalkBox } from './talk-box.ts';
@@ -16,6 +16,13 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 /** The voice a line is said in: its speaker's, or null for the narrator. */
 const voiceOf = (shown: TalkLine): Voice | null => (shown.speaker ? (STORY.npcs.get(shown.speaker)?.voice ?? null) : null);
+const choiceWords = (shown: TalkLine): string[] => shown.choices.map((choice) => choice.say);
+
+/** The choice being read aloud now, by its index, or null. Choices are read in the narrator's voice. */
+function choiceRead(shown: TalkLine, speaking: Spoken | null): number | null {
+  if (speaking === null || speaking.voice !== null) return null;
+  return shown.choices.find((choice) => choice.say === speaking.text)?.index ?? null;
+}
 
 /** The talk on screen, for the test hook. */
 export type TestTalk = {
@@ -28,8 +35,10 @@ export type TestTalk = {
   line: string;
   /** The whole line is shown, so a tap goes on and the choices are up. */
   typed: boolean;
-  /** The choices on screen, each with the index the server answers by (the button's `data-choice`). */
-  choices: { index: number; say: string }[];
+  /** The choices on screen, each with the index the server answers by (the button's `data-choice`), its picture and kind. */
+  choices: { index: number; say: string; picture: string | null; kind: string | null }[];
+  /** The choice being read aloud now, by its index, or null. */
+  reading: number | null;
   waiting: boolean;
 };
 
@@ -41,7 +50,7 @@ export type TalksOptions = {
   jobs(): readonly BoardJob[] | null;
   /** A talk opened or closed, so the page shows another screen and input may change. */
   changed(): void;
-  /** Says each line as it starts, and again from the talk box's speaker button. */
+  /** Says each line and its choices as it starts, and again from the talk box's speaker button. */
   speech: Speech;
   /** A node with a cue opened (`talkCueKey` is its key): the starter screen, or a story cue to play. */
   cue(cue: TalkCue, key: string): void;
@@ -89,7 +98,7 @@ export function createTalks(options: TalksOptions): Talks {
     close: () => close(),
     speak: () => {
       const shown = line();
-      if (shown) speech.say(voiceOf(shown), shown.say);
+      if (shown) speech.say(voiceOf(shown), shown.say, choiceWords(shown));
     },
   });
 
@@ -118,7 +127,7 @@ export function createTalks(options: TalksOptions): Talks {
       typingFrom = performance.now();
       skipped = false;
       const shown = line();
-      if (shown) speech.onLine(voiceOf(shown), shown.say, shown.mood);
+      if (shown) speech.onLine(voiceOf(shown), shown.say, shown.mood, choiceWords(shown));
       if (next.cue !== null) options.cue(next.cue, talkCueKey(next));
     }
     if (opened) options.changed();
@@ -147,6 +156,7 @@ export function createTalks(options: TalksOptions): Talks {
   function choose(index: number, now: number) {
     const shown = line();
     if (!talk || !shown || waiting || typed(shown, now) < shown.say.length || !talk.choices.includes(index)) return;
+    speech.stop();
     ask({ type: CLIENT_MESSAGES.talkNext, payload: { conversation: talk.conversation, choice: index } }, now);
   }
 
@@ -213,7 +223,8 @@ export function createTalks(options: TalksOptions): Talks {
               typed: typed(shown, now),
               waiting,
               closeLabel: text('talk.close', language),
-              speakLabel: speech.has(voiceOf(shown), shown.say) ? text('speech.play', language) : null,
+              speakLabel: speech.has(voiceOf(shown), shown.say) || shown.choices.some((choice) => speech.has(null, choice.say)) ? text('speech.play', language) : null,
+              reading: choiceRead(shown, speech.speaking()),
             }
           : null,
       );
@@ -238,7 +249,8 @@ export function createTalks(options: TalksOptions): Talks {
         speaker: shown.speaker,
         line: shown.say,
         typed: typed(shown, now) >= shown.say.length,
-        choices: shown.choices.map(({ index, say }) => ({ index, say })),
+        choices: shown.choices.map(({ index, say, picture, kind }) => ({ index, say, picture, kind })),
+        reading: choiceRead(shown, speech.speaking()),
         waiting,
       };
     },

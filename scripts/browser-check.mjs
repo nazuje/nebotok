@@ -384,7 +384,8 @@ async function bannerOfNewQuest(page, giver, { expect, check }) {
 
 /**
  * A quest by talking, against the real server: the character marked with a new quest is tapped,
- * their choices show and the one that takes the quest is tapped; the quest item they give is
+ * their choices show, each with a picture and the one that takes the quest as the strong button
+ * with the tick, and that one is tapped; the quest item they give is
  * carried to the character marked to take it, who takes it in a talk tapped through 8 times a
  * second, and their mark goes.
  */
@@ -397,6 +398,9 @@ async function questTalk(page, bot, { expect, check, notes, tabs }) {
     if (choices > 0 || s.talk.choices.length === 0) return;
     choices = s.talk.choices.length;
     expect((await page.locator('#talk .talk-choice:visible').count()) === choices, `the talk box shows ${await page.locator('#talk .talk-choice:visible').count()} choices, not the ${choices} the talk has`);
+    const looks = await page.locator('#talk .talk-choice:visible').evaluateAll((buttons) => buttons.map((button) => ({ picture: button.querySelector('[data-picture]')?.getAttribute('data-picture') ?? null, kind: button.getAttribute('data-kind') })));
+    expect(looks.every((look) => look.picture !== null), `a choice in the talk box shows no picture: ${JSON.stringify(looks)}`);
+    expect(looks.some((look) => look.kind === 'takes' && look.picture === 'pictures/check'), `no choice that takes ${giver}'s quest shows the tick as the strong button: ${JSON.stringify(looks)}`);
     await check('choices in the talk box', 't1-choices');
     await talkIgnoresMapAndTabsToChoice(page, s.talk, { expect, tabs });
   };
