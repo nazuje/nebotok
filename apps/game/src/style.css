@@ -941,6 +941,34 @@ canvas.creature {
   transform: scaleX(-1);
 }
 
+/* A button with pictures before its words (withPicture in src/dom.ts); a tab puts them above. */
+.with-picture {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.button-pictures {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.picture-words {
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.team-tab.with-picture {
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* A weather type: its icon, with its name small underneath. */
 .type-chip {
   display: inline-flex;

@@ -10,7 +10,7 @@
 // for one fish, a miss, a success (two sparkles of three) and the cooked dish.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { HOOK, animationsSettled, nextFrames, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
+import { CONTROL_PICTURES, HOOK, animationsSettled, nextFrames, pictureProblems, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
 
 const ITEMS = new Map(JSON.parse(readFileSync(join(ROOT, 'content/items.json'), 'utf8')).items.map((item) => [item.id, item]));
@@ -225,6 +225,7 @@ async function cook(page, plan, { name, expect, check, keys }) {
     expect(focusAfter === focusBefore, `closing the recipe book left focus on ${focusAfter}, not ${focusBefore} where it was`);
     return;
   }
+  for (const problem of await pictureProblems(page, { '#recipe-book .book-close': CONTROL_PICTURES.close })) expect(false, `the recipe book: ${problem}`);
   await page.locator('#recipe-book .book-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the recipe book');
 }
@@ -241,6 +242,7 @@ async function skillsTab(page, { expect, check }) {
   const badges = await page.locator('#journal .skill-row-level').allTextContents();
   expect(JSON.stringify(badges) === JSON.stringify(state.skills?.skills.map((entry) => String(entry.level))), `the Skills tab's level badges say ${JSON.stringify(badges)}`);
   expect((state.skills?.skills.find((entry) => entry.skill === 'fishing')?.xp ?? 0) > 0, 'fishing has no XP after a catch');
+  for (const problem of await pictureProblems(page, { '#journal .journal-tab[data-tab="skills"]': CONTROL_PICTURES.skills })) expect(false, `the Skills tab: ${problem}`);
   await check('the Skills tab', 'k7-skills');
   await page.locator('#journal .journal-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the journal');
@@ -271,6 +273,7 @@ export async function skillScreensFit(page, world, plan, { expect, noSideways, c
   await until(page, (s) => s.screen === 'recipeBook' && s.recipeBook !== null, 'the recipe book at 360px', 10_000);
   await nextFrames(page);
   await noSideways('the recipe book');
+  for (const problem of await pictureProblems(page, { '#recipe-book .book-close': CONTROL_PICTURES.close })) expect(false, `the recipe book at 360px: ${problem}`);
   await check('the recipe book at 360px', 'book');
   await page.locator('#recipe-book .book-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the recipe book');
@@ -282,6 +285,7 @@ export async function skillScreensFit(page, world, plan, { expect, noSideways, c
   const missed = await judged(page, 'the foraging game at 360px to end with no taps');
   await resultPictures(page, missed, 'miss', expect);
   await noSideways('a missed foraging game');
+  for (const problem of await pictureProblems(page, { '#skill-game .skill-done': CONTROL_PICTURES.close })) expect(false, `a missed foraging game at 360px: ${problem}`);
   await check('a missed foraging game at 360px', 'sparkle-miss');
   await page.locator('#skill-game .skill-close').tap();
   await until(page, (s) => s.screen === 'world' && s.attempt === null, 'the world after closing the game');
@@ -291,6 +295,7 @@ export async function skillScreensFit(page, world, plan, { expect, noSideways, c
   await until(page, (s) => s.journal?.tab === 'skills', 'the Skills tab at 360px');
   await nextFrames(page);
   await noSideways('the Skills tab');
+  for (const problem of await pictureProblems(page, { '#journal .journal-tab[data-tab="skills"]': CONTROL_PICTURES.skills, '#journal .journal-close': CONTROL_PICTURES.close })) expect(false, `the Skills tab at 360px: ${problem}`);
   await check('the Skills tab at 360px', 'skills');
   await page.locator('#journal .journal-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the journal');

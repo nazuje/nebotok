@@ -2,7 +2,7 @@ import { giveItems, itemCount, recipeBook, recipeSkill, spriteFor, type Language
 import { itemIcon } from './bag-screen.ts';
 import { CONTENT, itemName } from './battle-content.ts';
 import { button, el } from './dom.ts';
-import { pictureIcon, spriteIcon } from './pictures.ts';
+import { closeButton, pictureIcon, spriteIcon } from './pictures.ts';
 import { STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
 
@@ -154,7 +154,7 @@ export function createRecipeBook(root: HTMLElement, options: RecipeBookOptions):
     const keepFocus = focusedControl();
     const scroll = el('div', { className: 'team-scroll', attrs: { role: 'group' } }, [el('ul', { className: 'recipe-list' }, list)]);
     const foot = el('div', { className: 'team-foot' }, [
-      button('primary book-close', text('team.close', language), () => {
+      closeButton('primary book-close', text('team.close', language), () => {
         close();
         options.closed();
       }),

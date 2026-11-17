@@ -6,7 +6,7 @@ import type { BattleScreenState, Picker } from './battle-model.ts';
 import type { Line } from './battle-playback.ts';
 import { resultPictures } from './battle-result.ts';
 import { creatureSummary } from './creature-card.ts';
-import { button, el } from './dom.ts';
+import { button, el, pictureButton } from './dom.ts';
 import { pictureIcon } from './pictures.ts';
 import { paintFrame, sprite } from './sprites.ts';
 import { format, text } from './strings.ts';
@@ -107,6 +107,9 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
     return parts;
   }
 
+  /** Back to the menu from a picker, with an arrow pointing back. */
+  const backButton = () => pictureButton('secondary battle-back', pictureIcon('arrow', 32, { mirrored: true }), t('battle.back'), () => options.pick('menu'));
+
   function teamPicker(state: BattleScreenState): HTMLElement[] {
     const language = options.language();
     const { creatures, active } = state.view.team;
@@ -120,7 +123,7 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
       return el('li', {}, [choice]);
     });
     const parts: HTMLElement[] = [el('ul', { className: 'battle-choices' }, choices)];
-    if (!state.view.mustSwap) parts.push(button('secondary battle-back', t('battle.back'), () => options.pick('menu')));
+    if (!state.view.mustSwap) parts.push(backButton());
     return parts;
   }
 
@@ -144,7 +147,7 @@ export function createBattleScreen(root: HTMLElement, options: BattleScreenOptio
     });
     const parts: HTMLElement[] = [el('p', { className: 'battle-heading', text: t('battle.treats') })];
     parts.push(treats.length > 0 ? el('ul', { className: 'battle-choices' }, choices) : el('p', { className: 'hint centred', text: t('refused.noItem') }));
-    parts.push(button('secondary battle-back', t('battle.back'), () => options.pick('menu')));
+    parts.push(backButton());
     return parts;
   }
 

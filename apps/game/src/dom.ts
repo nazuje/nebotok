@@ -22,6 +22,22 @@ export function button(className: string, label: string, onTap: () => void): HTM
   return made;
 }
 
+/**
+ * Puts `pictures` before a button's words, so a player who cannot read yet knows it by sight. The
+ * words stay for readers, and the pictures are hidden from screen readers, so its name is unchanged.
+ */
+export function withPicture<T extends HTMLElement>(made: T, ...pictures: readonly Element[]): T {
+  const words = el('span', { className: 'picture-words' }, [...made.childNodes]);
+  made.classList.add('with-picture');
+  made.replaceChildren(el('span', { className: 'button-pictures', attrs: { 'aria-hidden': 'true' } }, pictures), words);
+  return made;
+}
+
+/** A button with a picture before its words. */
+export function pictureButton(className: string, picture: Element, label: string, onTap: () => void): HTMLButtonElement {
+  return withPicture(button(className, label, onTap), picture);
+}
+
 const SVG = 'http://www.w3.org/2000/svg';
 
 /** An icon from SVG path data, hidden from screen readers: its button carries the label. */

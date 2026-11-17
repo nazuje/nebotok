@@ -99,8 +99,8 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
 - **Pictures** say on HTML screens what words would, for players who cannot read yet: a check, a
   cross, a heart, a lock, a clock, a trophy, an arrow (pointing right; the game mirrors it to point
   left), a try-again loop, an envelope, a compass, footprints (too far), a full bag, a stamp (done),
-  a star burst, a speaker (read aloud), a flag (the shrine you wake at) and an unplugged cloud
-  (connection lost). Each is one outlined shape that reads on its own at 16
+  a star burst, a speaker (read aloud), a flag (the shrine you wake at), an unplugged cloud
+  (connection lost) and an exclamation mark (quests, like the mark over a character with a new one). Each is one outlined shape that reads on its own at 16
   by 16. `pictureIcon(id, sizePx)` and `weatherIcon(type, sizePx)` in `apps/game/src/pictures.ts`
   paint them into HTML; a new picture is an id in `PICTURES` and its sprite.
 - **Spots and stations** stand on their map tile like a character. A spot shows `ready`, or
