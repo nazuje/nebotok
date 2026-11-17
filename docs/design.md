@@ -28,14 +28,45 @@ together with the kids.
 
 ## Creatures and battles
 
-- You carry up to 6 creatures. They battle one at a time and you can switch freely.
-- Each creature knows 4 moves.
+Battles are real-time fights in an arena: a round floating sky island seen from above. Turn
+battles stay in the game until the arena replaces them (the switch-over, see
+[phases.md](phases.md)). The rules and numbers are in [arena.md](arena.md); why turns go is in
+[decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md).
+
+- You carry up to 6 creatures. In a wild fight your lead creature fights one wild creature. Swap
+  brings in the next one (every 5 s at most), and a fainted creature is replaced by the next.
+- Creatures walk, dash and get knocked about. You win by knocking the other creature out, or off
+  the island (a ring-out). A knock pushes further the more health is lost.
+- From 20 s a storm eats the island's edge: a 2 s warning, then a step every 10 s, down to a
+  quarter of the island.
 - There are 6 weather types: Sun, Gale, Rain, Frost, Storm and Bloom. Each is strong against some
-  and weak against others, and the weather on the battlefield changes how moves work.
-- A wild creature joins you after a battle when you offer it a treat you cooked. A tired
-  creature, or its favourite treat, raises the chance.
+  and weak against others, and the weather on the island changes how moves work. Levels and the
+  weather chart still matter; dodging, timing and position decide close fights.
+- A creature keeps every move it learns. Each move has a kind (quick, about 1 s to cool down;
+  special, about 6 s; weather ultimate, about 20 s) and one of 13 shapes (bolt, spray, cone, snare,
+  lunge, burst, puddle, shield, strike, wall, freeze, zone, weather). Before a fight the player puts
+  one learned move on each button: the loadout.
+- Button 1 is there from the start. **Buttons 2 and 3 unlock at levels 7 and 12.**
+- Controls: a floating stick on the left, buttons on the right, each at least 64 px; WASD or
+  arrows, 1, 2, 3, Space to dash, E for a treat and Q to swap. Abilities go where the creature
+  faces, with a little aim help.
+- **Befriending:** when the wild creature is worn down, a Treat button appears. Throw it: a hit
+  befriends, a miss lies on the ground to be picked up. A favourite or liked treat is easier to hit
+  and works sooner; a cooked treat a little sooner still. **A creature knocked off the island cannot
+  be befriended:** it floats away, and you win with XP but no new friend.
+- **Trainer fights and duels** are best of 3: each side picks 3 creatures, one creature a round.
+  **For now there is one placeholder trainer, Vetrinka**, so best of 3 can be built and tested; the
+  kids' own trainers replace her on their design day.
+- **The turtle setting** makes fights easier for one player: you take less damage, and the
+  computer's creatures are slower and gentler. **It is allowed in duels,** where both players see a
+  turtle badge on that creature.
 - If your whole team faints, you wake at the last shrine you visited with your team healed, and you
   lose nothing. This may change.
+- Fights are playable without reading: a picture for every shape, kind and button, and no words
+  needed to fight, pick a loadout or answer a duel.
+
+The owner settled the four open questions of the plan (#116, #141) as written above in bold. They
+may change later.
 
 ## Skills
 
@@ -62,8 +93,11 @@ cooking turns them into treats for befriending, and building will shape your hom
 - One shared world on a server, where everyone sees each other walking around.
 - Each player has their own story progress, as in RuneScape, plus occasional shared world events
   everyone takes part in.
-- Trading, and friendly duels with an optional even-match setting that scales levels so a younger
-  and an older player can have a fair fight.
+- Trading.
+- Friendly duels: tap another player to ask, and they accept or decline with one tap. Both go to a
+  duel island, and others can watch. No treats, nothing lost, and a little XP for both. An
+  even-match setting (on by default) sets every creature to the same level, so a younger and an
+  older player can have a fair fight.
 - Talking with preset phrases and emotes in both languages. Free chat may come later.
 - Each player owns a home island that others can visit when invited.
 

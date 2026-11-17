@@ -81,14 +81,51 @@ pictures in parallel: quests with a banner, journal cards and a compass button (
 cards and news (#118), tiny games, results, the recipe book and skills (#119), refusals, level ups,
 shrine rests and connection messages (#120), and the treat picker, battle results, learn prompt and
 team screen (#121). "Read to me" with speaker buttons (#122) follows #115 and #117, and a playtest as
-a child who cannot read (#123) comes last. Battle visuals follow the owner's verdict on the
-battle-feel prototype (branch `prototype/battle-feel`): the battle redesign (#116) is blocked until
-then, and the playtest does not wait for it.
+a child who cannot read (#123) comes last. Battle visuals followed the owner's verdict on the
+battle-feel prototype (branch `prototype/battle-feel`): the battle redesign (#116) is split into
+"Arena battles" below.
+
+### Arena battles
+
+Milestone "Phase 2: Arena battles". The owner's verdict on the battle-feel prototype: real-time
+arena battles replace turn battles (variant 6, see [arena.md](arena.md) and
+[decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md)), and friendly duels move
+here from Slice D. The battle redesign (#116) is split into these tickets:
+
+- #141: these docs: the arena design, the protocol plan and the decision to drop turns.
+- #142: every move gets a kind, a shape and arena numbers (`content/creatures/arena.json`).
+- #143: pictures for every ability shape, kind and arena button.
+- #144: core arena: bodies, walking, dash, collisions, storm and ring-out.
+- #145: core arena: abilities, hits, status effects and weather.
+- #146: core arena: the wild creature's mind and the balance sim.
+- #147: core arena: treats, swap, fainting, rounds and rewards.
+- #148: save v7: loadouts, the turtle setting and `loadout.set`.
+- #149: server: the arena room, input, limits and a protocol bump.
+- #150: server: wild encounters fight in the arena (behind `ARENA_BATTLES`).
+- #151: client: the arena scene and controls.
+- #152: client: predict your creature and smooth the other.
+- #153: client: health bars, damage numbers, juice and haptics.
+- #154: client: the loadout picker and the new-move toast.
+- #155: client: pick three and the best-of-three rounds.
+- #156: trainer fights: best of three from a talk, with one placeholder trainer.
+- #157: duels: challenge, accept or decline, even match.
+- #158: duels: the duel island, watching and rewards.
+- #159: playtest the arena: the game-tester, then the family on an iPad.
+- #160: switch over: arena for everyone, turn battles removed (after #159 and the owner's go).
+
+Order: #141 first; then #142, #143 and #144 in parallel; #145 (after #142 and #144) and #148
+(after #142); #146 and #147; #149 alone, the seam between core and server; #150 and #151; #152,
+#153, #155 and #157; #154 once #143 and #148 are in; #156, #158 and #159; #160 last. The critical
+path is #141, #142, #145, #147, #149, #151, #152, #159, #160.
+
+Later, not in this milestone: top-down creature art with walking frames after the kids' creature
+design day (#161), co-op against a storm boss, 2v2 duels, arena sounds (Slice F) and the kids' own
+trainers.
 
 ### Slice D: Better together
 
-Trading, duels with the even-match setting, preset phrases and emotes, and home islands that others
-can visit, with the building skill to shape them.
+Trading, preset phrases and emotes, and home islands that others can visit, with the building skill
+to shape them. Friendly duels moved to "Arena battles".
 
 ### Slice E: Grow the sky
 
