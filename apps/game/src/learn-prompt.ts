@@ -52,57 +52,109 @@ export type LearnPrompt = {
   render(state: LearnState | null): void;
 };
 
+/** The new move as a chip in its type's colour, with a sparkle. */
+function newMoveChip(move: string, language: Language, className: string): HTMLElement {
+  return el('span', { className: `move-chip ${className} type-${moveType(move) ?? 'none'}` }, [
+    pictureIcon('star-burst', 32, { className: 'learn-sparkle' }),
+    ...moveTypeIcon(move, language, 32),
+    el('span', { text: moveName(move, language) }),
+  ]);
+}
+
 /**
- * "{creature} wants to learn {move}": the new move, sliding down toward the four the creature knows,
- * each a button in its type's colour that forgets it for the new one, and a button with a cross
- * that keeps them all.
+ * "{creature} wants to learn {move}": the new move, sparkling and sliding down toward the four the
+ * creature knows, each a button in its type's colour with a puff of smoke for forgetting, and a
+ * button with a cross that keeps them all. Forgetting takes two taps: the first picks a move, which
+ * is struck out with the new move in its place, and the check below sends it while going back
+ * returns to choosing. Picking another move instead moves the new one there.
  */
 export function createLearnPrompt(root: HTMLElement, options: { language(): Language; answer(forget: number | null): void }): LearnPrompt {
   let shown = '';
+  let offered = '';
+  let last: LearnState | null = null;
+  /** The slot picked to forget, waiting for the check; null while choosing. */
+  let chosen: number | null = null;
 
-  const moveButton = (move: string, slot: number, language: Language) => {
-    const choice = button(`move learn-forget type-${moveType(move) ?? 'none'}`, '', () => options.answer(slot));
-    choice.append(...moveTypeIcon(move, language, 32), el('span', { text: moveName(move, language) }));
+  const pick = (slot: number | null) => {
+    if (!last || last.sent) return;
+    const was = chosen;
+    chosen = slot;
+    draw(last);
+    // Keyboard and screen reader players go on to what comes next: the check, or the move they went back from.
+    const next = slot === null ? root.querySelector<HTMLElement>(`.learn-forget[data-slot="${was}"]`) : root.querySelector<HTMLElement>('.learn-yes');
+    next?.focus();
+  };
+
+  const moveButton = (move: string, slot: number, learning: string, language: Language) => {
+    const picked = chosen === slot;
+    const choice = button(`move learn-forget type-${moveType(move) ?? 'none'}`, '', () => pick(slot));
+    choice.setAttribute('aria-label', format('learn.forgetMove', language, { move: moveName(move, language) }));
+    choice.setAttribute('aria-pressed', String(picked));
+    choice.append(el('span', { className: 'learn-going' }, [...moveTypeIcon(move, language, 32), el('span', { className: 'learn-name', text: moveName(move, language) }), pictureIcon('puff', 32, { className: 'learn-puff' })]));
+    if (picked) choice.append(newMoveChip(learning, language, 'learn-coming'));
     choice.dataset.slot = String(slot);
     return choice;
+  };
+
+  const confirmRow = (question: string, language: Language) => {
+    const back = button('secondary learn-back', '', () => pick(null));
+    back.append(pictureIcon('again', 32), el('span', { text: text('learn.back', language) }));
+    const yes = button('primary learn-yes', '', () => {
+      if (chosen !== null) options.answer(chosen);
+    });
+    yes.append(pictureIcon('check', 32), el('span', { text: text('learn.confirm', language) }));
+    return el('div', { className: 'learn-confirm', attrs: { role: 'group', 'aria-label': question } }, [back, yes]);
   };
 
   function build({ offer }: LearnState) {
     const language = options.language();
     const t = (id: StringId) => text(id, language);
     const wants = format('learn.wants', language, { creature: speciesName(offer.species, language), move: moveName(offer.move, language) });
-    const learning = el('p', { className: 'learn-new' }, [
-      el('span', { className: 'label', text: t('learn.new') }),
-      el('span', { className: `move-chip learn-chip type-${moveType(offer.move) ?? 'none'}` }, [...moveTypeIcon(offer.move, language, 32), el('span', { text: moveName(offer.move, language) })]),
-    ]);
-    const moves = el('div', { className: 'battle-moves learn-moves', attrs: { role: 'group', 'aria-label': t('learn.forget') } }, offer.moves.map((move, slot) => moveButton(move, slot, language)));
+    const learning = el('p', { className: 'learn-new' }, [el('span', { className: 'label', text: t('learn.new') }), newMoveChip(offer.move, language, 'learn-chip')]);
+    const forgetting = chosen === null ? undefined : offer.moves[chosen];
+    const question = forgetting === undefined ? t('learn.forget') : format('learn.swap', language, { old: moveName(forgetting, language), move: moveName(offer.move, language) });
+    const moves = el('div', { className: 'battle-moves learn-moves', attrs: { role: 'group', 'aria-label': t('learn.forget') } }, offer.moves.map((move, slot) => moveButton(move, slot, offer.move, language)));
     const skip = button('secondary learn-skip', '', () => options.answer(null));
     skip.append(pictureIcon('cross', 32), el('span', { text: t('learn.skip') }));
+    root.toggleAttribute('data-chosen', forgetting !== undefined);
     root.replaceChildren(
       el('div', { className: 'screen-body' }, [
         el('div', { className: 'learn-creature' }, [creaturePortrait(offer.species)]),
         el('h2', { className: 'screen-title learn-title', text: wants }),
         learning,
-        el('p', { className: 'hint centred', text: t('learn.forget') }),
+        el('p', { className: 'hint centred learn-question', text: question }),
         el('div', { className: 'learn-toward', attrs: { 'aria-hidden': 'true' } }, [pictureIcon('arrow', 32, { className: 'down' })]),
         moves,
+        ...(forgetting === undefined ? [] : [confirmRow(question, language)]),
         skip,
       ]),
     );
+  }
+
+  /** Draws the offer when it, the language or the pick changed. A new offer starts with nothing picked. */
+  function draw(state: LearnState) {
+    const offer = JSON.stringify(state.offer);
+    if (offer !== offered) {
+      offered = offer;
+      chosen = null;
+    }
+    const key = JSON.stringify([options.language(), offer, chosen]);
+    if (key === shown) return;
+    shown = key;
+    build(state);
   }
 
   return {
     render: (state) => {
       root.hidden = state === null;
       root.setAttribute('aria-busy', String(state?.sent ?? false));
-      if (!state) {
+      last = state;
+      if (state) draw(state);
+      else {
         shown = '';
-        return;
+        offered = '';
+        chosen = null;
       }
-      const key = JSON.stringify([options.language(), state.offer]);
-      if (key === shown) return;
-      shown = key;
-      build(state);
     },
   };
 }

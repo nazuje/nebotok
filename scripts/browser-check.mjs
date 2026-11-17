@@ -1020,8 +1020,9 @@ async function checkAddPin(browser, browserName, language, bot) {
  * Learning a move, on our own server only: a player whose glowbun is a point of experience short of
  * a learnset level, prepared in the server's database (scripts/lib/learn-check.mjs) with the first
  * quest a battle does not move on active (learnerStory), so its journal shows a quest card, sees the
- * swap hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English;
- * WebKit keeps them all, in Slovenian. The learner is deleted afterwards, as the battlers are.
+ * swap hint on the team screen, wins a wild battle, opens the treat picker on the fainted creature to see its favourite marked, and is asked which move to forget for the new one. Chromium forgets one, in English,
+ * after picking another and going back; WebKit picks, switches and goes back, then keeps them all,
+ * in Slovenian. The learner is deleted afterwards, as the battlers are.
  */
 async function checkLearn(browser, browserName, bot) {
   const language = browserName === 'chromium' ? 'en' : 'sl';
