@@ -5,8 +5,11 @@
 // to me" off, as for every player at first, the player turns it on in the settings and comes back
 // after a reload with it still on (it is saved with the player). Handing the delivery over, every
 // line with a clip is asked for as it starts, in its speaker's voice, and the banner of the step
-// done asks for its hint's clip, and again from its speaker button. With "Read to me" turned off
-// again, the character's next line asks for nothing until the talk box's speaker button is tapped.
+// done asks for its hint's clip, and again from its speaker button. A character then offering a
+// quest has its line read and then each choice in the narrator's voice, each choice showing its
+// picture, and all again from the talk box's speaker button; the quest is put off. With "Read to
+// me" turned off again, the character's next line asks for nothing until the talk box's speaker
+// button is tapped.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { inWorld, nextFrames, openTalk, readState, talkThrough, until } from './game-page.mjs';
@@ -113,6 +116,66 @@ async function onTalk(page, world, plan, { language, asked, expect, check, notes
   expect(asked.includes(clip), `the banner's hint clip ${clip} was never requested: ${JSON.stringify(asked)}`);
 }
 
+/** The clips of a talk's line and then of its choices, in the narrator's voice, in the order "Read to me" asks for them. */
+const lineAndChoiceClips = (language, talk) => [clipFor(language, talk.speaker, talk.line), ...talk.choices.map((choice) => clipFor(language, null, choice.say))].filter((clip) => clip !== null);
+
+/** Whether `list` holds every one of `wanted` in that order, with anything between. */
+function inOrder(list, wanted) {
+  let at = 0;
+  for (const each of list) if (each === wanted[at]) at += 1;
+  return at === wanted.length;
+}
+
+/** Each choice button's picture and kind, as the talk box shows them. */
+const choiceLooks = (page) =>
+  page.locator('#talk .talk-choice:visible').evaluateAll((buttons) => buttons.map((button) => ({ picture: button.querySelector('[data-picture]')?.getAttribute('data-picture') ?? null, kind: button.getAttribute('data-kind') })));
+
+/**
+ * On, with a quest on offer: the line's clip is asked for, then each choice's in turn, in the
+ * narrator's voice, while each choice shows its picture; the talk box's speaker button asks for the
+ * line and the choices again. The quest is put off, so nothing else changes.
+ */
+async function choicesTalk(page, world, { language, asked, expect, check, notes }) {
+  const offered = await until(page, (s) => s.talk === null && s.npcs.some((npc) => npc.mark === 'newQuest'), 'a character with a quest to offer', 10_000).catch(() => null);
+  if (!offered) {
+    notes.push('no character offered a quest after the delivery, so choices were not read');
+    return;
+  }
+  const giver = offered.npcs.find((npc) => npc.mark === 'newQuest').id;
+  const before = { hook: offered.voice.asked, requests: asked.length };
+  await openTalk(page, world, giver, { notes });
+  const shown = await until(page, (s) => s.talk?.npc === giver && s.talk.typed && !s.talk.waiting, `${giver}'s offer shown whole`);
+  if (shown.talk.choices.length === 0) {
+    notes.push(`${giver}'s first line has no choices, so choices were not read`);
+    await talkThrough(page);
+    return;
+  }
+  const clips = lineAndChoiceClips(language, shown.talk);
+  expect(clips.length === shown.talk.choices.length + 1, `"${shown.talk.line}" and its choices have ${clips.length} clips in ${language}, not ${shown.talk.choices.length + 1}`);
+  const read = await until(page, (s) => s.voice.asked >= before.hook + clips.length, `the line and its ${shown.talk.choices.length} choices to be read`, 10_000).catch(() => readState(page));
+  expect(read.voice.asked === before.hook + clips.length && read.voice.clip === clips.at(-1), `with "Read to me" on, ${giver}'s offer asked for ${read.voice.asked - before.hook} clips ending ${read.voice.clip}, not ${clips.length} ending ${clips.at(-1)}`);
+  expect(inOrder(asked.slice(before.requests), clips), `with "Read to me" on, the line and choices requested ${JSON.stringify(asked.slice(before.requests))}, not ${JSON.stringify(clips)} in order`);
+  const looks = await choiceLooks(page);
+  expect(looks.length === shown.talk.choices.length && looks.every((look) => look.picture !== null), `a choice shows no picture: ${JSON.stringify(looks)}`);
+  await nextFrames(page);
+  await check('the choices with their pictures', 'v5-choices');
+  const again = { hook: read.voice.asked, requests: asked.length };
+  await page.locator('#talk .talk-speaker').tap();
+  const replayed = await until(page, (s) => s.voice.asked >= again.hook + clips.length, "the talk box's speaker button to read the line and its choices", 10_000).catch(() => readState(page));
+  expect(replayed.voice.asked === again.hook + clips.length && replayed.voice.clip === clips.at(-1), `the speaker button asked for ${replayed.voice.asked - again.hook} clips ending ${replayed.voice.clip}, not ${clips.length} ending ${clips.at(-1)}`);
+  await until(page, () => inOrder(asked.slice(again.requests), clips), 'the clip requests', 5_000).catch(() => {});
+  expect(inOrder(asked.slice(again.requests), clips), `the speaker button requested ${JSON.stringify(asked.slice(again.requests))}, not ${JSON.stringify(clips)} in order`);
+  expect(replayed.talk?.node === shown.talk.node, `the speaker button moved the talk on from ${shown.talk.node} to ${replayed.talk?.node}`);
+  const later = shown.talk.choices.find((choice) => choice.kind === 'declines');
+  if (!later) {
+    notes.push(`${giver}'s offer has no choice that puts it off`);
+    await talkThrough(page);
+    return;
+  }
+  await page.locator(`#talk .talk-choice[data-choice="${later.index}"]`).tap();
+  await until(page, (s) => s.talk === null || s.talk.node !== shown.talk.node, `${giver}'s talk to go on from the offer`);
+  await talkThrough(page);
+}
 /** Off: a line asks for nothing by itself, the speaker button asks for its clip, and closing the talk asks for nothing more. */
 async function offTalk(page, world, plan, { language, asked, expect, notes }) {
   await openTalk(page, world, plan.handover, { notes });
@@ -152,6 +215,7 @@ export async function playVoice(page, world, plan, { language, asked, base, expe
   const back = await until(page, (s) => inWorld(s) && s.voice.readToMe !== null, 'the world after a reload');
   expect(back.voice.readToMe === true, '"Read to me" was not saved with the player: off after a reload');
   await onTalk(page, world, plan, { language, asked, expect, check, notes });
+  await choicesTalk(page, world, { language, asked, expect, check, notes });
   await setReadToMe(page, false, { expect, check });
   await offTalk(page, world, plan, { language, asked, expect, notes });
   expect(asked.length > 0, 'no clip was ever requested');

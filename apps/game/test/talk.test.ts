@@ -18,7 +18,12 @@ describe('the words of a talk', () => {
     const line = talkLine({ npc: 'bavko', node: 'offer', choices: [1] }, STORY, 'sl');
     expect(line).toMatchObject({ speaker: 'bavko', name: STORY.npcs.get('bavko')!.name.sl, mood: 'happy', pace: STORY.npcs.get('bavko')!.voice.pace });
     expect(line?.say).toBe(STORY.dialogue.get('bavko')!.nodes['offer']!.say.sl);
-    expect(line?.choices).toEqual([{ say: STORY.dialogue.get('bavko')!.nodes['offer']!.choices![1]!.say.sl, index: 1 }]);
+    expect(line?.choices).toEqual([{ say: STORY.dialogue.get('bavko')!.nodes['offer']!.choices![1]!.say.sl, index: 1, picture: 'clock', kind: 'declines' }]);
+    const both = talkLine({ npc: 'bavko', node: 'offer', choices: [0, 1] }, STORY, 'en');
+    expect(both?.choices.map(({ picture, kind }) => ({ picture, kind }))).toEqual([
+      { picture: 'check', kind: 'takes' },
+      { picture: 'clock', kind: 'declines' },
+    ]);
     expect(talkLine({ npc: 'bavko', node: 'nowhere', choices: [] }, STORY, 'en')).toBeNull();
   });
 

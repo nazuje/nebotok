@@ -132,8 +132,11 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .c
 }
 
 .talk-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: var(--tap);
-  padding: 8px 16px;
+  padding: 8px 16px 8px 10px;
   border: 2px solid var(--accent);
   border-radius: 14px;
   background: white;
@@ -142,6 +145,35 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .c
   font-weight: 800;
   text-align: left;
   overflow-wrap: anywhere;
+}
+
+.talk-choice-picture {
+  flex: none;
+}
+
+.talk-choice-say {
+  min-width: 0;
+}
+
+/* The choice that takes the quest is the strong button; the one that puts it off is the quiet one. */
+.talk-choice[data-kind='takes'] {
+  border-color: #2f855a;
+  background: #2f855a;
+  color: white;
+  box-shadow: 0 3px 0 #22643f;
+}
+
+.talk-choice[data-kind='declines'] {
+  border-color: #c9d6e3;
+  background: #eef3f8;
+  color: #3e5368;
+  font-weight: 700;
+}
+
+/* The choice being read aloud. */
+.talk-choice.reading {
+  outline: 4px solid #f6c544;
+  outline-offset: 2px;
 }
 
 .talk[aria-busy='true'] .talk-choice {
@@ -182,6 +214,16 @@ body:has(.talk:not([hidden])) :is(.team-button, .bag-button, .journal-button, .c
 
   .talk-more {
     animation: talk-more 1s ease-in-out infinite;
+  }
+
+  .talk-choice.reading {
+    animation: talk-choice-reading 0.9s ease-in-out infinite;
+  }
+}
+
+@keyframes talk-choice-reading {
+  50% {
+    transform: scale(1.03);
   }
 }
 

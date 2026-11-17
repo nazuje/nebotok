@@ -22,6 +22,8 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
   let last: string | null = null;
   let asked = 0;
   let unlocked = false;
+  /** The clip playing now and what runs when it ends; another clip or a stop replaces it unrun. */
+  let playing: { readonly url: string; readonly ended: (() => void) | undefined } | null = null;
 
   const unlock = () => {
     if (unlocked) {
@@ -34,6 +36,7 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
   for (const type of GESTURES) document.addEventListener(type, unlock, { capture: true, passive: true });
 
   const stop = () => {
+    playing = null;
     if (current === null && !audio.hasAttribute('src')) return;
     current = null;
     audio.pause();
@@ -41,9 +44,14 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
     // Without a source, load() drops the clip's download and leaves the element quiet and ready.
     audio.load();
   };
-  const ended = () => {
+  /** The clip that `which` names played through or failed: its `ended` runs, once. */
+  const finish = (which: typeof playing) => {
+    if (which === null || which !== playing) return;
+    playing = null;
     current = null;
+    which.ended?.();
   };
+  const ended = () => finish(playing);
   audio.addEventListener('ended', ended);
   audio.addEventListener('error', ended);
   // A clip never goes on playing in a tab the player has left.
@@ -51,24 +59,26 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
     if (document.hidden) stop();
   });
 
-  async function start(url: string) {
+  async function start(which: NonNullable<typeof playing>) {
     try {
       await audio.play();
       unlocked = true;
     } catch {
-      // Not unlocked yet, or the clip is missing: the line is simply not read.
-      if (current === url) current = null;
+      // Not unlocked yet, or the clip is missing: the line is simply not read, and the next one is.
+      finish(which);
     }
   }
 
   return {
-    play: (url) => {
+    play: (url, whenEnded) => {
       if (!url.startsWith(VOICE_PATH)) return;
+      const which = { url, ended: whenEnded };
+      playing = which;
       current = url;
       last = url;
       asked += 1;
       audio.src = url;
-      void start(url);
+      void start(which);
     },
     stop,
     state: () => ({ clip: last, asked }),
