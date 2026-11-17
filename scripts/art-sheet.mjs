@@ -1,12 +1,13 @@
 // Draws every sprite in content/art/ onto one contact sheet, .proof/art/sheet.png, for review: each
-// frame scaled up with its pixels kept sharp, labelled with the sprite id and frame names, and each
-// tileset as Tiled shows it. See-through pixels show a checkerboard.
+// frame scaled up with its pixels kept sharp, labelled with the sprite id and frame names, each
+// tileset as Tiled shows it, and the arena's shape pictures in every weather type's colours, as
+// abilityIcon tints them. See-through pixels show a checkerboard.
 //   npm run art:sheet [-- --out <file>]
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { frameNames } from '../packages/core/src/index.ts';
+import { ARENA_SHAPES, SHAPE_PICTURES, frameNames, isPngSprite, pixelColour, spriteFor, tintSprite } from '../packages/core/src/index.ts';
 import { artPixels, readArt } from './lib/art.mjs';
 import { encodePng } from './lib/png.mjs';
 
@@ -54,6 +55,21 @@ for (const [name, tileset] of art.tilesets) {
     return id ? pixel(id, frameNames(art.sprites.get(id))[0], x % 16, y % 16) : [0, 0, 0, 0];
   };
   blocks.push({ kind: 'tilesets', label: `tilesets/${name}`, frames: [{ label: `${tileset.tiles.length} tiles`, width: tileset.columns * 16, height: rows * 16, at }] });
+}
+const weather = JSON.parse(readFileSync(join(ROOT, 'content', 'creatures', 'weather.json'), 'utf8'));
+for (const type of weather.types.filter((entry) => entry.colours)) {
+  const frames = ARENA_SHAPES.flatMap((shape) => {
+    const drawn = art.sprites.get(spriteFor.picture(SHAPE_PICTURES[shape]));
+    if (!drawn || isPngSprite(drawn)) return [];
+    const tinted = tintSprite(drawn, type.colours);
+    const first = frameNames(drawn)[0];
+    const at = (px, py) => {
+      const colour = pixelColour(tinted, first, px, py);
+      return colour === null ? [0, 0, 0, 0] : [colour >> 16, (colour >> 8) & 0xff, colour & 0xff, 255];
+    };
+    return [{ label: shape, width: drawn.width, height: drawn.height, at }];
+  });
+  blocks.push({ kind: 'tinted', label: `shapes in ${type.id}`, frames });
 }
 
 // Lay the blocks out left to right, starting a new line when a row is full or the kind changes.

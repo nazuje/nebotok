@@ -8,7 +8,8 @@
 // story.json, inventory.json) and the skill files (skills.json, spots.json, recipes.json,
 // stations.json, jobs.json) must link up (core storyProblems, skillProblems) and to the maps
 // (storyMapProblems). Art (content/art/) must hold every sprite that avatars, creatures, weather,
-// items, npcs, story cues, spots, stations, skills, their games and maps need; each tileset image must be what `npm run tiles`
+// items, npcs, story cues, spots, stations, skills, their games and maps need, and every weather type
+// the colours that tint its moves' pictures; each tileset image must be what `npm run tiles`
 // draws from its art, and each real-art PNG must be used and the right size. Every line players hear
 // (talk lines, choices and quest text) must have its voice clip, and no clip or manifest entry may be
 // left over (scripts/voice/clips.mjs; `npm run voice` makes them).
@@ -192,7 +193,8 @@ if (artFiles.every((file) => parsed.has(file))) {
     stations: [...new Set((parsed.get('stations.json')?.stations ?? []).map((station) => station.look))],
     skills: (parsed.get('skills.json')?.skills ?? []).map((skill) => ({ id: skill.id, game: skill.game })),
   };
-  const problems = [...art.problems, ...missingArt(art, users), ...(art.problems.length ? [] : pngProblems(art, CONTENT_DIR))];
+  const uncoloured = (parsed.get('creatures/weather.json')?.types ?? []).filter((type) => !type.colours).map((type) => `weather "${type.id}" needs colours, which tint the pictures of its moves`);
+  const problems = [...art.problems, ...missingArt(art, users), ...uncoloured, ...(art.problems.length ? [] : pngProblems(art, CONTENT_DIR))];
   if (problems.length) fail('art/', problems);
   const usedPngs = new Set([...art.sprites.values()].flatMap((sprite) => (isPngSprite(sprite) ? [`art/png/${sprite.png}`] : [])));
   for (const image of artImages) {

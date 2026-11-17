@@ -28,6 +28,17 @@ const drawnSheets = new Map<string, HTMLCanvasElement>();
 const pngSheets = new Map<string, HTMLImageElement>();
 let pngsLoading: Promise<void> | null = null;
 
+function fillFrame(context: CanvasRenderingContext2D, art: PixelSprite, frame: string, left: number): void {
+  art.frames[frame]?.forEach((row, y) => {
+    [...row].forEach((key, x) => {
+      const colour = art.palette[key];
+      if (colour === undefined) return;
+      context.fillStyle = colour;
+      context.fillRect(left + x, y, 1, 1);
+    });
+  });
+}
+
 function drawSheet(art: PixelSprite): HTMLCanvasElement {
   const names = Object.keys(art.frames);
   const canvas = document.createElement('canvas');
@@ -35,17 +46,18 @@ function drawSheet(art: PixelSprite): HTMLCanvasElement {
   canvas.height = art.height;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('no 2D canvas to draw sprites on');
-  names.forEach((name, at) => {
-    art.frames[name]?.forEach((row, y) => {
-      [...row].forEach((key, x) => {
-        const colour = art.palette[key];
-        if (colour === undefined) return;
-        context.fillStyle = colour;
-        context.fillRect(at * art.width + x, y, 1, 1);
-      });
-    });
-  });
+  names.forEach((name, at) => fillFrame(context, art, name, at * art.width));
   return canvas;
+}
+
+/** Paints a frame of a drawn sprite made in code, such as a tinted copy, onto a canvas of the frame's size. */
+export function paintDrawnFrame(canvas: HTMLCanvasElement, art: PixelSprite, frame: string): void {
+  canvas.width = art.width;
+  canvas.height = art.height;
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.clearRect(0, 0, art.width, art.height);
+  fillFrame(context, art, frame, 0);
 }
 
 async function loadImage(url: string): Promise<HTMLImageElement> {

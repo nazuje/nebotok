@@ -941,6 +941,23 @@ canvas.creature {
   transform: scaleX(-1);
 }
 
+/* A move's button picture (abilityIcon in src/pictures.ts): its shape, with its kind's mark in the corner. */
+.ability-icon {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+
+.ability-icon > .picture {
+  display: block;
+}
+
+.ability-icon > .ability-kind {
+  position: absolute;
+  right: -12%;
+  bottom: -12%;
+}
+
 /* A button with pictures before its words (withPicture in src/dom.ts); a tab puts them above. */
 .with-picture {
   display: inline-flex;
