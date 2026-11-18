@@ -14,19 +14,45 @@
     "bumpKnock": 700,
     "limitTicks": 10800
   },
-  "dash": {
-    "speed": 1100,
-    "ticks": 12,
-    "cooldownTicks": 180
+  "dash": { "speed": 1100, "ticks": 12, "cooldownTicks": 180 },
+  "swap": { "cooldownTicks": 300 },
+  "storm": { "firstTicks": 1200, "everyTicks": 600, "warnTicks": 120, "shrinkTicks": 30, "bigSteps": 5, "bigStepPercent": 10, "smallStepPercent": 5, "floorPercent": 25 },
+  "treat": {
+    "windowPercent": 30,
+    "likedWindowPercent": 35,
+    "favouriteWindowPercent": 40,
+    "speed": 800,
+    "range": 560,
+    "radius": 26,
+    "likedRadius": 33,
+    "favouriteRadius": 40,
+    "groundTicks": 300,
+    "againTicks": 120
   },
-  "storm": {
-    "firstTicks": 1200,
-    "everyTicks": 600,
-    "warnTicks": 120,
-    "shrinkTicks": 30,
-    "bigSteps": 5,
-    "bigStepPercent": 10,
-    "smallStepPercent": 5,
-    "floorPercent": 25
+  "kinds": {
+    "quick": { "cooldownTicks": 60, "openingTicks": 0, "windupTicks": 0 },
+    "special": { "cooldownTicks": 360, "openingTicks": 180, "windupTicks": 36 },
+    "ultimate": { "cooldownTicks": 1200, "openingTicks": 720, "windupTicks": 36 }
+  },
+  "buttons": [1, 7, 12],
+  "easier": { "walkPercent": 80, "windupPercent": 150, "cooldownPercent": 130, "damageTakenPercent": 70 },
+  "aimHelp": { "cosine": 3547, "range": 900 },
+  "zonePulseTicks": 30,
+  "wallThickness": 50,
+  "ultimateWeatherTicks": 600,
+  "shapes": {
+    "bolt": { "speed": 900, "radius": 22, "reach": 560, "knock": 420, "sharePercent": 100 },
+    "spray": { "speed": 950, "radius": 16, "reach": 460, "knock": 160, "sharePercent": 33, "count": 3, "spreadCosine": 4034 },
+    "cone": { "radius": 230, "halfAngleCosine": 3133, "knock": 560, "sharePercent": 100 },
+    "snare": { "speed": 900, "radius": 20, "reach": 520, "knock": 0, "sharePercent": 100, "rootTicks": 48, "pull": 0 },
+    "lunge": { "speed": 1350, "ticks": 14, "knock": 1150, "sharePercent": 100 },
+    "burst": { "radius": 170, "knock": 900, "sharePercent": 100 },
+    "puddle": { "reach": 300, "radius": 115, "armTicks": 18, "ticks": 240, "slowPercent": 45, "sharePercent": 100 },
+    "shield": { "ticks": 240, "reflectPercent": 40, "knock": 500 },
+    "strike": { "reach": 300, "radius": 90, "armTicks": 30, "knock": 600, "count": 1, "spacing": 0, "sharePercent": 100 },
+    "wall": { "speed": 650, "radius": 190, "ticks": 60, "knock": 1250, "sharePercent": 100 },
+    "freeze": { "reach": 200, "radius": 190, "armTicks": 30, "rootTicks": 96, "sharePercent": 100 },
+    "zone": { "radius": 210, "ticks": 300, "sharePercent": 20, "healPercent": 0, "slowPercent": 100 },
+    "weather": { "radius": 150, "knock": 500, "weatherTicks": 900 }
   }
 }

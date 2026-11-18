@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { ContentId } from '../content.ts';
+import { ContentId, type ArenaRules } from '../content.ts';
 import { stableHash } from '../hash.ts';
 import { createRng, type RngState } from '../rng.ts';
 import { DIRECTION_COUNT, SUBUNITS, TICKS_PER_SECOND, div, oppositeDirection, percentOf, toSubunits } from './fixed.ts';
-import type { ArenaContent, ArenaRules } from './rules.ts';
+import type { ArenaContent } from './rules.ts';
 import { stormAtStart } from './storm.ts';
 
 /**

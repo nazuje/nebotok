@@ -1,5 +1,6 @@
 import arena from '../../fixtures/golden/arena/content/arena.json' with { type: 'json' };
 import species from '../../fixtures/golden/arena/content/species.json' with { type: 'json' };
+import liveArena from '../../../../content/creatures/arena.json' with { type: 'json' };
 import liveSpecies from '../../../../content/creatures/species.json' with { type: 'json' };
 import { ArenaRules, SpeciesFile, type ArenaContent } from '../../src/index.ts';
 
@@ -13,13 +14,9 @@ export const goldenArenaContent: ArenaContent = {
   species: new Map(SpeciesFile.parse(species).species.map((entry) => [entry.id, entry])),
 };
 
-/**
- * The live species with the frozen arena numbers, so property tests walk every creature players
- * meet. The real `content/creatures/arena.json` takes the numbers' place once it exists.
- */
+/** The live arena numbers and species, so property tests walk every creature players meet. */
 export const arenaContent: ArenaContent = {
-  arena: goldenArenaContent.arena,
+  arena: ArenaRules.parse(liveArena),
   species: new Map(SpeciesFile.parse(liveSpecies).species.map((entry) => [entry.id, entry])),
 };
-
 export const arenaSpeciesIds = [...arenaContent.species.keys()].toSorted();

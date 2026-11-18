@@ -1,3 +1,4 @@
+import arena from '../../../../content/creatures/arena.json' with { type: 'json' };
 import befriending from '../../../../content/creatures/befriending.json' with { type: 'json' };
 import moves from '../../../../content/creatures/moves.json' with { type: 'json' };
 import rules from '../../../../content/creatures/battle-rules.json' with { type: 'json' };
@@ -13,7 +14,7 @@ import goldenWeather from '../../fixtures/golden/battle/content/weather.json' wi
 import { loadBattleContent, type BattleContent, type BattleRules, type BefriendRules } from '../../src/index.ts';
 
 /** The real files in content/creatures/ and content/items.json, so tests battle with the placeholder creatures players see. */
-export const battleFiles = { weather, moves, species, rules, befriending, items } as const;
+export const battleFiles = { weather, moves, species, rules, befriending, items, arena } as const;
 export const battleContent: BattleContent = loadBattleContent(battleFiles);
 
 /**

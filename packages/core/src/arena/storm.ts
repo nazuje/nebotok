@@ -1,5 +1,5 @@
 import { div, percentOf, toSubunits } from './fixed.ts';
-import type { ArenaRules } from './rules.ts';
+import type { ArenaRules } from '../content.ts';
 import type { ArenaEvent, ArenaStorm } from './state.ts';
 
 /**

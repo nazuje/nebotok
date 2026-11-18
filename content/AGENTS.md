@@ -82,6 +82,15 @@ Names are original and fit the creature's weather; search the web for each new n
 no game, brand or character uses it. The Slovenian name is its own playful word, not a
 translation.
 
+Every move also has an `arena` block for real-time arena fights (`docs/arena.md`): its `kind`
+(`quick`, `special` or `ultimate`, the button it sits on) and its `shape` (what it does on the
+island), plus any of its shape's numbers it changes. `creatures/arena.json` holds every other arena
+number, in whole numbers: the island, dash, storm, treats, each kind's cooldowns, the levels the
+buttons unlock at (`buttons`) and each shape's default numbers (`shapes`). `content:validate`
+checks they fit together, and that every species learns a move of each kind by the level its button
+unlocks. Arena golden replays use their own frozen copy in
+`packages/core/fixtures/golden/arena/content/`.
+
 `creatures/renamed.json` maps each species id that was renamed or removed to the species that
 stands in for it now. The server applies it to every save it loads, because old saves keep old
 ids. Renaming or removing a species adds a line here, and its old ids stay forever; point every
