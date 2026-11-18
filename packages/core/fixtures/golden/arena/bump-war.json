@@ -2,9 +2,31 @@
   "description": "Arena golden: two baskits walk into each other and trade dashes, one at a time and both at once, bumping and tumbling, until the storm has started.",
   "setup": {
     "seed": "nebotok-arena-bump-war",
-    "species": [
-      "baskit",
-      "baskit"
+    "fighters": [
+      {
+        "id": "left",
+        "species": "baskit",
+        "level": 10,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "right",
+        "species": "baskit",
+        "level": 10,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
     ]
   },
   "inputs": [
@@ -13,11 +35,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -26,11 +50,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": true
+          "dash": true,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -39,11 +65,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -52,11 +80,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -65,11 +95,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": true
+          "dash": true,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": true
+          "dash": true,
+          "press": null
         }
       ]
     },
@@ -78,11 +110,13 @@
       "sides": [
         {
           "dir": 1,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 9,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -91,11 +125,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -104,11 +140,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": true
+          "dash": true,
+          "press": null
         }
       ]
     },
@@ -117,11 +155,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -130,11 +170,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": true
+          "dash": true,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": true
+          "dash": true,
+          "press": null
         }
       ]
     },
@@ -143,14 +185,16 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     }
   ],
-  "expectedHash": "1eaafbf59c6cfe"
+  "expectedHash": "1856fe3332b1c3"
 }

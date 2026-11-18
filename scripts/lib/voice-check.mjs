@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { inWorld, nextFrames, openTalk, readState, talkThrough, until } from './game-page.mjs';
-import { inTurn } from './in-turn.mjs';
+import { inTurn, poll } from './in-turn.mjs';
 import { ROOT } from './server-process.mjs';
 
 const CLIPS = JSON.parse(readFileSync(join(ROOT, 'apps/game/src/voice-clips.json'), 'utf8'));
@@ -127,8 +127,21 @@ function inOrder(list, wanted) {
 }
 
 /** Each choice button's picture and kind, as the talk box shows them. */
-const choiceLooks = (page) =>
+const choiceLooksNow = (page) =>
   page.locator('#talk .talk-choice:visible').evaluateAll((buttons) => buttons.map((button) => ({ picture: button.querySelector('[data-picture]')?.getAttribute('data-picture') ?? null, kind: button.getAttribute('data-kind') })));
+
+/** The choice buttons' looks once all `count` show a picture, or as they are after 5 seconds: the buttons are drawn a few frames after the line shows whole. */
+async function choiceLooks(page, count) {
+  let looks = [];
+  await poll(
+    async () => {
+      looks = await choiceLooksNow(page);
+      return looks.length === count && looks.every((look) => look.picture !== null);
+    },
+    { deadline: Date.now() + 5_000, intervalMs: 50 },
+  );
+  return looks;
+}
 
 /**
  * On, with a quest on offer: the line's clip is asked for, then each choice's in turn, in the
@@ -155,7 +168,7 @@ async function choicesTalk(page, world, { language, asked, expect, check, notes 
   const read = await until(page, (s) => s.voice.asked >= before.hook + clips.length, `the line and its ${shown.talk.choices.length} choices to be read`, 10_000).catch(() => readState(page));
   expect(read.voice.asked === before.hook + clips.length && read.voice.clip === clips.at(-1), `with "Read to me" on, ${giver}'s offer asked for ${read.voice.asked - before.hook} clips ending ${read.voice.clip}, not ${clips.length} ending ${clips.at(-1)}`);
   expect(inOrder(asked.slice(before.requests), clips), `with "Read to me" on, the line and choices requested ${JSON.stringify(asked.slice(before.requests))}, not ${JSON.stringify(clips)} in order`);
-  const looks = await choiceLooks(page);
+  const looks = await choiceLooks(page, shown.talk.choices.length);
   expect(looks.length === shown.talk.choices.length && looks.every((look) => look.picture !== null), `a choice shows no picture: ${JSON.stringify(looks)}`);
   await nextFrames(page);
   await check('the choices with their pictures', 'v5-choices');

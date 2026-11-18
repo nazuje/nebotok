@@ -1,0 +1,875 @@
+{
+  "description": "Arena golden: a boltkit sprays static-zap fans at a wandering puddlepip, three small bolts a press.",
+  "setup": {
+    "seed": "nebotok-arena-spray-fan",
+    "fighters": [
+      {
+        "id": "sprayer",
+        "species": "boltkit",
+        "level": 20,
+        "loadout": [
+          "static-zap",
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "target",
+        "species": "puddlepip",
+        "level": 20,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 18,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 23,
+      "sides": [
+        {
+          "dir": 1,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 3,
+      "sides": [
+        {
+          "dir": 2,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 14,
+      "sides": [
+        {
+          "dir": 2,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 14,
+      "sides": [
+        {
+          "dir": 3,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 2,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 6,
+      "sides": [
+        {
+          "dir": 3,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 3,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 5,
+      "sides": [
+        {
+          "dir": 3,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 9,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 4,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 2,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 31,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 83,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 36,
+      "sides": [
+        {
+          "dir": 11,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 36,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 4,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 5,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 2,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 102,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 23,
+      "sides": [
+        {
+          "dir": 5,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 5,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 4,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 118,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 20,
+      "sides": [
+        {
+          "dir": 11,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 38,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 125,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 26,
+      "sides": [
+        {
+          "dir": 5,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 21,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 12,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 5,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 105,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 21,
+      "sides": [
+        {
+          "dir": 11,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 29,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 106,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 24,
+      "sides": [
+        {
+          "dir": 5,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 24,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 6,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 147,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 23,
+      "sides": [
+        {
+          "dir": 11,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 4,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 5,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 16,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 12,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 4,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "0c9cd57319f7fe"
+}

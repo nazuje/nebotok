@@ -2,9 +2,31 @@
   "description": "Arena golden: a quick pinwhirl walks a curve and dashes along the stick, then on its facing after the cooldown, while a slow glaciyak walks up and down and dashes; nobody touches.",
   "setup": {
     "seed": "nebotok-arena-walk-and-dash",
-    "species": [
-      "pinwhirl",
-      "glaciyak"
+    "fighters": [
+      {
+        "id": "left",
+        "species": "pinwhirl",
+        "level": 10,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "right",
+        "species": "glaciyak",
+        "level": 10,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
     ]
   },
   "inputs": [
@@ -13,11 +35,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 12,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -26,11 +50,13 @@
       "sides": [
         {
           "dir": 2,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 12,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -39,11 +65,13 @@
       "sides": [
         {
           "dir": 2,
-          "dash": true
+          "dash": true,
+          "press": null
         },
         {
           "dir": 4,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -52,11 +80,13 @@
       "sides": [
         {
           "dir": 4,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 4,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -65,11 +95,13 @@
       "sides": [
         {
           "dir": null,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": null,
-          "dash": true
+          "dash": true,
+          "press": null
         }
       ]
     },
@@ -78,11 +110,13 @@
       "sides": [
         {
           "dir": null,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": null,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -91,11 +125,13 @@
       "sides": [
         {
           "dir": 14,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 4,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -104,11 +140,13 @@
       "sides": [
         {
           "dir": null,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 8,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -117,11 +155,13 @@
       "sides": [
         {
           "dir": null,
-          "dash": true
+          "dash": true,
+          "press": null
         },
         {
           "dir": null,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -130,14 +170,16 @@
       "sides": [
         {
           "dir": 9,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 12,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     }
   ],
-  "expectedHash": "09a41b0944709d"
+  "expectedHash": "1f1edcb525b4e9"
 }
