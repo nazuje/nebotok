@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_COURIER, PICTURES, animationFrameAt, checkContentFile, loadArt, missingArt, pixelColour, type PixelSprite } from '../../src/index.ts';
+import { DEFAULT_COURIER, PICTURES, animationFrameAt, checkContentFile, loadArt, missingArt, pixelColour, tintSprite, type PixelSprite } from '../../src/index.ts';
 
 const row = (pixels: string) => pixels.padEnd(16, '.');
 const tile = (frames: Record<string, string[]> = { still: Array.from({ length: 16 }, () => row('g')) }, extra: object = {}) => ({
@@ -127,6 +127,22 @@ describe('loadArt', () => {
       `the game, for avatars without a courier of their own, needs the sprite ${DEFAULT_COURIER} (content/art/${DEFAULT_COURIER}.json)`,
       ...kitMissing,
     ]);
+  });
+
+  it('wants a frame for every digit in the digits picture', () => {
+    const none = { avatars: [], species: [], weather: [], items: [], npcs: [], cues: [], tilesets: [], spots: [], stations: [], skills: [] };
+    const digits = tile({ zero: Array.from({ length: 16 }, () => row('g')), one: Array.from({ length: 16 }, () => row('k')) });
+    const missing = missingArt(loadArt({ 'art/pictures/digits.json': digits }), none).filter((problem) => problem.startsWith('locked buttons'));
+    expect(missing).toHaveLength(8);
+    expect(missing[0]).toBe('locked buttons need a frame "two" in pictures/digits');
+  });
+
+  it('tints a shape picture by swapping only its light, main and dark keys', () => {
+    const shape = { width: 16, height: 16, palette: { k: '#1b1b2f', l: '#c8c8d4', b: '#9a9aa8', d: '#6e6e80', w: '#ffffff' }, frames: { still: Array.from({ length: 16 }, () => row('klbdw')) } };
+    const tinted = tintSprite(shape, { light: '#fff2a8', main: '#ffd94a', dark: '#e8a33a' });
+    expect(tinted.palette).toEqual({ k: '#1b1b2f', l: '#fff2a8', b: '#ffd94a', d: '#e8a33a', w: '#ffffff' });
+    expect(shape.palette.b).toBe('#9a9aa8');
+    expect(tintSprite({ ...shape, palette: { k: '#1b1b2f' } }, { light: '#000000', main: '#000000', dark: '#000000' }).palette).toEqual({ k: '#1b1b2f' });
   });
 
   it('picks the frame an animation shows at any moment, looping', () => {

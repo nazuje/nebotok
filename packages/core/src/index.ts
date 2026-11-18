@@ -158,6 +158,11 @@ export {
   DEFAULT_COURIER,
   GAME_SPRITES,
   PICTURES,
+  SHAPE_PICTURES,
+  KIND_PICTURES,
+  DIGIT_FRAMES,
+  TINT_KEYS,
+  Tint,
   SpriteId,
   PixelSprite,
   PngSprite,
@@ -175,6 +180,7 @@ export {
   loadArt,
   missingArt,
   pixelColour,
+  tintSprite,
   animationFrameAt,
   type SpriteKind,
   type Sprite,
@@ -187,6 +193,7 @@ export {
   type ArtResult,
   type ArtUsers,
 } from './art.ts';
+export { ARENA_KINDS, ARENA_SHAPES, type ArenaKind, type ArenaShape } from './arena-shapes.ts';
 export { GoldenCommand, GoldenFile, replay, replayHash, type Replay } from './golden.ts';
 export {
   ContentId,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Tint } from './art.ts';
 import { MapId } from './map.ts';
 import { WELCOME_MESSAGE_KEYS } from './protocol.ts';
 
@@ -229,6 +230,35 @@ export const REQUIRED_STRING_IDS = [
   'jobs.toastDone',
   'jobs.xpGain',
   'jobs.more',
+  'arena.shape.bolt',
+  'arena.shape.spray',
+  'arena.shape.cone',
+  'arena.shape.snare',
+  'arena.shape.lunge',
+  'arena.shape.burst',
+  'arena.shape.puddle',
+  'arena.shape.shield',
+  'arena.shape.strike',
+  'arena.shape.wall',
+  'arena.shape.freeze',
+  'arena.shape.zone',
+  'arena.shape.weather',
+  'arena.kind.quick',
+  'arena.kind.special',
+  'arena.kind.ultimate',
+  'arena.dash',
+  'arena.treat',
+  'arena.swap',
+  'arena.leave',
+  'arena.locked',
+  'arena.turtle',
+  'arena.ringOut',
+  'duel.challenge',
+  'duel.accept',
+  'duel.decline',
+  'duel.watch',
+  'duel.evenMatch',
+  'duel.realLevels',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 
@@ -281,7 +311,9 @@ export function noRepeatedIds(entries: readonly { readonly id: string }[], key: 
 /**
  * One of the six weather types. A move of this type hits the types in `strongAgainst` harder and
  * the types in `weakAgainst` softer. While this weather is on the battlefield, moves of the types in
- * `field.boosts` grow stronger and moves of the types in `field.weakens` grow weaker.
+ * `field.boosts` grow stronger and moves of the types in `field.weakens` grow weaker. `colours`
+ * tint the pictures of its moves; content:validate wants them on every type in `content/`, and the
+ * frozen golden copies go without.
  */
 export const WeatherType = z.strictObject({
   id: ContentId,
@@ -289,6 +321,7 @@ export const WeatherType = z.strictObject({
   strongAgainst: z.array(ContentId).max(12),
   weakAgainst: z.array(ContentId).max(12),
   field: z.strictObject({ boosts: z.array(ContentId).max(12), weakens: z.array(ContentId).max(12) }),
+  colours: Tint.optional(),
 });
 export type WeatherType = z.infer<typeof WeatherType>;
 

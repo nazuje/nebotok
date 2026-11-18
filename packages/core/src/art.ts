@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ArenaKind, ArenaShape } from './arena-shapes.ts';
 
 /**
  * Placeholder art as data. Each sprite is `content/art/<kind>/<name>.json`, and its id is
@@ -29,10 +30,46 @@ export const DEFAULT_COURIER = 'couriers/courier';
 
 /**
  * The picture kit: small pictures that say on screen what words would, for players who cannot read
- * yet. `arrow` points right; the game mirrors it to point left.
+ * yet. `arrow` points right; the game mirrors it to point left. The arena's pictures follow: a shape
+ * picture for each arena shape, a corner mark for each kind, the fight's and duel's buttons, and
+ * `digits`, one frame per digit.
  */
-export const PICTURES = ['check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation', 'puff'] as const;
+export const PICTURES = [
+  'check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation', 'puff',
+  'shape-bolt', 'shape-spray', 'shape-cone', 'shape-snare', 'shape-lunge', 'shape-burst', 'shape-puddle', 'shape-shield', 'shape-strike', 'shape-wall', 'shape-freeze', 'shape-zone', 'shape-weather',
+  'kind-quick', 'kind-special', 'kind-ultimate',
+  'dash', 'treat', 'swap', 'leave', 'turtle', 'digits', 'challenge', 'watch', 'even-match', 'level-badge', 'ring-out',
+] as const;
 export type PictureId = (typeof PICTURES)[number];
+
+/** Each arena shape's picture, drawn in the tint keys so a move's type colours it (`tintSprite`). */
+export const SHAPE_PICTURES: Readonly<Record<ArenaShape, PictureId>> = {
+  bolt: 'shape-bolt',
+  spray: 'shape-spray',
+  cone: 'shape-cone',
+  snare: 'shape-snare',
+  lunge: 'shape-lunge',
+  burst: 'shape-burst',
+  puddle: 'shape-puddle',
+  shield: 'shape-shield',
+  strike: 'shape-strike',
+  wall: 'shape-wall',
+  freeze: 'shape-freeze',
+  zone: 'shape-zone',
+  weather: 'shape-weather',
+};
+
+/** The mark in the corner of a move's button that says its kind. */
+export const KIND_PICTURES: Readonly<Record<ArenaKind, PictureId>> = { quick: 'kind-quick', special: 'kind-special', ultimate: 'kind-ultimate' };
+
+/** The frames of `pictures/digits`, by the digit each draws. */
+export const DIGIT_FRAMES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'] as const;
+
+/**
+ * The palette keys a shape picture draws in its move's type colours: the light, main and dark shade,
+ * the keys creature sprites use for their weather's colours too.
+ */
+export const TINT_KEYS = { light: 'l', main: 'b', dark: 'd' } as const;
 
 /** The sprite each kind of content needs, by its id. */
 export const spriteFor = {
@@ -118,6 +155,10 @@ function namedRecord<T extends z.ZodType>(values: T, pattern: RegExp, rule: (key
 }
 
 const Colour = z.string().regex(/^#[0-9a-f]{6}$/, 'colours look like #3a7bd5');
+
+/** A weather type's light, main and dark colour, which tint the pictures of its moves. */
+export const Tint = z.strictObject({ light: Colour, main: Colour, dark: Colour });
+export type Tint = z.infer<typeof Tint>;
 const Palette = namedRecord(Colour, PALETTE_KEY, (key) => `palette key "${key}" must be one character other than "."`, [1, MAX_COLOURS], 'colours');
 const Side = z.number().int().min(1).max(MAX_SIDE);
 const PngPath = z.string().regex(/^[a-z0-9-]+(?:\/[a-z0-9-]+)*\.png$/, 'png names a file in content/art/png/, such as "tiles/grass.png"');
@@ -354,7 +395,9 @@ export function missingArt(art: Art, users: ArtUsers): string[] {
     ]),
   ];
   const games = [...new Set(users.skills.map((skill) => skill.game))].flatMap((game) => GAME_SPRITES[game].map(({ id, frames }) => ({ game, id, frames })));
+  const digits = art.sprites.get(spriteFor.picture('digits'));
   return [
+    ...(digits ? DIGIT_FRAMES.filter((frame) => !frameNames(digits).includes(frame)).map((frame) => `locked buttons need a frame "${frame}" in ${spriteFor.picture('digits')}`) : []),
     ...needs.flatMap(([who, id]) => (art.sprites.has(id) ? [] : [`${who} needs the sprite ${id} (content/art/${id}.json)`])),
     ...games.flatMap(({ game, id, frames }) => {
       const sprite = art.sprites.get(id);
@@ -363,6 +406,15 @@ export function missingArt(art: Art, users: ArtUsers): string[] {
     }),
     ...users.tilesets.flatMap((name) => (art.tilesets.has(name) ? [] : [`tileset "${name}" needs content/art/tilesets/${name}.json`])),
   ];
+}
+
+/** A shape picture in a type's colours: the tint keys of its palette swapped for the tint. */
+export function tintSprite(sprite: PixelSprite, tint: Tint): PixelSprite {
+  const palette = { ...sprite.palette };
+  if (Object.hasOwn(palette, TINT_KEYS.light)) palette[TINT_KEYS.light] = tint.light;
+  if (Object.hasOwn(palette, TINT_KEYS.main)) palette[TINT_KEYS.main] = tint.main;
+  if (Object.hasOwn(palette, TINT_KEYS.dark)) palette[TINT_KEYS.dark] = tint.dark;
+  return { ...sprite, palette };
 }
 
 /** A drawn frame's pixel as 0xrrggbb, or null where it is transparent. */

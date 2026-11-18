@@ -1,0 +1,30 @@
+{
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "k": "#1b1b2f",
+    "l": "#c8c8d4",
+    "b": "#9a9aa8",
+    "d": "#6e6e80"
+  },
+  "frames": {
+    "still": [
+      ".....kllllk.....",
+      ".....klbbdk.....",
+      ".....klbbdk.....",
+      "....kklbbdkk....",
+      "...kllbbbbllk...",
+      "....klbbbbdk....",
+      ".....klbbdk.....",
+      "......kldk......",
+      "......kkkk......",
+      "...kkkllllkkk...",
+      ".kklllddddlllkk.",
+      "klldkkkkkkkklllk",
+      "kldkk.kllk.kkldk",
+      "kldllkkkkkkllddk",
+      ".kkldllllllddkk.",
+      "...kkkkkkkkkk..."
+    ]
+  }
+}
