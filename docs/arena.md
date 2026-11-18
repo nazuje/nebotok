@@ -63,6 +63,12 @@ prototype's `stepArena` (`arena-rules.ts`):
 A finished fight steps no further. `arenaHash(state)` (core `stableHash`) is the fingerprint for
 goldens and for the server's mismatch log.
 
+In code, swap and treat sit in `fightStep` around `arenaStep` rather than inside it, so the island's
+step and its goldens stay as they were: a wild fight's tick first takes Leave, then Swap, then
+throws a treat (all side 0's), then runs `arenaStep` (steps 1 and 3 to 10 above), then flies the
+thrown treat or lets one on the ground be picked up or eaten (steps 6 and 9 for the treat), then
+settles the ending.
+
 ### The arena in code
 
 `packages/core/src/arena/` (#144, #145, #146), exported from `@nebotok/core`:
@@ -95,6 +101,31 @@ goldens and for the server's mismatch log.
   "Minds").
 - `golden.ts`: `ArenaGoldenFile`, inputs as runs of ticks with the same input, replayed by
   `arenaReplay`.
+
+The whole fight (#147), around the island:
+
+- `fight-state.ts`: `FightSetup`, either a `WildFightSetup` (`{ mode: 'wild', seed, team, wild,
+  treats }`, each team entry its save `place`, real `hp` and `fighter`) or a `RoundsFightSetup`
+  (`{ mode: 'rounds', seed, picks }`, one to three picks a side). `ArenaFight` is a `WildFight`
+  (the `island`, the `team` with each creature's arena `health`, `fought` and `out`, the
+  `active` one, `swapCooldown`, the `treats` in the bag, the `treat` out, `treatWait`,
+  `outcome`) or a `RoundsFight` (`picks`, `round`, `replay`, `rounds` played, `score`,
+  `outcome`). `fightHash` is its fingerprint.
+- `fight.ts`: `fightStart(setup, content)` and `fightStep(fight, inputs, content)`, which hand on to
+  `wildStart`/`wildStep` (`wild-fight.ts`) or `roundsStart`/`roundsStep` (`rounds.ts`). Their
+  `content` is a `FightContent`: the `ArenaContent` and the `items`, from `fightContentOf` or
+  `loadFightContent`.
+- `treats.ts`: the window (`treatWindowPercent`, `treatWindowOpen`), `bestTreat`, and a thrown
+  treat's flight and time on the ground.
+- `results.ts`: `arenaWildSetup` builds a wild fight from the save (the standing team in order, as
+  `a1`, `a2`... by team place; the wild creature `b1`, the computer's), and after a fight
+  `teamAfterFight` (health back), `befriendedFromFight`, `arenaRewards`, `duelRewards` and
+  `inventoryAfterFight` (treats used).
+- `fight-golden.ts`: `FightGoldenFile`, replayed by `fightReplay`.
+
+`ArenaInput` takes `treat`, `swap` and `leave` as optional, so the island's own inputs and goldens
+need none of them. `leave` is sent once the Leave button has been held for its second; the hold
+itself is the screen's. The island only reads side 0's; side 1 never treats, swaps or leaves.
 
 An `outcome` is `{ winner, how, tick }` with `how` `knockout`, `ringOut` or `timeUp`; `winner` is
 null for a draw, which is also what two creatures down on the same tick give, and an equal share
@@ -271,8 +302,9 @@ Only in wild fights.
   units, with radius 26 (plain), 33 (liked) or 40 (favourite).
 - **A hit befriends.** The creature joins the team, or storage when the team is full.
 - **A miss** lies on the ground for 300 ticks (5 s). Your creature walking over it picks it back up;
-  the wild creature walking over it eats it and heals 10%. After a lost treat the next one waits 120
-  ticks (2 s).
+  the wild creature walking over it eats it and heals 10%. After a lost or eaten treat the next one
+  waits 120 ticks (2 s). Only one treat is out at a time, and none is thrown while your creature is
+  winding up, lunging or rooted. The throw goes the way the stick points that tick.
 - **No befriending after a ring-out:** a wild creature knocked off the island floats away. You win
   and get XP, but no new friend.
 
@@ -283,11 +315,21 @@ Only in wild fights.
 - **Swap** (Q) brings in the next standing team creature, cooldown 300 ticks (5 s). A creature that
   is knocked out or rung out is replaced by the next. A new creature enters at the island's
   centre-left with 60 ticks of grace. The fight is lost when none can fight.
+- **Grace** (`ENTRY_GRACE_TICKS`, 60 ticks, a body's `graceTicks`): nothing hits, bumps or knocks a
+  creature that has just come in, and a shield it touches does not hurt it. It can move and act
+  from its first tick. A swap is refused while the creature on the island is winding up, lunging,
+  rooted or dashing, or when no other creature can fight.
+- **Health back** (`teamAfterFight`): every creature that fought keeps its arena health divided by
+  `hpScale`, rounded up, so only a knockout leaves 0.
 - **Your creature rung out** is out of this fight, with its health kept as it was.
 - **Leave** (held 1 s) ends the fight as `ran`: no XP, as today's run.
-- **Outcomes:** `won`, `wonByRingOut`, `befriended`, `lost`, `ran`, `timeUp`.
+- **Outcomes:** `won`, `wonByRingOut`, `befriended`, `lost`, `ran`, `timeUp`. When the wild
+  creature and yours go down on the same tick, the wild creature down counts: it is a win.
 - **Rewards** (`arenaRewards`): `xpForWin` of the wild creature's level to every creature that
-  fought and still stands, as today. A level up fills a newly unlocked button and puts a new move on
+  fought and still stands, as today. `won`, `wonByRingOut`, `befriended` and `timeUp` give it;
+  `lost` and `ran` give nothing. A fight that runs out of time still gives the full XP: the
+  creatures stood their ground for three minutes, the wild creature simply wanders off, and a
+  child who fought that long should not leave with nothing. A level up fills a newly unlocked button and puts a new move on
   an empty button (#148).
 
 **Rounds** (trainer fights and duels): best of 3.
@@ -296,6 +338,8 @@ Only in wild fights.
   timer picks it. One creature a round, in that order; the island and the storm reset every round.
 - A round ends on a knockout, a ring-out or the time limit, where the larger share of health
   left wins. An equal share replays that round once, then it is a draw round. First to 2 round wins.
+  Each round and each replay gets its own island seed (`<seed>/<rounds played>`). A side that has no
+  creature left for a round loses that round (`forfeit`).
 - 3 s between rounds with the score as round pips (trophy, puff, empty).
 - No Swap, no Treat, no Leave. A duel has a give-up button, held 2 s, which loses the rest.
 - **Outcomes:** `won`, `lost` or `draw`, with the list of rounds.
@@ -405,6 +449,11 @@ animate it.
   `by`), `reflected` (`side` that sent the shot back, the shot's new `thing` id), `status` (`side`,
   `status` `slow`, `root`, `shield` or `pull`, `ticks`), `healed` (`side`, `amount`, `health`),
   `weatherStarted` (`weather`, `ticks`), `weatherEnded` (`weather`) and `fainted` (`side`).
+- The fight (#147): `entered` (`side`, `id`, team `place`), `swapped` (`from` and `to` places),
+  `treatThrown` (`item`, `liking`), `treatLanded` (`item`, `x`, `y`), `treatPickedUp`,
+  `treatEaten` (`item`, `amount` healed, `health`), `treatLost` (`item`), `befriended`
+  (`species`, `level`), `roundEnded` (`round`, `winner`, `how`, `replay`) and `fightEnded`
+  (`result`).
 
 ## Every tunable
 
@@ -506,9 +555,15 @@ Planned names, so the tickets agree:
   frozen. Four for bodies, one for each shape and a weather flip, each shape's ending in a knockout
   or a ring-out, and a wild fight for each archetype (`wild-gale`, `wild-rain`, `wild-sun`): both
   minds' inputs recorded from `mindFight`, which must still play exactly that fight.
+- Fight goldens in `packages/core/fixtures/golden/arena/fights/`, on the same frozen copy with
+  `items.json` for treats: befriend on the second throw, swap then win, lose three and lose the
+  fight, ring the wild one out, a best of 3 won 2-1, and a round replayed after a time-up tie.
 - Property tests: same seed and inputs, same hash; no speed above top speed; mirrored fights end
   mirrored; the storm only shrinks and never below its floor; health stays within 0 and max; the
   wild mind never sends an illegal press or walks off the island on its own in 5000 random fights.
+  Random wild fights and best of 3s with Treat, Swap and Leave end by their time limits, save
+  health only for creatures that fought (at least 1 after a ring-out, 0 only after a knockout),
+  give XP only to creatures that fought, and befriend only as the wild species and level.
 - 10,000 random steps stay under 0.05 ms a step in Node.
 - Browser checks drive a fight by keys and taps from a prepared save against a weak wild creature,
   wait on the test hook's state, never on wall-clock time, and run in parts of their own

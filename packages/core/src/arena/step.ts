@@ -3,7 +3,7 @@ import type { ArenaIslandRules, ArenaRules } from '../content.ts';
 import { finishWindup, isBusy, landInstants, landLunges, press } from './abilities.ts';
 import { block, giveHeals, healthPermille, knockFor, settlePulls } from './hits.ts';
 import type { ArenaContent } from './rules.ts';
-import { ARENA_SIDES, type ArenaEvent, type ArenaInput, type ArenaInputs, type ArenaOutcome, type ArenaState, type ArenaStepResult, type Body, type BodyStatus, type Side } from './state.ts';
+import { ARENA_SIDES, inGrace, type ArenaEvent, type ArenaInput, type ArenaInputs, type ArenaOutcome, type ArenaState, type ArenaStepResult, type Body, type BodyStatus, type Side } from './state.ts';
 import { stepStorm } from './storm.ts';
 import { stepShots, stepZones } from './things.ts';
 import { settleWeather, weatherTickDown } from './weather.ts';
@@ -57,6 +57,7 @@ function tickDown(body: Body): MovingBody {
     status: statusDown(body.status),
     windup: windup && { ...windup, ticks: down(windup.ticks) },
     lunge: lunge && lunge.ticks > 1 ? { ...lunge, ticks: lunge.ticks - 1 } : null,
+    ...(body.graceTicks === undefined ? {} : { graceTicks: down(body.graceTicks) }),
   };
 }
 
@@ -130,6 +131,7 @@ function move(body: MovingBody, input: ArenaInput, rules: ArenaRules): void {
 function bump(work: Working, dasher: MovingBody, side: Side, nx: number, ny: number): void {
   const { island } = work.content.arena;
   const target = work.bodies[side];
+  if (inGrace(target)) return;
   const knock = knockFor(island.bumpKnock, work.healthAtStart[side], island);
   const speed = speedPerTick(knock);
   dasher.dashTicks = 0;

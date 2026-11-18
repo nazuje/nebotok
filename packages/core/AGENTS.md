@@ -26,8 +26,9 @@ in the browser later.
   is a pure 60 Hz step in whole numbers only (`fixed.ts`: a direction table, `isqrt`, division
   that truncates towards zero), so V8 and Safari agree and mirrored fights end mirrored. A unit test
   refuses `Math.random`, `Date.now`, trigonometry and `sqrt` there. Arena goldens
-  (`fixtures/golden/arena/`) replay against `fixtures/golden/arena/content/` and are recorded by
-  `npm run golden:update`, after the same check as battle goldens. The computer's mind is
+  (`fixtures/golden/arena/`) and fight goldens (`fixtures/golden/arena/fights/`: wild fights and
+  best of 3s through `fightStep`) replay against `fixtures/golden/arena/content/` and are recorded
+  by `npm run golden:update`, after the same check as battle goldens. The computer's mind is
   `src/arena/mind.ts` (`wildInput`, `mindFight`); `node scripts/arena-sim.mjs` plays its skills
   against each other for every species pair and checks docs/arena.md's balance targets.
 - **Wild creatures and progress:** `rollEncounter` (`src/encounter.ts`), `befriendChance`
@@ -51,7 +52,7 @@ in the browser later.
 - **Content schemas** live in `src/content.ts` (battle, arena and world) and `src/story-content.ts`
   (story), registered by file name in `src/content-files.ts`. The arena checks that span
   `arena.json`, `moves.json` and `species.json` are in `src/arena-links.ts`. The arena goldens'
-  frozen copy holds `moves.json`, `species.json`, `arena.json`, `weather.json` and
-  `battle-rules.json`. Adding a kind of content follows the `add-content` skill.
+  frozen copy holds `moves.json`, `species.json`, `arena.json`, `weather.json`,
+  `battle-rules.json` and, for treats, `items.json`. Adding a kind of content follows the `add-content` skill.
 - Tests: `test/unit` (level 0), `test/property` with fast-check and `test/golden` (level 1),
   `test/saves` (level 2).

@@ -3,7 +3,7 @@ import type { BattleCreature, Effectiveness } from '../battle/state.ts';
 import type { ArenaIslandRules } from '../content.ts';
 import { ONE, div, lengthOf, percentOf, speedPerTick, toSubunits, unitOf } from './fixed.ts';
 import type { ArenaContent } from './rules.ts';
-import { otherSide, type Body, type Side } from './state.ts';
+import { inGrace, otherSide, type Body, type Side } from './state.ts';
 import { rollOf, type Working } from './working.ts';
 
 /**
@@ -83,21 +83,21 @@ export function block(work: Working, side: Side, damage: number): void {
   const { shieldMove, reflectPercent, shieldKnock } = body.status;
   body.status = { ...body.status, shieldTicks: 0, shieldMove: null, reflectPercent: 0, shieldKnock: 0 };
   work.events.push({ kind: 'blocked', side, by });
-  if (shieldMove === null) return;
+  if (shieldMove === null || inGrace(other)) return;
   const knock = knockBody(work, by, shieldKnock, other.x - body.x, other.y - body.y);
   const back = damage > 0 && reflectPercent > 0 ? Math.max(1, percentOf(damage, reflectPercent)) : 0;
   hurt(work, by, side, shieldMove, back, 'normal', knock);
 }
 
 /**
- * Lands `hit` on the other side's body, unless a shield takes it. Returns whether it landed, so a
- * shape adds its status effects only then. A body that fainted earlier in the step is still hit:
- * the fight ends with the step, and no side's hit goes first.
+ * Lands `hit` on the other side's body, unless a shield takes it or the body is in its grace.
+ * Returns whether it landed, so a shape adds its status effects only then. A body that fainted
+ * earlier in the step is still hit: the fight ends with the step, and no side's hit goes first.
  */
 export function strike(work: Working, hit: Hit): boolean {
   const side = otherSide(hit.by);
   const target = work.bodies[side];
-  if (target.out) return false;
+  if (target.out || inGrace(target)) return false;
   const { content } = work;
   const move = content.moves.get(hit.move);
   if (!move) throw new RangeError(`arena: no move "${hit.move}"`);

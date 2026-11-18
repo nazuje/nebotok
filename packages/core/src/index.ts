@@ -546,7 +546,16 @@ export {
   oppositeDirection,
   isqrt,
 } from './arena/fixed.ts';
-export { arenaContentOf, loadArenaContent, type ArenaContent, type ArenaContentFiles } from './arena/rules.ts';
+export {
+  arenaContentOf,
+  loadArenaContent,
+  fightContentOf,
+  loadFightContent,
+  type ArenaContent,
+  type ArenaContentFiles,
+  type FightContent,
+  type FightContentFiles,
+} from './arena/rules.ts';
 export {
   ARENA_SIDES,
   ARENA_IDLE,
@@ -557,7 +566,9 @@ export {
   ArenaSetup,
   otherSide,
   isGentle,
+  inGrace,
   walkCapOf,
+  startBody,
   arenaStart,
   arenaHash,
   type Side,
@@ -585,3 +596,48 @@ export { abilityOf, aimOf, fanOf, inCone, isBusy, type Ability, type AbilityOf }
 export type { Aim } from './arena/working.ts';
 export { ArenaInputRun, ArenaGoldenFile, arenaReplay, arenaReplayHash, type ArenaReplay } from './arena/golden.ts';
 export { createBrain, directionOf, mindFight, wildInput, wildLoadout, wildMindFor, type Brain, type MindStep } from './arena/mind.ts';
+export {
+  TreatStack,
+  WildTeamEntry,
+  WildFightSetup,
+  RoundPick,
+  RoundsFightSetup,
+  FightSetup,
+  WILD_RESULTS,
+  fightHash,
+  type FightCreature,
+  type FightTreat,
+  type WildResult,
+  type WildOutcome,
+  type WildFight,
+  type RoundResult,
+  type RoundsResult,
+  type RoundsOutcome,
+  type RoundsFight,
+  type ArenaFight,
+  type FightEvent,
+  type FightStepResult,
+} from './arena/fight-state.ts';
+export { fightStart, fightStep } from './arena/fight.ts';
+export { ENTRY_GRACE_TICKS } from './arena/wild-fight.ts';
+export { ROUNDS, ROUND_WINS } from './arena/rounds.ts';
+export {
+  TREAT_WINDOW_CAP_PERCENT,
+  TREAT_HEAL_PERCENT,
+  bestTreat,
+  treatWindowPercent,
+  treatWindowOpen,
+  treatRadius,
+  type TreatChoice,
+} from './arena/treats.ts';
+export {
+  DUEL_XP_PERCENT,
+  arenaWildSetup,
+  teamAfterFight,
+  befriendedFromFight,
+  arenaRewards,
+  duelRewards,
+  inventoryAfterFight,
+  type WildSetupOptions,
+} from './arena/results.ts';
+export { FightGoldenFile, fightReplay, fightReplayHash, type FightReplay } from './arena/fight-golden.ts';
