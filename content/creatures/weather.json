@@ -1,10 +1,10 @@
 {
   "types": [
-    { "id": "sun", "name": { "en": "Sun", "sl": "Sonce" }, "strongAgainst": ["frost"], "weakAgainst": ["sun", "rain"], "field": { "boosts": ["sun", "bloom"], "weakens": ["rain", "frost"] } },
-    { "id": "frost", "name": { "en": "Frost", "sl": "Mraz" }, "strongAgainst": ["bloom"], "weakAgainst": ["frost", "sun"], "field": { "boosts": ["frost"], "weakens": ["bloom", "sun"] } },
-    { "id": "bloom", "name": { "en": "Bloom", "sl": "Cvetenje" }, "strongAgainst": ["gale"], "weakAgainst": ["bloom", "frost"], "field": { "boosts": ["bloom"], "weakens": ["gale"] } },
-    { "id": "gale", "name": { "en": "Gale", "sl": "Veter" }, "strongAgainst": ["storm"], "weakAgainst": ["gale", "bloom"], "field": { "boosts": ["gale", "storm"], "weakens": ["rain"] } },
-    { "id": "storm", "name": { "en": "Storm", "sl": "Nevihta" }, "strongAgainst": ["rain"], "weakAgainst": ["storm", "gale"], "field": { "boosts": ["storm", "rain"], "weakens": ["sun"] } },
-    { "id": "rain", "name": { "en": "Rain", "sl": "Dež" }, "strongAgainst": ["sun"], "weakAgainst": ["rain", "storm"], "field": { "boosts": ["rain", "bloom"], "weakens": ["sun"] } }
+    { "id": "sun", "name": { "en": "Sun", "sl": "Sonce" }, "strongAgainst": ["frost"], "weakAgainst": ["sun", "rain"], "field": { "boosts": ["sun", "bloom"], "weakens": ["rain", "frost"] }, "colours": { "light": "#fff2a8", "main": "#ffd94a", "dark": "#e8a33a" } },
+    { "id": "frost", "name": { "en": "Frost", "sl": "Mraz" }, "strongAgainst": ["bloom"], "weakAgainst": ["frost", "sun"], "field": { "boosts": ["frost"], "weakens": ["bloom", "sun"] }, "colours": { "light": "#eef9ff", "main": "#bfe6ff", "dark": "#7fb8e0" } },
+    { "id": "bloom", "name": { "en": "Bloom", "sl": "Cvetenje" }, "strongAgainst": ["gale"], "weakAgainst": ["bloom", "frost"], "field": { "boosts": ["bloom"], "weakens": ["gale"] }, "colours": { "light": "#ffc2dc", "main": "#ff7eb6", "dark": "#d0578f" } },
+    { "id": "gale", "name": { "en": "Gale", "sl": "Veter" }, "strongAgainst": ["storm"], "weakAgainst": ["gale", "bloom"], "field": { "boosts": ["gale", "storm"], "weakens": ["rain"] }, "colours": { "light": "#e0fff6", "main": "#a8e0d0", "dark": "#6fb3a0" } },
+    { "id": "storm", "name": { "en": "Storm", "sl": "Nevihta" }, "strongAgainst": ["rain"], "weakAgainst": ["storm", "gale"], "field": { "boosts": ["storm", "rain"], "weakens": ["sun"] }, "colours": { "light": "#b9adf0", "main": "#8a7ad0", "dark": "#5c4aa0" } },
+    { "id": "rain", "name": { "en": "Rain", "sl": "Dež" }, "strongAgainst": ["sun"], "weakAgainst": ["rain", "storm"], "field": { "boosts": ["rain", "bloom"], "weakens": ["sun"] }, "colours": { "light": "#9fd4ff", "main": "#3a8fd8", "dark": "#2a66a8" } }
   ]
 }

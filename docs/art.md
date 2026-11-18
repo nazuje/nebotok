@@ -104,6 +104,13 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   a puff of smoke (a move to forget). Each is one outlined shape that reads on its own at 16
   by 16. `pictureIcon(id, sizePx)` and `weatherIcon(type, sizePx)` in `apps/game/src/pictures.ts`
   paint them into HTML; a new picture is an id in `PICTURES` and its sprite.
+- **Arena pictures** (docs/arena.md): a `shape-<shape>` picture for each of the 13 shapes, a
+  `kind-<kind>` corner mark (quick a tick, special a star, ultimate a sun-burst ring), and dash,
+  treat, swap, leave, turtle, challenge, watch, even match, a level badge (real levels), ring-out
+  and `digits` (frames `zero` to `nine`, the level beside a locked button's lock). Accept and
+  decline are the check and the cross. Shapes are drawn in grey in the tint keys `l`, `b` and `d`
+  (light, main, dark), which `abilityIcon(moveId, sizePx)` swaps for the move's type `colours` in
+  `content/creatures/weather.json`, with the kind's mark in the corner.
 - **Spots and stations** stand on their map tile like a character. A spot shows `ready`, or
   `resting` while it rests for this player (a bare bush, still water). The `actions` animation of
   a skill plays beside the courier of anyone doing it, so courier sprites need no gathering
