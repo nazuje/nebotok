@@ -1,0 +1,74 @@
+{
+  "v": 7,
+  "data": {
+    "name": "Čmrljček Šumež",
+    "language": "sl",
+    "createdAt": "2026-11-12T16:45:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 20,
+      "y": 17,
+      "facing": "down"
+    },
+    "inventory": [],
+    "lastShrine": null,
+    "story": {
+      "active": [],
+      "done": [],
+      "flags": []
+    },
+    "skills": [],
+    "jobs": null,
+    "team": [
+      {
+        "species": "puddlepip",
+        "level": 13,
+        "xp": 12,
+        "hp": 42,
+        "moves": [
+          "drip-drop",
+          "rain-tap",
+          "gale-tap",
+          "rain-call"
+        ],
+        "nickname": "Žabica",
+        "loadout": [
+          "rain-tap",
+          null,
+          "rain-call"
+        ]
+      },
+      {
+        "species": "boltkit",
+        "level": 7,
+        "xp": 3,
+        "hp": 25,
+        "moves": [
+          "storm-tap",
+          "cloud-clap",
+          "bloom-tap",
+          "storm-call"
+        ],
+        "nickname": "Šiška",
+        "loadout": [
+          "static-zap",
+          "cloud-clap",
+          null
+        ]
+      }
+    ],
+    "storage": [],
+    "seen": [
+      "puddlepip",
+      "boltkit"
+    ],
+    "befriended": [
+      "puddlepip",
+      "boltkit"
+    ],
+    "settings": {
+      "readToMe": true,
+      "turtle": true
+    }
+  }
+}

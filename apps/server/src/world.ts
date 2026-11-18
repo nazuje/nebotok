@@ -31,7 +31,7 @@ export type WorldContent = {
   readonly map: WorldMap;
   readonly stepMs: number;
   readonly avatars: ReadonlySet<string>;
-  /** Creatures, moves, weather, battle and befriending rules, and items. */
+  /** Creatures, moves, weather, battle and befriending rules, items, and the arena's rules (loadouts read its buttons). */
   readonly battle: BattleContent;
   /** Encounter zones by id: what lives in each patch of tall grass. */
   readonly encounters: ReadonlyMap<string, EncounterZone>;
@@ -51,6 +51,7 @@ function battleContentOf(dir: string): BattleContent {
     rules: readJson(dir, 'creatures/battle-rules.json'),
     befriending: readJson(dir, 'creatures/befriending.json'),
     items: readJson(dir, 'items.json'),
+    arena: readJson(dir, 'creatures/arena.json'),
   });
 }
 

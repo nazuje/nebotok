@@ -13,8 +13,10 @@ import type { PlayerSettings } from './save.ts';
  * 9: the tiny games are judged as they are drawn: no grace before a dip or sparkle, a fade after
  * it (`FADE_MS`), one sparkle at a time, and the marker's needle width (`MARKER_HALF_WIDTH`).
  * 10: the player's settings: `settings.set` and `settings` ("Read to me").
+ * 11: arena loadouts and the turtle setting: `loadout.set`, `settings.turtle`, `turtle` in
+ * `settings`, and `loadout` and `learned` on each team creature in `progress`.
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -26,6 +28,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   8: '08338db2ebbc37',
   9: '134099ff291a6b',
   10: '085c82893f62a3',
+  11: '09d3bce56b47cb',
 };
 
 export type WorldInfo = {
@@ -83,6 +86,8 @@ export const CLIENT_MESSAGES = {
   skillCancel: 'skill.cancel',
   boardOpen: 'board.open',
   settingsSet: 'settings.set',
+  settingsTurtle: 'settings.turtle',
+  loadoutSet: 'loadout.set',
 } as const;
 
 /** Messages the world room sends to a client, by type. Each goes only to the player it is about. */
@@ -139,7 +144,11 @@ export function walkMessage(command: WalkCommand, from: Point): { readonly type:
 export const SettingsSetMessage = z.strictObject({ readToMe: z.boolean() });
 export type SettingsSetMessage = z.infer<typeof SettingsSetMessage>;
 
-/** `settings`: the player's settings, sent on joining and after each `settings.set`. */
+/** Turns the player's turtle setting on or off; saved with them like `settings.set`. */
+export const SettingsTurtleMessage = z.strictObject({ on: z.boolean() });
+export type SettingsTurtleMessage = z.infer<typeof SettingsTurtleMessage>;
+
+/** `settings`: the player's settings, sent on joining and after each `settings.set` and `settings.turtle`. */
 export type SettingsMessage = PlayerSettings;
 
 /** Sent back when a walk-to target cannot be reached, so the client can drop its prediction. */

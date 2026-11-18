@@ -30,8 +30,9 @@ in the browser later.
   `npm run golden:update`, after the same check as battle goldens.
 - **Wild creatures and progress:** `rollEncounter` (`src/encounter.ts`), `befriendChance`
   (`src/befriend.ts`), team, storage, treat and shrine rules (`src/creatures.ts`, pure functions on a
-  `Progress`), experience (`src/growth.ts`) and the moves a level up teaches or offers
-  (`src/learning.ts`). The payloads of the battle and team messages, and
+  `Progress`), experience (`src/growth.ts`), the moves a level up teaches or offers
+  (`src/learning.ts`) and arena loadouts (`src/loadout.ts`: the default, the repair and what a
+  level up fills). The payloads of the battle and team messages, and
   `battleView`, are in `src/messages.ts`; `docs/protocol.md` explains the flow.
 - **Saves** live in `src/save.ts`. Changing their shape follows the `change-save-format` skill.
 - **Story:** talks (`src/dialogue.ts`), quests (`src/quests.ts`), the bag (`src/inventory.ts`) and

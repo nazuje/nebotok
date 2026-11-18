@@ -6,6 +6,7 @@
 import { join } from 'node:path';
 import { DATABASE_FILE, openDatabase } from '../../apps/server/src/db.ts';
 import { createProgressStore } from '../../apps/server/src/progress.ts';
+import { loadWorld } from '../../apps/server/src/world.ts';
 import { createSave, defaultSettings } from '../../packages/core/src/index.ts';
 
 function withDatabase(dataDir, use) {
@@ -19,7 +20,7 @@ function withDatabase(dataDir, use) {
 
 /** Writes `data` (a whole save's data, checked like every save, with a new player's settings unless it has its own) as the save of profile `playerId`. */
 export function prepareSave(dataDir, playerId, data) {
-  withDatabase(dataDir, (db) => createProgressStore({ db, now: Date.now, repair: (_playerId, same) => same }).save(playerId, createSave({ settings: defaultSettings(), ...data })));
+  withDatabase(dataDir, (db) => createProgressStore({ db, now: Date.now, repair: (_playerId, same) => same, content: loadWorld().battle }).save(playerId, createSave({ settings: defaultSettings(), ...data })));
 }
 
 /**

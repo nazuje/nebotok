@@ -293,6 +293,8 @@ describe('battle requests', () => {
       ['team.reorder', { order: [0] }, 'inBattle'],
       ['storage.swap', { team: 0, storage: null }, 'inBattle'],
       ['starter.choose', { species: 'puddlepip' }, 'inBattle'],
+      ['loadout.set', { index: 0, loadout: ['sun-tap', 'sun-wallop', 'noon-blaze'] }, 'inBattle'],
+      ['settings.turtle', { on: true }, 'inBattle'],
     ];
     await repeat(requests.length, async (index) => {
       const [type, payload, reason] = requests[index]!;
@@ -303,6 +305,8 @@ describe('battle requests', () => {
     const ran = await act(who, 'battle.run', {});
     expect(ran.events.map((event) => event.kind)).toEqual(['turnStarted', 'ran', 'ended']);
     expect(await who.box.take<BattleResult>('battle.result')).toMatchObject({ outcome: { winner: null, reason: 'ran' }, rewards: [], woke: null });
+    expect(saved(who.id)?.settings.turtle).toBe(false);
+    expect(saved(who.id)?.team[0]!.loadout).toEqual(strong().loadout);
   });
 
   it(`drops battle requests beyond ${REQUESTS_PER_SECOND} a second, without disconnecting`, async () => {

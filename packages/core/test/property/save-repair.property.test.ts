@@ -1,6 +1,22 @@
 import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { MAX_LEVEL, MAX_TEAM, createSave, isRepaired, knowableMoves, maxHpOf, sanitizeProgress, type CreatureInstance, type Progress } from '../../src/index.ts';
+import {
+  ARENA_KINDS,
+  MAX_LEVEL,
+  MAX_TEAM,
+  createSave,
+  defaultLoadout,
+  emptyProgress,
+  isRepaired,
+  knowableMoves,
+  learnedMoves,
+  loadoutFits,
+  maxHpOf,
+  newCreature,
+  sanitizeProgress,
+  type CreatureInstance,
+  type Progress,
+} from '../../src/index.ts';
 import { battleContent, speciesIds } from '../support/battle-content.ts';
 
 const moveIds = [...battleContent.moves.keys()].toSorted();
@@ -15,7 +31,21 @@ const creature: fc.Arbitrary<CreatureInstance> = fc.record({
   xp: fc.integer({ min: 0, max: 1_000 }),
   hp: fc.integer({ min: 0, max: 1_023 }),
   moves: fc.uniqueArray(someId(moveIds), { minLength: 1, maxLength: 4 }),
+  loadout: fc.tuple(fc.option(someId(moveIds)), fc.option(someId(moveIds)), fc.option(someId(moveIds))),
 });
+
+/** A creature of a species content has, with a loadout of learned moves of each button's kind on its unlocked buttons, or empty ones. */
+const fittingCreature: fc.Arbitrary<CreatureInstance> = fc
+  .record({ species: fc.constantFrom(...speciesIds), level: fc.integer({ min: 1, max: MAX_LEVEL }) })
+  .chain(({ species, level }) => {
+    const learned = learnedMoves(battleContent.species.get(species)!, level, battleContent);
+    const button = (at: 0 | 1 | 2) => {
+      const fits = level >= battleContent.arena!.buttons[at]! ? learned.filter((id) => battleContent.moves.get(id)?.arena?.kind === ARENA_KINDS[at]) : [];
+      return fc.constantFrom(null, ...fits);
+    };
+    const { xp, hp, moves } = newCreature(species, level, battleContent);
+    return fc.tuple(button(0), button(1), button(2)).map((loadout): CreatureInstance => ({ species, level, xp, hp, moves, loadout }));
+  });
 
 const progress: fc.Arbitrary<Progress> = fc.record({
   team: fc.array(creature, { maxLength: MAX_TEAM }),
@@ -31,7 +61,7 @@ const progress: fc.Arbitrary<Progress> = fc.record({
   jobs: fc.constant(null),
 });
 
-const SAVE = { name: 'Test Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false } } as const;
+const SAVE = { name: 'Test Courier', language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false, turtle: false } } as const;
 
 describe('save repair properties', () => {
   it('keeps the story exactly as saved', () => {
@@ -84,6 +114,34 @@ describe('save repair properties', () => {
     );
   });
 
+  it('gives a default loadout of only learned moves of each button\'s kind, on unlocked buttons', () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...speciesIds), fc.integer({ min: 1, max: MAX_LEVEL }), (id, level) => {
+        const species = battleContent.species.get(id)!;
+        const learned = learnedMoves(species, level, battleContent);
+        const loadout = defaultLoadout({ species: id, level }, battleContent);
+        const fits = (move: string | null, button: number) =>
+          level < battleContent.arena!.buttons[button]! ? move === null : move === null || (learned.includes(move) && battleContent.moves.get(move)?.arena?.kind === ARENA_KINDS[button]);
+        expect(loadout.map((move, button) => fits(move, button))).toEqual([true, true, true]);
+      }),
+    );
+  });
+
+  it('leaves only loadouts that suit their creature, and keeps one that already does', () => {
+    fc.assert(
+      fc.property(progress, (before) => {
+        const { progress: after } = sanitizeProgress(before, battleContent);
+        for (const owned of [...after.team, ...after.storage]) expect(loadoutFits(owned, owned.loadout, battleContent)).toBe(true);
+      }),
+    );
+    fc.assert(
+      fc.property(fittingCreature, (owned) => {
+        expect(loadoutFits(owned, owned.loadout, battleContent)).toBe(true);
+        const { progress: after } = sanitizeProgress({ ...emptyProgress(), team: [owned] }, battleContent);
+        expect(after.team[0]!.loadout).toEqual(owned.loadout);
+      }),
+    );
+  });
   it('leaves progress alone exactly when it reports no repair', () => {
     fc.assert(
       fc.property(progress, (before) => {

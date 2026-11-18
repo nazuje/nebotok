@@ -11,7 +11,7 @@ const blocked = (map: WorldMap, ...tiles: { x: number; y: number }[]): WorldMap 
   walkable: map.walkable.map((ok, at) => ok && !tiles.some((tile) => tile.y * map.width + tile.x === at)),
 });
 
-const progress = (extra: Partial<Progress> = {}) => progressMessage({ ...emptyProgress(), ...extra });
+const progress = (extra: Partial<Progress> = {}) => progressMessage({ ...emptyProgress(), ...extra }, CONTENT);
 
 describe('the words of a talk', () => {
   it('finds the line, its speaker and the choices the server shows, in the player language', () => {

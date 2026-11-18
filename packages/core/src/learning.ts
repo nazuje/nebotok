@@ -1,7 +1,18 @@
 import type { BattleContent } from './battle/content.ts';
 import { MOVES_PER_CREATURE } from './battle/state.ts';
+import type { Species } from './content.ts';
 import type { Progress } from './creatures.ts';
 import type { CreatureInstance } from './save.ts';
+
+/**
+ * Every move a creature of `species` at `level` has learned, in learnset order: its species' level-1
+ * moves, then each learnset entry at or below `level`. Worked out from the level, never stored, so a
+ * move forgotten for another one in a turn battle still counts. Only moves moves.json has.
+ */
+export function learnedMoves(species: Species, level: number, content: Pick<BattleContent, 'moves'>): string[] {
+  const learnset = (species.learnset ?? []).filter((entry) => entry.level <= level).map((entry) => entry.move);
+  return [...new Set([...species.moves, ...learnset])].filter((id) => content.moves.has(id));
+}
 
 /** What a creature got from growing: its moves now, the moves added to them, and the moves it must choose about, in learnset order. */
 export type MoveLearning = {

@@ -1,6 +1,7 @@
 import type { BattleContent } from './battle/content.ts';
 import { MAX_LEVEL, PLAYER_SIDE, WILD_SIDE, activeCreature, type BattleEvent, type BattleState } from './battle/state.ts';
 import { maxHpOf } from './creatures.ts';
+import { grownLoadout } from './loadout.ts';
 import type { CreatureReward } from './messages.ts';
 import type { CreatureInstance } from './save.ts';
 
@@ -16,7 +17,8 @@ export function xpToNextLevel(level: number): number {
 
 /**
  * Adds experience, levelling up as many times as it reaches. A level up raises full health and
- * keeps the damage already taken. At MAX_LEVEL experience stays at 0.
+ * keeps the damage already taken, and fills arena buttons as `grownLoadout` says. At MAX_LEVEL
+ * experience stays at 0.
  */
 export function gainXp(creature: CreatureInstance, xp: number, content: BattleContent): CreatureInstance {
   if (!Number.isInteger(xp) || xp < 0) throw new RangeError(`gainXp() needs a whole, non-negative xp, got ${xp}`);
@@ -28,7 +30,7 @@ export function gainXp(creature: CreatureInstance, xp: number, content: BattleCo
   }
   if (level === MAX_LEVEL) total = 0;
   const hp = creature.hp === 0 ? 0 : creature.hp + maxHpOf({ species: creature.species, level }, content) - maxHpOf(creature, content);
-  return { ...creature, level, xp: total, hp };
+  return { ...creature, level, xp: total, hp, loadout: grownLoadout(creature, level, content) };
 }
 
 /** The team places of the creatures side 0 sent out during a battle, from its events (start events included), in order. */

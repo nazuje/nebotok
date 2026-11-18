@@ -3,7 +3,8 @@ import { maxHpAt } from './battle/damage.ts';
 import { MAX_TEAM, PLAYER_SIDE, WILD_SIDE, activeCreature, type BattleSetup, type BattleState } from './battle/state.ts';
 import type { RenamedFile, Species, StartersFile, TeamFaintedRules } from './content.ts';
 import type { WildEncounter } from './encounter.ts';
-import { STORAGE_LIMIT, type CreatureInstance, type SaveData } from './save.ts';
+import { defaultLoadout, loadoutFits } from './loadout.ts';
+import { STORAGE_LIMIT, type CreatureInstance, type Loadout, type PlayerSettings, type SaveData } from './save.ts';
 import { emptyStory } from './story.ts';
 
 /**
@@ -48,17 +49,17 @@ export function maxHpOf(creature: Pick<CreatureInstance, 'species' | 'level'>, c
   return maxHpAt(speciesOf(content, creature.species), creature.level);
 }
 
-/** A new creature at full health with the moves of its level. */
+/** A new creature at full health with the moves of its level and the default loadout. */
 export function newCreature(speciesId: string, level: number, content: BattleContent): CreatureInstance {
   const species = speciesOf(content, speciesId);
-  return { species: species.id, level, xp: 0, hp: maxHpAt(species, level), moves: [...movesAt(species, level)] };
+  return { species: species.id, level, xp: 0, hp: maxHpAt(species, level), moves: [...movesAt(species, level)], loadout: defaultLoadout({ species: species.id, level }, content) };
 }
 
 /**
  * Progress, or a whole save's data, with every species id that `renamed` lists replaced by the one
  * that stands in for it now, so an old save still names real species. A renamed creature keeps its
- * level, experience and nickname, and takes the new species' moves for its level, with its health
- * capped at the new species' full health. Every other creature is left as it is.
+ * level, experience and nickname, and takes the new species' moves for its level and its default
+ * loadout, with its health capped at the new species' full health. Every other creature is left as it is.
  */
 export function renameSpecies<T extends Progress>(progress: T, renamed: RenamedFile, content: BattleContent): T {
   const rename = (id: string) => (Object.hasOwn(renamed.species, id) ? (renamed.species[id] ?? id) : id);
@@ -66,7 +67,8 @@ export function renameSpecies<T extends Progress>(progress: T, renamed: RenamedF
   const creature = (owned: CreatureInstance): CreatureInstance => {
     if (rename(owned.species) === owned.species) return owned;
     const species = speciesOf(content, rename(owned.species));
-    return { ...owned, species: species.id, hp: Math.min(owned.hp, maxHpAt(species, owned.level)), moves: [...movesAt(species, owned.level)] };
+    const { level } = owned;
+    return { ...owned, species: species.id, hp: Math.min(owned.hp, maxHpAt(species, level)), moves: [...movesAt(species, level)], loadout: defaultLoadout({ species: species.id, level }, content) };
   };
   return { ...progress, team: progress.team.map(creature), storage: progress.storage.map(creature), seen: once(progress.seen), befriended: once(progress.befriended) };
 }
@@ -126,6 +128,21 @@ export function addCreature(progress: Progress, creature: CreatureInstance): { r
   if (progress.team.length < MAX_TEAM) return { progress: { ...progress, team: [...progress.team, creature] }, placedIn: 'team' };
   if (progress.storage.length < STORAGE_LIMIT) return { progress: { ...progress, storage: [...progress.storage, creature] }, placedIn: 'storage' };
   return null;
+}
+
+/**
+ * Puts `loadout` on the arena buttons of the team creature at `index`. Null when there is no
+ * creature there or a move does not suit it (`loadoutFits`). The server refuses it during a fight.
+ */
+export function setLoadout(progress: Progress, index: number, loadout: Loadout, content: BattleContent): Progress | null {
+  const creature = progress.team[index];
+  if (!creature || !loadoutFits(creature, loadout, content)) return null;
+  return { ...progress, team: progress.team.with(index, { ...creature, loadout: [...loadout] }) };
+}
+
+/** The player's settings with the turtle setting on or off. The server refuses the change during a fight. */
+export function setTurtle(settings: PlayerSettings, on: boolean): PlayerSettings {
+  return { ...settings, turtle: on };
 }
 
 /** Puts the team in a new order: `order[i]` is the old place of the creature that goes to place i. Null unless it names every place once. */

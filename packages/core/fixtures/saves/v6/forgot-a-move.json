@@ -1,0 +1,48 @@
+{
+  "v": 6,
+  "data": {
+    "name": "Test Courier",
+    "language": "en",
+    "createdAt": "2026-10-20T08:10:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 20,
+      "y": 17,
+      "facing": "down"
+    },
+    "inventory": [],
+    "lastShrine": null,
+    "story": {
+      "active": [],
+      "done": [],
+      "flags": []
+    },
+    "skills": [],
+    "jobs": null,
+    "team": [
+      {
+        "species": "puddlepip",
+        "level": 14,
+        "xp": 50,
+        "hp": 45,
+        "moves": [
+          "drip-drop",
+          "rain-tap",
+          "gale-tap",
+          "rain-call"
+        ],
+        "nickname": "Splash"
+      }
+    ],
+    "storage": [],
+    "seen": [
+      "puddlepip"
+    ],
+    "befriended": [
+      "puddlepip"
+    ],
+    "settings": {
+      "readToMe": true
+    }
+  }
+}

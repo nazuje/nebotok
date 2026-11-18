@@ -5,11 +5,12 @@ How the browser talks to the server: an HTTP API for profiles and sessions, then
 fight. The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
 `src/skill-messages.ts` for skills and jobs), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **10**),
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **11**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
 protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board,
-protocol 9 judges the tiny games exactly as they are drawn, and protocol 10 adds the player's
-settings ("Read to me").
+protocol 9 judges the tiny games exactly as they are drawn, protocol 10 adds the player's
+settings ("Read to me"), and protocol 11 adds arena loadouts and the turtle setting
+(`loadout.set`, `settings.turtle`; see "Arena fights").
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants and server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`, and
 fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -126,6 +127,7 @@ Client to server:
 | `walk.hold` | `{ direction, from? }` | Walk that way tile after tile until `walk.stop` or another intent. At a blocked tile the player turns to face it and waits. |
 | `walk.stop` | `{ from? }` | Finish the current step and stand still |
 | `settings.set` | `{ readToMe: boolean }` | Change the player's own settings: saved with the player at once and sent back as `settings`. Counts against the request limit of talks, battles and skills. |
+| `settings.turtle` | `{ on: boolean }` | Turn the turtle setting on or off, like `settings.set`; refused `inBattle` during a fight (see "Arena fights") |
 
 A new intent replaces the old one. A step that has started always finishes, so the player ends on a
 whole tile.
@@ -147,11 +149,12 @@ Server to client:
 | `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey }` | Right after joining |
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
-| `settings` | `{ readToMe }` | On joining, after `skills`, and after each `settings.set`. Only this seat changes them, so a reconnection keeps what the page has. |
+| `settings` | `{ readToMe, turtle }` | On joining, after `skills`, and after each `settings.set` and `settings.turtle`. Only this seat changes them, so a reconnection keeps what the page has. |
 
 **Settings.** The player's own settings live in their save, so they follow the player to any
-device. Today that is only `readToMe` ("Read to me", off for every player until they turn it on):
-while it is on, the page reads each talk line aloud in its speaker's voice and the hint of each new
+device: `turtle`, the player's easier arena setting (docs/arena.md, "The turtle setting"; off until
+they turn it on, and nothing reads it until arena fights are built), and `readToMe` ("Read to me",
+off for every player until they turn it on): while it is on, the page reads each talk line aloud in its speaker's voice and the hint of each new
 quest banner in the narrator's, from the clips in `apps/game/public/voice/`. A speaker button on the
 talk box and the quest banner reads its words whatever the setting; a line without a clip is silent.
 Language and controls stay settings of the device.
@@ -213,7 +216,7 @@ shows `refused.<reason>` from `content/strings.json`.
 
 | Type | Payload | When |
 | --- | --- | --- |
-| `progress` | `ProgressMessage`: `{ team, inventory, lastShrine, seen, befriended, needsStarter }` | After `welcome` and each reconnection, and after anything that changes them |
+| `progress` | `ProgressMessage`: `{ team, inventory, lastShrine, seen, befriended, needsStarter }`; each team creature also has its `loadout` and `learned`, the ids of every move it has learned (core `learnedMoves`), since protocol 11 | After `welcome` and each reconnection, and after anything that changes them |
 | `storage` | `StorageMessage`: `{ shrine, storage }` | On reaching a shrine, and after each `storage.swap` |
 | `battle.started` | `BattleUpdate`: `{ battle, events }` | A wild creature appeared; `events` are the start events (who is sent out, the weather) |
 | `battle.turn` | `BattleUpdate` | After each step: a turn, a swap, or a treat or run in the befriend phase |
@@ -296,7 +299,8 @@ request gives it up after 1.5 s without an answer, so the next tap asks again.
 
 ## Arena fights
 
-**Planned** for the milestone "Phase 2: Arena battles" (#141 to #160); nothing here is built yet.
+**Planned** for the milestone "Phase 2: Arena battles" (#141 to #160). Built so far: loadouts and
+the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148); the rest is not.
 The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md). Until the switch-over
 (#160) both kinds of battle exist: the server setting `ARENA_BATTLES` (default `off`, in
@@ -396,8 +400,8 @@ World room, client to server:
 
 | Type | Payload | When | Effect |
 | --- | --- | --- | --- |
-| `loadout.set` | `{ index, loadout }`: `index` a team place 0 to 5, `loadout` three move ids or null | Not in a fight | Sets that creature's buttons (core `setLoadout`); refused `invalid` for an unlearned move, a wrong kind or a locked button, `inBattle` during a fight |
-| `settings.turtle` | `{ on }` | Not in a fight | Turns the turtle setting on or off; saved at once and sent back in `settings` |
+| `loadout.set` (built) | `{ index, loadout }`: `index` a team place 0 to 5, `loadout` three move ids or null | Not in a fight | Sets that creature's buttons (core `setLoadout`), saved at once and sent back in `progress`; refused `invalid` for an unlearned move, a wrong kind, a locked button or an empty team place, `inBattle` during a fight (today a turn battle) |
+| `settings.turtle` (built) | `{ on }` | Not in a fight | Turns the turtle setting on or off; saved at once and sent back in `settings`; refused `inBattle` during a fight |
 | `duel.ask` | `{ to, even }`: `to` the other player's key in `players`, `even` the even-match switch | Both free, within 4 tiles, both with 3 standing creatures | Sends `duel.asked` to the other player. One ask at a time; the same pair waits 30 s after a decline |
 | `duel.answer` | `{ yes }` | A `duel.asked` waits for you | Yes starts the duel; no, or no answer in 20 s, declines |
 | `duel.cancel` | `{}` | Your ask waits | Takes the ask back |
@@ -410,8 +414,8 @@ World room, server to client:
 | `arena.result` | `{ fightId, outcome, rewards, befriended, learned, rounds }`; `learned` is `[{ index, move }]` | The fight is settled; leave the arena room, show the result, and a new-move toast for each `learned` |
 | `duel.asked` | Who asks (their key in `players`), their first three creatures and `even` | Someone asks you |
 | `duel.answered` | `{ yes }` | Your ask was answered, or declined by itself |
-| `settings` | `{ readToMe, turtle }` | As today, with `turtle` |
-| `progress` | As today; each creature also has `loadout` and `learned` (its learned move ids) | As today |
+| `settings` (built) | `{ readToMe, turtle }` | As today, with `turtle` |
+| `progress` (built) | As today; each team creature also has `loadout` and `learned` (its learned move ids) | As today |
 
 Arena room:
 
@@ -455,18 +459,20 @@ and snaps, also in the test hook.
 
 ### Saves
 
-- **v7** (#148): each creature gains `loadout`, three move ids or null, one per button; settings
-  become `SettingsV7 { readToMe, turtle }`. `moves` stays while turn battles live. Migrating from v6 puts on
-  each unlocked button the first move of its kind in `moves`, else the first learned move of that
-  kind; `turtle` starts false. The save repair replaces a loadout move that is not learned, of the
-  wrong kind or on a locked button with that default.
+- **v7** (#148, built): each creature gains `loadout`, three move ids or null, one per button;
+  settings become `SettingsV7 { readToMe, turtle }`. `moves` stays while turn battles live.
+  Migrating from v6 puts on each unlocked button the first learned move of its kind, as arena.md's
+  default, so a move forgotten in a turn battle can come back; `turtle` starts false. The save
+  repair replaces a loadout move that is not learned, of the wrong kind or on a locked button with
+  that default.
 - **v8** (#160): drops `moves`. Nothing else is lost, and learned moves are worked out from the
   level, so moves forgotten with the old prompt come back.
 
 ### Protocol versions
 
-The protocol is 10 today. Each wire change bumps it once, in the order the tickets merge: #148 to
-11 (`loadout.set`, `settings.turtle`, `loadout` and `learned` in `progress`), then #149 (the arena
+The protocol was 10 before the arena work. Each wire change bumps it once, in the order the tickets
+merge: #148 to 11 (`loadout.set`, `settings.turtle`, `loadout` and `learned` in `progress`;
+done), then #149 (the arena
 room, its input and `arena.join`, `arena.started`, `arena.events`, `arena.result`; it shares #148's
 bump if it merges first), #155 (`arena.pick`), #157 (`duel.*`) and #160. So the switch-over's
 number is whatever comes next then, not fixed here. Tickets merged at the same time conflict on the
@@ -720,7 +726,7 @@ before `welcome` does, and may already count a player who joined in between.
 
 ## Saves
 
-The server saves each player (save format v6, `packages/core/src/save.ts`) when they leave or
+The server saves each player (save format v7, `packages/core/src/save.ts`) when they leave or
 their seat expires, every 30 seconds for players who moved, when a battle starts, when they change
 a setting, and when it shuts down. A save holds the
 position and, since v3, the team (up to 6 creatures: species, level, xp, hp, one to four moves and
@@ -756,6 +762,15 @@ also lists `droppedSkills` and `droppedJobs`.
 
 Since v6 a save also holds `settings`, the player's own settings: `{ readToMe }`. A v5 save gets
 `readToMe: false`, since sound never plays unasked.
+
+Since v7 each creature also holds its `loadout` (one move id or null for each arena button) and
+`settings` also hold `turtle`. A v6 save gets each creature's default loadout (core
+`defaultLoadout`: on each button its level has unlocked, the first learned move of that button's
+kind) and `turtle: false`; upgrading reads today's creature content, so `migrateSave` takes it.
+`sanitizeProgress` replaces a loadout move that is not learned, of the wrong kind or on a locked
+button with that default, and counts the creatures as `repairedLoadouts` in the `save repaired`
+line. A level up puts the default on a button it unlocks and a newly learned move on its kind's
+empty button (core `gainXp`).
 
 **The Slice B story is a placeholder.** When the real story replaces it, a new save version resets
 every player's `story` to empty, so everyone starts it from the beginning, and keeps their

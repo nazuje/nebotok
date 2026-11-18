@@ -29,5 +29,5 @@ export function progress(team: readonly { species: string; level: number; hp?: n
     const made = newCreature(species, level, CONTENT);
     return hp === undefined ? made : { ...made, hp };
   });
-  return { type: 'progress', payload: progressMessage({ ...emptyProgress(), team: creatures, inventory: [...inventory] }) };
+  return { type: 'progress', payload: progressMessage({ ...emptyProgress(), team: creatures, inventory: [...inventory] }, CONTENT) };
 }

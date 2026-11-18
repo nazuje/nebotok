@@ -12,11 +12,13 @@ import {
   GatherStartMessage,
   IDLE,
   LanguageSchema,
+  LoadoutSetMessage,
   MAX_PROFILES,
   MoveChooseMessage,
   PLAYER_SPAWN,
   SERVER_MESSAGES,
   SettingsSetMessage,
+  SettingsTurtleMessage,
   SkillCancelMessage,
   SkillFinishMessage,
   StarterChooseMessage,
@@ -51,6 +53,8 @@ import {
   questEvent,
   reorderTeam,
   rollEncounter,
+  setLoadout,
+  setTurtle,
   shrineAt,
   stepWalker,
   swapStorage,
@@ -67,6 +71,7 @@ import {
   type Direction,
   type EncounterZone,
   type Language,
+  type Loadout,
   type MoveOffer,
   type PendingMove,
   type PlayerSettings,
@@ -283,7 +288,9 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       [CLIENT_MESSAGES.skillFinish]: validate(SkillFinishMessage, (client: Client, { attempt, taps }) => this.skillRequest(client, (room) => skillFinish(room, attempt, taps))),
       [CLIENT_MESSAGES.skillCancel]: validate(SkillCancelMessage, (client: Client, { attempt }) => this.skillRequest(client, (room) => skillCancel(room, attempt))),
       [CLIENT_MESSAGES.boardOpen]: validate(BoardOpenMessage, (client: Client, { station }) => this.skillRequest(client, (room) => boardOpen(room, station))),
-      [CLIENT_MESSAGES.settingsSet]: validate(SettingsSetMessage, (client: Client, { readToMe }) => this.setSettings(client, { readToMe })),
+      [CLIENT_MESSAGES.settingsSet]: validate(SettingsSetMessage, (client: Client, { readToMe }) => this.setSettings(client, CLIENT_MESSAGES.settingsSet, (settings) => ({ ...settings, readToMe }))),
+      [CLIENT_MESSAGES.settingsTurtle]: validate(SettingsTurtleMessage, (client: Client, { on }) => this.setSettings(client, CLIENT_MESSAGES.settingsTurtle, (settings) => setTurtle(settings, on))),
+      [CLIENT_MESSAGES.loadoutSet]: validate(LoadoutSetMessage, (client: Client, { index, loadout }) => this.setLoadout(client, index, loadout)),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -352,7 +359,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       this.show(client.sessionId, seat.walker);
       this.state.playerCount = this.state.players.size;
       client.send(SERVER_MESSAGES.welcome, welcome(WORLD, this.state.playerCount));
-      client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
       client.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
       this.sendSkills(client.sessionId, seat);
       client.send(SERVER_MESSAGES.settings, seat.settings satisfies SettingsMessage);
@@ -391,7 +398,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (player) player.connected = true;
       // Messages sent while the connection was down are lost, so the client gets the truth again.
       if (seat) {
-        client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+        client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
         client.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
         this.sendSkills(client.sessionId, seat);
         if (seat.battle) client.send(SERVER_MESSAGES.battleView, { battle: battleView(seat.battle.id, seat.battle.state) } satisfies BattleViewMessage);
@@ -485,7 +492,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (player) player.inBattle = false;
       const client = this.clients.get(sessionId);
       client?.send(SERVER_MESSAGES.battleResult, { battle: battle.id, outcome: { winner: null, reason: 'ran' }, rewards: [], learned: [], woke: null } satisfies BattleResult);
-      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
     }
 
     /** The seat a profile holds, in this room or another of this server, unless it was taken over. */
@@ -596,7 +603,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       seat.progress = { ...healTeam(seat.progress, world.battle), lastShrine: { map: map.id, shrine } };
       this.changed(seat);
       const client = this.clients.get(sessionId);
-      if (!this.applyStory(sessionId, seat, questEvent(seat.progress, { kind: 'rested', shrine }, story))) client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      if (!this.applyStory(sessionId, seat, questEvent(seat.progress, { kind: 'rested', shrine }, story))) client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
       client?.send(SERVER_MESSAGES.storage, { shrine, storage: seat.progress.storage } satisfies StorageMessage);
       log.info('player rested', { roomId: this.roomId, playerId: seat.playerId, shrine });
     }
@@ -624,7 +631,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const player = this.state.players.get(sessionId);
       if (player) player.inBattle = true;
       client.send(SERVER_MESSAGES.battleStarted, { battle: battleView(begun.battle.id, begun.battle.state), events: begun.events } satisfies BattleUpdate);
-      client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
       log.info('battle started', { roomId: this.roomId, playerId: seat.playerId, battle: begun.battle.id, zone: zone.id, species: wild.species, level: wild.level });
       log.debug('battle seed', { roomId: this.roomId, battle: begun.battle.id, seed: battleSeed });
     }
@@ -664,7 +671,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         this.finishBattle(client.sessionId, seat, battle);
       } else if (usedItem) {
         this.changed(seat);
-        client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+        client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
       }
     }
 
@@ -740,7 +747,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         if (offer) client?.send(SERVER_MESSAGES.moveOffer, offer);
         log.info('move offered', { roomId: this.roomId, playerId: seat.playerId, offer: seat.offer.id, index: pending.index, move: pending.move });
       }
-      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
     }
 
     /** The player's answer to the outstanding move offer: forget the move in slot `forget` for it, or skip it with null. */
@@ -783,7 +790,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       }
       seat.progress = next;
       this.changed(seat);
-      client.send(SERVER_MESSAGES.progress, progressMessage(next));
+      client.send(SERVER_MESSAGES.progress, progressMessage(next, world.battle));
       return true;
     }
 
@@ -807,14 +814,35 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (done && seat) this.endTalk(client.sessionId, seat, 'starter');
     }
 
-    /** The player changed their settings: saved at once, and sent back so every page shows what was saved. */
-    private setSettings(client: Client, settings: PlayerSettings) {
+    /**
+     * The player changed their settings: saved at once, and sent back so every page shows what was
+     * saved. The turtle setting changes how a fight goes, so it waits until the fight is over.
+     */
+    private setSettings(client: Client, request: string, change: (settings: PlayerSettings) => PlayerSettings) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
-      seat.settings = settings;
+      if (request === CLIENT_MESSAGES.settingsTurtle && seat.battle) {
+        this.refuse(client, request, 'inBattle');
+        return;
+      }
+      seat.settings = change(seat.settings);
       this.changed(seat);
       client.send(SERVER_MESSAGES.settings, seat.settings satisfies SettingsMessage);
-      log.info('settings changed', { roomId: this.roomId, playerId: seat.playerId, readToMe: settings.readToMe });
+      log.info('settings changed', { roomId: this.roomId, playerId: seat.playerId, readToMe: seat.settings.readToMe, turtle: seat.settings.turtle });
+    }
+
+    /** Puts a loadout on a team creature's arena buttons (core `setLoadout`), saved at once. Not during a fight, which reads it. */
+    private setLoadout(client: Client, index: number, loadout: Loadout) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const next = seat.battle ? 'inBattle' : (setLoadout(seat.progress, index, loadout, world.battle) ?? 'invalid');
+      if (typeof next === 'string') {
+        this.refuse(client, CLIENT_MESSAGES.loadoutSet, next);
+        return;
+      }
+      seat.progress = next;
+      this.changed(seat);
+      client.send(SERVER_MESSAGES.progress, progressMessage(next, world.battle));
     }
 
     private talkStart(client: Client, npc: string) {
@@ -917,7 +945,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         log.info('quest changed', { roomId: this.roomId, playerId: seat.playerId, quest: quest.quest, change: quest.change, step: quest.step });
       }
       // An offer already waiting is answered first; the new ones follow it.
-      if (seat.offer) client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress));
+      if (seat.offer) client?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
       else this.offerNext(sessionId, seat);
       sendAll(client, extras.beforeStory);
       if (change.storyChanged) client?.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
