@@ -1,6 +1,6 @@
 import { arenaLinkProblems } from '../arena-links.ts';
 import type { BattleContent } from '../battle/content.ts';
-import { ArenaRules, BattleRules, MovesFile, SpeciesFile, WeatherFile, type Move, type Species, type WeatherType } from '../content.ts';
+import { ArenaRules, BattleRules, ItemsFile, MovesFile, SpeciesFile, WeatherFile, type Item, type Move, type Species, type WeatherType } from '../content.ts';
 
 /**
  * Everything an arena step and its start read: the arena's numbers (`content/creatures/arena.json`),
@@ -39,4 +39,18 @@ export function loadArenaContent(files: ArenaContentFiles): ArenaContent {
   if (problems.length > 0) throw new RangeError(`arena content has ${problems.length} problem(s): ${problems.join('; ')}`);
   const weather = new Map(WeatherFile.parse(files.weather).types.map((type) => [type.id, type]));
   return { arena, rules: BattleRules.parse(files.rules), species, moves, weather };
+}
+
+/** What a whole fight reads (fight.ts): the arena's content and the items, for the treats a wild fight throws. */
+export type FightContent = ArenaContent & { readonly items: ReadonlyMap<string, Item> };
+
+export function fightContentOf(content: BattleContent): FightContent {
+  return { ...arenaContentOf(content), items: content.items };
+}
+
+/** The arena's raw files and items.json, as the arena goldens' frozen copy holds them. */
+export type FightContentFiles = ArenaContentFiles & { readonly items: unknown };
+
+export function loadFightContent(files: FightContentFiles): FightContent {
+  return { ...loadArenaContent(files), items: new Map(ItemsFile.parse(files.items).items.map((item) => [item.id, item])) };
 }

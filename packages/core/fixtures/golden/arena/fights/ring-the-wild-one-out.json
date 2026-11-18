@@ -1,0 +1,106 @@
+{
+  "description": "Fight golden: a wild glaciyak walks to the right edge, where the lip holds it, and a pinwhirl walks up behind it and dashes, knocking it off the island: a win with experience and no friend.",
+  "setup": {
+    "mode": "wild",
+    "seed": "nebotok-fight-ring-out",
+    "team": [
+      {
+        "place": 0,
+        "fighter": {
+          "id": "a1",
+          "species": "pinwhirl",
+          "level": 10,
+          "loadout": [
+            null,
+            null,
+            null
+          ],
+          "turtle": false,
+          "computer": false
+        },
+        "hp": 9999
+      }
+    ],
+    "wild": {
+      "id": "b1",
+      "species": "glaciyak",
+      "level": 10,
+      "loadout": [
+        null,
+        null,
+        null
+      ],
+      "turtle": false,
+      "computer": true
+    },
+    "treats": [
+      {
+        "item": "frost-pudding",
+        "count": 2
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 150,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 50,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 34,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": true,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "1e23302e508dd3"
+}
