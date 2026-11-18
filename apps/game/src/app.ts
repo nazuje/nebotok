@@ -101,8 +101,18 @@ const battles = createBattles({
   standing: () => view.standing(),
   starterOffered: () => talks.offersStarter(),
   requests,
+  readToMe: () => playerSettings.readToMe() === true,
+  say: (words) => speech.say(null, words),
+  canSay: (words) => speech.has(null, words),
+  bottomTaken: () => hud.state().welcome !== null || hud.state().toast !== null,
 });
-const playerSettings = createPlayerSettings({ requests, changed: () => settings.setReadToMe(playerSettings.readToMe()) });
+const playerSettings = createPlayerSettings({
+  requests,
+  changed: () => {
+    settings.setReadToMe(playerSettings.readToMe());
+    settings.setTurtle(playerSettings.turtle());
+  },
+});
 const clips = createClipPlayer();
 const speech = createSpeech({ language: () => language, readToMe: () => playerSettings.readToMe() === true, player: clips });
 const storyCues = createStoryCues({
@@ -180,6 +190,7 @@ const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
   onReadToMe: () => playerSettings.toggleReadToMe(),
+  onTurtle: () => playerSettings.toggleTurtle(),
   onAddPin: () => {
     pinSetup.open();
     showScreen();
@@ -552,6 +563,7 @@ installTestHook({
       canAddPin,
       settingsOpen: settings.isOpen(),
       voice: { readToMe: playerSettings.readToMe(), ...clips.state() },
+      turtle: playerSettings.turtle(),
       ...battles.snapshot(performance.now()),
       ...story.snapshot(),
       ...skills.snapshot(performance.now()),

@@ -386,9 +386,13 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   shake 150 to 350 ms up to 14 px, sparks, falling spin, hearts. Under reduced motion: no shake, no
   hit-stop, no particles, no camera ease; numbers and bars stay. Haptics on hits to you, a ring-out
   and a befriend, where the device allows, never under reduced motion.
-- **Loadout picker** (#154): three button tiles (at least 64 px), then only the learned moves of
+- **Loadout picker** (#154, built): three button tiles (at least 64 px), then only the learned moves of
   that kind, so no wrong choice is possible. A move tile shows 1 to 3 power pips (1 for 40 and 50,
   2 for 65 and 80, 3 for 100), not numbers. The new-move toast goes away by itself after 6 s.
+  Opened from each team card and from the toast (`apps/game/src/loadout-picker.ts`,
+  `new-move-toast.ts`). Until #150 the toast follows the turn battle's moves learned and offered;
+  holding a move plays a canvas sketch of its shape (`shape-preview.ts`) until #151's painter takes
+  its `ShapePainter` seam.
 - **Duels** (#157, #158): ask a courier within 4 tiles; the answer card waits 20 s, then declines
   by itself; the same pair waits 30 s after a decline. Up to 6 watchers. The winner's courier wears
   a small trophy for 60 s.

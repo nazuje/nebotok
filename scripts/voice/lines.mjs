@@ -1,5 +1,6 @@
-// The lines players hear: every dialogue node's `say` and choice, and every quest's name, summary
-// and step hints, in each language, with the voice that says them.
+// The lines players hear: every dialogue node's `say` and choice, every quest's name, summary
+// and step hints, and every move's name (read from the loadout picker), in each language, with the
+// voice that says them.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ export const CONTENT_DIR = fileURLToPath(new URL('../../content/', import.meta.u
 
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 
-/** npcs.json, quests.json and every dialogue file, by character, as raw JSON. */
+/** npcs.json, quests.json, creatures/moves.json and every dialogue file, by character, as raw JSON. */
 export function readStoryFiles(dir = CONTENT_DIR) {
   const dialogue = Object.fromEntries(
     readdirSync(join(dir, 'dialogue'))
@@ -20,7 +21,7 @@ export function readStoryFiles(dir = CONTENT_DIR) {
         return npc === undefined ? [] : [[npc, readJson(join(dir, 'dialogue', name))]];
       }),
   );
-  return { npcs: readJson(join(dir, 'npcs.json')), quests: readJson(join(dir, 'quests.json')), dialogue };
+  return { npcs: readJson(join(dir, 'npcs.json')), quests: readJson(join(dir, 'quests.json')), moves: readJson(join(dir, 'creatures', 'moves.json')), dialogue };
 }
 
 /** A language's text: a plain string, or (once Slovenian speaks to boys and girls apart) each of its forms. */
@@ -28,10 +29,11 @@ const formsOf = (text) => (typeof text === 'string' ? [text] : Object.values(tex
 
 /**
  * { lines, skipped }: each line as { language, voice, text, from }, with `voice` the speaker's
- * npcs.json voice or null for the narrator, choices and quest text. Lines with a {placeholder}
- * are in `skipped` instead, because they are filled in while playing.
+ * npcs.json voice or null for the narrator, choices, quest text and move names. Lines with a
+ * {placeholder} are in `skipped` instead, because they are filled in while playing. Without
+ * `moves`, no move names.
  */
-export function voiceLines({ npcs, quests, dialogue }) {
+export function voiceLines({ npcs, quests, dialogue, moves }) {
   const voices = new Map(npcs.npcs.map((npc) => [npc.id, npc.voice]));
   const lines = [];
   const skipped = [];
@@ -52,5 +54,6 @@ export function voiceLines({ npcs, quests, dialogue }) {
     add(quest.summary, null, `quests.json ${quest.id} summary`);
     for (const step of quest.steps) add(step.hint, null, `quests.json ${quest.id} ${step.id} hint`);
   }
+  for (const move of moves?.moves ?? []) add(move.name, null, `creatures/moves.json ${move.id} name`);
   return { lines, skipped };
 }

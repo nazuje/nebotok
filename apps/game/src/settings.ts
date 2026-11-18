@@ -14,6 +14,8 @@ export type Settings = {
   setCanAddPin(canAddPin: boolean): void;
   /** The player's "Read to me"; null hides it, before the server has said or while no one plays. */
   setReadToMe(readToMe: boolean | null): void;
+  /** The player's turtle setting, easier arena fights; null hides it, as for "Read to me". */
+  setTurtle(turtle: boolean | null): void;
   isOpen(): boolean;
 };
 
@@ -21,7 +23,7 @@ export type Settings = {
 export function createSettings(
   language: Language,
   controls: Controls,
-  actions: { onLanguage(): void; onControls(): void; onReadToMe(): void; onAddPin(): void; onSwitchPlayer(): void },
+  actions: { onLanguage(): void; onControls(): void; onReadToMe(): void; onTurtle(): void; onAddPin(): void; onSwitchPlayer(): void },
 ): Settings {
   const toggle = element<HTMLButtonElement>('.settings-button');
   const panel = element<HTMLElement>('#settings');
@@ -34,6 +36,9 @@ export function createSettings(
   const readLabel = element<HTMLElement>('.settings-read');
   const readButton = element<HTMLButtonElement>('.read-to-me');
   readButton.prepend(pictureIcon('speaker', 32, { className: 'read-to-me-picture' }));
+  const turtleLabel = element<HTMLElement>('.settings-turtle');
+  const turtleButton = element<HTMLButtonElement>('.turtle');
+  turtleButton.prepend(pictureIcon('turtle', 32, { className: 'read-to-me-picture' }));
 
   let current = language;
   let currentControls = controls;
@@ -41,6 +46,7 @@ export function createSettings(
   let signedIn = false;
   let canAddPin = false;
   let readToMe: boolean | null = null;
+  let turtle: boolean | null = null;
 
   const render = () => {
     toggle.setAttribute('aria-expanded', String(open));
@@ -68,6 +74,16 @@ export function createSettings(
       option.textContent = text(on ? 'settings.readToMe.on' : 'settings.readToMe.off', current);
       option.setAttribute('aria-current', String(on === (readToMe === true)));
     }
+    turtleLabel.textContent = text('arena.turtle', current);
+    turtleLabel.hidden = turtle === null;
+    turtleButton.hidden = turtle === null;
+    turtleButton.setAttribute('aria-pressed', String(turtle === true));
+    turtleButton.setAttribute('aria-label', text('arena.turtle', current));
+    for (const option of turtleButton.querySelectorAll<HTMLElement>('[data-turtle]')) {
+      const on = option.dataset.turtle === 'on';
+      option.textContent = text(on ? 'settings.readToMe.on' : 'settings.readToMe.off', current);
+      option.setAttribute('aria-current', String(on === (turtle === true)));
+    }
     addPinButton.textContent = text('settings.addPin', current);
     addPinButton.hidden = !signedIn || !canAddPin;
     switchButton.textContent = text('profile.switch', current);
@@ -88,6 +104,7 @@ export function createSettings(
   languageButton.addEventListener('click', () => actions.onLanguage());
   controlsButton.addEventListener('click', () => actions.onControls());
   readButton.addEventListener('click', () => actions.onReadToMe());
+  turtleButton.addEventListener('click', () => actions.onTurtle());
   addPinButton.addEventListener('click', () => {
     setOpen(false);
     actions.onAddPin();
@@ -125,6 +142,10 @@ export function createSettings(
     },
     setReadToMe: (next) => {
       readToMe = next;
+      render();
+    },
+    setTurtle: (next) => {
+      turtle = next;
       render();
     },
     isOpen: () => open,
