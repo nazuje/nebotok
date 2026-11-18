@@ -258,7 +258,8 @@ What these measures do not stop, in rough order of importance:
    images pinned inside `ci.yml`: it does not read a workflow's `container`. Update binfmt and
    BuildKit by hand now and then, the Playwright image with each Playwright update
    (`scripts/ci.test.mjs` fails until its tag matches `package-lock.json`; take the new digest from
-   `docker buildx imagetools inspect mcr.microsoft.com/playwright:v<version>-noble`), and
+   `docker buildx imagetools inspect mcr.microsoft.com/playwright:v<version>-noble`, and only one
+   whose `created` date is at least 7 days old, since no cooldown covers it), and
    `compose.local.yaml`'s Litestream pin with each Litestream update (`scripts/compose.test.mjs`
    fails until they match).
 9. **Anything running on the Mac mini can claim any address to the game.** In host mode a

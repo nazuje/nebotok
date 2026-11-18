@@ -10,7 +10,7 @@ const container = /\n {4}container:\n {6}image: (\S+)\n/.exec(workflow)?.[1] ?? 
 
 describe('the CI workflow', () => {
   it('pins every image by digest', () => {
-    const images = [...workflow.matchAll(/^\s*(?:image:|driver-opts: image=)\s*(\S+)\s*$/gm)].map((match) => match[1]);
+    const images = [...workflow.matchAll(/^[ \t]*(?:image:|driver-opts: image=|container:|(?:- )?uses: docker:\/\/)[ \t]*(\S+)[ \t]*$/gm)].map((match) => match[1]);
     expect(images.length).toBeGreaterThan(2);
     for (const image of images) expect(image).toMatch(/^[\w./-]+:[\w.-]+@sha256:[0-9a-f]{64}$/);
   });
