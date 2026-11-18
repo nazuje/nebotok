@@ -23,7 +23,9 @@ updates:
       actions-minor-and-patch:
         update-types: [minor, patch]
 
-  # The Node base image in the Dockerfile, pinned by digest.
+  # The Node base image in the Dockerfile, pinned by digest. Dependabot reads no workflow
+  # `container`, so the Playwright image in ci.yml is updated by hand with each Playwright update;
+  # scripts/ci.test.mjs fails until it is.
   - package-ecosystem: docker
     directory: /
     schedule:

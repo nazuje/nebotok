@@ -25,7 +25,20 @@ jobs:
   verify:
     name: verify (level 4)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Level 4 takes about 19 minutes; the rest is headroom for a slow runner.
+    timeout-minutes: 40
+    # Playwright's own image for the exact Playwright in package-lock.json, pinned by digest, brings the
+    # browsers and their system libraries, so CI never waits on Ubuntu's package mirror. Dependabot
+    # does not update workflow containers; scripts/ci.test.mjs fails until the tag matches the lockfile.
+    # It runs as the runner's own user (uid 1001), not root. The runner's Docker CLI and Compose
+    # plugin are lent read-only, without the Docker socket, so the compose tests can still check
+    # `docker compose config`, which needs no daemon.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+      options: >-
+        --user 1001
+        --volume /usr/bin/docker:/usr/bin/docker:ro
+        --volume /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
     env:
       GITLEAKS_VERSION: 8.30.1
       # sha256 of gitleaks_8.30.1_linux_x64.tar.gz, from the release's checksums file.
@@ -45,8 +58,9 @@ jobs:
       # .npmrc sets ignore-scripts, so no dependency runs code while installing.
       - run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium webkit
+      # Without it scripts/compose.test.mjs would skip its compose checks instead of running them.
+      - name: Docker Compose for the compose tests
+        run: docker compose version
 
       - name: Install gitleaks (pinned release, checksum verified)
         run: |

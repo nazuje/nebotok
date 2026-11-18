@@ -113,7 +113,8 @@ else built.
 
 | Measure | Where |
 | --- | --- |
-| Every GitHub Action pinned to a full commit SHA; the build helper images (binfmt, BuildKit) pinned by digest. | `.github/workflows/ci.yml` |
+| Every GitHub Action pinned to a full commit SHA; the build helper images (binfmt, BuildKit) and the image the checks run in pinned by digest. | `.github/workflows/ci.yml` |
+| The checks run inside Microsoft's official Playwright image (`mcr.microsoft.com/playwright`), tagged with the Playwright version in `package-lock.json` and pinned by digest, as the runner's own user, not root. It already holds the browsers and the system libraries they need, so CI installs no system packages. The runner's Docker command is lent to it read-only, for checking compose files, never the Docker socket. | `ci.yml` `verify` job, `scripts/ci.test.mjs` |
 | Workflows get a read-only token by default; only the image job on `main` can write packages. Never `pull_request_target`; checkout keeps no credentials. | `.github/workflows/ci.yml` |
 | The image is built and pushed only from `main`, and only after the full level 4 proof passes. | `ci.yml` `image` job, `needs: verify` |
 | `main` is protected: it changes only through pull requests, squash-merged, and only once the `verify (level 4)` check has passed on them. Auto-merge waits for that same check. | Repository settings |
@@ -248,13 +249,18 @@ What these measures do not stop, in rough order of importance:
    container. Escaping lands in OrbStack's Linux VM first, but OrbStack shares the Mac's folders with
    that VM so that bind mounts work, so assume an escape could read your files. Keep OrbStack and
    macOS updated.
-7. **Trust in the tools.** Tailscale, Litestream, OrbStack, Docker's official Node image, GitHub and Sigstore (the
+7. **Trust in the tools.** Tailscale, Litestream, OrbStack, Docker's official Node image, Microsoft's
+   Playwright image (in CI only), GitHub and Sigstore (the
    signing service behind attestations) are all trusted. Their images and actions are pinned, but a
    compromise at the source before pinning would carry through.
 8. **Pinned helper images age.** Dependabot updates GitHub Actions, the Dockerfile base image and the
-   Tailscale and Litestream images in `compose.yaml`, but not the binfmt and BuildKit images pinned
-   inside `ci.yml`. Update those by hand now and then, and `compose.local.yaml`'s Litestream pin
-   with each Litestream update (`scripts/compose.test.mjs` fails until they match).
+   Tailscale and Litestream images in `compose.yaml`, but not the binfmt, BuildKit and Playwright
+   images pinned inside `ci.yml`: it does not read a workflow's `container`. Update binfmt and
+   BuildKit by hand now and then, the Playwright image with each Playwright update
+   (`scripts/ci.test.mjs` fails until its tag matches `package-lock.json`; take the new digest from
+   `docker buildx imagetools inspect mcr.microsoft.com/playwright:v<version>-noble`), and
+   `compose.local.yaml`'s Litestream pin with each Litestream update (`scripts/compose.test.mjs`
+   fails until they match).
 9. **Anything running on the Mac mini can claim any address to the game.** In host mode a
    connection through `127.0.0.1:8567` and one from another container in OrbStack (to the game's
    container address or to `host.docker.internal`) both arrive from the network's gateway, which the
