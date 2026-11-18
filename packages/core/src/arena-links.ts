@@ -1,4 +1,5 @@
-import { ARENA_KINDS, arenaReach, type ArenaKind, type ArenaMove, type ArenaRules, type Move, type Species } from './content.ts';
+import { ARENA_KINDS, type ArenaKind } from './arena-shapes.ts';
+import { arenaReach, type ArenaMove, type ArenaRules, type Move, type Species } from './content.ts';
 
 /**
  * The arena checks that need moves.json and species.json beside arena.json (docs/arena.md, "Balance

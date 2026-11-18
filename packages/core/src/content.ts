@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ARENA_KINDS, ARENA_SHAPES } from './arena-shapes.ts';
 import { Tint } from './art.ts';
 import { MapId } from './map.ts';
 import { WELCOME_MESSAGE_KEYS } from './protocol.ts';
@@ -347,14 +348,6 @@ export const WeatherFile = z
   });
 export type WeatherFile = z.infer<typeof WeatherFile>;
 
-/**
- * Arena fights (docs/arena.md). A move's `kind` says which button it sits on, in button order;
- * its `shape` says what it does on the island.
- */
-export const ARENA_KINDS = ['quick', 'special', 'ultimate'] as const;
-export type ArenaKind = (typeof ARENA_KINDS)[number];
-export const ARENA_SHAPES = ['bolt', 'spray', 'cone', 'snare', 'lunge', 'burst', 'puddle', 'shield', 'strike', 'wall', 'freeze', 'zone', 'weather'] as const;
-export type ArenaShape = (typeof ARENA_SHAPES)[number];
 
 // Arena numbers are whole numbers only, so every engine gets the same island: arena units (and
 // units a second), ticks at 60 a second, percents, and angles as their cosine in 1/4096.
