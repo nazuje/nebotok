@@ -25,12 +25,17 @@ export const ARENA_BUTTONS: readonly Button[] = [0, 1, 2];
 
 /**
  * One side's input for one tick: the stick's direction (0 to 15, or none), the dash button and the
- * ability button pressed, if any. One button a tick; holding button 1 sends it every tick.
+ * ability button pressed, if any. One button a tick; holding button 1 sends it every tick. `treat`,
+ * `swap` and `leave` are the wild fight's own buttons, which only `fightStep` reads (fight.ts);
+ * left out, they are not pressed.
  */
 export const ArenaInput = z.strictObject({
   dir: z.number().int().min(0).max(DIRECTION_COUNT - 1).nullable(),
   dash: z.boolean(),
   press: z.union([z.literal(0), z.literal(1), z.literal(2)]).nullable().default(null),
+  treat: z.boolean().optional(),
+  swap: z.boolean().optional(),
+  leave: z.boolean().optional(),
 });
 export type ArenaInput = z.infer<typeof ArenaInput>;
 export const ARENA_IDLE: ArenaInput = { dir: null, dash: false, press: null };
@@ -130,6 +135,11 @@ export type Body = {
   readonly status: BodyStatus;
   readonly windup: Windup | null;
   readonly lunge: Lunge | null;
+  /**
+   * Ticks left in which nothing can hit, bump or knock it: a creature that came onto the island
+   * during a wild fight (fight.ts). Bodies that started the fight have none.
+   */
+  readonly graceTicks?: number;
 };
 
 /**
@@ -250,6 +260,9 @@ export function walkCapOf(baseSpeed: number, rules: ArenaRules): number {
 /** Whether a computer's creature fights gently, because the player it faces has the turtle setting on. */
 export const isGentle = (body: Body, other: Body): boolean => body.computer && other.turtle;
 
+/** Whether the body is still in its grace after coming onto the island, so nothing can hit, bump or knock it. */
+export const inGrace = (body: Body): boolean => (body.graceTicks ?? 0) > 0;
+
 /** The loadout, with each move checked to exist and to be of its button's kind. */
 function checkedLoadout(fighter: ArenaFighter, content: ArenaContent): ArenaLoadout {
   fighter.loadout.forEach((id, button) => {
@@ -260,7 +273,8 @@ function checkedLoadout(fighter: ArenaFighter, content: ArenaContent): ArenaLoad
   return fighter.loadout;
 }
 
-function startBody(side: Side, fighter: ArenaFighter, other: ArenaFighter, content: ArenaContent): Body {
+/** The body of `fighter` on `side` at the start of a fight, at full health, facing `other`. */
+export function startBody(side: Side, fighter: ArenaFighter, other: ArenaFighter, content: ArenaContent): Body {
   const rules = content.arena;
   const known = content.species.get(fighter.species);
   if (!known) throw new RangeError(`arena: no species "${fighter.species}"`);
