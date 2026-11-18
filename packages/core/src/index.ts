@@ -10,6 +10,7 @@ export {
   WalkHoldMessage,
   WalkStopMessage,
   SettingsSetMessage,
+  SettingsTurtleMessage,
   walkMessage,
   welcome,
   isCompatibleProtocol,
@@ -62,6 +63,7 @@ export {
   MAX_ACTIVE_QUESTS,
   MAX_STORY_IDS,
   CreatureInstance,
+  Loadout,
   StoryProgress,
   type QuestProgress,
   MAX_SAVED_SKILLS,
@@ -293,11 +295,14 @@ export {
   teamAfterBattle,
   befriendedCreature,
   renameSpecies,
+  setLoadout,
+  setTurtle,
   type Progress,
 } from './creatures.ts';
 export { isRepaired, knowableMoves, sanitizeProgress, type ProgressRepairs } from './save-repair.ts';
 export { xpForWin, xpToNextLevel, gainXp, sentOut, awardXp } from './growth.ts';
-export { learnMoves, learnTeamMoves, chooseMove, answerMove, type MoveLearning, type PendingMove } from './learning.ts';
+export { learnedMoves, learnMoves, learnTeamMoves, chooseMove, answerMove, type MoveLearning, type PendingMove } from './learning.ts';
+export { buttonUnlocked, learnedBy, defaultLoadout, loadoutFits, repairLoadout, grownLoadout, type LoadoutContent } from './loadout.ts';
 export {
   BattleMoveMessage,
   BattleSwitchMessage,
@@ -306,6 +311,7 @@ export {
   TeamReorderMessage,
   StorageSwapMessage,
   StarterChooseMessage,
+  LoadoutSetMessage,
   OfferId,
   MoveChooseMessage,
   REFUSAL_REASONS,
@@ -325,6 +331,7 @@ export {
   type RefusalReason,
   type Refused,
   type ProgressMessage,
+  type TeamCreature,
   type StorageMessage,
 } from './messages.ts';
 export {

@@ -55,6 +55,7 @@ export function loadSaveRepair(log: Log, dir: string = CONTENT_DIR): SaveRepair 
     rules: readJson(dir, 'creatures/battle-rules.json'),
     befriending: readJson(dir, 'creatures/befriending.json'),
     items: readJson(dir, 'items.json'),
+    arena: readJson(dir, 'creatures/arena.json'),
   });
   const story = {
     quests: new Map(QuestsFile.parse(readJson(dir, 'quests.json')).quests.map((quest) => [quest.id, quest])),

@@ -17,7 +17,7 @@ import {
 import { storyContent } from '../support/story-content.ts';
 
 const skills = storyContent.skills!;
-const saveOf = (progress: Progress) => ({ name: 'Skill Courier', language: 'en' as const, createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false }, ...progress });
+const saveOf = (progress: Progress) => ({ name: 'Skill Courier', language: 'en' as const, createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false, turtle: false }, ...progress });
 
 const plans: fc.Arbitrary<AttemptPlan> = fc
   .record({ game: fc.constantFrom('dip', 'sparkle', 'marker' as const), difficulty: fc.constantFrom(1, 2, 3 as const), seed: fc.integer({ min: 0, max: 0xffffffff }) })

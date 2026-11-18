@@ -1,0 +1,60 @@
+{
+  "v": 6,
+  "data": {
+    "name": "Test Courier",
+    "language": "en",
+    "createdAt": "2026-11-02T15:20:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 20,
+      "y": 17,
+      "facing": "down"
+    },
+    "inventory": [
+      {
+        "item": "plain-treat",
+        "count": 3
+      }
+    ],
+    "lastShrine": null,
+    "story": {
+      "active": [
+        {
+          "quest": "first-round",
+          "step": 0,
+          "count": 0
+        }
+      ],
+      "done": [],
+      "flags": [
+        "met-bavko"
+      ]
+    },
+    "skills": [],
+    "jobs": null,
+    "team": [
+      {
+        "species": "glowbun",
+        "level": 5,
+        "xp": 30,
+        "hp": 22,
+        "moves": [
+          "heat-shimmer",
+          "sun-ray",
+          "storm-tap",
+          "sun-call"
+        ]
+      }
+    ],
+    "storage": [],
+    "seen": [
+      "glowbun"
+    ],
+    "befriended": [
+      "glowbun"
+    ],
+    "settings": {
+      "readToMe": false
+    }
+  }
+}

@@ -63,7 +63,7 @@ describe('starters', () => {
 
 describe('renamed species', () => {
   const renames = RenamedFile.parse(renamed);
-  const old = { species: 'sun-blob', level: 7, xp: 40, hp: 9_999, moves: ['sun-tap', 'sun-wallop'], nickname: 'Sunny' };
+  const old = { species: 'sun-blob', level: 7, xp: 40, hp: 9_999, moves: ['sun-tap', 'sun-wallop'], nickname: 'Sunny', loadout: ['sun-tap', null, null] as [string | null, string | null, string | null] };
 
   it('point only at species that exist, from ids that are gone', () => {
     expect(renamedProblems(renames, battleContent)).toEqual([]);
@@ -77,7 +77,7 @@ describe('renamed species', () => {
   it('turn an old creature into the new species, keeping its level, experience and nickname', () => {
     const progress = { ...emptyProgress(), team: [old, blob('puddlepip')], storage: [{ ...old, species: 'gale-blob', hp: 3 }], seen: ['sun-blob', 'glowbun', 'bloom-blob'], befriended: ['sun-blob'] };
     const after = renameSpecies(progress, renames, battleContent);
-    expect(after.team[0]).toEqual({ species: 'glowbun', level: 7, xp: 40, hp: maxHpOf({ species: 'glowbun', level: 7 }, battleContent), moves: blob('glowbun', 7).moves, nickname: 'Sunny' });
+    expect(after.team[0]).toEqual({ species: 'glowbun', level: 7, xp: 40, hp: maxHpOf({ species: 'glowbun', level: 7 }, battleContent), moves: blob('glowbun', 7).moves, nickname: 'Sunny', loadout: blob('glowbun', 7).loadout });
     expect(after.team[1]).toBe(progress.team[1]);
     expect(after.storage[0]).toMatchObject({ species: 'pinwhirl', hp: 3 });
     expect(after.seen).toEqual(['glowbun', 'bloomlet']);
@@ -89,7 +89,7 @@ describe('renamed species', () => {
 describe('new creatures', () => {
   it('start at full health with no experience and their species\' moves', () => {
     const creature = blob('pinwhirl', 12);
-    expect(creature).toEqual({ species: 'pinwhirl', level: 12, xp: 0, hp: maxHpOf(creature, battleContent), moves: battleContent.species.get('pinwhirl')!.moves });
+    expect(creature).toEqual({ species: 'pinwhirl', level: 12, xp: 0, hp: maxHpOf(creature, battleContent), moves: battleContent.species.get('pinwhirl')!.moves, loadout: creature.loadout });
     expect(() => blob('moon-blob')).toThrow(RangeError);
   });
 });

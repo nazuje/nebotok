@@ -3,7 +3,7 @@ import { emptyProgress, isRepaired, maxHpOf, newCreature, sanitizeProgress, type
 import { battleContent } from '../support/battle-content.ts';
 
 const progressWith = (progress: Partial<Progress>): Progress => ({ ...emptyProgress(), ...progress });
-const gone = (species = 'gone-species'): CreatureInstance => ({ species, level: 5, xp: 0, hp: 20, moves: ['sun-tap'] });
+const gone = (species = 'gone-species'): CreatureInstance => ({ species, level: 5, xp: 0, hp: 20, moves: ['sun-tap'], loadout: [null, null, null] });
 
 describe('sanitizeProgress', () => {
   it('leaves progress that matches the content as it is', () => {
@@ -33,7 +33,20 @@ describe('sanitizeProgress', () => {
     });
     const { progress: after, repairs } = sanitizeProgress(progress, battleContent);
     expect(after).toEqual({ ...progress, team: [kept], storage: [], inventory: [{ item: 'plain-treat', count: 2 }], seen: ['glowbun'], befriended: [] });
-    expect(repairs).toEqual({ droppedCreatures: ['gone-species', 'old-cloud'], droppedItems: ['gone-treat'], replacedMoves: [], clamped: 0, forgottenSpecies: ['gone-species'], refilledTeam: false });
+    expect(repairs).toEqual({ droppedCreatures: ['gone-species', 'old-cloud'], droppedItems: ['gone-treat'], replacedMoves: [], clamped: 0, repairedLoadouts: 0, forgottenSpecies: ['gone-species'], refilledTeam: false });
+  });
+
+  it('replaces a loadout move that is not learned, of the wrong kind or on a locked button with the default, and keeps empty buttons', () => {
+    const creature = newCreature('glowbun', 10, battleContent);
+    const progress = progressWith({ team: [{ ...creature, loadout: ['sun-ray', null, 'sun-call'] }, { ...creature, loadout: [null, 'noon-blaze', null] }, { ...creature, loadout: [null, null, null] }] });
+    const { progress: after, repairs } = sanitizeProgress(progress, battleContent);
+    expect(after.team.map((owned) => owned.loadout)).toEqual([
+      ['heat-shimmer', null, null],
+      [null, 'sun-ray', null],
+      [null, null, null],
+    ]);
+    expect(repairs.repairedLoadouts).toBe(2);
+    expect(isRepaired(repairs)).toBe(true);
   });
 
   it("keeps the moves a creature can know and fills the others' slots from its species' moves", () => {

@@ -107,7 +107,7 @@ describe('the board between messages', () => {
 
 describe('a delivery ready to hand over', () => {
   const starter = [...CONTENT.species.keys()][0]!;
-  const carrying = (count: number) => progressMessage({ ...emptyProgress(), team: [newCreature(starter, 5, CONTENT)], inventory: [{ item: 'pebblefish', count }] });
+  const carrying = (count: number) => progressMessage({ ...emptyProgress(), team: [newCreature(starter, 5, CONTENT)], inventory: [{ item: 'pebblefish', count }] }, CONTENT);
 
   it('marks its character for a turn-in once the bag holds all of it', () => {
     expect(headMarks(carrying(3), emptyStory(), STORY, [delivery(1)]).get('mehurka')).toBe('turnIn');

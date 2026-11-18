@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { ContentId, LanguageSchema } from './content.ts';
 import { DirectionSchema } from './grid.ts';
+import { defaultLoadout, type LoadoutContent } from './loadout.ts';
 import { MapId } from './map.ts';
 
 /** The version `createSave` writes. Raise it only together with a migration from the version before. */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /** How many creatures a player's storage holds, besides the team of up to 6. */
 export const STORAGE_LIMIT = 200;
@@ -144,8 +145,31 @@ const SettingsV6 = z.strictObject({ readToMe: z.boolean() });
 /** v6 adds the player's settings. */
 const SaveDataV6 = z.strictObject({ ...SaveDataV5.shape, settings: SettingsV6 });
 
-export const CreatureInstance = CreatureV3;
+/**
+ * A creature's loadout, as v7 saves it: the move on each arena button (quick, special, ultimate), or
+ * null for an empty one. Which moves suit which button depends on content, so the save repair checks
+ * that (`repairLoadout`), not the schema.
+ */
+const LoadoutV7 = z.tuple([ContentId.nullable(), ContentId.nullable(), ContentId.nullable()]);
+
+/** One creature a player owns, as v7 saves it: v3's, with its loadout. `moves` stays while turn battles live. */
+const CreatureV7 = z.strictObject({ ...CreatureV3.shape, loadout: LoadoutV7 });
+
+/** The player's settings since v7: `turtle` is their own easier arena setting (docs/arena.md, "The turtle setting"). */
+const SettingsV7 = z.strictObject({ readToMe: z.boolean(), turtle: z.boolean() });
+
+/** v7 gives every creature a loadout and adds the turtle setting. */
+const SaveDataV7 = z.strictObject({
+  ...SaveDataV6.shape,
+  team: z.array(CreatureV7).max(6),
+  storage: z.array(CreatureV7).max(STORAGE_LIMIT),
+  settings: SettingsV7,
+});
+
+export const CreatureInstance = CreatureV7;
 export type CreatureInstance = z.infer<typeof CreatureInstance>;
+export const Loadout = LoadoutV7;
+export type Loadout = z.infer<typeof Loadout>;
 export const StoryProgress = StoryV4;
 export type StoryProgress = z.infer<typeof StoryProgress>;
 export type QuestProgress = StoryProgress['active'][number];
@@ -155,9 +179,9 @@ export const BoardJob = BoardJobV5;
 export type BoardJob = z.infer<typeof BoardJob>;
 export const JobsProgress = JobsV5;
 export type JobsProgress = z.infer<typeof JobsProgress>;
-export const PlayerSettings = SettingsV6;
+export const PlayerSettings = SettingsV7;
 export type PlayerSettings = z.infer<typeof PlayerSettings>;
-export const SaveData = SaveDataV6;
+export const SaveData = SaveDataV7;
 export type SaveData = z.infer<typeof SaveData>;
 export type SaveFile = { readonly v: typeof SAVE_VERSION; readonly data: SaveData };
 
@@ -169,9 +193,11 @@ export const SAVE_SCHEMAS: Readonly<Record<number, z.ZodType>> = {
   4: SaveDataV4,
   5: SaveDataV5,
   6: SaveDataV6,
+  7: SaveDataV7,
 };
 
-export type Migration = (data: unknown) => unknown;
+/** A migration reads the content it needs, such as which moves suit which arena button, as an argument. */
+export type Migration = (data: unknown, content: LoadoutContent) => unknown;
 
 /** `migrations[n]` turns version n data into version n + 1 data. */
 export const migrations: Readonly<Record<number, Migration>> = {
@@ -184,12 +210,19 @@ export const migrations: Readonly<Record<number, Migration>> = {
   // A v4 player has every skill at level 1 and has never opened the job board.
   4: (data) => ({ ...(data as z.infer<typeof SaveDataV4>), skills: [], jobs: null }),
   // Sound never plays unasked, so a v5 player has "Read to me" off until they turn it on.
-  5: (data) => ({ ...(data as z.infer<typeof SaveDataV5>), settings: defaultSettings() }),
+  5: (data) => ({ ...(data as z.infer<typeof SaveDataV5>), settings: { readToMe: false } }),
+  // Each creature gets the default loadout: on each button its level has unlocked, the first move of
+  // that kind it has learned by its level, even one it forgot in a turn battle. The turtle setting starts off.
+  6: (data, content) => {
+    const old = data as z.infer<typeof SaveDataV6>;
+    const equip = (creature: z.infer<typeof CreatureV3>) => ({ ...creature, loadout: defaultLoadout(creature, content) });
+    return { ...old, team: old.team.map(equip), storage: old.storage.map(equip), settings: { ...old.settings, turtle: false } };
+  },
 };
 
-/** A new player's settings: nothing is read aloud unless they ask. */
+/** A new player's settings: nothing is read aloud unless they ask, and fights are not made easier. */
 export function defaultSettings(): PlayerSettings {
-  return { readToMe: false };
+  return { readToMe: false, turtle: false };
 }
 
 const Envelope = z.object({ v: z.number().int().min(1), data: z.unknown() });
@@ -202,7 +235,8 @@ export function createSave(data: SaveData): SaveFile {
   return { v: SAVE_VERSION, data: SaveData.parse(data) };
 }
 
-export function migrateSave(raw: unknown): SaveFile {
+/** A save of any version, checked and upgraded to SAVE_VERSION. `content` is today's: see `Migration`. */
+export function migrateSave(raw: unknown, content: LoadoutContent): SaveFile {
   const envelope = Envelope.safeParse(raw);
   if (!envelope.success) throw new SaveError(`not a save file: ${envelope.error.issues[0]?.message ?? 'bad shape'}`);
   const { v } = envelope.data;
@@ -217,7 +251,7 @@ export function migrateSave(raw: unknown): SaveFile {
   for (let from = v; from < SAVE_VERSION; from += 1) {
     const step = migrations[from];
     if (!step) throw new SaveError(`no migration from save version ${from}`);
-    data = step(data);
+    data = step(data, content);
   }
   return { v: SAVE_VERSION, data: SaveData.parse(data) };
 }

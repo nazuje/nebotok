@@ -25,7 +25,7 @@ export function createServices(config: Config, now: () => number = Date.now, log
     db,
     world,
     profiles: createProfileStore({ db, now, avatars: world.avatars, log }),
-    progress: createProgressStore({ db, now, repair: loadSaveRepair(log) }),
+    progress: createProgressStore({ db, now, repair: loadSaveRepair(log), content: world.battle }),
     now,
     close: () => {
       if (db.isOpen) db.close();

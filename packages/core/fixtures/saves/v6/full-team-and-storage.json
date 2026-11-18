@@ -1,0 +1,161 @@
+{
+  "v": 6,
+  "data": {
+    "name": "Test Courier",
+    "language": "en",
+    "createdAt": "2026-09-14T17:00:00.000Z",
+    "position": {
+      "map": "post-island",
+      "x": 20,
+      "y": 17,
+      "facing": "down"
+    },
+    "inventory": [
+      {
+        "item": "plain-treat",
+        "count": 12
+      }
+    ],
+    "lastShrine": null,
+    "story": {
+      "active": [],
+      "done": [],
+      "flags": []
+    },
+    "skills": [],
+    "jobs": null,
+    "team": [
+      {
+        "species": "glowbun",
+        "level": 33,
+        "xp": 120,
+        "hp": 89,
+        "moves": [
+          "noon-blaze",
+          "sun-wallop",
+          "sun-tap",
+          "storm-wallop"
+        ]
+      },
+      {
+        "species": "dawnshell",
+        "level": 6,
+        "xp": 40,
+        "hp": 26,
+        "moves": [
+          "sun-tap",
+          "heat-shimmer",
+          "storm-tap",
+          "sun-call"
+        ]
+      },
+      {
+        "species": "dawnshell",
+        "level": 7,
+        "xp": 2,
+        "hp": 29,
+        "moves": [
+          "sun-tap",
+          "heat-shimmer",
+          "storm-tap",
+          "sun-call"
+        ],
+        "nickname": "Shelly"
+      },
+      {
+        "species": "gustowl",
+        "level": 12,
+        "xp": 0,
+        "hp": 0,
+        "moves": [
+          "gale-tap",
+          "gust-push",
+          "frost-tap",
+          "gale-call"
+        ]
+      },
+      {
+        "species": "boltkit",
+        "level": 20,
+        "xp": 77,
+        "hp": 55,
+        "moves": [
+          "storm-tap",
+          "cloud-clap",
+          "storm-wallop",
+          "storm-call"
+        ]
+      },
+      {
+        "species": "snowsnoot",
+        "level": 1,
+        "xp": 0,
+        "hp": 12,
+        "moves": [
+          "snow-puff",
+          "icicle-poke",
+          "rain-tap",
+          "frost-call"
+        ]
+      }
+    ],
+    "storage": [
+      {
+        "species": "sun-blob",
+        "level": 9,
+        "xp": 5,
+        "hp": 30,
+        "moves": [
+          "sun-tap",
+          "sun-wallop"
+        ],
+        "nickname": "Sunny"
+      },
+      {
+        "species": "bloomlet",
+        "level": 40,
+        "xp": 300,
+        "hp": 110,
+        "moves": [
+          "pollen-burst",
+          "bloom-wallop",
+          "sun-wallop",
+          "bloom-tap"
+        ]
+      },
+      {
+        "species": "rimemoth",
+        "level": 11,
+        "xp": 10,
+        "hp": 33,
+        "moves": [
+          "frost-tap",
+          "icicle-poke",
+          "gale-tap",
+          "frost-call"
+        ]
+      }
+    ],
+    "seen": [
+      "glowbun",
+      "dawnshell",
+      "gustowl",
+      "boltkit",
+      "snowsnoot",
+      "bloomlet",
+      "rimemoth"
+    ],
+    "befriended": [
+      "glowbun",
+      "dawnshell",
+      "gustowl",
+      "boltkit",
+      "snowsnoot",
+      "bloomlet",
+      "rimemoth"
+    ],
+    "settings": {
+      "readToMe": false
+    }
+  }
+}
