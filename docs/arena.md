@@ -6,8 +6,9 @@ words is in [design.md](design.md) ("Creatures and battles"), the wire plan in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md).
 
 This is the plan for the milestone "Phase 2: Arena battles" (#141 to #160, see
-[phases.md](phases.md)). Nothing here is built yet. Turn battles stay live until the switch-over
-(#160). When the code and this page disagree, fix one of them in the same pull request.
+[phases.md](phases.md)). Built so far: the bodies, walking, dash, collisions, storm and ring-out in
+`packages/core/src/arena/` (#144, "Bodies in code" below). Turn battles stay live until the
+switch-over (#160). When the code and this page disagree, fix one of them in the same pull request.
 
 The look and the numbers come from the prototype, variant 6 (branch `prototype/battle-feel` at
 54d1893, `apps/game/src/prototype-battle/arena-*.ts`). A number marked **plan** is the planner's
@@ -61,6 +62,33 @@ prototype's `stepArena` (`arena-rules.ts`):
 A finished fight steps no further. `arenaHash(state)` (core `stableHash`) is the fingerprint for
 goldens and for the server's mismatch log.
 
+### Bodies in code
+
+`packages/core/src/arena/` (#144), exported from `@nebotok/core`:
+
+- `fixed.ts`: the whole-number maths. `DIRECTION_VECTORS` (index 0 points right, 4 down, 8 left,
+  12 up; `d + 8` is the exact opposite of `d`), `isqrt`, and `div`, which truncates towards zero
+  so every rule is point-symmetric and a mirrored fight ends exactly mirrored.
+- `rules.ts`: `ArenaRules`, the `island`, `dash` and `storm` groups of `arena.json` the step
+  reads, and `ArenaContent` (`{ arena, species }`), the `content` every arena function takes.
+  Abilities (#145) add their groups and content to both.
+- `state.ts`: `ArenaState` (`tick`, `rng`, `radius`, `storm`, two `bodies`, `outcome`), `Body`,
+  `ArenaInput` (`{ dir, dash }` for now), `ArenaSetup` (`{ seed, species }`), `arenaStart` and
+  `arenaHash`. Positions are in 1/256 arena units from the island's centre; velocities in 1/256
+  arena units **a tick**; every timer on a body (`dashTicks`, `dashCooldown`, `knockedTicks`)
+  counts the ticks left. Side 0 starts left of the centre facing right, side 1 mirrored, each 45%
+  of the radius out.
+- `storm.ts`: `stormRadius(step)` and the storm's own step.
+- `step.ts`: `arenaStep`. Before the storm, each body's timers tick down by one. After collide,
+  every body is held to the top speed. `knockFor(base, health left in permille)` is the knock rule;
+  until bodies carry health (#145) every knock is a full-health knock (a bump is 315 u/s) and the
+  time limit is a draw.
+- `golden.ts`: `ArenaGoldenFile`, inputs as runs of ticks with the same input, replayed by
+  `arenaReplay`.
+
+An `outcome` is `{ winner, how, tick }` with `how` `ringOut` or `timeUp` (#145 adds `knockout`);
+`winner` is null for a draw, which is also what two ring-outs on the same tick give.
+
 ## Walking, dashing and the edge
 
 - **Walk cap:** `330 + 2.2 × the species' base speed` (385 to 517 u/s with today's species).
@@ -75,8 +103,9 @@ goldens and for the server's mismatch log.
   bumps it: knock 700 (scaled as below), tumble 22 ticks, no damage. A lunge lands when the bodies
   are within two bodies plus 14 units.
 - **The lip:** walking and dashing stop 0.35 body inside the edge, so only a knock carries a
-  creature over. A tumbling creature is not held. A body more than one body past the edge falls:
-  a `ringOut` event, and it is out.
+  creature over: a body past the lip that moves outwards loses that motion and goes back onto the
+  lip. A tumbling creature is not held. A body more than one body past the edge falls: a
+  `ringOut` event, and it is out. The storm can push a standing creature off too.
 
 ## Health, damage and knock
 
@@ -276,7 +305,10 @@ island's diameter; quick cooldowns shorter than special ones, special shorter th
 Each step returns events for the screen's juice and for logs. The state is the truth; events only
 animate it.
 
-- Bodies (#144): `stormWarning`, `stormShrank`, `bumped`, `dashed`, `teeter`, `ringOut`.
+- Bodies (#144): `stormWarning` (`step`, the `radius` it shrinks to, sent `warnTicks` before the
+  shrink starts), `stormShrank` (`step`, `radius`, once the shrink has finished), `bumped`
+  (`side` knocked, `knock` in u/s, `x`, `y` where), `dashed` (`side`, `dir`), `teeter` (`side`,
+  once when its centre passes the lip) and `ringOut` (`side`).
 - Abilities (#145): `cast`, `windup`, `hit` (damage, health left, effectiveness, knock), `blocked`,
   `reflected`, `status`, `weatherStarted`, `weatherEnded`, `fainted`, `refused`.
 
@@ -355,8 +387,8 @@ replace her.
 Planned names, so the tickets agree:
 
 - Core state and steps (#144, #145, #147): `ArenaState`, `Body`, `ArenaInput`
-  (`{ dir, dash, press, treat, swap, leave }`), `arenaStep`, `arenaHash`, `ArenaFight` and
-  `fightStep`.
+  (`{ dir, dash, press, treat, swap, leave }`), `ArenaSetup`, `ArenaRules`, `ArenaContent`,
+  `arenaStart`, `arenaStep`, `arenaHash`, `ArenaFight` and `fightStep`.
 - Minds (#146): `wildInput`, `wildLoadout`, the skills `WILD`, `WILD_EASIER` and `BOT`.
 - Results (#147), the arena twins of the turn helpers that take a `BattleState`: `arenaWildSetup`,
   `teamAfterFight`, `befriendedFromFight`, `arenaRewards` and `duelRewards`. Both versions live

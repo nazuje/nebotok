@@ -1,0 +1,39 @@
+{
+  "description": "Arena golden: a pinwhirl and a glaciyak walk to the centre and stand still while the storm warns and shrinks ten times down to its floor, until the time limit ends it in a draw.",
+  "setup": {
+    "seed": "nebotok-arena-storm",
+    "species": [
+      "pinwhirl",
+      "glaciyak"
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 60,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false
+        },
+        {
+          "dir": 8,
+          "dash": false
+        }
+      ]
+    },
+    {
+      "ticks": 11000,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false
+        },
+        {
+          "dir": null,
+          "dash": false
+        }
+      ]
+    }
+  ],
+  "expectedHash": "0d0d51caf15bdd"
+}
