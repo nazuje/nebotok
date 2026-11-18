@@ -1,0 +1,230 @@
+{
+  "description": "Arena golden: a pinwhirl twirls bursts around a boltkit, knocking it outward, and gust-pushes it.",
+  "setup": {
+    "seed": "nebotok-arena-burst-ring",
+    "fighters": [
+      {
+        "id": "twirler",
+        "species": "pinwhirl",
+        "level": 20,
+        "loadout": [
+          "gust-push",
+          "twirl",
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "target",
+        "species": "boltkit",
+        "level": 20,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 55,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 124,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 9,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 2,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 15,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 15,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 17,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 37,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "16ba3c16462ceb"
+}

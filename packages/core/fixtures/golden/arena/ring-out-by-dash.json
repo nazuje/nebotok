@@ -2,9 +2,31 @@
   "description": "Arena golden: a glaciyak walks to the right edge, where the lip holds it, and a pinwhirl walks up behind it and dashes, knocking it off the island.",
   "setup": {
     "seed": "nebotok-arena-ring-out",
-    "species": [
-      "pinwhirl",
-      "glaciyak"
+    "fighters": [
+      {
+        "id": "left",
+        "species": "pinwhirl",
+        "level": 10,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "right",
+        "species": "glaciyak",
+        "level": 10,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
     ]
   },
   "inputs": [
@@ -13,11 +35,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -26,11 +50,13 @@
       "sides": [
         {
           "dir": 0,
-          "dash": true
+          "dash": true,
+          "press": null
         },
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     },
@@ -39,14 +65,16 @@
       "sides": [
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         },
         {
           "dir": 0,
-          "dash": false
+          "dash": false,
+          "press": null
         }
       ]
     }
   ],
-  "expectedHash": "0a4df2fa392323"
+  "expectedHash": "09f91b5eed5441"
 }

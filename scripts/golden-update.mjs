@@ -7,12 +7,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   ArenaGoldenFile,
-  ArenaRules,
   BattleGoldenFile,
   GoldenFile,
-  SpeciesFile,
   arenaReplayHash,
   battleReplayHash,
+  loadArenaContent,
   loadBattleContent,
   replayHash,
 } from '../packages/core/src/index.ts';
@@ -58,13 +57,16 @@ for (const name of readdirSync(BATTLE_DIR).filter((file) => file.endsWith('.json
   battleChanged += 1;
 }
 console.log(battleChanged ? `\n${battleChanged} battle golden(s) re-recorded. Review the diff before committing.` : '\nAll battle goldens already match.');
-// Arena goldens replay against their own frozen copy of the arena's numbers and the species.
+// Arena goldens replay against their own frozen copy of the arena's numbers, battle rules, weather, moves and species.
 const ARENA_DIR = join(GOLDEN_DIR, 'arena');
 const readArena = (name) => JSON.parse(readFileSync(join(ARENA_DIR, 'content', `${name}.json`), 'utf8'));
-const arenaContent = {
-  arena: ArenaRules.parse(readArena('arena')),
-  species: new Map(SpeciesFile.parse(readArena('species')).species.map((entry) => [entry.id, entry])),
-};
+const arenaContent = loadArenaContent({
+  arena: readArena('arena'),
+  rules: readArena('battle-rules'),
+  species: readArena('species'),
+  moves: readArena('moves'),
+  weather: readArena('weather'),
+});
 let arenaChanged = 0;
 for (const name of readdirSync(ARENA_DIR).filter((file) => file.endsWith('.json')).toSorted()) {
   const path = join(ARENA_DIR, name);

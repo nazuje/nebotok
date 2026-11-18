@@ -1,0 +1,500 @@
+{
+  "description": "Arena golden: a baskit calls sun, then a puddlepip calls rain, which ends the sun early and turns the weather chart against the baskit.",
+  "setup": {
+    "seed": "nebotok-arena-weather-flip",
+    "fighters": [
+      {
+        "id": "sunny",
+        "species": "baskit",
+        "level": 20,
+        "loadout": [
+          "sun-tap",
+          null,
+          "sun-call"
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "rainy",
+        "species": "puddlepip",
+        "level": 20,
+        "loadout": [
+          "rain-tap",
+          null,
+          "rain-call"
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 15,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 704,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 2
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 10,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 22,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 46,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 18,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 42,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 20,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 14,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 2
+        }
+      ]
+    },
+    {
+      "ticks": 25,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 20,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 40,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 22,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 38,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 23,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 37,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 24,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 35,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 25,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 35,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 26,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 35,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 26,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 33,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 28,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 32,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 28,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    },
+    {
+      "ticks": 30,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        }
+      ]
+    }
+  ],
+  "expectedHash": "0a5530dc5c1280"
+}

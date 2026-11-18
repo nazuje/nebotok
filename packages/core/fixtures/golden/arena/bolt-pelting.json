@@ -1,0 +1,545 @@
+{
+  "description": "Arena golden: a puddlepip holds button 1 and pelts a standing glowbun with drip-drop bolts, strong rain against sun, until it is knocked out or off.",
+  "setup": {
+    "seed": "nebotok-arena-bolt-pelting",
+    "fighters": [
+      {
+        "id": "pelter",
+        "species": "puddlepip",
+        "level": 20,
+        "loadout": [
+          "drip-drop",
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "target",
+        "species": "glowbun",
+        "level": 20,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 33,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 46,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 2,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 3,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 9,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 37,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 13,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 12,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 9,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 49,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 10,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 10,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 13,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 49,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 8,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 54,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 2,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "186d8013f92393"
+}

@@ -245,7 +245,7 @@ export {
   type FieldEffect,
 } from './battle/state.ts';
 export { BattleContentError, battleContentProblems, loadBattleContent, type BattleContent, type BattleContentFiles } from './battle/content.ts';
-export { battleCreature, maxHpAt, damageOf, effectivenessOf, fieldEffectOf, type DamageRoll } from './battle/damage.ts';
+export { battleCreature, maxHpAt, damageOf, effectivenessOf, fieldEffectOf, type DamageRoll, type DamageContent } from './battle/damage.ts';
 export { startBattle, battleStep, legalActions, isLegalAction, canOfferTreat } from './battle/engine.ts';
 export { greedyPolicy, randomPolicy, befriendPolicy, BOT_POLICIES, BOT_NAMES, playBattle, type BattlePolicy, type BotName, type PlayedBattle } from './battle/bots.ts';
 export { SkillCommand, SkillGoldenFile, SkillPlay, skillReplay, skillReplayHash, type SkillRecord, type SkillReplay } from './skill-golden.ts';
@@ -535,18 +535,30 @@ export {
   oppositeDirection,
   isqrt,
 } from './arena/fixed.ts';
-export type { ArenaContent } from './arena/rules.ts';
+export { arenaContentOf, loadArenaContent, type ArenaContent, type ArenaContentFiles } from './arena/rules.ts';
 export {
   ARENA_SIDES,
   ARENA_IDLE,
+  ARENA_BUTTONS,
   ArenaInput,
+  ArenaLoadout,
+  ArenaFighter,
   ArenaSetup,
   otherSide,
+  isGentle,
   walkCapOf,
   arenaStart,
   arenaHash,
   type Side,
   type Body,
+  type Button,
+  type BodyStatus,
+  type Windup,
+  type Lunge,
+  type Thing,
+  type ArenaWeather,
+  type RefusedReason,
+  type ArenaStatusKind,
   type ArenaInputs,
   type StormPhase,
   type ArenaStorm,
@@ -556,5 +568,8 @@ export {
   type ArenaStepResult,
 } from './arena/state.ts';
 export { stormRadius, stormAtStart } from './arena/storm.ts';
-export { arenaStep, knockFor, bodySpeed } from './arena/step.ts';
+export { arenaStep, bodySpeed } from './arena/step.ts';
+export { knockFor, healthPermille, SLOW_HOLD_TICKS } from './arena/hits.ts';
+export { abilityOf, aimOf, fanOf, inCone, isBusy, type Ability, type AbilityOf } from './arena/abilities.ts';
+export type { Aim } from './arena/working.ts';
 export { ArenaInputRun, ArenaGoldenFile, arenaReplay, arenaReplayHash, type ArenaReplay } from './arena/golden.ts';

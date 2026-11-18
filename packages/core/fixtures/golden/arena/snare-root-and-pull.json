@@ -1,0 +1,215 @@
+{
+  "description": "Arena golden: a snowsnoot roots a bloomlet with icicle-poke and taps it, while the bloomlet pulls it in with vine-tickle.",
+  "setup": {
+    "seed": "nebotok-arena-snare-root-and-pull",
+    "fighters": [
+      {
+        "id": "rooter",
+        "species": "snowsnoot",
+        "level": 20,
+        "loadout": [
+          "frost-tap",
+          "icicle-poke",
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "puller",
+        "species": "bloomlet",
+        "level": 20,
+        "loadout": [
+          null,
+          "vine-tickle",
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": 8,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 13,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 155,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        }
+      ]
+    },
+    {
+      "ticks": 20,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 252,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 13,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 47,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 13,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 14,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        }
+      ]
+    },
+    {
+      "ticks": 158,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "186fff290306e9"
+}

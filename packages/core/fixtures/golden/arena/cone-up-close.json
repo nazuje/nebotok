@@ -1,0 +1,260 @@
+{
+  "description": "Arena golden: a glowbun walks up to a snowsnoot and hits it with heat-shimmer cones, which land at once.",
+  "setup": {
+    "seed": "nebotok-arena-cone-up-close",
+    "fighters": [
+      {
+        "id": "burner",
+        "species": "glowbun",
+        "level": 20,
+        "loadout": [
+          "heat-shimmer",
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      },
+      {
+        "id": "target",
+        "species": "snowsnoot",
+        "level": 20,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 53,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 10,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 4,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 42,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 10,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 14,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 29,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 12,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 42,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 13,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 41,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 15,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "071d954373bf23"
+}

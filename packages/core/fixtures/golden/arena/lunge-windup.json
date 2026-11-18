@@ -1,0 +1,245 @@
+{
+  "description": "Arena golden: a computer pinwhirl winds up and lunges with gale-wallop into a sparkhog until it falls.",
+  "setup": {
+    "seed": "nebotok-arena-lunge-windup",
+    "fighters": [
+      {
+        "id": "lunger",
+        "species": "pinwhirl",
+        "level": 20,
+        "loadout": [
+          null,
+          "gale-wallop",
+          null
+        ],
+        "turtle": false,
+        "computer": true
+      },
+      {
+        "id": "target",
+        "species": "sparkhog",
+        "level": 20,
+        "loadout": [
+          null,
+          null,
+          null
+        ],
+        "turtle": false,
+        "computer": false
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "ticks": 43,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 136,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 359,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 56,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 3,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 300,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 54,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 7,
+      "sides": [
+        {
+          "dir": 0,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 298,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 1
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 39,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    }
+  ],
+  "expectedHash": "0f79620f6303f9"
+}
