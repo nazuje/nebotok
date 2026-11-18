@@ -53,7 +53,7 @@
         { "level": 1, "move": "heat-shimmer" },
         { "level": 1, "move": "storm-tap" },
         { "level": 1, "move": "sun-call" },
-        { "level": 10, "move": "sun-ray" },
+        { "level": 7, "move": "sun-ray" },
         { "level": 18, "move": "sun-wallop" },
         { "level": 27, "move": "storm-wallop" },
         { "level": 38, "move": "noon-blaze" }
@@ -93,7 +93,7 @@
         { "level": 1, "move": "drip-drop" },
         { "level": 1, "move": "bloom-tap" },
         { "level": 1, "move": "rain-call" },
-        { "level": 9, "move": "puddle-jump" },
+        { "level": 7, "move": "puddle-jump" },
         { "level": 17, "move": "rain-wallop" },
         { "level": 26, "move": "bloom-wallop" },
         { "level": 37, "move": "downpour" }
@@ -173,7 +173,7 @@
         { "level": 1, "move": "snow-puff" },
         { "level": 1, "move": "rain-tap" },
         { "level": 1, "move": "frost-call" },
-        { "level": 10, "move": "icicle-poke" },
+        { "level": 7, "move": "icicle-poke" },
         { "level": 18, "move": "frost-wallop" },
         { "level": 27, "move": "rain-wallop" },
         { "level": 38, "move": "big-freeze" }
@@ -233,7 +233,7 @@
         { "level": 1, "move": "static-zap" },
         { "level": 1, "move": "bloom-tap" },
         { "level": 1, "move": "storm-call" },
-        { "level": 10, "move": "cloud-clap" },
+        { "level": 7, "move": "cloud-clap" },
         { "level": 18, "move": "storm-wallop" },
         { "level": 27, "move": "bloom-wallop" },
         { "level": 38, "move": "sky-crackle" }
@@ -293,7 +293,7 @@
         { "level": 1, "move": "gust-push" },
         { "level": 1, "move": "frost-tap" },
         { "level": 1, "move": "gale-call" },
-        { "level": 10, "move": "twirl" },
+        { "level": 7, "move": "twirl" },
         { "level": 18, "move": "gale-wallop" },
         { "level": 27, "move": "frost-wallop" },
         { "level": 38, "move": "sky-sweep" }
@@ -353,7 +353,7 @@
         { "level": 1, "move": "petal-toss" },
         { "level": 1, "move": "sun-tap" },
         { "level": 1, "move": "bloom-call" },
-        { "level": 10, "move": "vine-tickle" },
+        { "level": 7, "move": "vine-tickle" },
         { "level": 18, "move": "bloom-wallop" },
         { "level": 27, "move": "sun-wallop" },
         { "level": 38, "move": "pollen-burst" }

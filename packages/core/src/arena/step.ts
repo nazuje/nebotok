@@ -1,5 +1,6 @@
 import { ONE, div, directionVector, lengthOf, percentOf, permilleOf, speedPerSecond, speedPerTick, toSubunits } from './fixed.ts';
-import type { ArenaContent, ArenaIslandRules, ArenaRules } from './rules.ts';
+import type { ArenaIslandRules, ArenaRules } from '../content.ts';
+import type { ArenaContent } from './rules.ts';
 import { ARENA_SIDES, type ArenaEvent, type ArenaInput, type ArenaInputs, type ArenaOutcome, type ArenaState, type ArenaStepResult, type Body, type Side } from './state.ts';
 import { stepStorm } from './storm.ts';
 

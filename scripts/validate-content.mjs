@@ -2,7 +2,8 @@
 // with every problem in it, and on any file that has no schema. AGENTS.md files are agent notes,
 // not content. Tileset images (maps/*.png) are not JSON: each must be a PNG that a map uses, and
 // every image a map names must exist. world.json's start map must exist too. The battle files must
-// all exist and name only types, weather, moves, species and treats that the others define; so must
+// all exist and name only types, weather, moves, species and treats that the others define, and
+// pass the arena's checks against creatures/arena.json (core arenaLinkProblems); so must
 // encounters.json, starters.json and creatures/renamed.json, and each map's tall grass and shrines must name a zone in
 // encounters.json and a shrine in shrines.json. The story files (npcs.json, dialogue/, quests.json,
 // story.json, inventory.json) and the skill files (skills.json, spots.json, recipes.json,
@@ -107,6 +108,7 @@ const BATTLE_FILES = {
   rules: 'creatures/battle-rules.json',
   befriending: 'creatures/befriending.json',
   items: 'items.json',
+  arena: 'creatures/arena.json',
 };
 const WORLD_FILES = ['encounters.json', 'shrines.json', 'starters.json', 'creatures/renamed.json'];
 const STORY_FILES = ['npcs.json', 'quests.json', 'story.json', 'inventory.json'];

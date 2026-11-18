@@ -9,9 +9,10 @@ const FILES = {
   'creatures/battle-rules.json': battleFiles.rules,
   'creatures/befriending.json': battleFiles.befriending,
   'items.json': battleFiles.items,
+  'creatures/arena.json': battleFiles.arena,
 } as const;
 
-const goodMove = { id: 'test-poke', name: { en: 'Test Poke', sl: 'Testni dregljaj' }, type: 'sun', power: 30, accuracy: 100 };
+const goodMove = { id: 'test-poke', name: { en: 'Test Poke', sl: 'Testni dregljaj' }, type: 'sun', power: 30, accuracy: 100, arena: { kind: 'quick', shape: 'bolt' } };
 const goodSpecies = {
   id: 'test-blob',
   name: { en: 'Test Blob', sl: 'Testna kepica' },
@@ -128,6 +129,6 @@ describe('battle content', () => {
 
   it('reports a creature with only weather moves', () => {
     const species = { species: [{ ...goodSpecies, type: 'rain', moves: ['sun-call', 'rain-call', 'gale-call', 'frost-call'] }] };
-    expect(battleContentProblems({ ...battleFiles, species })).toEqual(['species.json "test-blob": knows no move that does damage']);
+    expect(battleContentProblems({ ...battleFiles, species })).toContain('species.json "test-blob": knows no move that does damage');
   });
 });

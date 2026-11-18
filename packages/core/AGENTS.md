@@ -45,8 +45,10 @@ in the browser later.
   in `src/skill-messages.ts`. `node scripts/skill-sim.mjs` prints the minutes to each level.
   Skills goldens (`fixtures/golden/skills/`) replay against their own frozen content in
   `fixtures/golden/skills/content/`; like story goldens, take a new hash from the failing test.
-- **Content schemas** live in `src/content.ts` (battle and world) and `src/story-content.ts`
-  (story), registered by file name in `src/content-files.ts`. Adding a kind of content follows the
+- **Content schemas** live in `src/content.ts` (battle, arena and world) and `src/story-content.ts`
+  (story), registered by file name in `src/content-files.ts`. The arena checks that span
+  `arena.json`, `moves.json` and `species.json` are in `src/arena-links.ts`. The arena goldens'
+  frozen copy holds `moves.json`, `species.json` and `arena.json`. Adding a kind of content follows the
   `add-content` skill.
 - Tests: `test/unit` (level 0), `test/property` with fast-check and `test/golden` (level 1),
   `test/saves` (level 2).

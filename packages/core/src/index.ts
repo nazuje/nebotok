@@ -201,10 +201,19 @@ export {
   WeatherFile,
   Move,
   MovesFile,
+  ArenaMovesFile,
   Species,
   SpeciesFile,
   BattleRules,
+  ARENA_SHAPE_NUMBERS,
+  ArenaMove,
+  ArenaIslandRules,
+  ArenaDashRules,
+  ArenaStormRules,
+  ArenaRules,
+  arenaReach,
 } from './content.ts';
+export { arenaLinkProblems } from './arena-links.ts';
 export {
   MAX_TEAM,
   MOVES_PER_CREATURE,
@@ -526,7 +535,7 @@ export {
   oppositeDirection,
   isqrt,
 } from './arena/fixed.ts';
-export { ArenaIslandRules, ArenaDashRules, ArenaStormRules, ArenaRules, type ArenaContent } from './arena/rules.ts';
+export type { ArenaContent } from './arena/rules.ts';
 export {
   ARENA_SIDES,
   ARENA_IDLE,

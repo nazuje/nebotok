@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import { artSchemaFor } from './art.ts';
 import {
+  ArenaMovesFile,
+  ArenaRules,
   AvatarsFile,
   BattleRules,
   BefriendRules,
   EncountersFile,
   ItemsFile,
-  MovesFile,
   RenamedFile,
   ShrinesFile,
   SpeciesFile,
@@ -38,11 +39,12 @@ export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   'stations.json': StationsFile,
   'jobs.json': JobsFile,
   'creatures/weather.json': WeatherFile,
-  'creatures/moves.json': MovesFile,
+  'creatures/moves.json': ArenaMovesFile,
   'creatures/species.json': SpeciesFile,
   'creatures/battle-rules.json': BattleRules,
   'creatures/befriending.json': BefriendRules,
   'creatures/renamed.json': RenamedFile,
+  'creatures/arena.json': ArenaRules,
 };
 
 /** Maps are `content/maps/<id>.tmj`, Tiled's JSON format; see content/AGENTS.md. */
