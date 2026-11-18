@@ -5,11 +5,13 @@
  * These live apart from protocol.ts because they need content ids, and content.ts imports protocol.ts.
  */
 import { z } from 'zod';
+import type { BattleContent } from './battle/content.ts';
 import { canOfferTreat, legalActions } from './battle/engine.ts';
 import { MAX_TEAM, MOVES_PER_CREATURE, PLAYER_SIDE, WILD_SIDE, type BattleCreature, type BattleEvent, type BattleOutcome, type BattlePhase, type BattleState, type FieldWeather } from './battle/state.ts';
 import { ContentId } from './content.ts';
 import { needsStarter, type Progress } from './creatures.ts';
-import { STORAGE_LIMIT, type CreatureInstance } from './save.ts';
+import { learnedBy } from './loadout.ts';
+import { Loadout, STORAGE_LIMIT, type CreatureInstance } from './save.ts';
 
 const TeamIndex = z.number().int().min(0).max(MAX_TEAM - 1);
 const MoveSlot = z.number().int().min(0).max(MOVES_PER_CREATURE - 1);
@@ -51,6 +53,10 @@ export const OfferId = z.number().int().min(1).max(2 ** 31 - 1);
 /** The answer to `move.offer` `offer`: forget the move in slot `forget` for the new one, or null to skip the new move. */
 export const MoveChooseMessage = z.strictObject({ offer: OfferId, forget: MoveSlot.nullable() });
 export type MoveChooseMessage = z.infer<typeof MoveChooseMessage>;
+
+/** Put `loadout`, a move id or null for each arena button, on the team creature at place `index` (core `setLoadout`). */
+export const LoadoutSetMessage = z.strictObject({ index: TeamIndex, loadout: Loadout });
+export type LoadoutSetMessage = z.infer<typeof LoadoutSetMessage>;
 
 /** A new player's choice of starter, one of the species in content/starters.json. */
 export const StarterChooseMessage = z.strictObject({ species: ContentId });
@@ -149,11 +155,15 @@ export type RefusalReason = (typeof REFUSAL_REASONS)[number];
 /** `refused`: a request from this list was not done; `request` is its message type. */
 export type Refused = { readonly request: string; readonly reason: RefusalReason };
 
-/** `progress`: the player's own creatures and items. Storage comes separately, at shrines, the story as `story`, skills as `skills` and the board as `jobs`. */
-export type ProgressMessage = Omit<Progress, 'storage' | 'story' | 'skills' | 'jobs'> & { readonly needsStarter: boolean };
+/** A team creature in `progress`, with the ids of every move it has learned (`learnedMoves`), for picking its loadout. */
+export type TeamCreature = CreatureInstance & { readonly learned: readonly string[] };
 
-export function progressMessage(progress: Progress): ProgressMessage {
-  const { team, inventory, lastShrine, seen, befriended } = progress;
+/** `progress`: the player's own creatures and items. Storage comes separately, at shrines, the story as `story`, skills as `skills` and the board as `jobs`. */
+export type ProgressMessage = Omit<Progress, 'team' | 'storage' | 'story' | 'skills' | 'jobs'> & { readonly team: TeamCreature[]; readonly needsStarter: boolean };
+
+export function progressMessage(progress: Progress, content: BattleContent): ProgressMessage {
+  const { inventory, lastShrine, seen, befriended } = progress;
+  const team = progress.team.map((creature) => ({ ...creature, learned: learnedBy(creature, content) }));
   return { team, inventory, lastShrine, seen, befriended, needsStarter: needsStarter(progress) };
 }
 

@@ -387,7 +387,7 @@ function courierJob() {
 function seedCourier(profile, job, at) {
   const db = openDatabase(join(dataDir, DATABASE_FILE));
   try {
-    const store = createProgressStore({ db, now: Date.now, repair: (_id, data) => data });
+    const store = createProgressStore({ db, now: Date.now, repair: (_id, data) => data, content: WORLD.battle });
     const progress = {
       ...emptyProgress(),
       team: [newCreature(STARTERS[0], 5, WORLD.battle)],

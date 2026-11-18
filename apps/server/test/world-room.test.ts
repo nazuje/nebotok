@@ -1,11 +1,28 @@
 import { matchMaker } from '@colyseus/core';
 import { ColyseusTestServer } from '@colyseus/testing';
 import { ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, MAX_PROFILES, MAX_TAPS, PLAYER_SPAWN, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, findPath, freeTileNear, isWalkable, type Point, type Welcome } from '@nebotok/core';
+import {
+  CLOSE_CODES,
+  MAX_PROFILES,
+  MAX_TAPS,
+  PLAYER_SPAWN,
+  PROTOCOL_VERSION,
+  createSave,
+  defaultSettings,
+  emptyProgress,
+  findPath,
+  freeTileNear,
+  isWalkable,
+  newCreature,
+  type Point,
+  type ProgressMessage,
+  type Refused,
+  type Welcome,
+} from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createGameServer } from '../src/app.ts';
 import { MATCHMAKE_BODY_LIMIT } from '../src/matchmake.ts';
-import { STOP_SAVE_GAP_MS, WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
+import { REQUESTS_PER_SECOND, STOP_SAVE_GAP_MS, WALK_TO_PER_SECOND, type WorldRoom } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
 import { capturedLog, freePort, repeat, tempServices, until } from './helpers.ts';
 
@@ -414,7 +431,7 @@ describe('saving positions', () => {
     const { id, token } = await profile('Team Courier');
     const progress = {
       ...emptyProgress(),
-      team: [{ species: 'puddlepip', level: 6, xp: 12, hp: 20, moves: ['rain-tap', 'gale-tap'], nickname: 'Žabica' }],
+      team: [{ species: 'puddlepip', level: 6, xp: 12, hp: 20, moves: ['rain-tap', 'gale-tap'], nickname: 'Žabica', loadout: ['gale-tap', null, null] as [string | null, string | null, string | null] }],
       inventory: [{ item: 'plain-treat', count: 4 }],
       lastShrine: { map: map().id, shrine: 'post-shrine' },
       seen: ['puddlepip'],
@@ -479,19 +496,19 @@ describe('messages', () => {
       return { room, settings };
     };
     const first = await joinSeeing();
-    expect(first.settings).toEqual([{ readToMe: false }]);
+    expect(first.settings).toEqual([{ readToMe: false, turtle: false }]);
     first.room.send('settings.set', { readToMe: true });
     await until(() => first.settings.length === 2, 'the settings sent back');
-    expect(first.settings[1]).toEqual({ readToMe: true });
-    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true });
+    expect(first.settings[1]).toEqual({ readToMe: true, turtle: false });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: false });
     await first.room.leave();
 
     const again = await joinSeeing();
-    expect(again.settings).toEqual([{ readToMe: true }]);
+    expect(again.settings).toEqual([{ readToMe: true, turtle: false }]);
     const left = leftWith(again.room);
     again.room.send('settings.set', { readToMe: 'yes' });
     expect(await left).toBe(4002);
-    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: false });
   });
 
   it('disconnects a client that sends more taps than a game takes', async () => {
@@ -502,6 +519,100 @@ describe('messages', () => {
   });
 });
 
+const PACE_MS = Math.ceil(1_000 / REQUESTS_PER_SECOND) + 20;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Joins, keeping every `progress`, `settings` and `refused` the room sends from the start. */
+async function joinHearing(token: string) {
+  colyseus.sdk.auth.token = token;
+  const room = await colyseus.sdk.joinOrCreate<WorldState>('world', { protocol: PROTOCOL_VERSION });
+  room.reconnection.enabled = false;
+  const heard = { progress: [] as ProgressMessage[], settings: [] as unknown[], refused: [] as Refused[] };
+  room.onMessage('progress', (message: ProgressMessage) => heard.progress.push(message));
+  room.onMessage('settings', (message: unknown) => heard.settings.push(message));
+  room.onMessage('refused', (message: Refused) => heard.refused.push(message));
+  await room.waitForMessage('welcome');
+  await until(() => heard.progress.length > 0 && heard.settings.length > 0, 'the progress and settings on joining');
+  return { room, heard };
+}
+
+/** A player with a level-15 glowbun and a level-6 dawnshell, each with its default loadout. */
+async function equipped(name: string) {
+  const { id, token } = await profile(name);
+  const content = temp.services.world.battle;
+  const team = [newCreature('glowbun', 15, content), newCreature('dawnshell', 6, content)];
+  temp.services.progress.save(id, createSave({ settings: defaultSettings(), name, language: 'en', createdAt: '2026-05-01T09:00:00.000Z', position: null, ...emptyProgress(), team, seen: ['glowbun', 'dawnshell'], befriended: ['glowbun', 'dawnshell'] }));
+  return { id, token };
+}
+
+describe('loadouts and the turtle setting', () => {
+  it('sends each team creature with its loadout and learned moves, saves a new loadout and sends it back after a rejoin', async () => {
+    const { id, token } = await equipped('Loadout Courier');
+    const first = await joinHearing(token);
+    expect(first.heard.progress[0]!.team.map(({ loadout, learned }) => ({ loadout, learned }))).toEqual([
+      { loadout: ['heat-shimmer', 'sun-ray', 'sun-call'], learned: ['heat-shimmer', 'sun-ray', 'storm-tap', 'sun-call', 'sun-tap', 'sun-wallop'] },
+      { loadout: ['sun-tap', null, null], learned: ['sun-tap', 'heat-shimmer', 'storm-tap', 'sun-call'] },
+    ]);
+    first.room.send('loadout.set', { index: 0, loadout: ['sun-tap', 'sun-wallop', null] });
+    await until(() => first.heard.progress.length === 2, 'the progress sent back');
+    expect(first.heard.progress[1]!.team[0]!.loadout).toEqual(['sun-tap', 'sun-wallop', null]);
+    expect(temp.services.progress.load(id)?.data.team.map((creature) => creature.loadout)).toEqual([['sun-tap', 'sun-wallop', null], ['sun-tap', null, null]]);
+    await first.room.leave();
+
+    const again = await joinHearing(token);
+    expect(again.heard.progress[0]!.team[0]!.loadout).toEqual(['sun-tap', 'sun-wallop', null]);
+  });
+
+  it('refuses an unlearned move, a wrong kind, a locked button and an empty place as invalid, and disconnects a malformed loadout', async () => {
+    const { id, token } = await equipped('Picky Courier');
+    const { room, heard } = await joinHearing(token);
+    const refusedLoadouts = [
+      { index: 0, loadout: ['heat-shimmer', 'sun-ray', 'noon-blaze'] },
+      { index: 0, loadout: ['sun-ray', null, null] },
+      { index: 1, loadout: ['sun-tap', 'sun-ray', null] },
+      { index: 2, loadout: [null, null, null] },
+    ];
+    await repeat(refusedLoadouts.length, async (index) => {
+      await sleep(PACE_MS);
+      room.send('loadout.set', refusedLoadouts[index]);
+    });
+    await until(() => heard.refused.length === refusedLoadouts.length, 'every loadout to be refused');
+    expect(heard.refused).toEqual(refusedLoadouts.map(() => ({ request: 'loadout.set', reason: 'invalid' })));
+    expect(temp.services.progress.load(id)?.data.team.map((creature) => creature.loadout)).toEqual([['heat-shimmer', 'sun-ray', 'sun-call'], ['sun-tap', null, null]]);
+    const left = leftWith(room);
+    room.send('loadout.set', { index: 6, loadout: [null, null, null] });
+    expect(await left).toBe(4002);
+    const malformed = [['sun-tap', null], ['Sun Tap', null, null]];
+    const codes = await repeat(malformed.length, async (index) => {
+      const next = await joinHearing(token);
+      const gone = leftWith(next.room);
+      next.room.send('loadout.set', { index: 0, loadout: malformed[index] });
+      return gone;
+    });
+    expect(codes).toEqual([4002, 4002]);
+  });
+
+  it('keeps the turtle setting with the player: off for a new one, saved at once, without touching "Read to me"', async () => {
+    const { id, token } = await equipped('Turtle Courier');
+    const first = await joinHearing(token);
+    expect(first.heard.settings).toEqual([{ readToMe: false, turtle: false }]);
+    first.room.send('settings.turtle', { on: true });
+    await until(() => first.heard.settings.length === 2, 'the settings sent back');
+    expect(first.heard.settings[1]).toEqual({ readToMe: false, turtle: true });
+    await sleep(PACE_MS);
+    first.room.send('settings.set', { readToMe: true });
+    await until(() => first.heard.settings.length === 3, 'the settings sent back again');
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: true });
+    await first.room.leave();
+
+    const again = await joinHearing(token);
+    expect(again.heard.settings).toEqual([{ readToMe: true, turtle: true }]);
+    const left = leftWith(again.room);
+    again.room.send('settings.turtle', { on: 'yes' });
+    expect(await left).toBe(4002);
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: true });
+  });
+});
 const elsewhere = 'https://elsewhere.example';
 const endpoint = () => `http://${colyseus.sdk.settings.hostname}:${colyseus.sdk.settings.port}`;
 const joinUrl = () => `${endpoint()}/matchmake/joinOrCreate/world`;

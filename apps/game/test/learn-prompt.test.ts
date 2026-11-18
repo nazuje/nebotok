@@ -1,11 +1,12 @@
 import { emptyProgress, progressMessage, type MoveOffer } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
+import { CONTENT } from '../src/battle-content.ts';
 import type { ServerMessage } from '../src/battle-link.ts';
 import { createLearnModel } from '../src/learn-prompt.ts';
 
 const OFFER: MoveOffer = { offer: 7, index: 1, species: 'glowbun', move: 'sun-wallop', moves: ['sun-ray', 'storm-tap', 'sun-call', 'heat-shimmer'] };
 const offered: ServerMessage = { type: 'move.offer', payload: OFFER };
-const progress: ServerMessage = { type: 'progress', payload: progressMessage(emptyProgress()) };
+const progress: ServerMessage = { type: 'progress', payload: progressMessage(emptyProgress(), CONTENT) };
 const refused = (reason: 'invalid' | 'notNow'): ServerMessage => ({ type: 'refused', payload: { request: 'move.choose', reason } });
 
 describe('the move-learning prompt', () => {

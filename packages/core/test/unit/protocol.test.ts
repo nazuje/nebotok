@@ -109,7 +109,7 @@ describe('battle and team messages', () => {
   });
 
   it('tell a new player to choose a starter, without their storage', () => {
-    const message = progressMessage(emptyProgress());
+    const message = progressMessage(emptyProgress(), battleContent);
     expect(message.needsStarter).toBe(true);
     expect('storage' in message).toBe(false);
   });
@@ -131,6 +131,6 @@ describe('talk messages', () => {
     expect(talkNodeMessage(7, { npc: 'bavko', node: 'first-friend' }, emptyProgress(), storyContent)).toEqual({ conversation: 7, npc: 'bavko', node: 'first-friend', choices: [], cue: 'offerStarter' });
     expect(talkNodeMessage(7, { npc: 'bavko', node: 'offer' }, emptyProgress(), storyContent)).toMatchObject({ choices: [0, 1], cue: null });
     expect(talkNodeMessage(7, { npc: 'bavko', node: 'nowhere' }, emptyProgress(), storyContent)).toBeNull();
-    expect('story' in progressMessage(emptyProgress())).toBe(false);
+    expect('story' in progressMessage(emptyProgress(), battleContent)).toBe(false);
   });
 });
