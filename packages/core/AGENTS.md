@@ -22,6 +22,12 @@ in the browser later.
   returns the next state and the events the client animates. Bots in `bots.ts` drive the tests, and
   `node scripts/battle-sim.mjs` prints how greedy and random bots fare against each other, and how
   each species and weather type fares one on one (`roundRobin` in `simulate.ts`).
+- **Arena fights** live in `src/arena/` (rules in `docs/arena.md`): `arenaStep(state, inputs, content)`
+  is a pure 60 Hz step in whole numbers only (`fixed.ts`: a direction table, `isqrt`, division
+  that truncates towards zero), so V8 and Safari agree and mirrored fights end mirrored. A unit test
+  refuses `Math.random`, `Date.now`, trigonometry and `sqrt` there. Arena goldens
+  (`fixtures/golden/arena/`) replay against `fixtures/golden/arena/content/` and are recorded by
+  `npm run golden:update`, after the same check as battle goldens.
 - **Wild creatures and progress:** `rollEncounter` (`src/encounter.ts`), `befriendChance`
   (`src/befriend.ts`), team, storage, treat and shrine rules (`src/creatures.ts`, pure functions on a
   `Progress`), experience (`src/growth.ts`) and the moves a level up teaches or offers
@@ -41,9 +47,8 @@ in the browser later.
   `fixtures/golden/skills/content/`; like story goldens, take a new hash from the failing test.
 - **Content schemas** live in `src/content.ts` (battle, arena and world) and `src/story-content.ts`
   (story), registered by file name in `src/content-files.ts`. The arena checks that span
-  `arena.json`, `moves.json` and `species.json` are in `src/arena-links.ts`. Arena goldens
-  (`fixtures/golden/arena/`) replay against their own frozen `moves.json`, `species.json` and
-  `arena.json` in `fixtures/golden/arena/content/`. Adding a kind of content follows the
+  `arena.json`, `moves.json` and `species.json` are in `src/arena-links.ts`. The arena goldens'
+  frozen copy holds `moves.json`, `species.json` and `arena.json`. Adding a kind of content follows the
   `add-content` skill.
 - Tests: `test/unit` (level 0), `test/property` with fast-check and `test/golden` (level 1),
   `test/saves` (level 2).

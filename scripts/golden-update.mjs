@@ -1,10 +1,21 @@
 // Re-records every golden's expectedHash from the current rules. Run only when a change in rule
 // behaviour is intended, and say why in the commit. Battle goldens in battle/ replay against the
-// frozen content in battle/content/, so edits to content/creatures/ never move them.
+// frozen content in battle/content/, and arena goldens in arena/ against arena/content/, so edits
+// to content/creatures/ never move them.
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BattleGoldenFile, GoldenFile, battleReplayHash, loadBattleContent, replayHash } from '../packages/core/src/index.ts';
+import {
+  ArenaGoldenFile,
+  ArenaRules,
+  BattleGoldenFile,
+  GoldenFile,
+  SpeciesFile,
+  arenaReplayHash,
+  battleReplayHash,
+  loadBattleContent,
+  replayHash,
+} from '../packages/core/src/index.ts';
 
 const GOLDEN_DIR = fileURLToPath(new URL('../packages/core/fixtures/golden/', import.meta.url));
 
@@ -47,3 +58,24 @@ for (const name of readdirSync(BATTLE_DIR).filter((file) => file.endsWith('.json
   battleChanged += 1;
 }
 console.log(battleChanged ? `\n${battleChanged} battle golden(s) re-recorded. Review the diff before committing.` : '\nAll battle goldens already match.');
+// Arena goldens replay against their own frozen copy of the arena's numbers and the species.
+const ARENA_DIR = join(GOLDEN_DIR, 'arena');
+const readArena = (name) => JSON.parse(readFileSync(join(ARENA_DIR, 'content', `${name}.json`), 'utf8'));
+const arenaContent = {
+  arena: ArenaRules.parse(readArena('arena')),
+  species: new Map(SpeciesFile.parse(readArena('species')).species.map((entry) => [entry.id, entry])),
+};
+let arenaChanged = 0;
+for (const name of readdirSync(ARENA_DIR).filter((file) => file.endsWith('.json')).toSorted()) {
+  const path = join(ARENA_DIR, name);
+  const golden = ArenaGoldenFile.parse(JSON.parse(readFileSync(path, 'utf8')));
+  const expectedHash = arenaReplayHash(golden, arenaContent);
+  if (expectedHash === golden.expectedHash) {
+    console.log(`unchanged  arena/${name}`);
+    continue;
+  }
+  writeFileSync(path, `${JSON.stringify({ ...golden, expectedHash }, null, 2)}\n`);
+  console.log(`updated    arena/${name}  ${golden.expectedHash} -> ${expectedHash}`);
+  arenaChanged += 1;
+}
+console.log(arenaChanged ? `\n${arenaChanged} arena golden(s) re-recorded. Review the diff before committing.` : '\nAll arena goldens already match.');

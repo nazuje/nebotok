@@ -662,35 +662,55 @@ const ArenaKindRules = z.strictObject({
  * button cools down quicker than the next. Checks that need moves and species are in
  * `arenaLinkProblems` (arena-links.ts).
  */
+const Whole = (min: number, max: number) => z.number().int().min(min).max(max);
+
+/** The island's size and how bodies move on it (arena/step.ts). */
+export const ArenaIslandRules = z.strictObject({
+  radius: Whole(100, 5_000),
+  /** A creature's body radius. A body falls (ring-out) once it is a whole body past the edge. */
+  body: Whole(4, 500),
+  frictionPermille: Whole(1, 999),
+  plantedPermille: Whole(1, 1_000),
+  walkBase: Whole(1, 5_000),
+  walkPerSpeedPercent: Whole(0, 10_000),
+  topSpeed: Whole(1, 10_000),
+  hpScale: Whole(1, 20),
+  knockBasePercent: Whole(0, 1_000),
+  knockLostPercent: Whole(0, 1_000),
+  knockedTicks: Whole(0, 600),
+  bumpKnock: Whole(0, 10_000),
+  limitTicks: Whole(60, 60 * 60 * 30),
+});
+export type ArenaIslandRules = z.infer<typeof ArenaIslandRules>;
+
+export const ArenaDashRules = z.strictObject({
+  speed: Whole(1, 10_000),
+  ticks: Whole(1, 600),
+  cooldownTicks: Whole(1, 6_000),
+});
+export type ArenaDashRules = z.infer<typeof ArenaDashRules>;
+
+export const ArenaStormRules = z
+  .strictObject({
+    firstTicks: Whole(1, 60 * 60 * 30),
+    everyTicks: Whole(1, 60 * 60 * 30),
+    warnTicks: Whole(0, 6_000),
+    shrinkTicks: Whole(1, 6_000),
+    /** How many shrinks take `bigStepPercent` of the starting radius before they take `smallStepPercent`. */
+    bigSteps: Whole(0, 100),
+    bigStepPercent: Whole(1, 100),
+    smallStepPercent: Whole(1, 100),
+    floorPercent: Whole(1, 100),
+  })
+  .refine((storm) => storm.warnTicks < storm.firstTicks, 'the first storm warning comes after the fight starts')
+  .refine((storm) => storm.warnTicks + storm.shrinkTicks <= storm.everyTicks, 'a shrink and the next warning fit between two shrinks');
+export type ArenaStormRules = z.infer<typeof ArenaStormRules>;
+
 const ArenaRulesObject = z.strictObject({
-  island: z.strictObject({
-    radius: ArenaUnits.min(100),
-    /** A creature's body radius. A body falls (ring-out) once it is a whole body past the edge. */
-    body: PositiveUnits,
-    frictionPermille: z.number().int().min(0).max(1_000),
-    plantedPermille: z.number().int().min(0).max(1_000),
-    walkBase: PositiveUnits,
-    walkPerSpeedPercent: z.number().int().min(0).max(1_000),
-    topSpeed: PositiveUnits,
-    hpScale: z.number().int().min(1).max(20),
-    knockBasePercent: z.number().int().min(0).max(500),
-    knockLostPercent: z.number().int().min(0).max(500),
-    knockedTicks: ArenaTicks,
-    bumpKnock: ArenaUnits,
-    limitTicks: ArenaTicks.min(60),
-  }),
-  dash: z.strictObject({ speed: PositiveUnits, ticks: ArenaTicks.min(1), cooldownTicks: ArenaTicks }),
+  island: ArenaIslandRules,
+  dash: ArenaDashRules,
   swap: z.strictObject({ cooldownTicks: ArenaTicks }),
-  storm: z.strictObject({
-    firstTicks: ArenaTicks,
-    everyTicks: ArenaTicks.min(1),
-    warnTicks: ArenaTicks,
-    shrinkTicks: ArenaTicks.min(1),
-    bigSteps: z.number().int().min(0).max(20),
-    bigStepPercent: ArenaPercent,
-    smallStepPercent: ArenaPercent.min(1),
-    floorPercent: ArenaPercent.min(1),
-  }),
+  storm: ArenaStormRules,
   treat: z.strictObject({
     windowPercent: ArenaPercent.min(1),
     likedWindowPercent: ArenaPercent.min(1),
