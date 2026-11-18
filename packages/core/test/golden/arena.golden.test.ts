@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ARENA_SHAPES, ArenaGoldenFile, arenaReplay, arenaReplayHash, stormRadius, type ArenaEvent, type ArenaShape } from '../../src/index.ts';
+import { ARENA_SHAPES, ArenaGoldenFile, arenaHash, arenaReplay, arenaReplayHash, mindFight, stormRadius, type ArenaEvent, type ArenaShape } from '../../src/index.ts';
 import { goldenArenaContent } from '../support/arena-content.ts';
 
 const ARENA_DIR = fileURLToPath(new URL('../../fixtures/golden/arena/', import.meta.url));
@@ -27,10 +27,12 @@ const shapeGoldens: readonly (readonly [string, string, ArenaShape])[] = [
   ['zone-heal.json', 'noon-blaze', 'zone'],
   ['weather-ring.json', 'gale-call', 'weather'],
 ];
+/** Each archetype's wild golden: a WILD-mind creature on side 1 against the BOT mind on side 0, with both minds' inputs recorded. */
+const wildGoldens = ['wild-gale.json', 'wild-rain.json', 'wild-sun.json'] as const;
 const has = (events: readonly ArenaEvent[], wanted: Partial<ArenaEvent>) => events.some((event) => Object.entries(wanted).every(([key, value]) => (event as Record<string, unknown>)[key] === value));
 
 describe('arena golden replays', () => {
-  it('has the four body goldens and one for each shape, and the weather flip', () => {
+  it('has the four body goldens, one for each shape, the weather flip and a wild fight for each archetype', () => {
     expect(files).toEqual([
       'bolt-pelting.json',
       'bump-war.json',
@@ -49,6 +51,9 @@ describe('arena golden replays', () => {
       'wall-sweep.json',
       'weather-flip.json',
       'weather-ring.json',
+      'wild-gale.json',
+      'wild-rain.json',
+      'wild-sun.json',
       'zone-heal.json',
     ]);
     const shapes = new Set(shapeGoldens.map(([, , shape]) => shape));
@@ -131,6 +136,24 @@ describe('arena golden replays', () => {
   it('ultimates bring their own weather for 600 ticks, and a call its weather for 900', () => {
     expect(has(replayOf('strike-marks.json').events, { kind: 'weatherStarted', weather: 'storm', ticks: 600 })).toBe(true);
     expect(has(replayOf('weather-ring.json').events, { kind: 'weatherStarted', weather: 'gale', ticks: 900 })).toBe(true);
+  });
+
+  it.each(wildGoldens)('%s: the minds still play exactly the recorded fight, to a knockout or a ring-out', (name) => {
+    // A mismatch with a matching replay hash means the mind (mind.ts or the frozen arena.json minds) changed, not the rules.
+    const { setup } = golden(name);
+    const { state } = replayOf(name);
+    expect(arenaHash(mindFight(setup, ['BOT', 'WILD'], goldenArenaContent))).toBe(arenaHash(state));
+    expect(['knockout', 'ringOut']).toContain(state.outcome?.how);
+  });
+
+  it.each(wildGoldens)('%s: the wild creature casts every button, and winds up 36 ticks before each special and ultimate', (name) => {
+    const { events } = replayOf(name);
+    const casts = events.flatMap((event) => (event.kind === 'cast' && event.side === 1 ? [event.move] : []));
+    const windups = events.flatMap((event) => (event.kind === 'windup' && event.side === 1 ? [event.ticks] : []));
+    const [quick, special, ultimate] = golden(name).setup.fighters[1].loadout;
+    expect(casts).toEqual(expect.arrayContaining([quick, special, ultimate]));
+    expect(windups.every((ticks) => ticks === 36)).toBe(true);
+    expect(windups).toHaveLength(casts.filter((move) => move === special || move === ultimate).length);
   });
 
   it('weather flip: rain ends the sun early, and the puddlepip wins', () => {

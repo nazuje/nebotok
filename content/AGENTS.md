@@ -86,8 +86,10 @@ Every move also has an `arena` block for real-time arena fights (`docs/arena.md`
 (`quick`, `special` or `ultimate`, the button it sits on) and its `shape` (what it does on the
 island), plus any of its shape's numbers it changes. `creatures/arena.json` holds every other arena
 number, in whole numbers: the island, dash, storm, treats, each kind's cooldowns, the levels the
-buttons unlock at (`buttons`) and each shape's default numbers (`shapes`). `content:validate`
-checks they fit together, and that every species learns a move of each kind by the level its button
+buttons unlock at (`buttons`), each shape's default numbers (`shapes`) and the computer's mind
+skills and ranges (`minds`). `node scripts/arena-sim.mjs` checks the arena's balance targets
+(`docs/arena.md`); tune them in `arena.json`, and run it after any change there.
+`content:validate` checks they fit together, and that every species learns a move of each kind by the level its button
 unlocks. Arena golden replays use their own frozen copy in
 `packages/core/fixtures/golden/arena/content/`.
 

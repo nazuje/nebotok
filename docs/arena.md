@@ -6,9 +6,10 @@ words is in [design.md](design.md) ("Creatures and battles"), the wire plan in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md).
 
 This is the plan for the milestone "Phase 2: Arena battles" (#141 to #160, see
-[phases.md](phases.md)). Built so far: the bodies, walking, dash, collisions, storm and ring-out in
-`packages/core/src/arena/` (#144, #145, "The arena in code" below). Turn battles stay live until the
-switch-over (#160). When the code and this page disagree, fix one of them in the same pull request.
+[phases.md](phases.md)). Built so far: the bodies, walking, dash, collisions, storm, ring-out and
+abilities in `packages/core/src/arena/` (#144, #145, "The arena in code" below), and the
+computer's mind with its balance sim (#146, "Minds"). Turn battles stay live until the switch-over
+(#160). When the code and this page disagree, fix one of them in the same pull request.
 
 The look and the numbers come from the prototype, variant 6 (branch `prototype/battle-feel` at
 54d1893, `apps/game/src/prototype-battle/arena-*.ts`). A number marked **plan** is the planner's
@@ -64,7 +65,7 @@ goldens and for the server's mismatch log.
 
 ### The arena in code
 
-`packages/core/src/arena/` (#144, #145), exported from `@nebotok/core`:
+`packages/core/src/arena/` (#144, #145, #146), exported from `@nebotok/core`:
 
 - `fixed.ts`: the whole-number maths. `DIRECTION_VECTORS` (index 0 points right, 4 down, 8 left,
   12 up; `d + 8` is the exact opposite of `d`), `isqrt`, `unitOf`, `turn` (by a cosine and sine in
@@ -90,6 +91,8 @@ goldens and for the server's mismatch log.
   `weather.ts`: the island's weather. `working.ts`: the step's own scratch state.
 - `step.ts`: `arenaStep`. Before the storm, each body's timers tick down by one, and so does the
   weather. After collide, every body is held to the top speed, and again after the zones.
+- `mind.ts`: the computer's mind (`wildInput`, `createBrain`, `wildLoadout`, `mindFight`; see
+  "Minds").
 - `golden.ts`: `ArenaGoldenFile`, inputs as runs of ticks with the same input, replayed by
   `arenaReplay`.
 
@@ -171,23 +174,25 @@ does on the island (#142, the move's `arena` block in `content/creatures/moves.j
 Numbers are the shape's defaults in `arena.json` `shapes` (their keys are in core
 `ARENA_SHAPE_NUMBERS`); a move's `arena` block may override any of its own shape's numbers and its
 kind's `cooldownTicks`, in whole numbers. Every shape that deals damage has a `sharePercent`, the
-share of a full hit one hit deals (100 unless the table says otherwise). "Prototype" names the kit
-in `arena-kits.ts` KITS a number comes from.
+share of a full hit one hit deals (100 unless the table says otherwise). The shares, the shield's
+reflection, the strike's radius and the freeze's arming were tuned by the balance sim (#146, "sim"
+below), so no shape deals more than 1.5 times its kind's average. "Prototype" names the kit in
+`arena-kits.ts` KITS a number comes from.
 
 | Shape | What it does | Numbers |
 | --- | --- | --- |
 | bolt | A shot along the aim; hits the first body it touches | Gale: 900 u/s, radius 22, reach 560, knock 420. Rain: 1000 u/s, radius 18, reach 620, knock 300 (prototype) |
-| spray | Three small bolts in a 20° fan, a third of the damage each | 950 u/s, radius 16, reach 460, knock 160, 10° between bolts (cosine 4034), 33% each (**plan**) |
-| cone | A wedge in front, hits at once | Radius 230, half-angle 0.7 rad (cosine 3133), knock 560 (prototype sun quick) |
+| spray | Three small bolts in a 20° fan, each a share of the damage | 950 u/s, radius 16, reach 460, knock 160, 10° between bolts (cosine 4034), 40% each (**plan**, sim) |
+| cone | A wedge in front, hits at once | Radius 230, half-angle 0.7 rad (cosine 3133), knock 560, 70% (prototype sun quick; share: sim) |
 | snare | A bolt that roots (icicle-poke: 48 ticks) or pulls 120 units towards the caster (vine-tickle) | 900 u/s, radius 20, reach 520, no knock, `rootTicks` 48, `pull` 0; vine-tickle has `rootTicks` 0 and `pull` 120 (**plan**) |
 | lunge | The caster drives forward and hits on touch | 1350 u/s for 14 ticks, knock 1150 (prototype gale special) |
-| burst | A ring around the caster that knocks outward | Radius 170, knock 900 (**plan**) |
-| puddle | Lands at the aim, slows whoever stands in it | Reach 300, radius 115, arms in 18 ticks, slows to 45% for 4 s (prototype rain special) |
-| shield | Guards the caster: reflects damage and shots, knocks on touch | 4 s, reflects 40%, knock 500 (prototype sun special) |
-| strike | A mark at the aim that lands later | Reach 300, lands after 30 ticks, radius 90, knock 600; sky-crackle drops 3 in a line along the aim, 150 apart, 60% each (**plan**) |
-| wall | A wide wave that rolls forward | 650 u/s, radius 190, 60 ticks, knock 1250, thickness 50 (prototype gale ultimate) |
-| freeze | A circle that forms at the aim and roots | Reach 200, radius 190, arms in 30 ticks, roots 96 ticks, 1.6 s (prototype rain ultimate) |
-| zone | A circle around the caster that pulses | Radius 210 for 5 s, a pulse every 30 ticks for 20% of a hit; noon-blaze also heals the caster 3% a pulse (`healPercent`, prototype sun ultimate); pollen-burst slows to 60% instead (`slowPercent`) |
+| burst | A ring around the caster that knocks outward | Radius 170, knock 900, 60% (**plan**, sim) |
+| puddle | Lands at the aim, slows whoever stands in it | Reach 300, radius 115, arms in 18 ticks, slows to 45% for 4 s, 85% (prototype rain special; share: sim) |
+| shield | Guards the caster: reflects damage and shots, knocks on touch | 4 s, reflects 60%, knock 500 (prototype sun special; reflection: sim) |
+| strike | A mark at the aim that lands later | Reach 300, lands after 30 ticks, radius 120 (sim), knock 600; sky-crackle drops 3 in a line along the aim, 150 apart, 60% each (**plan**) |
+| wall | A wide wave that rolls forward | 650 u/s, radius 190, 60 ticks, knock 1250, thickness 50, 45% (prototype gale ultimate; share: sim) |
+| freeze | A circle that forms at the aim and roots | Reach 200, radius 190, arms in 20 ticks, roots 96 ticks, 1.6 s, 130% (prototype rain ultimate; arming and share: sim) |
+| zone | A circle around the caster that pulses | Radius 210 for 5 s, a pulse every 30 ticks for 30% of a hit (sim); noon-blaze also heals the caster 3% a pulse (`healPercent`, prototype sun ultimate); pollen-burst slows to 60% instead (`slowPercent`) |
 | weather | No damage: a push ring and the move's weather on the island | Ring radius 150, knock 500; weather for 900 ticks (`weatherTicks`), 15 s (**plan**) |
 
 Where the aim lands: a thrown puddle or freeze lands at the other creature's distance when the aim
@@ -313,35 +318,62 @@ A player's own easier setting, saved with the player (save v7, #148), off by def
 
 ## Minds
 
-`wildInput(state, side, brain, rng)` (#146) presses the buttons for the computer: a whole-number
-port of the prototype's `arena-ai.ts`. Its skills live in `arena.json` `minds`:
+`wildInput(state, side, brain, rng, content)` (`src/arena/mind.ts`, #146) presses the buttons for
+the computer: a whole-number port of the prototype's `arena-ai.ts`. It also takes `content`, which
+every arena function takes, for the skills, ranges and moves. `createBrain(skill, rules)` makes the
+`Brain` it keeps between ticks; `rng` is the mind's own seeded RNG, never the fight's, so the
+fight's rolls are the same whoever plays it. Its presses are always legal. `mindFight(setup,
+[skill, skill], content)` plays a whole fight between two minds, each with its own
+`createRng('mind:<side>:<seed>')`.
 
-| Skill | Think every | Dodge | Aim error | Lead | React | Eager |
+Its skills live in `arena.json` `minds.skills`, tuned by the balance sim (the prototype's values in
+brackets):
+
+| Skill | `thinkTicks` | `dodgePercent` | `aimErrorCosine` | `leadPercent` | `reactTicks` | `eagerPermille` |
 | --- | --- | --- | --- | --- | --- | --- |
-| `WILD` | 10 ticks | 35% | 0.14 rad | 50% | 14 ticks | 4% a tick |
-| `WILD_EASIER` (turtle) | 16 ticks | 15% | 0.24 rad | 20% | 26 ticks | 2.5% a tick |
-| `BOT` (tests, trainers) | 8 ticks | 50% | 0.08 rad | 60% | 10 ticks | 5% a tick |
+| `WILD` | 20 (10) | 10 (35) | 3133, 0.70 rad (0.14) | 0 (50) | 36 (14) | 15 (40) |
+| `WILD_EASIER` (turtle) | 24 (16) | 5 (15) | 2854, 0.80 rad (0.24) | 0 (20) | 60 (26) | 10 (25) |
+| `BOT` (tests, trainers) | 8 | 50 | 4083, 0.08 rad | 60 | 10 | 50 |
 
-Think: how often it picks where to walk. Dodge: the chance of dashing aside from a shot or a
-wind-up. Aim error: the largest miss, stored as a direction offset. Lead: how much of the target's
-movement it aims ahead. React: the wait after an ability. Eager: the chance a tick of starting a
-ready special or ultimate when the moment is right.
+Think: how often it picks where to walk. Dodge: the chance of dashing aside from a shot, a lunge or
+a wind-up it sees coming. Aim error: the largest miss, as the cosine of its angle in 1/4096 (4096
+never misses). Lead: how much of the target's movement it aims ahead with a shot. React: the wait
+after an ability, between half and one and a half of it. Eager: the chance in 1000 a tick of
+starting a ready special or ultimate when the moment suits it; a quick move in reach goes 35% of ticks. It
+waits a second before its first step. `wildMindFor(turtle)` picks `WILD_EASIER` against a player
+with the turtle setting on, else `WILD`.
 
-It keeps its shape's favourite range (prototype: 330 for gale's bolt, 420 for rain's, 150 for
-sun's cone), stays 180 units off the edge and leaves the storm's warning ring. A wild creature's
-loadout (`wildLoadout`) is, for each unlocked button, its strongest learned move of that kind, its
-own type first. A trainer names its creatures' loadouts and a skill.
+It keeps the favourite range of the shape on its button 1 (`minds.ranges`, arena units: bolt and
+snare 380, spray, lunge, puddle and strike 300, wall 330, freeze 200, cone, burst, shield, zone and
+weather 150) and circles the other creature; the prototype had one range for each type, 330 for
+gale, 420 for rain and 150 for sun. It stays `minds.edgeMargin` (180) units inside the edge, treats
+the edge the storm warns of as the edge, and walks out of the other side's puddles, freezes, marks
+and zones. A wild creature's loadout (`wildLoadout(species, level, content)`) is, for each unlocked
+button, its strongest learned move of that kind: its own type first, then the most power, then the
+first learned. A trainer names its creatures' loadouts and a skill.
 
 ## Balance targets
 
-`node scripts/arena-sim.mjs` (#146) plays `BOT` against `WILD` and `WILD_EASIER` for every species
-pair at levels 5, 10 and 20. The targets:
+`node scripts/arena-sim.mjs` (#146) plays `BOT` (the player's side, default loadout, turtle on
+against `WILD_EASIER`) against `WILD` and `WILD_EASIER` (wild loadout, winding up) for every species
+pair at levels 5, 10 and 20, prints the table, the type match-ups, a shape round at level 40 and the
+damage a cast of each shape, then checks the targets. `--seeds`, `--levels`, `--plus` (the wild
+creature's extra levels) and `--arena <file>` (another `arena.json` to try) change the run. The
+targets:
 
 - a same-level fight lasts 25 to 70 s, and at least half reach the storm;
-- `BOT` beats `WILD` 75 to 90% of the time at equal level; a type advantage moves that by about 15
-  points;
+- `BOT` beats `WILD` 75 to 90% of the time at equal level with neither type ahead; a type advantage
+  moves that by about 15 points;
 - no shape deals more than 1.5 times the average of its kind;
 - ring-outs end 20 to 45% of fights.
+
+Measured with 3 seeds (#146): fights last 49.6 s on average and 95% reach the storm; `BOT` beats
+`WILD` 80.6% with neither type ahead (72.8% over all pairs, 68 to 80% by level) and `WILD_EASIER` 80
+to 93%; the most damaging shape deals 1.42 times its kind's average (cone); ring-outs end 39%. The
+type swing misses: a type advantage moves the win rate by about 43 points each way (100% and 14%),
+because the battle rules' type chart (`strongPercent`, `weakPercent` in `battle-rules.json`) makes a
+strong hit four times a weak one, and `arena.json` cannot reach it. With `WILD` four levels up, `BOT`
+wins 32% of even match-ups.
 
 Load-time checks (`npm run content:validate`): `ArenaRules` in core `content.ts` checks
 `arena.json` on its own, and `arenaLinkProblems` (`arena-links.ts`) checks it against
@@ -407,7 +439,7 @@ marked.
 | | `wallThickness` | 50 | `WALL_THICKNESS` |
 | | `ultimateWeatherTicks` | 600 | **plan** |
 | `shapes` | each shape's numbers | see "The 13 shapes" | KITS |
-| `minds` | `WILD`, `WILD_EASIER`, `BOT` | see "Minds" | `arena-ai.ts` |
+| `minds` | `skills`: `WILD`, `WILD_EASIER`, `BOT`; `edgeMargin`; `ranges` by shape | see "Minds" | `arena-ai.ts` |
 
 The shapes' numbers are in "The 13 shapes". The network and screen numbers are in
 [protocol.md](protocol.md) ("Arena fights") and below.
@@ -453,7 +485,8 @@ Planned names, so the tickets agree:
 - Core state and steps (#144, #145, #147): `ArenaState`, `Body`, `ArenaInput`
   (`{ dir, dash, press, treat, swap, leave }`; `press` is a button 0 to 2 or null), `ArenaSetup`,
   `ArenaRules`, `ArenaContent`, `arenaStart`, `arenaStep`, `arenaHash`, `ArenaFight` and `fightStep`.
-- Minds (#146): `wildInput`, `wildLoadout`, the skills `WILD`, `WILD_EASIER` and `BOT`.
+- Minds (#146): `wildInput`, `wildLoadout`, `createBrain`, `wildMindFor`, `mindFight`, the skills
+  `WILD`, `WILD_EASIER` and `BOT`.
 - Results (#147), the arena twins of the turn helpers that take a `BattleState`: `arenaWildSetup`,
   `teamAfterFight`, `befriendedFromFight`, `arenaRewards` and `duelRewards`. Both versions live
   together until #160.
@@ -471,7 +504,8 @@ Planned names, so the tickets agree:
 - Goldens in `packages/core/fixtures/golden/arena/`, on a frozen copy of `moves.json`,
   `species.json`, `arena.json`, `weather.json` and `battle-rules.json`; the turn goldens' copy stays
   frozen. Four for bodies, one for each shape and a weather flip, each shape's ending in a knockout
-  or a ring-out.
+  or a ring-out, and a wild fight for each archetype (`wild-gale`, `wild-rain`, `wild-sun`): both
+  minds' inputs recorded from `mindFight`, which must still play exactly that fight.
 - Property tests: same seed and inputs, same hash; no speed above top speed; mirrored fights end
   mirrored; the storm only shrinks and never below its floor; health stays within 0 and max; the
   wild mind never sends an illegal press or walks off the island on its own in 5000 random fights.
