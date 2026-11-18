@@ -82,3 +82,29 @@ export const speedPerTick = (unitsPerSecond: number): number => div(unitsPerSeco
 
 /** A speed in 1/256 arena units a tick as whole arena units a second, for events. */
 export const speedPerSecond = (subunitsPerTick: number): number => div(subunitsPerTick * TICKS_PER_SECOND, SUBUNITS);
+
+/** The size of a whole number, without the sign. */
+export const abs = (value: number): number => (value < 0 ? -value : value);
+
+/** (x, y) scaled to length `ONE`, or null for the zero vector. */
+export function unitOf(x: number, y: number): readonly [number, number] | null {
+  const length = lengthOf(x, y);
+  return length === 0 ? null : [div(x * ONE, length), div(y * ONE, length)];
+}
+
+/** The sine in 1/4096 of an angle from 0 to 90° whose cosine in 1/4096 is `cosine`. */
+export const sineOf = (cosine: number): number => isqrt(Math.max(0, ONE * ONE - cosine * cosine));
+
+/** The 1/4096 vector turned by the angle whose cosine and sine in 1/4096 are given; a positive sine turns towards +y. */
+export function turn([x, y]: readonly [number, number], cosine: number, sine: number): readonly [number, number] {
+  return [div(x * cosine - y * sine, ONE), div(x * sine + y * cosine, ONE)];
+}
+
+/** Scales a velocity in 1/256 units a tick down to at most `limit`. */
+export function limitSpeed(velocity: { vx: number; vy: number }, limit: number): void {
+  const speed = lengthOf(velocity.vx, velocity.vy);
+  if (speed <= limit) return;
+  // Dividing by one more than the rounded-down length keeps the result at or under the limit.
+  velocity.vx = div(velocity.vx * limit, speed + 1);
+  velocity.vy = div(velocity.vy * limit, speed + 1);
+}

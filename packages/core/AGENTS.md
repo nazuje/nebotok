@@ -49,7 +49,7 @@ in the browser later.
 - **Content schemas** live in `src/content.ts` (battle, arena and world) and `src/story-content.ts`
   (story), registered by file name in `src/content-files.ts`. The arena checks that span
   `arena.json`, `moves.json` and `species.json` are in `src/arena-links.ts`. The arena goldens'
-  frozen copy holds `moves.json`, `species.json` and `arena.json`. Adding a kind of content follows the
-  `add-content` skill.
+  frozen copy holds `moves.json`, `species.json`, `arena.json`, `weather.json` and
+  `battle-rules.json`. Adding a kind of content follows the `add-content` skill.
 - Tests: `test/unit` (level 0), `test/property` with fast-check and `test/golden` (level 1),
   `test/saves` (level 2).

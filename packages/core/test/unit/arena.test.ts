@@ -20,11 +20,12 @@ import {
   type ArenaState,
 } from '../../src/index.ts';
 import { arenaContent as content } from '../support/arena-content.ts';
+import { fighter, movesByButton, stick } from '../support/arena-fighters.ts';
 
 const ARENA_SRC = fileURLToPath(new URL('../../src/arena/', import.meta.url));
 const rules = content.arena;
-const start = (species: readonly [string, string] = ['pinwhirl', 'glaciyak']) => arenaStart({ seed: 'arena-unit', species: [species[0], species[1]] }, content);
-const walkTo = (dir: number): ArenaInput => ({ dir, dash: false });
+const start = (species: readonly [string, string] = ['pinwhirl', 'glaciyak']) => arenaStart({ seed: 'arena-unit', fighters: [fighter(species[0]), fighter(species[1])] }, content);
+const walkTo = (dir: number): ArenaInput => stick(dir);
 
 /** Steps `ticks` times with the same inputs, collecting the events. */
 function hold(state: ArenaState, inputs: ArenaInputs, ticks: number): { state: ArenaState; events: ArenaEvent[] } {
@@ -67,6 +68,8 @@ describe('arena whole-number maths', () => {
 
   it('knocks harder the more health is lost', () => {
     expect(knockFor(700, 1000, rules.island)).toBe(315);
+    expect(knockFor(1150, 1000, rules.island)).toBe(517);
+    expect(knockFor(1150, 100, rules.island)).toBe(2328);
     expect(knockFor(700, 0, rules.island)).toBe(1540);
     expect(knockFor(700, 500, rules.island)).toBe(927);
   });
@@ -87,7 +90,7 @@ describe('arena step', () => {
   });
 
   it('dashes at dash speed for the dash ticks, then waits for the cooldown', () => {
-    const dash: ArenaInputs = [{ dir: 4, dash: true }, ARENA_IDLE];
+    const dash: ArenaInputs = [stick(4, null, true), ARENA_IDLE];
     const first = arenaStep(start(), dash, content);
     expect(first.events).toEqual([{ kind: 'dashed', side: 0, dir: 4 }]);
     let state = first.state;
@@ -104,7 +107,7 @@ describe('arena step', () => {
 
   it('dashes the way it faces when the stick is still', () => {
     const turned = hold(start(), [walkTo(6), ARENA_IDLE], 1).state;
-    expect(arenaStep(turned, [{ dir: null, dash: true }, ARENA_IDLE], content).events).toEqual([{ kind: 'dashed', side: 0, dir: 6 }]);
+    expect(arenaStep(turned, [stick(null, null, true), ARENA_IDLE], content).events).toEqual([{ kind: 'dashed', side: 0, dir: 6 }]);
   });
 
   it('warns, shrinks over the shrink ticks, and says when a shrink is done', () => {
@@ -160,9 +163,12 @@ describe('arena step', () => {
   it('runs 10,000 random steps at under 0.05 ms a step', () => {
     const rng = createRng('arena-speed');
     const species = [...content.species.keys()].toSorted();
-    const random = (): ArenaInput => ({ dir: rng.int(0, 16) === 16 ? null : rng.int(0, 15), dash: rng.int(0, 20) === 0 });
+    const presses = [null, null, null, null, null, 0, 1, 2] as const;
+    const random = (): ArenaInput => ({ dir: rng.int(0, 16) === 16 ? null : rng.int(0, 15), dash: rng.int(0, 20) === 0, press: rng.pick(presses) });
     const inputs = Array.from({ length: 10_000 }, (): ArenaInputs => [random(), random()]);
-    const fresh = () => arenaStart({ seed: rng.int(0, 1_000_000), species: [rng.pick(species), rng.pick(species)] }, content);
+    const pickMove = (button: number) => rng.pick([...movesByButton[button]!, null]);
+    const pickFighter = (id: string) => fighter(id, { level: 40, loadout: [pickMove(0), pickMove(1), pickMove(2)] });
+    const fresh = () => arenaStart({ seed: rng.int(0, 1_000_000), fighters: [pickFighter(rng.pick(species)), pickFighter(rng.pick(species))] }, content);
     const runAll = () => {
       let state = fresh();
       for (const input of inputs) state = state.outcome ? fresh() : arenaStep(state, input, content).state;

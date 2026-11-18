@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ArenaGoldenFile, arenaReplay, arenaReplayHash, stormRadius } from '../../src/index.ts';
+import { ARENA_SHAPES, ArenaGoldenFile, arenaReplay, arenaReplayHash, stormRadius, type ArenaEvent, type ArenaShape } from '../../src/index.ts';
 import { goldenArenaContent } from '../support/arena-content.ts';
 
 const ARENA_DIR = fileURLToPath(new URL('../../fixtures/golden/arena/', import.meta.url));
@@ -11,9 +11,48 @@ const golden = (name: string) => ArenaGoldenFile.parse(JSON.parse(readFileSync(j
 const replayOf = (name: string) => arenaReplay(golden(name), goldenArenaContent);
 const kinds = (name: string) => replayOf(name).events.map((event) => event.kind);
 
+/** Each shape's golden: side 0's move of that shape is cast and hits, and the fight ends in a knockout or a ring-out. */
+const shapeGoldens: readonly (readonly [string, string, ArenaShape])[] = [
+  ['bolt-pelting.json', 'drip-drop', 'bolt'],
+  ['spray-fan.json', 'static-zap', 'spray'],
+  ['cone-up-close.json', 'heat-shimmer', 'cone'],
+  ['snare-root-and-pull.json', 'icicle-poke', 'snare'],
+  ['lunge-windup.json', 'gale-wallop', 'lunge'],
+  ['burst-ring.json', 'twirl', 'burst'],
+  ['puddle-slow.json', 'puddle-jump', 'puddle'],
+  ['shield-reflect.json', 'sun-ray', 'shield'],
+  ['strike-marks.json', 'sky-crackle', 'strike'],
+  ['wall-sweep.json', 'sky-sweep', 'wall'],
+  ['freeze-root.json', 'big-freeze', 'freeze'],
+  ['zone-heal.json', 'noon-blaze', 'zone'],
+  ['weather-ring.json', 'gale-call', 'weather'],
+];
+const has = (events: readonly ArenaEvent[], wanted: Partial<ArenaEvent>) => events.some((event) => Object.entries(wanted).every(([key, value]) => (event as Record<string, unknown>)[key] === value));
+
 describe('arena golden replays', () => {
-  it('has the four body goldens', () => {
-    expect(files).toEqual(['bump-war.json', 'ring-out-by-dash.json', 'storm-to-the-floor.json', 'walk-and-dash.json']);
+  it('has the four body goldens and one for each shape, and the weather flip', () => {
+    expect(files).toEqual([
+      'bolt-pelting.json',
+      'bump-war.json',
+      'burst-ring.json',
+      'cone-up-close.json',
+      'freeze-root.json',
+      'lunge-windup.json',
+      'puddle-slow.json',
+      'ring-out-by-dash.json',
+      'shield-reflect.json',
+      'snare-root-and-pull.json',
+      'spray-fan.json',
+      'storm-to-the-floor.json',
+      'strike-marks.json',
+      'walk-and-dash.json',
+      'wall-sweep.json',
+      'weather-flip.json',
+      'weather-ring.json',
+      'zone-heal.json',
+    ]);
+    const shapes = new Set(shapeGoldens.map(([, , shape]) => shape));
+    expect([...shapes].toSorted()).toEqual([...ARENA_SHAPES].toSorted());
   });
 
   it.each(files)('%s replays to its recorded hash', (name) => {
@@ -50,5 +89,58 @@ describe('arena golden replays', () => {
     expect(state.outcome?.how).toBe('ringOut');
     expect(state.outcome?.winner).toBe(0);
     expect(state.bodies[1].out).toBe(true);
+  });
+
+  it.each(shapeGoldens)('%s: %s (%s) is cast and hits, and the fight ends in a knockout or a ring-out', (name, move, shape) => {
+    const { events, state } = replayOf(name);
+    expect(has(events, { kind: 'cast', side: 0, move, shape })).toBe(true);
+    expect(has(events, { kind: 'hit', side: 1, by: 0, move })).toBe(true);
+    expect(['knockout', 'ringOut']).toContain(state.outcome?.how);
+  });
+
+  it('snare: icicle-poke roots the bloomlet and vine-tickle pulls the snowsnoot', () => {
+    const { events } = replayOf('snare-root-and-pull.json');
+    expect(has(events, { kind: 'status', side: 1, status: 'root', ticks: 48 })).toBe(true);
+    expect(has(events, { kind: 'status', side: 0, status: 'pull' })).toBe(true);
+  });
+
+  it('lunge: the computer winds up 36 ticks before every lunge', () => {
+    const { events } = replayOf('lunge-windup.json');
+    const windups = events.filter((event) => event.kind === 'windup');
+    expect(windups.length).toBeGreaterThan(0);
+    expect(windups.every((event) => event.ticks === 36)).toBe(true);
+    expect(events.filter((event) => event.kind === 'cast')).toHaveLength(windups.length);
+  });
+
+  it('puddle and freeze slow and root', () => {
+    expect(has(replayOf('puddle-slow.json').events, { kind: 'status', side: 1, status: 'slow' })).toBe(true);
+    expect(has(replayOf('freeze-root.json').events, { kind: 'status', side: 1, status: 'root', ticks: 96 })).toBe(true);
+  });
+
+  it('shield: sends bolts back, and blocks with a knock on touch', () => {
+    const { events } = replayOf('shield-reflect.json');
+    expect(has(events, { kind: 'reflected', side: 0 })).toBe(true);
+    expect(has(events, { kind: 'hit', side: 1, by: 0, move: 'frost-tap' })).toBe(true);
+    expect(has(events, { kind: 'blocked', side: 0, by: 1 })).toBe(true);
+  });
+
+  it('zone: noon-blaze heals its caster while it pulses', () => {
+    expect(has(replayOf('zone-heal.json').events, { kind: 'healed', side: 0 })).toBe(true);
+  });
+
+  it('ultimates bring their own weather for 600 ticks, and a call its weather for 900', () => {
+    expect(has(replayOf('strike-marks.json').events, { kind: 'weatherStarted', weather: 'storm', ticks: 600 })).toBe(true);
+    expect(has(replayOf('weather-ring.json').events, { kind: 'weatherStarted', weather: 'gale', ticks: 900 })).toBe(true);
+  });
+
+  it('weather flip: rain ends the sun early, and the puddlepip wins', () => {
+    const { events, state } = replayOf('weather-flip.json');
+    const weather = events.filter((event) => event.kind === 'weatherStarted' || event.kind === 'weatherEnded');
+    expect(weather).toEqual([
+      { kind: 'weatherStarted', weather: 'sun', ticks: 900 },
+      { kind: 'weatherEnded', weather: 'sun' },
+      { kind: 'weatherStarted', weather: 'rain', ticks: 900 },
+    ]);
+    expect(state.outcome).toMatchObject({ winner: 1, how: 'knockout' });
   });
 });

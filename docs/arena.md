@@ -7,7 +7,7 @@ words is in [design.md](design.md) ("Creatures and battles"), the wire plan in
 
 This is the plan for the milestone "Phase 2: Arena battles" (#141 to #160, see
 [phases.md](phases.md)). Built so far: the bodies, walking, dash, collisions, storm and ring-out in
-`packages/core/src/arena/` (#144, "Bodies in code" below). Turn battles stay live until the
+`packages/core/src/arena/` (#144, #145, "The arena in code" below). Turn battles stay live until the
 switch-over (#160). When the code and this page disagree, fix one of them in the same pull request.
 
 The look and the numbers come from the prototype, variant 6 (branch `prototype/battle-feel` at
@@ -62,33 +62,40 @@ prototype's `stepArena` (`arena-rules.ts`):
 A finished fight steps no further. `arenaHash(state)` (core `stableHash`) is the fingerprint for
 goldens and for the server's mismatch log.
 
-### Bodies in code
+### The arena in code
 
-`packages/core/src/arena/` (#144), exported from `@nebotok/core`:
+`packages/core/src/arena/` (#144, #145), exported from `@nebotok/core`:
 
 - `fixed.ts`: the whole-number maths. `DIRECTION_VECTORS` (index 0 points right, 4 down, 8 left,
-  12 up; `d + 8` is the exact opposite of `d`), `isqrt`, and `div`, which truncates towards zero
-  so every rule is point-symmetric and a mirrored fight ends exactly mirrored.
-- `rules.ts`: `ArenaContent` (`{ arena, species }`), the `content` every arena function takes.
-  `arena` is the whole `arena.json` (`ArenaRules` in core `content.ts`), of which the step reads
-  the `island`, `dash` and `storm` groups so far. Abilities (#145) add what they need to it.
-- `state.ts`: `ArenaState` (`tick`, `rng`, `radius`, `storm`, two `bodies`, `outcome`), `Body`,
-  `ArenaInput` (`{ dir, dash }` for now), `ArenaSetup` (`{ seed, species }`), `arenaStart` and
+  12 up; `d + 8` is the exact opposite of `d`), `isqrt`, `unitOf`, `turn` (by a cosine and sine in
+  1/4096), `limitSpeed`, and `div`, which truncates towards zero so every rule is point-symmetric
+  and a mirrored fight ends exactly mirrored.
+- `rules.ts`: `ArenaContent` (`{ arena, rules, species, moves, weather }`), the `content` every
+  arena function takes: the whole `arena.json` (`ArenaRules` in core `content.ts`), the battle
+  rules and weather chart that damage reads, the species and the moves. `arenaContentOf` takes it
+  from a `BattleContent` loaded with `arena.json`; `loadArenaContent` parses the five raw files, as
+  the goldens' frozen copy needs.
+- `state.ts`: `ArenaState` (`tick`, `rng`, `radius`, `storm`, two `bodies`, `things`, `nextId`,
+  `weather`, `outcome`), `Body`, `Thing`, `ArenaInput` (`{ dir, dash, press }`; #147 adds `treat`,
+  `swap` and `leave`), `ArenaSetup` (`{ seed, fighters }`, each `ArenaFighter` an `id`, `species`,
+  `level`, a `loadout` of three move ids or null, `turtle` and `computer`), `arenaStart` and
   `arenaHash`. Positions are in 1/256 arena units from the island's centre; velocities in 1/256
-  arena units **a tick**; every timer on a body (`dashTicks`, `dashCooldown`, `knockedTicks`)
-  counts the ticks left. Side 0 starts left of the centre facing right, side 1 mirrored, each 45%
-  of the radius out.
+  arena units **a tick**; every timer on a body (`dashTicks`, `dashCooldown`, `knockedTicks`,
+  `cooldowns`, the `status` ticks, a `windup` or `lunge`) counts the ticks left. Side 0 starts left
+  of the centre facing right, side 1 mirrored, each 45% of the radius out.
 - `storm.ts`: `stormRadius(step)` and the storm's own step.
-- `step.ts`: `arenaStep`. Before the storm, each body's timers tick down by one. After collide,
-  every body is held to the top speed. `knockFor(base, health left in permille)` is the knock rule;
-  until bodies carry health (#145) every knock is a full-health knock (a bump is 315 u/s) and the
-  time limit is a draw.
+- `abilities.ts`: `abilityOf(moveId)` (the shape's numbers with the move's own on top), presses,
+  wind-ups, `aimOf` and one cast for each shape. `hits.ts`: damage, knock (`knockFor(base, health
+  left in permille)`), shields and status effects. `things.ts`: shots, zones, walls and marks.
+  `weather.ts`: the island's weather. `working.ts`: the step's own scratch state.
+- `step.ts`: `arenaStep`. Before the storm, each body's timers tick down by one, and so does the
+  weather. After collide, every body is held to the top speed, and again after the zones.
 - `golden.ts`: `ArenaGoldenFile`, inputs as runs of ticks with the same input, replayed by
   `arenaReplay`.
 
-An `outcome` is `{ winner, how, tick }` with `how` `ringOut` or `timeUp` (#145 adds `knockout`);
-`winner` is null for a draw, which is also what two ring-outs on the same tick give.
-
+An `outcome` is `{ winner, how, tick }` with `how` `knockout`, `ringOut` or `timeUp`; `winner` is
+null for a draw, which is also what two creatures down on the same tick give, and an equal share
+of health at the time limit.
 ## Walking, dashing and the edge
 
 - **Walk cap:** `330 + 2.2 × the species' base speed` (385 to 517 u/s with today's species).
@@ -208,6 +215,38 @@ moves in 60; gust-push knocks 700; drip-drop flies as the prototype's rain bolt 
 | storm | storm-tap: bolt | static-zap: spray | cloud-clap: strike | storm-wallop: lunge | sky-crackle: strike ×3 | storm-call: weather |
 | bloom | bloom-tap: bolt | petal-toss: spray | vine-tickle: snare (pulls) | bloom-wallop: lunge | pollen-burst: zone (slows) | bloom-call: weather |
 
+### How abilities play out
+
+What the shapes table leaves to the code (#145):
+
+- A press is refused (`refused` with `locked`, `empty`, `busy` or `cooling`) every tick it does not
+  cast, so a held button 1 sends one while it cools. A body is busy while it is out, at 0 health,
+  rooted, winding up or lunging; then it cannot dash either.
+- A wind-up keeps the aim it was pressed with. Against a turtle a computer's creature winds up
+  150% and cools down 130%. A shot starts at the caster's edge; a lunge holds its drive for its
+  ticks, cannot turn, and the lip stops it like a dash. When it lands it rebounds at 15% of its
+  drive.
+- The cone hits a body whose centre is inside the wedge or within one body of its edges, and within
+  its radius plus a body. A burst, a weather ring and a strike's mark reach a body within their
+  radius plus a body; a puddle within its radius plus 0.3 body; a freeze and a zone's pulse within
+  their radius plus 0.5 body.
+- A puddle hits once, on the first touch, and slows to its `slowPercent` while a body stands in it
+  and 12 ticks after (`SLOW_HOLD_TICKS`); so does pollen-burst's zone. A freeze hits and roots once,
+  when it forms. A zone pulses every `zonePulseTicks` and heals its caster only while the caster
+  stands in it. A wall hits once and sweeps away the other side's shots it rolls over. A weather
+  ring deals no damage: its `hit` has damage 0.
+- A shield ends when it blocks a hit or a touch: the hit's damage times `reflectPercent` goes back to
+  the other creature, which is knocked away with the shield's knock. A shot that touches a shield
+  is sent back instead and becomes the shield's side's; the shield stays up. Nothing roots, slows
+  or pulls through a shield.
+- A rooted body stands still from its next move on, so a knock in the same step still counts.
+- So that a mirrored fight ends mirrored whichever side acts first: a step draws one damage roll
+  for all its hits; every knock reads health from the start of the step; cones, bursts and weather
+  rings land after both sides have acted, and two lunges that meet both end before either hits;
+  pulls move both bodies from where they stood; zone heals come after every hit; and of two
+  weathers cast in the same step the longer wins, then the first type id in sort order. A creature
+  knocked out during a step can still be hit in it; a rung-out one cannot.
+- There is no cap on things: the cooldowns keep each side under the protocol's 24.
 ## Status effects
 
 - **slow:** walk cap times a percent, for some ticks (puddle, pollen-burst).
@@ -328,8 +367,12 @@ animate it.
   shrink starts), `stormShrank` (`step`, `radius`, once the shrink has finished), `bumped`
   (`side` knocked, `knock` in u/s, `x`, `y` where), `dashed` (`side`, `dir`), `teeter` (`side`,
   once when its centre passes the lip) and `ringOut` (`side`).
-- Abilities (#145): `cast`, `windup`, `hit` (damage, health left, effectiveness, knock), `blocked`,
-  `reflected`, `status`, `weatherStarted`, `weatherEnded`, `fainted`, `refused`.
+- Abilities (#145): `refused` (`side`, `button`, `reason`), `windup` (`side`, `button`, `move`,
+  `ticks`), `cast` (`side`, `button`, `move`, `shape`), `hit` (`side` hit, `by`, `move`, `damage`,
+  `health` left, `effectiveness`, `knock` in u/s, `x`, `y`), `blocked` (`side` whose shield took it,
+  `by`), `reflected` (`side` that sent the shot back, the shot's new `thing` id), `status` (`side`,
+  `status` `slow`, `root`, `shield` or `pull`, `ticks`), `healed` (`side`, `amount`, `health`),
+  `weatherStarted` (`weather`, `ticks`), `weatherEnded` (`weather`) and `fainted` (`side`).
 
 ## Every tunable
 
@@ -408,8 +451,8 @@ replace her.
 Planned names, so the tickets agree:
 
 - Core state and steps (#144, #145, #147): `ArenaState`, `Body`, `ArenaInput`
-  (`{ dir, dash, press, treat, swap, leave }`), `ArenaSetup`, `ArenaRules`, `ArenaContent`,
-  `arenaStart`, `arenaStep`, `arenaHash`, `ArenaFight` and `fightStep`.
+  (`{ dir, dash, press, treat, swap, leave }`; `press` is a button 0 to 2 or null), `ArenaSetup`,
+  `ArenaRules`, `ArenaContent`, `arenaStart`, `arenaStep`, `arenaHash`, `ArenaFight` and `fightStep`.
 - Minds (#146): `wildInput`, `wildLoadout`, the skills `WILD`, `WILD_EASIER` and `BOT`.
 - Results (#147), the arena twins of the turn helpers that take a `BattleState`: `arenaWildSetup`,
   `teamAfterFight`, `befriendedFromFight`, `arenaRewards` and `duelRewards`. Both versions live
@@ -426,7 +469,9 @@ Planned names, so the tickets agree:
 ## Checks
 
 - Goldens in `packages/core/fixtures/golden/arena/`, on a frozen copy of `moves.json`,
-  `species.json` and `arena.json`; the turn goldens' copy stays frozen.
+  `species.json`, `arena.json`, `weather.json` and `battle-rules.json`; the turn goldens' copy stays
+  frozen. Four for bodies, one for each shape and a weather flip, each shape's ending in a knockout
+  or a ring-out.
 - Property tests: same seed and inputs, same hash; no speed above top speed; mirrored fights end
   mirrored; the storm only shrinks and never below its floor; health stays within 0 and max; the
   wild mind never sends an illegal press or walks off the island on its own in 5000 random fights.
