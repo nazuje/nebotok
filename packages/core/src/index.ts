@@ -5,6 +5,7 @@ export {
   WELCOME_MESSAGE_KEYS,
   CLIENT_MESSAGES,
   SERVER_MESSAGES,
+  ARENA_MESSAGES,
   CLOSE_CODES,
   WalkToMessage,
   WalkHoldMessage,
@@ -641,3 +642,17 @@ export {
   type WildSetupOptions,
 } from './arena/results.ts';
 export { FightGoldenFile, fightReplay, fightReplayHash, type FightReplay } from './arena/fight-golden.ts';
+export {
+  ARENA_INPUT_FIELDS,
+  ARENA_NONE,
+  cleanArenaInput,
+  arenaInputOf,
+  type ArenaWireInput,
+  type ArenaSeatReservation,
+  type ArenaJoinMessage,
+  type ArenaLineupCreature,
+  type ArenaStartedMessage,
+  type ArenaEventsMessage,
+  type ArenaBefriended,
+  type ArenaResultMessage,
+} from './arena-messages.ts';

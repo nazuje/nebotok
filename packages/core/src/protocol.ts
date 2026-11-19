@@ -15,8 +15,10 @@ import type { PlayerSettings } from './save.ts';
  * 10: the player's settings: `settings.set` and `settings` ("Read to me").
  * 11: arena loadouts and the turtle setting: `loadout.set`, `settings.turtle`, `turtle` in
  * `settings`, and `loadout` and `learned` on each team creature in `progress`.
+ * 12: the arena room: its input stream (`ARENA_INPUT_FIELDS`), `arena.join` and `arena.result` from
+ * the world room, and `arena.started` and `arena.events` from the arena room.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -29,6 +31,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   9: '134099ff291a6b',
   10: '085c82893f62a3',
   11: '09d3bce56b47cb',
+  12: '0262812411765a',
 };
 
 export type WorldInfo = {
@@ -114,6 +117,14 @@ export const SERVER_MESSAGES = {
   jobChanged: 'job.changed',
   refused: 'refused',
   settings: 'settings',
+  arenaJoin: 'arena.join',
+  arenaResult: 'arena.result',
+} as const;
+
+/** Messages the arena room sends to its players. Its input stream is `ARENA_INPUT_FIELDS` (arena-messages.ts). */
+export const ARENA_MESSAGES = {
+  started: 'arena.started',
+  events: 'arena.events',
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);

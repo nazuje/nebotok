@@ -26,6 +26,13 @@ describe('config', () => {
     expect(readConfig({ TRUST_PROXY: 'loopback, 10.0.0.0/8,fd00::/8' }).trustProxy).toEqual(['loopback', '10.0.0.0/8', 'fd00::/8']);
   });
 
+  it('keeps arena battles off unless ARENA_BATTLES is on', () => {
+    expect(readConfig({}).arenaBattles).toBe(false);
+    expect(readConfig({ ARENA_BATTLES: 'off' }).arenaBattles).toBe(false);
+    expect(readConfig({ ARENA_BATTLES: 'on' }).arenaBattles).toBe(true);
+    expect(() => readConfig({ ARENA_BATTLES: 'yes' })).toThrow(/ARENA_BATTLES/);
+  });
+
   it.each(['true', '*', 'false', '1', '', 'loopback,', 'uniquelocal', '0.0.0.0/0', '::/0', '10.0.0.0/33', '10.0.0.0/8/1', 'proxy.example', '10.0.0.0/255.0.0.0'])(
     'refuses TRUST_PROXY=%j, which would believe anyone or cannot be read',
     (value) => {
