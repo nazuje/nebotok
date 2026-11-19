@@ -5,13 +5,17 @@ import {
   WILD_SIDE,
   activeCreature,
   addCreature,
+  arenaContentOf,
+  arenaRewards,
   awardXp,
   battleStep,
   befriendedCreature,
+  befriendedFromFight,
   canBattle,
   createRng,
   greedyPolicy,
   hasRoomForCreature,
+  inventoryAfterFight,
   isLegalAction,
   learnTeamMoves,
   legalActions,
@@ -21,8 +25,11 @@ import {
   sentOut,
   startBattle,
   teamAfterBattle,
+  teamAfterFight,
   useItem,
   wildBattleSetup,
+  type ArenaBefriended,
+  type ArenaFight,
   type BattleAction,
   type BattleContent,
   type BattleEvent,
@@ -209,6 +216,32 @@ export function settleBattle(progress: Progress, battle: LiveBattle, content: Ba
     learned: taught.learned,
     offers: taught.offers,
     befriended: creature && added ? { species: creature.species, placedIn: added.placedIn } : null,
+    fainted: !canBattle(next),
+  };
+}
+
+export type FightSettlement = Omit<Settlement, 'befriended'> & { readonly befriended: ArenaBefriended | null };
+
+/**
+ * A wild fight's results, as settleBattle gives a battle's: health first, then experience to the
+ * creatures still standing, the moves of new levels, the treats left and a befriended creature.
+ * A best of 3, or a fight that never started, changes nothing.
+ */
+export function settleFight(progress: Progress, fight: ArenaFight | null, content: BattleContent): FightSettlement {
+  if (fight?.mode !== 'wild' || !fight.outcome) return { progress, rewards: [], learned: [], offers: [], befriended: null, fainted: !canBattle(progress) };
+  const ended = teamAfterFight(progress.team, fight, arenaContentOf(content));
+  const grown = arenaRewards(ended, fight, content);
+  const taught = learnTeamMoves(ended, grown.team, content);
+  const after: Progress = { ...progress, team: taught.team, inventory: inventoryAfterFight(progress.inventory, fight) };
+  const creature = befriendedFromFight(fight, content);
+  const added = creature ? addCreature(after, creature) : null;
+  const next = creature && added ? markBefriended(added.progress, creature.species) : after;
+  return {
+    progress: next,
+    rewards: grown.rewards,
+    learned: taught.learned,
+    offers: taught.offers,
+    befriended: creature && added ? { species: creature.species, level: creature.level, placedIn: added.placedIn } : null,
     fainted: !canBattle(next),
   };
 }

@@ -31,6 +31,8 @@ import {
   WalkStopMessage,
   WalkToMessage,
   answerMove,
+  arenaContentOf,
+  arenaWildSetup,
   battleView,
   canBattle,
   chooseStarter,
@@ -62,7 +64,11 @@ import {
   wakeAfterFainting,
   wakePoint,
   welcome,
+  wildLoadout,
+  wildMindFor,
   withIntent,
+  type ArenaJoinMessage,
+  type ArenaResultMessage,
   type BattleEvent,
   type BattleResult,
   type BattleUpdate,
@@ -94,7 +100,8 @@ import {
   type WorldInfo,
 } from '@nebotok/core';
 import { z } from 'zod';
-import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
+import type { FightBook, FightEnd, FightStop } from './fights.ts';
+import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, settleFight, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
 import type { Log } from './log.ts';
 import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
@@ -155,6 +162,10 @@ export type WorldServices = {
   readonly now: () => number;
   /** A fresh 32-bit seed from the server's randomness, for the encounter RNG and each battle. */
   readonly seed?: () => number;
+  /** The fights played in arena rooms, which this room plans and settles. */
+  readonly fights: FightBook;
+  /** `ARENA_BATTLES`: whether arena fights may start. */
+  readonly arenaBattles: boolean;
 };
 
 const cryptoSeed = (): number => randomInt(0, 2 ** 32);
@@ -175,6 +186,8 @@ type Seat = {
   walker: Walker;
   /** The player's one battle, or null. While it lasts the player cannot walk. */
   battle: LiveBattle | null;
+  /** The player's arena fight, played in its own room, or null. It keeps the seat busy as a battle does. */
+  fight: LiveFight | null;
   /**
    * Moves levelling up offered, waiting for the one before to be answered, in order. Like a battle
    * they live only in memory: when the seat ends they are dropped, and the creature does not learn them.
@@ -201,6 +214,11 @@ type Seat = {
 };
 
 type OutstandingOffer = PendingMove & { readonly id: number; readonly sentAt: number };
+
+type LiveFight = { readonly id: string };
+
+/** In a turn battle or an arena fight: walking, talks, shrines, storage, skills and loadouts wait. */
+const fighting = (seat: Seat): boolean => seat.battle !== null || seat.fight !== null;
 
 /** Checks a join before a seat is reserved: the protocol first, then the session token. */
 export function authorizeJoin(profiles: ProfileStore, token: unknown, options: unknown): SeatAuth {
@@ -230,9 +248,10 @@ function arrivedAt(before: Walker, after: Walker): Point | null {
  * The one shared family world, wired to its services. Colyseus builds rooms itself, so the
  * services ride on the class.
  */
-export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed }: WorldServices) {
+export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed, fights, arenaBattles }: WorldServices) {
   const { map, stepMs, story } = world;
   const spawn = spawnOf(world);
+  const arenaContent = arenaBattles ? arenaContentOf(world.battle) : null;
 
   return class WorldRoom extends Room {
     /** The one world room of this server while it is open. */
@@ -318,6 +337,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       // Nor does a talk: the new device starts it again.
       if (earlier) {
         earlier.room.endBattle(earlier.sessionId, earlier.seat, 'replaced');
+        earlier.room.endFight(earlier.seat, 'replaced');
         earlier.room.endTalk(earlier.sessionId, earlier.seat, 'replaced');
         earlier.room.endSkill(earlier.sessionId, earlier.seat, 'replaced');
       }
@@ -338,6 +358,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         progress: start.progress,
         walker: start.walker,
         battle: null,
+        fight: null,
         offers: [],
         offer: null,
         talk: null,
@@ -405,14 +426,16 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         const offer = seat.offer && this.offerMessage(seat, seat.offer);
         if (offer) client.send(SERVER_MESSAGES.moveOffer, offer);
         this.sendTalkNode(client.sessionId, seat);
+        void this.rejoinFight(client.sessionId, seat);
       }
-      log.info('player reconnected', { roomId: this.roomId, sessionId: client.sessionId, inBattle: Boolean(seat?.battle), talking: Boolean(seat?.talk) });
+      log.info('player reconnected', { roomId: this.roomId, sessionId: client.sessionId, inBattle: Boolean(seat && fighting(seat)), talking: Boolean(seat?.talk) });
     }
 
     override onLeave(client: Client, code: number) {
       const seat = this.seats.get(client.sessionId);
       if (seat && !seat.replaced) {
         this.endBattle(client.sessionId, seat, 'left');
+        this.endFight(seat, 'left');
         this.endTalk(client.sessionId, seat, 'left');
         this.endSkill(client.sessionId, seat, 'left');
         this.save(seat);
@@ -432,6 +455,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       this.forEachSeat('onDispose', (sessionId, seat) => {
         if (seat.replaced) return;
         this.endBattle(sessionId, seat, 'shutdown');
+        this.endFight(seat, 'shutdown');
         this.endTalk(sessionId, seat, 'shutdown');
         this.endSkill(sessionId, seat, 'shutdown');
         this.save(seat);
@@ -471,7 +495,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         return;
       }
       // Its battle is left unsettled: the team keeps the health it had before it. The seat is saved
-      // as it leaves, and its client joins again.
+      // as it leaves, and its client joins again. Its fight ends as a run as the seat leaves.
       seat.battle = null;
       this.close(sessionId, seat, CLOSE_CODES.failed);
     }
@@ -550,14 +574,14 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     private walkTo(client: Client, target: Point, from: Point | undefined) {
       const seat = this.seats.get(client.sessionId);
-      if (!seat || seat.battle || seat.talk || !inBounds(map, target) || !this.walkLimit.take(client.sessionId, now())) return;
+      if (!seat || fighting(seat) || seat.talk || !inBounds(map, target) || !this.walkLimit.take(client.sessionId, now())) return;
       if (!this.command(client, { kind: 'to', target }, from)) client.send(SERVER_MESSAGES.walkRefused, { x: target.x, y: target.y });
     }
 
     /** `from` is only a hint: planCommand never lets it move the walker anywhere its own intent or the map would not. Ignored in a battle or a talk. */
     private command(client: Client, command: WalkCommand, from: Point | undefined): boolean {
       const seat = this.seats.get(client.sessionId);
-      if (!seat || seat.battle || seat.talk) return false;
+      if (!seat || fighting(seat) || seat.talk) return false;
       const intent = planCommand(map, seat.walker, command, from);
       if (!intent) return false;
       this.endSkill(client.sessionId, seat, 'walk');
@@ -592,7 +616,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       for (const mark of marksAt(map, tile)) this.applyStory(sessionId, seat, questEvent(seat.progress, { kind: 'reached', mark }, story));
       // Nobody is ambushed while away: a dropped player's last step can still end in the grass. A
       // talk or a gather stops the walk, but the step under way still ends.
-      if (seat.battle || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return;
+      if (fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return;
       const zoneId = encounterZoneAt(map, tile);
       const zone = zoneId === null ? undefined : world.encounters.get(zoneId);
       const wild = zone ? rollEncounter(zone, this.encounterRng) : null;
@@ -720,6 +744,125 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       });
     }
 
+    /**
+     * Starts an arena fight with a wild creature for a player in this room, when arena battles are on
+     * and the player could meet one in the grass. The fight is played in its own arena room, where
+     * `arena.join` seats the player. Resolves to the fight's id, or null when none started.
+     */
+    async startWildFight(playerId: number, wild: WildEncounter): Promise<string | null> {
+      const found = [...this.seats].find(([, seat]) => seat.playerId === playerId && !seat.replaced && !seat.closing);
+      if (!arenaContent || !found) return null;
+      const [sessionId, seat] = found;
+      if (fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return null;
+      const fightId = randomUUID();
+      const { turtle } = seat.settings;
+      const fight: LiveFight = { id: fightId };
+      // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
+      try {
+        this.endTalk(sessionId, seat, 'battle');
+        this.endSkill(sessionId, seat, 'battle');
+        const setup = arenaWildSetup({ seed: seed(), team: seat.progress.team, wild, wildLoadout: wildLoadout(wild.species, wild.level, arenaContent), turtle, inventory: seat.progress.inventory, content: world.battle });
+        seat.walker = withIntent(seat.walker, IDLE);
+        seat.fight = fight;
+        seat.progress = markSeen(seat.progress, wild.species);
+        this.changed(seat);
+        this.showFighting(sessionId, true);
+        await fights.open({ fightId, setup, seats: [{ playerId, side: 0 }], minds: [{ side: 1, mind: wildMindFor(turtle) }], ended: (end) => this.finishFight(end), seatLost: () => this.fightSeatLost(fightId) });
+      } catch (error) {
+        log.warn('could not start a fight', { roomId: this.roomId, playerId, fight: fightId, ...errorOf(error) });
+        if (seat.fight === fight) {
+          seat.fight = null;
+          this.showFighting(sessionId, false);
+          this.clients.get(sessionId)?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
+        }
+        return null;
+      }
+      log.info('fight planned', { roomId: this.roomId, playerId, fight: fightId, species: wild.species, level: wild.level, turtle });
+      await this.sendFightJoin(sessionId, seat);
+      return fightId;
+    }
+
+    /** Sends `arena.join` with a fresh seat in the seat's fight room. */
+    private async sendFightJoin(sessionId: string, seat: Seat) {
+      const { fight } = seat;
+      if (!fight) return;
+      try {
+        const reservation = await fights.reserve(fight.id, seat.playerId);
+        if (reservation && seat.fight === fight) this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaJoin, { fightId: fight.id, reservation } satisfies ArenaJoinMessage);
+      } catch (error) {
+        // The fight's room closed meanwhile: its end settles the fight.
+        log.warn('could not reserve a fight seat', { roomId: this.roomId, playerId: seat.playerId, fight: fight.id, ...errorOf(error) });
+      }
+    }
+
+    /** A player still in the world whose seat in its fight room is gone gets a new one; one away gets it on coming back. */
+    private fightSeatLost(fightId: string) {
+      const found = [...this.seats].find(([, seat]) => seat.fight?.id === fightId);
+      if (found && !found[1].reconnection && !found[1].closing) void this.sendFightJoin(...found);
+    }
+
+    /** A player back in the world whose seat in its fight room is gone gets a new one; one still held reconnects there by itself. */
+    private async rejoinFight(sessionId: string, seat: Seat) {
+      if (seat.fight && !fights.holds(seat.fight.id, seat.playerId)) await this.sendFightJoin(sessionId, seat);
+    }
+
+    /** Stops a seat's fight, if it has one: its arena room ends it as a run, and `finishFight` settles it at once. */
+    private endFight(seat: Seat, why: FightStop) {
+      if (seat.fight) fights.stop(seat.fight.id, why);
+    }
+
+    private showFighting(sessionId: string, on: boolean) {
+      const player = this.state.players.get(sessionId);
+      if (player) player.inBattle = on;
+    }
+
+    /** Applies an ended fight to its player's creatures, saves at once and sends `arena.result`. */
+    private finishFight(end: FightEnd) {
+      const found = [...this.seats].find(([, seat]) => seat.fight?.id === end.fightId);
+      if (!found) return;
+      const [sessionId, seat] = found;
+      try {
+        this.settleFight(sessionId, seat, end);
+      } catch (error) {
+        seat.fight = null;
+        this.showFighting(sessionId, false);
+        this.seatFailed('fight', sessionId, seat, error, false);
+      }
+    }
+
+    private settleFight(sessionId: string, seat: Seat, { fightId, fight, why }: FightEnd) {
+      const settled = settleFight(seat.progress, fight, world.battle);
+      seat.progress = settled.fainted ? wakeAfterFainting(settled.progress, world.shrines.teamFainted, world.battle) : settled.progress;
+      seat.fight = null;
+      seat.offers = [...settled.offers];
+      const woke = settled.fainted ? this.wake(seat) : null;
+      this.showFighting(sessionId, false);
+      this.changed(seat);
+      const outcome = fight?.outcome ?? null;
+      this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaResult, {
+        fightId,
+        outcome,
+        rewards: settled.rewards,
+        befriended: settled.befriended,
+        learned: settled.learned,
+        rounds: fight?.mode === 'rounds' ? fight.rounds : [],
+        woke,
+      } satisfies ArenaResultMessage);
+      this.offerNext(sessionId, seat);
+      log.info('fight settled', {
+        roomId: this.roomId,
+        playerId: seat.playerId,
+        fight: fightId,
+        why,
+        result: outcome?.result ?? null,
+        rewards: settled.rewards.length,
+        learned: settled.learned.length,
+        offers: settled.offers.length,
+        befriended: settled.befriended?.placedIn ?? null,
+        woke: woke !== null,
+      });
+    }
+
     /** After the whole team fainted: back at the last shrine on this map, or the spawn, on a free tile near it. */
     private wake(seat: Seat): WakePoint {
       const last = seat.progress.lastShrine;
@@ -783,7 +926,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const seat = this.requestingSeat(client);
       if (!seat) return false;
       // Team places name the creature an offer is for, so they stay put until it is answered.
-      const next = seat.battle ? 'inBattle' : seat.offer ? 'notNow' : change(seat);
+      const next = fighting(seat) ? 'inBattle' : seat.offer ? 'notNow' : change(seat);
       if (typeof next === 'string') {
         this.refuse(client, request, next);
         return false;
@@ -821,7 +964,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private setSettings(client: Client, request: string, change: (settings: PlayerSettings) => PlayerSettings) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
-      if (request === CLIENT_MESSAGES.settingsTurtle && seat.battle) {
+      if (request === CLIENT_MESSAGES.settingsTurtle && fighting(seat)) {
         this.refuse(client, request, 'inBattle');
         return;
       }
@@ -835,7 +978,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private setLoadout(client: Client, index: number, loadout: Loadout) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
-      const next = seat.battle ? 'inBattle' : (setLoadout(seat.progress, index, loadout, world.battle) ?? 'invalid');
+      const next = fighting(seat) ? 'inBattle' : (setLoadout(seat.progress, index, loadout, world.battle) ?? 'invalid');
       if (typeof next === 'string') {
         this.refuse(client, CLIENT_MESSAGES.loadoutSet, next);
         return;
@@ -849,7 +992,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const seat = this.requestingSeat(client);
       if (!seat) return;
       // A gather or cook under way keeps the player busy as a talk does.
-      const refusal = talkStartRefusal(npc, seat.walker, { battle: seat.battle !== null, offer: seat.offer !== null, talking: seat.talk !== null || seat.skills.attempt !== null }, map, story);
+      const refusal = talkStartRefusal(npc, seat.walker, { battle: fighting(seat), offer: seat.offer !== null, talking: seat.talk !== null || seat.skills.attempt !== null }, map, story);
       if (refusal) {
         this.refuse(client, CLIENT_MESSAGES.talkStart, refusal);
         return;
@@ -970,7 +1113,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           return seat.walker;
         },
         get busy() {
-          if (seat.battle) return 'inBattle';
+          if (fighting(seat)) return 'inBattle';
           return seat.talk || seat.offer || seat.skills.attempt ? 'notNow' : null;
         },
         get now() {

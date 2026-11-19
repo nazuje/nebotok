@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import * as core from '../../packages/core/src/index.ts';
 import { PROTOCOL_CONTRACTS } from '../../packages/core/src/protocol.ts';
+import { ARENA_MESSAGES_PER_SECOND, ARENA_SUB_STEPS, ARENA_TICK_RATE, PRESSES_PER_SECOND } from '../../apps/server/src/arena-room.ts';
+import { ARENA_ROOM } from '../../apps/server/src/fights.ts';
 import { SKILLS_NEED_STARTER } from '../../apps/server/src/skills.ts';
 import { STARTER_NEEDS_TALK } from '../../apps/server/src/talk.ts';
 
@@ -56,6 +58,17 @@ const contract = {
   schemas: Object.fromEntries(Object.entries(CLIENT_SCHEMAS).map(([name, schema]) => [name, z.toJSONSchema(schema)])),
   attempts: ATTEMPT_RULES,
   server: { STARTER_NEEDS_TALK, SKILLS_NEED_STARTER },
+  // The arena room's name, input, messages and pace: a client that streams faster or presses more is cut off or dropped.
+  arena: {
+    room: ARENA_ROOM,
+    messages: core.ARENA_MESSAGES,
+    input: core.ARENA_INPUT_FIELDS,
+    none: core.ARENA_NONE,
+    tickRate: ARENA_TICK_RATE,
+    subSteps: ARENA_SUB_STEPS,
+    messagesPerSecond: ARENA_MESSAGES_PER_SECOND,
+    pressesPerSecond: PRESSES_PER_SECOND,
+  },
 };
 
 describe('the protocol contract', () => {
