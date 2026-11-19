@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { refuseLargePrecache } from './precache-guard.ts';
 
 // scripts/dev.mjs moves both ports when another dev server already holds them.
 const SERVER = `http://127.0.0.1:${process.env.NEBOTOK_SERVER_PORT ?? '2567'}`;
@@ -58,6 +59,7 @@ export default defineConfig({
         // deploy. Every other file is named by content hash or changes with the build, so cache-first
         // is right for those.
         globPatterns: ['**/*.{js,css,png,webmanifest}'],
+        manifestTransforms: [refuseLargePrecache],
         // vite-plugin-pwa sets these for autoUpdate only when it writes the registration itself.
         // Without them a new worker waits behind the old one while any page is open, which on an
         // iPad Home Screen app can be for ever.
