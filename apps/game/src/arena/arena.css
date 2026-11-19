@@ -1,6 +1,7 @@
 /*
- * The arena fight (#arena, src/arena/): the cards at the top, the floating stick on the left half,
- * the buttons on the right with their cooldown rings, Leave held in the top corner and the result.
+ * The arena fight (#arena, src/arena/): the cards at the top, the island's weather, the damage
+ * numbers, the floating stick on the left half, the buttons on the right with their cooldown rings,
+ * Leave held in the top corner and the result.
  * The island itself is the arena scene's, drawn on the canvas under this in `.arena-field`.
  * Buttons are at least 64px, past the 48px every control needs, since thumbs hit them mid-fight.
  */
@@ -78,13 +79,28 @@
   gap: 4px;
 }
 
+/* The level badge: red when this creature is the higher, green when the lower, blue when even. */
 .arena-level {
+  align-self: flex-start;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #1c7ed6;
+  color: white;
   font-size: 0.9rem;
   font-weight: 800;
   white-space: nowrap;
 }
 
+.arena-level[data-tone='higher'] {
+  background: #e03131;
+}
+
+.arena-level[data-tone='lower'] {
+  background: #2f9e44;
+}
+
 .arena-health {
+  position: relative;
   display: block;
   width: 100%;
   height: 10px;
@@ -93,12 +109,21 @@
   background: rgb(16 42 67 / 0.25);
 }
 
-.arena-health-fill {
+.arena-health-fill,
+.arena-health-trail {
+  position: absolute;
+  inset: 0 auto 0 0;
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--ok);
   transition: width 0.2s ease-out;
+}
+
+/* What was just lost stays white a moment, then runs down after the bar. */
+.arena-health-trail {
+  background: white;
+  transition: width 0.6s ease-in 0.25s;
 }
 
 .arena-health-fill[data-low='true'] {
@@ -108,6 +133,89 @@
 .arena-turtle {
   flex: none;
   display: grid;
+}
+
+/* The island's weather, in the field's top left corner. */
+.arena-weather {
+  position: absolute;
+  top: calc(var(--top) + 132px);
+  left: max(16px, env(safe-area-inset-left));
+  display: grid;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+/* Damage numbers over the creatures: yellow with "!" for a strong hit, grey for a weak one, green for health back. */
+.arena-popups {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.arena-pop {
+  position: absolute;
+  translate: -50% -50%;
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-text-stroke: 5px #102a43;
+  paint-order: stroke fill;
+  animation: arena-pop 0.85s ease-out forwards;
+}
+
+.arena-pop[data-tone='strong'] {
+  color: #ffd43b;
+  font-size: 1.8rem;
+}
+
+.arena-pop[data-tone='weak'] {
+  color: #ced4da;
+  font-size: 1.1rem;
+}
+
+.arena-pop[data-tone='heal'] {
+  color: #8ce99a;
+}
+
+@keyframes arena-pop {
+  0% {
+    transform: translateY(0) scale(0.6);
+  }
+
+  15% {
+    transform: translateY(-6px) scale(1.15);
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-46px) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes arena-pop-still {
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arena-pop {
+    animation-name: arena-pop-still;
+  }
 }
 
 /* Leave, held 1 s: the ring fills while it is held. */
