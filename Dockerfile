@@ -8,7 +8,7 @@
 # The game build is plain JavaScript output, so it runs once on the build machine's own platform
 # instead of under emulation for each target.
 # node:26.13.0-trixie-slim
-FROM --platform=$BUILDPLATFORM node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS build
+FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS build
 WORKDIR /app
 COPY .npmrc package.json package-lock.json ./
 COPY packages/core/package.json packages/core/
@@ -22,7 +22,7 @@ COPY apps/game apps/game
 RUN npm run build
 
 # node:26.13.0-trixie-slim
-FROM node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS runtime
+FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS runtime
 LABEL org.opencontainers.image.source="https://github.com/nazuje/nebotok" \
       org.opencontainers.image.description="Nebotok game server" \
       org.opencontainers.image.licenses="NOASSERTION"
