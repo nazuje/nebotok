@@ -21,7 +21,7 @@ export default defineConfig({
   preview: { open: false },
   build: {
     target: 'es2022',
-    // Phaser is one large module on purpose; splitting it would not make the first load smaller.
+    // Phaser's own chunk is about 1.3 MB however it is split; the warning is for the game's code.
     chunkSizeWarningLimit: 2_000,
     rolldownOptions: {
       output: {

@@ -1,0 +1,352 @@
+/*
+ * The arena fight (#arena, src/arena/): the cards at the top, the floating stick on the left half,
+ * the buttons on the right with their cooldown rings, Leave held in the top corner and the result.
+ * The island itself is the arena scene's, drawn on the canvas under this in `.arena-field`.
+ * Buttons are at least 64px, past the 48px every control needs, since thumbs hit them mid-fight.
+ */
+
+.arena {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.arena-field {
+  position: absolute;
+  inset: calc(var(--top) + 128px) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+@media (orientation: portrait) {
+  .arena-field {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 200px);
+  }
+}
+
+.arena-top {
+  position: absolute;
+  top: calc(var(--top) + 52px);
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.arena-top > * {
+  pointer-events: auto;
+}
+
+.arena-card {
+  flex: 0 1 11rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.arena-card.mine {
+  border-color: #ffd43b;
+}
+
+.arena-card.theirs {
+  margin-left: auto;
+}
+
+.arena-portrait,
+.arena-portrait canvas {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+
+.arena-card-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.arena-level {
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.arena-health {
+  display: block;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(16 42 67 / 0.25);
+}
+
+.arena-health-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ok);
+  transition: width 0.2s ease-out;
+}
+
+.arena-health-fill[data-low='true'] {
+  background: var(--bad);
+}
+
+.arena-turtle {
+  flex: none;
+  display: grid;
+}
+
+/* Leave, held 1 s: the ring fills while it is held. */
+.arena-leave {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: conic-gradient(rgb(214 69 69 / 0.75) calc(var(--hold, 0) * 360deg), var(--panel) 0);
+  box-shadow: var(--shadow);
+  touch-action: none;
+}
+
+/* The stick: anywhere on the left half, below the cards. */
+.arena-zone {
+  position: absolute;
+  top: calc(var(--top) + 128px);
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  touch-action: none;
+}
+
+.arena-pad {
+  position: absolute;
+  left: max(88px, 30%);
+  top: 72%;
+  width: 120px;
+  height: 120px;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  border: 3px solid rgb(255 255 255 / 0.9);
+  border-radius: 50%;
+  background: rgb(16 42 67 / 0.18);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.arena-pad.held {
+  opacity: 0.95;
+}
+
+.arena-knob {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.95);
+  box-shadow: var(--shadow);
+}
+
+/* The buttons, in a thumb's arc around the big button 1 in the corner. */
+.arena-cluster {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: 64px 64px 80px;
+  grid-template-rows: 64px 64px 80px;
+  grid-template-areas:
+    'treat swap .'
+    '. three two'
+    '. dash one';
+  gap: 8px;
+  place-items: center;
+}
+
+.arena-button {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  touch-action: none;
+}
+
+.arena-button > * {
+  grid-area: 1 / 1;
+}
+
+.arena-button.ability-1 {
+  grid-area: one;
+  width: 80px;
+  height: 80px;
+}
+
+.arena-button.ability-2 {
+  grid-area: two;
+}
+
+.arena-button.ability-3 {
+  grid-area: three;
+}
+
+.arena-button.dash {
+  grid-area: dash;
+}
+
+.arena-button.treat {
+  grid-area: treat;
+}
+
+.arena-button.swap {
+  grid-area: swap;
+}
+
+.arena-button.locked {
+  opacity: 0.7;
+  background: rgb(220 228 236 / 0.92);
+}
+
+.arena-button:disabled {
+  cursor: default;
+}
+
+.arena-button.locked canvas + canvas {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+}
+
+.arena-cooldown {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(rgb(16 42 67 / 0.6) calc(var(--cd, 0) * 360deg), transparent 0);
+  pointer-events: none;
+}
+
+.arena-empty {
+  width: 24px;
+  height: 24px;
+  border: 3px dashed var(--muted);
+  border-radius: 50%;
+}
+
+.arena[data-ended='true'] :is(.arena-zone, .arena-cluster, .arena-leave) {
+  display: none;
+}
+
+/* The result, over the island once the server has settled the fight. */
+.arena-result {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: min(22rem, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 6px 0 rgb(16 42 67 / 0.2);
+  text-align: center;
+}
+
+.arena-result-line {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.arena-result-also {
+  margin: 0;
+  color: var(--muted);
+}
+
+.arena-befriended {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arena-befriended > canvas:first-child {
+  width: 64px;
+  height: 64px;
+}
+
+.arena-rewards {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arena-reward {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arena-reward > canvas:first-child {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+
+.arena-xp {
+  flex: 1 1 auto;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(16 42 67 / 0.2);
+}
+
+.arena-xp-fill {
+  display: block;
+  width: calc(var(--xp, 0) * 100%);
+  height: 100%;
+  background: var(--accent);
+}
+
+.arena-xp-gained {
+  font-weight: 800;
+}
+
+.arena-continue {
+  min-width: 64px;
+  min-height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

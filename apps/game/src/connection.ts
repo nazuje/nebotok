@@ -1,11 +1,13 @@
 import { Callbacks, Client, ErrorCode, type Room } from '@colyseus/sdk';
-import { CLOSE_CODES, PROTOCOL_VERSION, type Language, type Welcome } from '@nebotok/core';
+import { CLOSE_CODES, PROTOCOL_VERSION, type ArenaSeatReservation, type Language, type Welcome } from '@nebotok/core';
+import type { ArenaRoomState } from '../../server/src/arena-state.ts';
 import type { WorldState } from '../../server/src/world-state.ts';
 import { SERVER_BASE } from './session.ts';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'unreachable' | 'signedOut' | 'replaced' | 'outdated';
 
 export type WorldRoom = Room<unknown, WorldState>;
+export type ArenaRoom = Room<unknown, ArenaRoomState>;
 
 export type ConnectionEvents = {
   status(status: ConnectionStatus): void;
@@ -18,6 +20,8 @@ export type ConnectionEvents = {
 export type WorldConnection = {
   /** Leaves the world for good, as when switching player. */
   leave(): Promise<void>;
+  /** Takes the seat `arena.join` reserved in a fight's arena room, with the same session. */
+  joinFight(reservation: ArenaSeatReservation): Promise<ArenaRoom>;
 };
 
 const FIRST_RETRY_MS = 2_000;
@@ -96,5 +100,6 @@ export function connect(token: string, language: () => Language, events: Connect
       room = null;
       if (leaving) await leaving.leave().catch(() => {});
     },
+    joinFight: (reservation) => client.consumeSeatReservation<ArenaRoomState>({ ...reservation }),
   };
 }

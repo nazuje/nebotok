@@ -1,4 +1,5 @@
 import type { BattleOutcome, BattleView, CreatureReward, Direction, Language, LearnedMove, Point, ProgressMessage, StorageMessage, StringId, WakePoint, WelcomeMessageKey } from '@nebotok/core';
+import type { ArenaOverlay, TestArena } from './arena/arena-link.ts';
 import type { BattleScreenState, Menu } from './battle-model.ts';
 import type { BattleDrawn } from './battle-scene.ts';
 import type { BattleOverlay } from './battles.ts';
@@ -21,7 +22,7 @@ import type { WorldView } from './world-view.ts';
 import type { PinSetupState } from './pin-setup.ts';
 import type { ProfileScreenState, ProfileView } from './profile-screen.ts';
 
-export type Screen = ProfileView | 'world' | 'pinSetup' | BattleOverlay | StoryOverlay | SkillOverlay | JobsOverlay;
+export type Screen = ProfileView | 'world' | 'pinSetup' | ArenaOverlay | BattleOverlay | StoryOverlay | SkillOverlay | JobsOverlay;
 
 type TestCreature = { species: string; level: number; hp: number; maxHp: number };
 
@@ -140,6 +141,8 @@ export type TestSnapshot = TestStory &
   turtle: boolean | null;
   /** The battle on screen, if any. */
   battle: TestBattle | null;
+  /** The arena fight on screen, from `arena.join` until Continue on its result, if any. */
+  arena: TestArena | null;
   /** Your creatures, treats and whether you still choose a starter, as the server last sent them. */
   progress: ProgressMessage | null;
   /** The creatures waiting at the shrine the server last said the player rests at, if any. */
