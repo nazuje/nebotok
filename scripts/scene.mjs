@@ -12,7 +12,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { PROTOCOL_VERSION, inBounds, isWalkable } from '../packages/core/src/index.ts';
+import { loadWorld } from '../apps/server/src/world.ts';
+import { PROTOCOL_VERSION, emptyProgress, inBounds, isWalkable, newCreature } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
@@ -166,10 +167,20 @@ function routeSockets(player) {
   );
 }
 
+/** A prepared player's save: at a quest's step or new, standing on its tile, with its own team when it names one. */
+function preparedSave({ name, language, prepared: { quest, step, at, team } }) {
+  const content = loadWorld();
+  const story =
+    quest && step
+      ? storySaveAt({ name, language, quest, step, at, world: content })
+      : { name, language, createdAt: new Date().toISOString(), position: { map: content.map.id, x: at.x, y: at.y, facing: 'down' }, ...emptyProgress() };
+  return team ? { ...story, team: team.map(({ species, level }) => newCreature(species, level, content.battle)) } : story;
+}
+
 async function joinWorld(player) {
   const login = await signIn(player);
   player.token = login.token;
-  if (player.prepared) prepareSave(dev.dataDir, login.profile.id, storySaveAt({ name: player.name, language: player.language, ...player.prepared }));
+  if (player.prepared) prepareSave(dev.dataDir, login.profile.id, preparedSave(player));
   const { descriptor } = DEVICES.find((device) => device.name === player.device);
   const motion = player.reducedMotion ? { reducedMotion: 'reduce' } : {};
   player.context = await (await browserFor(player.browser)).newContext({ ...descriptor, ...motion, extraHTTPHeaders: { 'x-forwarded-for': player.address } });
@@ -251,7 +262,9 @@ function shownInWorld(state, wanted, other) {
     (!wanted.unmarked || state.marker === null) &&
     (!wanted.welcome || wanted.welcome.includes(state.welcome === null ? 'hidden' : state.welcome.replace('welcome.', ''))) &&
     (!wanted.refused || state.refusedMarker !== null) &&
-    (!wanted.toast || state.toast === null) &&
+    (!wanted.toast || state.toast === (wanted.toast === 'hidden' ? null : wanted.toast)) &&
+    (!wanted.duel || (state.duel?.kind ?? 'none') === wanted.duel) &&
+    (!wanted.arena || (wanted.arena === 'rounds' ? state.arena?.mode === 'rounds' : state.arena === null)) &&
     (!wanted.hint || wanted.hint === (state.hint ?? 'hidden'))
   );
 }
@@ -344,6 +357,24 @@ const STEPS = {
     const player = players.get(entry.player);
     await leaveBattle(player.page);
     player.battleId = null;
+  },
+  ask: async (entry) => {
+    const { page } = players.get(entry.player);
+    const shown = await readState(page);
+    const other = shown.players.find((each) => !each.self && each.name === nameOf(entry.to));
+    if (!other) throw new Error(`${entry.player}'s page does not show ${entry.to}`);
+    const [spot] = await tilesToScreen(page, [{ x: Math.round(other.drawn.x), y: Math.round(other.drawn.y) }]);
+    if (!tappable(page, spot)) throw new Error(`${entry.to} is not on ${entry.player}'s screen`);
+    await page.touchscreen.tap(spot.x, spot.y);
+    await until(page, (s) => s.duel?.kind === 'menu', `${entry.player}'s duel menu to open over ${entry.to}`, 5_000, { ready: false });
+    await page.locator(entry.even ? '#duel .duel-even-match' : '#duel .duel-real-levels').tap();
+    await nextFrames(page);
+  },
+  answer: async (entry) => {
+    const { page } = players.get(entry.player);
+    await until(page, (s) => s.duel?.kind === 'asked', `${entry.player}'s duel card to ask them`, 15_000, { ready: false });
+    await page.locator(entry.yes ? '#duel .duel-accept' : '#duel .duel-decline').tap();
+    await nextFrames(page);
   },
   play: async (entry) => {
     const page = pageOf(entry.player);

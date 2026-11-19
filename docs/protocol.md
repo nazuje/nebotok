@@ -3,14 +3,14 @@
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
 `world`, for the shared island, and one `arena` room per real-time fight (see "Arena fights"). The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
-`src/skill-messages.ts` for skills and jobs), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **12**),
+`src/skill-messages.ts` for skills and jobs, `src/duel-messages.ts` for duels), so client and server import the
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **13**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
 protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board,
 protocol 9 judges the tiny games exactly as they are drawn, protocol 10 adds the player's
 settings ("Read to me"), protocol 11 adds arena loadouts and the turtle setting
-(`loadout.set`, `settings.turtle`; see "Arena fights"), and protocol 12 the arena room, its input
-and its messages.
+(`loadout.set`, `settings.turtle`; see "Arena fights"), protocol 12 the arena room, its input
+and its messages, and protocol 13 duels (`duel.*` and `arena` in `welcome`).
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants, server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`,
 and the arena room's name, input fields, messages and limits, and fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -146,7 +146,7 @@ Server to client:
 
 | Type | Payload | When |
 | --- | --- | --- |
-| `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey }` | Right after joining |
+| `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey, arena }`: `arena` whether arena fights are on (`ARENA_BATTLES`), so the page offers duels (protocol 13) | Right after joining |
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
 | `settings` | `{ readToMe, turtle }` | On joining, after `skills`, and after each `settings.set` and `settings.turtle`. Only this seat changes them, so a reconnection keeps what the page has. |
@@ -302,7 +302,8 @@ request gives it up after 1.5 s without an answer, so the next tap asks again.
 **Planned** for the milestone "Phase 2: Arena battles" (#141 to #160). Built so far: loadouts and
 the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148), and the arena
 room with its input, limits, state and messages, the hand-off and `ARENA_BATTLES` (protocol 12,
-#149), and wild fights from tall grass with the setting on (#150). Tests can also start one with
+#149), wild fights from tall grass with the setting on (#150), and duels (protocol 13, #157).
+Tests can also start one with
 the world room's `startWildFight(playerId, wild)`. Parts still to come are marked.
 The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md). Until the switch-over
@@ -345,7 +346,10 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   turtle setting, and the wild loadout. The courier stays on the grass tile where it met the
   creature, and `arena.join` follows. The world room's `startWildFight` (#149) does the same
   outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
-  An accepted duel (#157): rounds with two human sides. A dev-only `arena.practice` switch starts
+  An accepted duel (#157, built): rounds with two human sides, the asker on side 0, each with the
+  first three standing creatures of their team (until #155's picking) and their own turtle setting,
+  all at core `evenLevel` for an even match (`duelSetup`); nothing about it is saved. A duel gives
+  no rewards and counts no quest events (rewards come with #158); its health is put back. A dev-only `arena.practice` switch starts
   rounds against `BOT` for the browser check (#155).
 
 ### Input
@@ -431,9 +435,9 @@ World room, client to server:
 | --- | --- | --- | --- |
 | `loadout.set` (built) | `{ index, loadout }`: `index` a team place 0 to 5, `loadout` three move ids or null | Not in a fight | Sets that creature's buttons (core `setLoadout`), saved at once and sent back in `progress`; refused `invalid` for an unlearned move, a wrong kind, a locked button or an empty team place, `inBattle` during a fight (today a turn battle) |
 | `settings.turtle` (built) | `{ on }` | Not in a fight | Turns the turtle setting on or off; saved at once and sent back in `settings`; refused `inBattle` during a fight |
-| `duel.ask` | `{ to, even }`: `to` the other player's key in `players`, `even` the even-match switch | Both free, within 4 tiles, both with 3 standing creatures | Sends `duel.asked` to the other player. One ask at a time; the same pair waits 30 s after a decline |
-| `duel.answer` | `{ yes }` | A `duel.asked` waits for you | Yes starts the duel; no, or no answer in 20 s, declines |
-| `duel.cancel` | `{}` | Your ask waits | Takes the ask back |
+| `duel.ask` (built) | `{ to, even }`: `to` the other player's key in `players` (1 to 32 characters), `even` the even-match switch | Both free (not in a battle, talk, skill attempt or another ask), within 4 tiles (`DUEL_REACH`, either way and diagonally), both with 3 standing creatures (`DUEL_TEAM`) | Sends `duel.asked` to the other player. Refused `invalid` for yourself or a key nobody has, `inBattle` while you fight, `tooFar`, and `notNow` for anything else: arena fights off, either busy or without 3 standing creatures, an ask of either waiting, or the same pair within 30 s (`DUEL_PAUSE_MS`) of a decline, either way round |
+| `duel.answer` (built) | `{ yes }` | A `duel.asked` waits for you | Yes starts the duel when both can still have it (else refused `notNow` and the ask ends); no declines. No answer in 20 s (`DUEL_ANSWER_MS`) declines by itself. Refused `notNow` when no ask waits for you |
+| `duel.cancel` (built) | `{}` | Your ask waits | Takes the ask back, with no 30 s wait. Refused `notNow` when you have none |
 
 World room, server to client:
 
@@ -441,8 +445,8 @@ World room, server to client:
 | --- | --- | --- |
 | `arena.join` (built) | `{ fightId, reservation }`: the seat reservation, for `consumeSeatReservation` | A fight you are in or watch is ready to join, again when your seat in its room is gone while the fight goes on |
 | `arena.result` (built) | `{ fightId, outcome, rewards, befriended, learned, rounds, woke }`: `outcome` core's, null for no result; `befriended` `{ species, level, placedIn }` or null; `learned` `[{ index, move }]`; `woke` as in `battle.result` | The fight is settled; leave the arena room, show the result, and a new-move toast for each `learned` |
-| `duel.asked` | Who asks (their key in `players`), their first three creatures and `even` | Someone asks you |
-| `duel.answered` | `{ yes }` | Your ask was answered, or declined by itself |
+| `duel.asked` (built) | `{ from, creatures, even }`: `from` the asker's key in `players`, `creatures` their first three standing `[{ species, level }]` at real levels | Someone asks you |
+| `duel.answered` (built) | `{ yes }` | To both, once the ask is over: answered, declined by itself, taken back, or ended because one of you left, started something else or could no longer duel. `arena.join` follows a yes |
 | `settings` (built) | `{ readToMe, turtle }` | As today, with `turtle` |
 | `progress` (built) | As today; each team creature also has `loadout` and `learned` (its learned move ids) | As today |
 
@@ -505,7 +509,8 @@ and snaps, also in the test hook.
 The protocol was 10 before the arena work. Each wire change bumps it once, in the order the tickets
 merge: #148 to 11 (`loadout.set`, `settings.turtle`, `loadout` and `learned` in `progress`;
 done), then #149 to 12 (the arena room, its input and `arena.join`, `arena.started`,
-`arena.events`, `arena.result`; done), #155 (`arena.pick`), #157 (`duel.*`) and #160. So the switch-over's
+`arena.events`, `arena.result`; done), #157 to 13 (`duel.*`, `arena` in `welcome`; done), #155
+(`arena.pick`) and #160. So the switch-over's
 number is whatever comes next then, not fixed here. Tickets merged at the same time conflict on the
 one line in `scripts/lib/protocol-contract.test.mjs`; the later one takes the next number.
 

@@ -1,0 +1,134 @@
+/* The duel card (src/duels.ts): who asks or is asked, as pictures, and big buttons to answer. */
+
+.duel {
+  position: fixed;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: calc(var(--top) + 60px) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgb(16 42 67 / 0.35);
+}
+
+.duel-card {
+  width: min(100%, 26rem);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  border: 3px solid var(--ink);
+  border-radius: 20px;
+  background: white;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.duel-faces {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.duel-faces .avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.duel-title,
+.duel-line {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.duel-name {
+  margin: -8px 0 0;
+  font-weight: 700;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.duel-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.duel-speaker {
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border: 2px solid var(--accent);
+  border-radius: 14px;
+  background: white;
+}
+
+.duel-team {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.duel-creature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.duel-creature .creature {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+}
+
+.duel-even {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+/* How long is left to answer, shrinking to nothing. */
+.duel-time {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(16 42 67 / 0.15);
+  overflow: hidden;
+}
+
+.duel-time-fill {
+  display: block;
+  height: 100%;
+  background: var(--wait);
+}
+
+.duel-answers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.duel-card button {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow-wrap: break-word;
+}
+
+.duel-card .duel-close,
+.duel-card .duel-cancel {
+  min-height: var(--tap);
+}
