@@ -22,10 +22,12 @@ import {
   type QuestChange,
   type QuestEvent,
   type RefusalReason,
+  type RoundsOutcome,
   type SkillsMessage,
   type SpotRest,
   type StoryContent,
   type TalkStep,
+  type WildOutcome,
   type WorldMap,
 } from '@nebotok/core';
 
@@ -107,6 +109,13 @@ export function battleEvents(outcome: BattleOutcome | null, zone: string, befrie
   if (outcome?.winner !== PLAYER_SIDE) return [];
   const won: QuestEvent = { kind: 'battleWon', zone };
   return befriended === null ? [won] : [won, { kind: 'befriended', species: befriended }];
+}
+
+/** The quest events a settled wild fight counts: a win in its zone, by knockout or ring-out, or the creature it befriended. */
+export function fightEvents(outcome: WildOutcome | RoundsOutcome | null, zone: string | null, befriended: string | null): QuestEvent[] {
+  const result = outcome?.result;
+  if (result === 'won' || result === 'wonByRingOut') return [{ kind: 'battleWon', zone }];
+  return befriended === null ? [] : [{ kind: 'befriended', species: befriended }];
 }
 
 /** What changed the story: the progress after, and the quests that changed, in order. */

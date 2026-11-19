@@ -18,6 +18,7 @@ import {
   inventoryAfterFight,
   isLegalAction,
   learnTeamMoves,
+  learnedBy,
   legalActions,
   markBefriended,
   randomPolicy,
@@ -35,6 +36,7 @@ import {
   type BattleEvent,
   type BattleOutcome,
   type BattleState,
+  type CreatureInstance,
   type CreatureReward,
   type EncounterZone,
   type LearnedMove,
@@ -220,15 +222,28 @@ export function settleBattle(progress: Progress, battle: LiveBattle, content: Ba
   };
 }
 
-export type FightSettlement = Omit<Settlement, 'befriended'> & { readonly befriended: ArenaBefriended | null };
+/** An arena fight's settlement: the arena keeps every move a creature learns, so nothing is offered. */
+export type FightSettlement = Omit<Settlement, 'befriended' | 'offers'> & { readonly befriended: ArenaBefriended | null };
+
+/** Every move each team creature learned by growing from `before` to `after`, in team order, then learnset order. */
+function newlyLearned(before: readonly CreatureInstance[], after: readonly CreatureInstance[], content: BattleContent): LearnedMove[] {
+  return after.flatMap((creature, index) => {
+    const was = before[index];
+    if (!was || was.level === creature.level) return [];
+    const known = new Set(learnedBy(was, content));
+    return learnedBy(creature, content).flatMap((move) => (known.has(move) ? [] : [{ index, move }]));
+  });
+}
 
 /**
  * A wild fight's results, as settleBattle gives a battle's: health first, then experience to the
  * creatures still standing, the moves of new levels, the treats left and a befriended creature.
- * A best of 3, or a fight that never started, changes nothing.
+ * Every move a level up teaches is `learned`; the four a turn battle uses take the new ones while
+ * there is room, and the rest are not offered. A best of 3, or a fight that never started, changes
+ * nothing.
  */
 export function settleFight(progress: Progress, fight: ArenaFight | null, content: BattleContent): FightSettlement {
-  if (fight?.mode !== 'wild' || !fight.outcome) return { progress, rewards: [], learned: [], offers: [], befriended: null, fainted: !canBattle(progress) };
+  if (fight?.mode !== 'wild' || !fight.outcome) return { progress, rewards: [], learned: [], befriended: null, fainted: !canBattle(progress) };
   const ended = teamAfterFight(progress.team, fight, arenaContentOf(content));
   const grown = arenaRewards(ended, fight, content);
   const taught = learnTeamMoves(ended, grown.team, content);
@@ -239,8 +254,7 @@ export function settleFight(progress: Progress, fight: ArenaFight | null, conten
   return {
     progress: next,
     rewards: grown.rewards,
-    learned: taught.learned,
-    offers: taught.offers,
+    learned: newlyLearned(ended, grown.team, content),
     befriended: creature && added ? { species: creature.species, level: creature.level, placedIn: added.placedIn } : null,
     fainted: !canBattle(next),
   };

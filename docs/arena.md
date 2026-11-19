@@ -106,7 +106,8 @@ settles the ending.
 The whole fight (#147), around the island:
 
 - `fight-state.ts`: `FightSetup`, either a `WildFightSetup` (`{ mode: 'wild', seed, team, wild,
-  treats }`, each team entry its save `place`, real `hp` and `fighter`) or a `RoundsFightSetup`
+  treats, weather? }`, each team entry its save `place`, real `hp` and `fighter`; `weather` the
+  encounter zone's, #150) or a `RoundsFightSetup`
   (`{ mode: 'rounds', seed, picks }`, one to three picks a side). `ArenaFight` is a `WildFight`
   (the `island`, the `team` with each creature's arena `health`, `fought` and `out`, the
   `active` one, `swapCooldown`, the `treats` in the bag, the `treat` out, `treatWait`,
@@ -234,8 +235,10 @@ Where the aim lands: a thrown puddle or freeze lands at the other creature's dis
 help has it, clamped to 120 to 420 units, else at the shape's reach (prototype `aimOf`).
 
 **Weather on the island:** a `weather` move sets its weather for 900 ticks; every ultimate also sets
-its own type's weather for 600 ticks (10 s, `ultimateWeatherTicks`). A new weather ends the old one early. The weather chart
-in `content/creatures/weather.json` applies to every hit, as in turns.
+its own type's weather for 600 ticks (10 s, `ultimateWeatherTicks`). A new weather ends the old one early. A wild fight
+starts under its encounter zone's weather, which lasts the whole fight (`limitTicks`) until a move's weather ends it;
+it does not come back after (#150). The weather chart in `content/creatures/weather.json` applies to every hit, as in
+turns.
 
 ### Every move's kind and shape
 
@@ -520,7 +523,8 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   that kind, so no wrong choice is possible. A move tile shows 1 to 3 power pips (1 for 40 and 50,
   2 for 65 and 80, 3 for 100), not numbers. The new-move toast goes away by itself after 6 s.
   Opened from each team card and from the toast (`apps/game/src/loadout-picker.ts`,
-  `new-move-toast.ts`). Until #150 the toast follows the turn battle's moves learned and offered;
+  `new-move-toast.ts`). The toast follows the turn battle's moves learned and offered; an arena
+  fight's are in `arena.result`'s `learned` (#150), for #151's client to hand to it;
   holding a move plays a canvas sketch of its shape (`shape-preview.ts`) until #151's painter takes
   its `ShapePainter` seam.
 - **Duels** (#157, #158): ask a courier within 4 tiles; the answer card waits 20 s, then declines
