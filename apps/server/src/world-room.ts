@@ -754,18 +754,19 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (!arenaContent || !found) return null;
       const [sessionId, seat] = found;
       if (fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return null;
-      this.endTalk(sessionId, seat, 'battle');
-      this.endSkill(sessionId, seat, 'battle');
       const fightId = randomUUID();
       const { turtle } = seat.settings;
-      const setup = arenaWildSetup({ seed: seed(), team: seat.progress.team, wild, wildLoadout: wildLoadout(wild.species, wild.level, arenaContent), turtle, inventory: seat.progress.inventory, content: world.battle });
       const fight: LiveFight = { id: fightId };
-      seat.walker = withIntent(seat.walker, IDLE);
-      seat.fight = fight;
-      seat.progress = markSeen(seat.progress, wild.species);
-      this.changed(seat);
-      this.showFighting(sessionId, true);
+      // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
       try {
+        this.endTalk(sessionId, seat, 'battle');
+        this.endSkill(sessionId, seat, 'battle');
+        const setup = arenaWildSetup({ seed: seed(), team: seat.progress.team, wild, wildLoadout: wildLoadout(wild.species, wild.level, arenaContent), turtle, inventory: seat.progress.inventory, content: world.battle });
+        seat.walker = withIntent(seat.walker, IDLE);
+        seat.fight = fight;
+        seat.progress = markSeen(seat.progress, wild.species);
+        this.changed(seat);
+        this.showFighting(sessionId, true);
         await fights.open({ fightId, setup, seats: [{ playerId, side: 0 }], minds: [{ side: 1, mind: wildMindFor(turtle) }], ended: (end) => this.finishFight(end), seatLost: () => this.fightSeatLost(fightId) });
       } catch (error) {
         log.warn('could not start a fight', { roomId: this.roomId, playerId, fight: fightId, ...errorOf(error) });

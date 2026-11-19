@@ -471,7 +471,9 @@ and snaps, also in the test hook.
 ### Dropping and coming back
 
 - The arena room holds a dropped player's seat for 20 s (`allowReconnection`), and the SDK
-  reconnects by itself. Inputs sent while the fight waited are thrown away when it resumes.
+  reconnects by itself. Inputs sent while the fight waited are thrown away when it resumes. A
+  reconnection looks the session up again, as the world room's does, and closes with `signedOut`
+  when it has ended.
 - A **wild fight pauses** while its player is away (no steps), up to 120 s (`BATTLE_IDLE_MS`), then
   ends as `ran`. A player back after the 20 s but within the 120 s gets a new `arena.join` from the
   world room for the same fight: at once while still in the world, else on reconnecting to it.

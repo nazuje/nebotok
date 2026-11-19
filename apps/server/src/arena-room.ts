@@ -3,6 +3,7 @@ import {
   ARENA_IDLE,
   ARENA_MESSAGES,
   ARENA_NONE,
+  CLOSE_CODES,
   arenaInputOf,
   cleanArenaInput,
   createBrain,
@@ -184,9 +185,15 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false }:
       log.info('fighter dropped', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, code });
     }
 
+    // A reconnection does not run onAuth again, so the session is checked here, as the world room does.
     override onReconnect(client: Client) {
       const fighter = this.fighters.get(client.sessionId);
       if (!fighter) return;
+      if (!profiles.hasSession(fighter.playerId)) {
+        client.leave(CLOSE_CODES.signedOut);
+        log.info('reconnection refused: signed out', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId });
+        return;
+      }
       fighter.connected = true;
       this.sendStarted(client, fighter.side);
       this.resumeIfEveryoneIsHere();

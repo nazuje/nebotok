@@ -278,6 +278,20 @@ describe('the arena room', () => {
     expect(logged.lines.find((line) => line['msg'] === 'fight ended')).toMatchObject({ why: 'away', outcome: 'ran' });
   });
 
+  it('refuses a reconnection to the fight once the profile has signed out', async () => {
+    const who = await player('Test Courier');
+    const fighter = await enter(who, await startFight(who));
+    await fighter.box.take('arena.started');
+    const { reconnectionToken } = fighter.room;
+    await fighter.room.leave(false);
+    await until(() => fighter.server.paused, 'the fight to wait');
+    // Signed out on another device: the world seat is still away, so only the arena room checks.
+    temp.services.profiles.logout(who.token);
+    const back = await colyseus.sdk.reconnect<ArenaRoomState>(reconnectionToken).catch(() => null);
+    if (back) await until(() => !back.connection.isOpen, 'the reconnection to be closed');
+    expect(logged.lines.some((line) => line['msg'] === 'reconnection refused: signed out' && line['fight'] === fighter.server.fightId)).toBe(true);
+  });
+
   it('offers a new seat to a player still in the world whose seat in the fight room is gone', async () => {
     const who = await player('Test Courier');
     const fighter = await enter(who, await startFight(who));
