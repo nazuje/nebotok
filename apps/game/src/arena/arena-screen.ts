@@ -29,6 +29,8 @@ export type ArenaScreen = {
   readonly zone: HTMLElement;
   readonly cluster: HTMLElement;
   readonly leave: HTMLButtonElement;
+  /** Where a best of 3 shows picking and the score between rounds. */
+  readonly rounds: HTMLElement;
   render(view: ArenaScreenView | null, language: Language): void;
 };
 
@@ -108,8 +110,9 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
   const field = el('div', { className: 'arena-field' });
   const zone = el('div', { className: 'arena-zone', attrs: { role: 'application' } });
   const cluster = el('div', { className: 'arena-cluster' });
+  const rounds = el('div', { className: 'arena-rounds' });
   const result = el('div', { className: 'arena-result', attrs: { role: 'dialog', 'aria-modal': 'true' } });
-  root.replaceChildren(field, top, zone, cluster, result);
+  root.replaceChildren(field, top, zone, cluster, rounds, result);
   let resultKey = '';
 
   function renderResult(view: ArenaScreenView, language: Language) {
@@ -143,6 +146,7 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
     zone,
     cluster,
     leave,
+    rounds,
     render: (view, language) => {
       root.hidden = view === null;
       if (!view) {
