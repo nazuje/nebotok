@@ -15,8 +15,9 @@ content follows the `add-content` skill.
 
 ## Voice clips
 
-Every dialogue `say` and choice, and every quest `name`, `summary` and step `hint`, has a
-computer-voice clip in each language, named by a hash of its exact text. After changing any of them,
+Every dialogue `say` and choice, every quest `name`, `summary` and step `hint`, and every
+move `name` in `creatures/moves.json` has a computer-voice clip in each language, named by a hash
+of its exact text. After changing any of them,
 run `npm run voice` on a Mac (`scripts/voice/README.md`) and commit the clips with the manifest;
 `content:validate` fails until then. A line with a `{placeholder}` gets no clip. A character's
 `voice` in `npcs.json` sets the pitch and pace of their clips, so changing it remakes them.

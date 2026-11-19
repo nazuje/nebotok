@@ -15,7 +15,7 @@ describe('move pictures', () => {
     }
   });
 
-  it('follows the rule for taps, wallops and calls, and the table for the rest', () => {
+  it('reads each move\'s own arena block, and knows no move that is not in moves.json', () => {
     expect(moveArena('rain-tap')).toEqual({ kind: 'quick', shape: 'bolt' });
     expect(moveArena('storm-wallop')).toEqual({ kind: 'special', shape: 'lunge' });
     expect(moveArena('bloom-call')).toEqual({ kind: 'ultimate', shape: 'weather' });

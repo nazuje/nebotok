@@ -8,6 +8,8 @@ import type { Controls } from './controls-choice.ts';
 import type { Input } from './input.ts';
 import type { JobsOverlay, TestJobs } from './jobs-link.ts';
 import type { LearnState } from './learn-prompt.ts';
+import type { LoadoutPickerState } from './loadout-picker.ts';
+import type { NewMove } from './new-move-toast.ts';
 import type { TagBox } from './names.ts';
 import type { SkillOverlay, TestSkills } from './skills-link.ts';
 import type { StoryOverlay, TestStory } from './story-link.ts';
@@ -134,6 +136,8 @@ export type TestSnapshot = TestStory &
   settingsOpen: boolean;
   /** "Read to me" (null before the server has said), the last clip asked for and how many have been. */
   voice: TestVoice & { readToMe: boolean | null };
+  /** The player's turtle setting, null before the server has said. */
+  turtle: boolean | null;
   /** The battle on screen, if any. */
   battle: TestBattle | null;
   /** Your creatures, treats and whether you still choose a starter, as the server last sent them. */
@@ -142,6 +146,10 @@ export type TestSnapshot = TestStory &
   storage: StorageMessage | null;
   /** The team screen, if it is open. */
   teamScreen: TestTeamScreen | null;
+  /** The loadout picker, if it is open. */
+  loadout: LoadoutPickerState | null;
+  /** The move the new-move toast shows, while it shows. */
+  newMove: NewMove | null;
   /** The starter chosen and not yet confirmed, if any. */
   starterChosen: string | null;
   /** The move a level up offers and whether the answer is on its way, if one is waiting. */

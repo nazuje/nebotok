@@ -18,6 +18,7 @@ const CONTENT = loadBattleContent({
   rules: readContent('creatures/battle-rules.json'),
   befriending: readContent('creatures/befriending.json'),
   items: readContent('items.json'),
+  arena: readContent('creatures/arena.json'),
 });
 
 const SPECIES = 'glowbun';
@@ -110,7 +111,7 @@ async function seeFavourite(page, state, { language, strings, expect, check }) {
  * Attacks with the first move until the battle is won, leaving with Done once the wild creature has
  * fainted and waits for a treat, after `befriend` has looked at the treat picker.
  */
-async function winBattle(page, state, befriend, turn = 0) {
+export async function winBattle(page, state, befriend, turn = 0) {
   if (state.battle.panel === 'result' || turn >= MAX_TURNS) return state;
   await nextFrames(page);
   if (state.battle.phase === 'befriend') await befriend(state);
@@ -238,5 +239,9 @@ export async function playLearning(page, { language, strings, forget, expect, ch
   const knows = forget === null ? offer.moves : offer.moves.with(forget, NEXT.move);
   const back = await until(page, (s) => s.screen === 'world' && s.learning === null && JSON.stringify(s.progress?.team[0]?.moves) === JSON.stringify(knows), 'the world after answering');
   expect(back.progress.team[0].level === NEXT.level, `the learner is level ${back.progress.team[0].level} after answering`);
+  // The arena keeps the offered move whatever the answer, so the new-move toast follows either way.
+  await until(page, (s) => s.screen === 'world' && s.newMove?.index === 0 && s.newMove.move === NEXT.move, 'the new-move toast after answering');
+  await animationsSettled(page);
+  await check('the new-move toast after answering', 'l4-new-move');
   return readState(page);
 }
