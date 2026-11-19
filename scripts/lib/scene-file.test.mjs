@@ -15,6 +15,7 @@ const base = {
   steps: [{ do: 'join', player: 'lan' }],
 };
 const read = (scene) => parseScene(JSON.stringify(scene));
+const prepared = (value) => read({ ...base, players: [{ ...base.players[0], prepared: value }] });
 
 describe('parseScene', () => {
   it.each(readdirSync(SCENES).filter((file) => file.endsWith('.json')))('reads the example scene %s', (file) => {
@@ -67,7 +68,6 @@ describe('parseScene', () => {
   });
 
   it('takes a prepared team, with or without a quest step, and refuses half a quest or nothing to prepare', () => {
-    const prepared = (value) => read({ ...base, players: [{ ...base.players[0], prepared: value }] });
     const team = [{ species: 'glowbun', level: 8 }];
     expect(prepared({ at: { x: 14, y: 16 }, team }).ok).toBe(true);
     expect(prepared({ quest: 'the-grey-letter', step: 'lookout', at: { x: 33, y: 14 }, team }).ok).toBe(true);
