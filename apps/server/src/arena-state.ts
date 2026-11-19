@@ -1,5 +1,5 @@
 import { ArraySchema, schema, t, type SchemaType } from '@colyseus/schema';
-import { ARENA_INPUT_FIELDS, ARENA_NONE, type ArenaFight, type Body, type FightContent, type Thing } from '@nebotok/core';
+import { ARENA_INPUT_FIELDS, ARENA_NONE, ROUND_DRAW, type ArenaFight, type Body, type FightContent, type Thing } from '@nebotok/core';
 
 /**
  * What an arena room shows its players (docs/protocol.md, "Arena state"): the island of the fight,
@@ -90,8 +90,12 @@ export type ArenaTreat = SchemaType<typeof ArenaTreat>;
 export const ArenaRoomState = schema(
   {
     mode: t.string(),
-    /** `fighting` or `ended`; `picking` and `between` come with the rounds' picks (#155). */
+    /** `picking`, `fighting`, `between` (the pause between the rounds of a best of 3) or `ended`. */
     phase: t.string().default('fighting'),
+    /** Milliseconds left of picking or of the pause between rounds, in steps of 100; 0 otherwise. */
+    countdown: t.uint16(),
+    /** Whether each side has sent its picks, while picking. */
+    picked: t.array('boolean'),
     tick: t.uint32(),
     /** The tick the island's time limit falls on; each island of a best of 3 has its own. */
     limit: t.uint32(),
@@ -106,12 +110,17 @@ export const ArenaRoomState = schema(
     /** Round wins of each side; 0 and 0 in a wild fight. */
     score: t.array('uint8'),
     round: t.uint8(),
+    /** Each round played, in order: the winner's side, or `ROUND_DRAW`. A level round played again is left out. */
+    rounds: t.array('uint8'),
   },
   'ArenaRoomState',
 );
 export type ArenaRoomState = SchemaType<typeof ArenaRoomState>;
 
 export const MAX_THINGS = 24;
+
+/** The room's phase before its end: picking a best of 3's creatures, fighting, or the pause between its rounds. */
+export type ArenaPhase = 'picking' | 'fighting' | 'between';
 
 /** Sets `list[index]` only when it changed, so an unchanged number sends nothing. */
 function setAt<T>(list: ArraySchema<T>, index: number, value: T) {
@@ -158,11 +167,20 @@ function showThing(shown: ArenaThing, thing: Thing) {
   shown.ticks = thing.ticks;
 }
 
-/** Copies the fight onto the room's state, changing only what moved. */
-export function showFight(state: ArenaRoomState, fight: ArenaFight, content: FightContent) {
+/** Sets `list` to `values`, changing only what moved. */
+function setAll<T>(list: ArraySchema<T>, values: readonly T[]) {
+  while (list.length > values.length) list.pop();
+  values.forEach((value, index) => setAt(list, index, value));
+}
+
+/**
+ * Copies the fight onto the room's state, changing only what moved. While picking it shows no
+ * creatures, so neither side sees the other's picks before the first round.
+ */
+export function showFight(state: ArenaRoomState, fight: ArenaFight, content: FightContent, phase: ArenaPhase = 'fighting') {
   const { island } = fight;
   state.mode = fight.mode;
-  state.phase = fight.outcome ? 'ended' : 'fighting';
+  state.phase = fight.outcome ? 'ended' : phase;
   state.tick = fight.tick;
   // The island's own clock restarts each round, so the limit is given on the fight's.
   state.limit = fight.tick - island.tick + content.arena.island.limitTicks;
@@ -172,11 +190,13 @@ export function showFight(state: ArenaRoomState, fight: ArenaFight, content: Fig
   state.storm.next = island.storm.nextShrink ?? -1;
   state.weather = island.weather?.type ?? '';
   const swapCooldown = fight.mode === 'wild' ? fight.swapCooldown : 0;
-  island.bodies.forEach((body, side) => {
+  const bodies = phase === 'picking' ? [] : island.bodies;
+  while (state.bodies.length > bodies.length) state.bodies.pop();
+  bodies.forEach((body, side) => {
     if (!state.bodies[side]) state.bodies.push(new ArenaBody());
     showBody(state.bodies[side]!, body, side === 0 ? swapCooldown : 0);
   });
-  const things = island.things.slice(0, MAX_THINGS);
+  const things = phase === 'picking' ? [] : island.things.slice(0, MAX_THINGS);
   while (state.things.length > things.length) state.things.pop();
   things.forEach((thing, index) => {
     if (!state.things[index]) state.things.push(new ArenaThing());
@@ -190,4 +210,6 @@ export function showFight(state: ArenaRoomState, fight: ArenaFight, content: Fig
   const score = fight.mode === 'rounds' ? fight.score : [0, 0];
   score.forEach((wins, side) => setAt(state.score, side, wins));
   state.round = fight.mode === 'rounds' ? fight.round : 0;
+  const rounds = fight.mode === 'rounds' ? fight.rounds.filter((round) => !round.replayed).map((round) => round.winner ?? ROUND_DRAW) : [];
+  setAll(state.rounds, rounds);
 }

@@ -2,8 +2,10 @@ import { ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from '@colyseus/sdk';
 import { matchMaker } from '@colyseus/core';
 import {
+  ARENA_BETWEEN_MS,
   ARENA_IDLE,
   ARENA_NONE,
+  ARENA_PICK_MS,
   PROTOCOL_VERSION,
   cleanArenaInput,
   createSave,
@@ -21,6 +23,7 @@ import {
   type ArenaStartedMessage,
   type Progress,
   type ProgressMessage,
+  type Refused,
   type RoundsFightSetup,
 } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -41,6 +44,7 @@ const fights = createFightBook();
 const logged = capturedLog('info');
 
 const WILD = { species: 'drizzlesnail', level: 3 } as const;
+const PRACTICE = [WILD, { species: 'glowbun', level: 3 }, { species: 'pinwhirl', level: 3 }] as const;
 
 beforeAll(async () => {
   temp = tempServices(() => Date.now() + clock.offset);
@@ -109,6 +113,9 @@ const worldRoomOf = ({ room }: Player) => colyseus.getRoomById<WorldRoom>(room.r
 const saved = (id: number) => temp.services.progress.load(id)?.data;
 /** A level 5 fighter the computer plays, with a wild creature's buttons. */
 const computer = (id: string, species: string) => ({ id, species, level: 5, loadout: wildLoadout(species, 5, arenaContentOf(world().battle)), turtle: false, computer: true });
+/** A level 40 team creature at `place`, and a level 1 one of the other side's: a best of 3 that ends soon. */
+const strong = (place: number, species: string) => ({ place, fighter: { ...computer(`a${place + 1}`, species), level: 40, computer: false } });
+const weak = (at: number) => ({ place: null, fighter: { ...computer(`b${at + 1}`, WILD.species), level: 1 } });
 const settledLogs = () => logged.lines.filter((line) => line['msg'] === 'fight settled');
 
 /** Starts a wild fight for the player and returns its `arena.join`. */
@@ -118,6 +125,13 @@ async function startFight(who: Player): Promise<ArenaJoinMessage> {
   const join = await who.box.take<ArenaJoinMessage>('arena.join');
   expect(join.fightId).toBe(fightId);
   return join;
+}
+
+/** Starts a best of 3 against BOT for the player, as the `arena.practice` switch does, and returns its `arena.join`. */
+async function startPractice(who: Player): Promise<ArenaJoinMessage> {
+  const fightId = await worldRoomOf(who).startPractice(who.id, PRACTICE);
+  expect(fightId).not.toBeNull();
+  return who.box.take<ArenaJoinMessage>('arena.join');
 }
 
 type Fighter = { room: Room<unknown, ArenaRoomState>; box: Inbox; server: ArenaRoom };
@@ -379,4 +393,93 @@ describe('the arena room', () => {
     expect(ended).toEqual([expect.objectContaining({ fightId: 'bots', why: 'shutdown' })]);
     expect(ended[0]!.fight?.outcome).toBeNull();
   });
-});
+
+  it('lets the player pick three for a best of 3, refusing a creature twice, a fainted one or one off the team', async () => {
+    const team = [newCreature('glowbun', 20, world().battle), { ...newCreature('pinwhirl', 20, world().battle), hp: 0 }, newCreature('puddlepip', 18, world().battle), newCreature('drizzlesnail', 15, world().battle), newCreature('glowbun', 12, world().battle)];
+    const who = await player('Test Courier', { team });
+    const fighter = await enter(who, await startPractice(who));
+    const started = await fighter.box.take<ArenaStartedMessage>('arena.started');
+    // Only its own side, with the defaults: the first three standing.
+    expect(started.mode).toBe('rounds');
+    expect(started.sides[0].map((creature) => creature.place)).toEqual([0, 2, 3]);
+    expect(started.sides[1]).toEqual([]);
+    expect(fighter.room.state.phase).toBe('picking');
+    expect(fighter.room.state.bodies).toHaveLength(0);
+    const wrong = [[0, 0, 2], [0, 1, 2], [0, 2, 5], [0, 2]];
+    for (const order of wrong) fighter.room.send('arena.pick', { order });
+    await until(() => fighter.box.count('refused') === wrong.length, 'every wrong pick to be refused');
+    expect(fighter.box.heard.filter((message) => message.type === 'refused').map((message) => message.payload as Refused)).toEqual(wrong.map(() => ({ request: 'arena.pick', reason: 'invalid' })));
+    fighter.box.heard.length = 0;
+    expect(fighter.room.state.phase).toBe('picking');
+    fighter.room.send('arena.pick', { order: [4, 2, 0] });
+    const rounds = await fighter.box.take<ArenaStartedMessage>('arena.started');
+    expect(rounds.sides[0].map((creature) => creature.id)).toEqual(['a5', 'a3', 'a1']);
+    expect(rounds.sides[1].map((creature) => creature.species)).toEqual(PRACTICE.map((opponent) => opponent.species));
+    await until(() => fighter.room.state.phase === 'fighting' && fighter.room.state.bodies.length === 2, 'round 1 to start');
+    expect(fighter.room.state.bodies.map((body) => body.id)).toEqual(['a5', 'b1']);
+    expect(fighter.room.state.picked.toArray()).toEqual([true, false]);
+    fighter.room.send('arena.pick', { order: [0, 2, 3] });
+    expect(await fighter.box.take<Refused>('refused')).toEqual({ request: 'arena.pick', reason: 'notNow' });
+  });
+
+  it('refuses arena.pick in a wild fight', async () => {
+    const who = await player('Test Courier');
+    const fighter = await enter(who, await startFight(who));
+    await fighter.box.take('arena.started');
+    fighter.room.send('arena.pick', { order: [0] });
+    expect(await fighter.box.take<Refused>('refused')).toEqual({ request: 'arena.pick', reason: 'notNow' });
+  });
+
+  it('picks the first three standing creatures when the time runs out, and counts only while the player is here', async () => {
+    const team = [{ ...newCreature('glowbun', 20, world().battle), hp: 0 }, newCreature('pinwhirl', 20, world().battle), newCreature('puddlepip', 18, world().battle)];
+    const who = await player('Test Courier', { team });
+    const join = await startPractice(who);
+    await sleep(200);
+    clock.offset = ARENA_PICK_MS;
+    const fighter = await enter(who, join);
+    await fighter.box.take('arena.started');
+    // The time away did not count.
+    await sleep(200);
+    expect(fighter.room.state.phase).toBe('picking');
+    expect(fighter.room.state.countdown).toBeGreaterThan(ARENA_PICK_MS - 1_000);
+    clock.offset += ARENA_PICK_MS;
+    const started = await fighter.box.take<ArenaStartedMessage>('arena.started');
+    expect(started.sides[0].map((creature) => creature.place)).toEqual([1, 2]);
+    await until(() => fighter.room.state.phase === 'fighting', 'round 1 to start');
+    expect(fighter.room.state.bodies[0]?.id).toBe('a2');
+    expect(logged.lines.find((line) => line['msg'] === 'rounds picked')).toMatchObject({ chose: [false] });
+  });
+
+  it('pauses between rounds with the score, swaps in the next picks on a fresh island, and ends 2–0 after two rounds', async () => {
+    const who = await player('Test Courier');
+    const team = [strong(0, 'glowbun'), strong(1, 'pinwhirl'), strong(2, 'puddlepip')];
+    const setup: RoundsFightSetup = { mode: 'rounds', seed: 11, picks: [team, [weak(0), weak(1), weak(2)]] };
+    const ended: FightEnd[] = [];
+    // The player's side is played by BOT, against a side that stands still, so each round ends soon.
+    await fights.open({ fightId: 'two-nil', setup, seats: [{ playerId: who.id, side: 0 }], minds: [{ side: 0, mind: 'BOT' }], pickers: [{ side: 0, team }], ended: (end) => ended.push(end) });
+    const fighter = await enter(who, { fightId: 'two-nil', reservation: (await fights.reserve('two-nil', who.id))! });
+    await fighter.box.take('arena.started');
+    fighter.room.send('arena.pick', { order: [2, 0, 1] });
+    await fighter.box.take('arena.started');
+    const { state } = fighter.room;
+    await until(() => state.phase === 'fighting' && state.bodies[0]?.id === 'a3', 'round 1 to start');
+    await until(() => state.phase === 'between', 'round 1 to end', Date.now() + 60_000);
+    expect(state.rounds.toArray()).toEqual([0]);
+    expect([...state.score]).toEqual([1, 0]);
+    expect(state.round).toBe(1);
+    // The next picks stand on a fresh island, and nothing moves while the score shows.
+    expect(state.bodies.map((body) => body.id)).toEqual(['a1', 'b2']);
+    expect(state.bodies.every((body) => body.health === body.max)).toBe(true);
+    expect(fighter.server.current.island.tick).toBe(0);
+    const tick = fighter.server.current.tick;
+    await sleep(300);
+    expect(fighter.server.current.tick).toBe(tick);
+    expect(state.countdown).toBeGreaterThan(0);
+    clock.offset += ARENA_BETWEEN_MS;
+    await until(() => state.phase !== 'between', 'round 2 to start');
+    await until(() => ended.length === 1, 'the best of 3 to end', Date.now() + 60_000);
+    await until(() => state.phase === 'ended', 'the end to reach the player');
+    expect(state.rounds.toArray()).toEqual([0, 0]);
+    expect(ended[0]!.fight?.outcome).toMatchObject({ result: 'won', winner: 0 });
+    expect(fighter.server.current.mode === 'rounds' && fighter.server.current.rounds).toHaveLength(2);
+  });});

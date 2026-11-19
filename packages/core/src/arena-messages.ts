@@ -1,6 +1,9 @@
+import { z } from 'zod';
+import { MAX_TEAM } from './battle/state.ts';
 import type { CreatureReward, LearnedMove, WakePoint } from './messages.ts';
 import type { ArenaInput, Side } from './arena/state.ts';
 import { DIRECTION_COUNT } from './arena/fixed.ts';
+import { ROUNDS } from './arena/rounds.ts';
 import type { FightEvent, RoundResult, RoundsOutcome, WildOutcome } from './arena/fight-state.ts';
 
 /**
@@ -88,6 +91,22 @@ export type ArenaStartedMessage = {
   readonly side: Side;
   readonly sides: readonly [readonly ArenaLineupCreature[], readonly ArenaLineupCreature[]];
 };
+
+/** Messages a player sends the arena room besides its input stream. */
+export const ARENA_CLIENT_MESSAGES = {
+  pick: 'arena.pick',
+} as const;
+
+/** `arena.pick`: the team places of the creatures to fight a best of 3 with, in round order. */
+export const ArenaPickMessage = z.strictObject({ order: z.array(z.number().int().min(0).max(MAX_TEAM - 1)).min(1).max(ROUNDS) });
+export type ArenaPickMessage = z.infer<typeof ArenaPickMessage>;
+
+/** How long a best of 3 waits for picks before it takes each side's first three standing creatures. */
+export const ARENA_PICK_MS = 30_000;
+/** The pause between the rounds of a best of 3, while the score shows. */
+export const ARENA_BETWEEN_MS = 3_000;
+/** What the arena state's `rounds` holds for a round that ended level; otherwise the winner's side. */
+export const ROUND_DRAW = 2;
 
 /** `arena.events`: what one fixed step's core steps did, for the screen's juice; `tick` is the fight's tick after them. */
 export type ArenaEventsMessage = { readonly tick: number; readonly events: readonly FightEvent[] };

@@ -62,6 +62,10 @@ const contract = {
   arena: {
     room: ARENA_ROOM,
     messages: core.ARENA_MESSAGES,
+    clientMessages: core.ARENA_CLIENT_MESSAGES,
+    pick: z.toJSONSchema(core.ArenaPickMessage),
+    pickMs: core.ARENA_PICK_MS,
+    betweenMs: core.ARENA_BETWEEN_MS,
     input: core.ARENA_INPUT_FIELDS,
     none: core.ARENA_NONE,
     tickRate: ARENA_TICK_RATE,

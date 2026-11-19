@@ -17,8 +17,10 @@ import type { PlayerSettings } from './save.ts';
  * `settings`, and `loadout` and `learned` on each team creature in `progress`.
  * 12: the arena room: its input stream (`ARENA_INPUT_FIELDS`), `arena.join` and `arena.result` from
  * the world room, and `arena.started` and `arena.events` from the arena room.
+ * 13: picking three for a best of 3: `arena.pick`, `refused` from the arena room, and its
+ * `picking` and `between` phases with `countdown`, `picked` and `rounds` in its state.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -32,6 +34,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   10: '085c82893f62a3',
   11: '09d3bce56b47cb',
   12: '0262812411765a',
+  13: '127ecd7b31e0bb',
 };
 
 export type WorldInfo = {
@@ -121,10 +124,11 @@ export const SERVER_MESSAGES = {
   arenaResult: 'arena.result',
 } as const;
 
-/** Messages the arena room sends to its players. Its input stream is `ARENA_INPUT_FIELDS` (arena-messages.ts). */
+/** Messages the arena room sends to its players. Its input stream is `ARENA_INPUT_FIELDS` and `arena.pick` is in `ARENA_CLIENT_MESSAGES` (arena-messages.ts). */
 export const ARENA_MESSAGES = {
   started: 'arena.started',
   events: 'arena.events',
+  refused: 'refused',
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);
