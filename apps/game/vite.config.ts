@@ -21,7 +21,8 @@ export default defineConfig({
   preview: { open: false },
   build: {
     target: 'es2022',
-    // Phaser's own chunk is about 1.3 MB however it is split; the warning is for the game's code.
+    // Phaser's own chunk (about 1.4 MB) is past Vite's default warning size and cannot shrink; this
+    // limit keeps the warning for real growth.
     chunkSizeWarningLimit: 2_000,
     rolldownOptions: {
       output: {

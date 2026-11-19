@@ -233,10 +233,15 @@
   cursor: default;
 }
 
-.arena-button.locked canvas + canvas {
+.arena-button.locked .loadout-digits {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 4px;
+  bottom: 4px;
+}
+
+/* Each digit is drawn in the middle of its own square, so a two-digit level pulls them together to read as one number. */
+.arena-button.locked .loadout-digits .picture + .picture {
+  margin-left: -6px;
 }
 
 .arena-cooldown {
