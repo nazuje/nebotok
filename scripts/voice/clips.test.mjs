@@ -39,6 +39,14 @@ describe('voiceLines', () => {
     ]);
   });
 
+  it('voices each move name as the narrator, for the loadout picker', () => {
+    const moves = { moves: [{ id: 'sun-tap', name: say('Sun Tap', 'Sončni dotik') }] };
+    expect(voiceLines({ ...STORY, moves }).lines.filter(({ from }) => from.startsWith('creatures/'))).toEqual([
+      { language: 'en', voice: null, text: 'Sun Tap', from: 'creatures/moves.json sun-tap name' },
+      { language: 'sl', voice: null, text: 'Sončni dotik', from: 'creatures/moves.json sun-tap name' },
+    ]);
+  });
+
   it('voices each form of a Slovenian line written for boys and girls apart', () => {
     const story = { ...STORY, quests: { quests: [{ ...STORY.quests.quests[0], name: say('Done', { m: 'Prišel si', f: 'Prišla si' }) }] } };
     const sl = voiceLines(story).lines.filter((line) => line.language === 'sl').map(({ text }) => text);

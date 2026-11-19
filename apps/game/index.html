@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="/src/skill-pictures.css" />
     <link rel="stylesheet" href="/src/job-board.css" />
     <link rel="stylesheet" href="/src/battle-pictures.css" />
+    <link rel="stylesheet" href="/src/loadout.css" />
   </head>
   <body data-screen="profiles">
     <div id="world" aria-hidden="true"></div>
@@ -29,6 +30,7 @@
     <section id="pin-setup" class="screen" hidden></section>
     <section id="starter" class="screen" hidden></section>
     <section id="team" class="screen" hidden></section>
+    <section id="loadout" class="screen" hidden></section>
     <section id="learn" class="screen" hidden></section>
     <section id="bag" class="screen" hidden></section>
     <section id="journal" class="screen" hidden></section>
@@ -90,12 +92,18 @@
         <span class="language-option" data-read="off"></span>
         <span class="language-option" data-read="on"></span>
       </button>
+      <p class="settings-turtle" hidden></p>
+      <button class="turtle" type="button" aria-pressed="false" hidden>
+        <span class="language-option" data-turtle="off"></span>
+        <span class="language-option" data-turtle="on"></span>
+      </button>
       <button class="add-pin secondary" type="button" hidden></button>
       <button class="switch-player secondary" type="button" hidden></button>
     </div>
     <p class="welcome" hidden></p>
     <p class="toast" role="status" aria-live="polite" hidden></p>
     <div class="quest-toast" role="status" aria-live="polite" hidden></div>
+    <button class="new-move-toast" type="button" hidden></button>
     <button class="compass-button" type="button" hidden></button>
     <div class="walk-hint" aria-hidden="true" hidden>
       <div class="walk-hint-pad"></div>

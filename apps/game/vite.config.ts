@@ -22,6 +22,13 @@ export default defineConfig({
     target: 'es2022',
     // Phaser is one large module on purpose; splitting it would not make the first load smaller.
     chunkSizeWarningLimit: 2_000,
+    rolldownOptions: {
+      output: {
+        // Phaser gets a chunk of its own so the game's code beside it stays under the service
+        // worker's 2 MiB precache limit, and a deploy that changes only the game keeps Phaser cached.
+        codeSplitting: { groups: [{ name: 'phaser', test: /node_modules[\\/]phaser[\\/]/ }] },
+      },
+    },
   },
   plugins: [
     VitePWA({

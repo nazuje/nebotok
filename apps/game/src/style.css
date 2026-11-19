@@ -302,14 +302,16 @@ body:not([data-screen='world']) .walk-hint {
 
 .settings-language,
 .settings-controls,
-.settings-read {
+.settings-read,
+.settings-turtle {
   margin: 0;
   font-weight: 700;
 }
 
 .language,
 .controls,
-.read-to-me {
+.read-to-me,
+.turtle {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;
@@ -336,7 +338,8 @@ body:not([data-screen='world']) .walk-hint {
   color: white;
 }
 
-.read-to-me {
+.read-to-me,
+.turtle {
   align-items: center;
   gap: 4px;
 }

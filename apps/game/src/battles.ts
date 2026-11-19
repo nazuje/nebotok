@@ -1,4 +1,4 @@
-import { SERVER_MESSAGES, type Language, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
 import { createBattleModel } from './battle-model.ts';
@@ -8,6 +8,8 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { TOAST_MS, type ToastKind } from './hud.ts';
 import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
+import { createLoadoutPicker, type LoadoutPickerState } from './loadout-picker.ts';
+import { createNewMoveToast, type NewMove } from './new-move-toast.ts';
 import { pictureIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
@@ -17,8 +19,8 @@ import { createTeamScreen } from './team-screen.ts';
 import type { LearnState } from './learn-prompt.ts';
 import type { TestBattle, TestTeamScreen } from './test-hook.ts';
 
-/** A screen over the world that battles, the team and the starter choice put up. */
-export type BattleOverlay = 'battle' | 'team' | 'starter' | 'learn';
+/** A screen over the world that battles, the team, the loadout picker and the starter choice put up. */
+export type BattleOverlay = 'battle' | 'team' | 'loadout' | 'starter' | 'learn';
 
 export type BattlesOptions = {
   /** The game, made after this, since the game needs the battle scene. */
@@ -33,8 +35,15 @@ export type BattlesOptions = {
   standing(): { map: WorldMap; tile: Point } | null;
   /** A talk is at the node that offers the starter: only then does the starter screen open. */
   starterOffered(): boolean;
-  /** Paces every battle, team, storage, starter and move request with the page's other requests, under the server's limit. */
+  /** Paces every battle, team, storage, starter, move and loadout request with the page's other requests, under the server's limit. */
   requests: RequestPacer;
+  /** "Read to me" is on, so the loadout picker offers to read each move's name. */
+  readToMe(): boolean;
+  /** Reads words aloud in the narrator's voice, and whether they have a clip to read. */
+  say(words: string): void;
+  canSay(words: string): boolean;
+  /** A welcome line or a toast holds the spot at the bottom, where the new-move toast waits to show. */
+  bottomTaken(): boolean;
 };
 
 export type Battles = {
@@ -48,12 +57,22 @@ export type Battles = {
   progress(): ProgressMessage | null;
   /** Forgets every battle and team, as when the player leaves the world. */
   reset(): void;
-  snapshot(now: number): { battle: TestBattle | null; progress: ProgressMessage | null; storage: StorageMessage | null; teamScreen: TestTeamScreen | null; starterChosen: string | null; learning: LearnState | null };
+  snapshot(now: number): {
+    battle: TestBattle | null;
+    progress: ProgressMessage | null;
+    storage: StorageMessage | null;
+    teamScreen: TestTeamScreen | null;
+    loadout: LoadoutPickerState | null;
+    newMove: NewMove | null;
+    starterChosen: string | null;
+    learning: LearnState | null;
+  };
 };
 
 /**
  * Everything about creatures in the page: the messages from the server, the battle model, the
- * Phaser battle field, and the battle, team, starter and move-learning screens over the world.
+ * Phaser battle field, and the battle, team, loadout, starter and move-learning screens over the
+ * world, with the toast for each move a creature learns.
  */
 export function createBattles(options: BattlesOptions): Battles {
   const model = createBattleModel((line, view) => lineText(line, view, options.language()).length);
@@ -87,7 +106,29 @@ export function createBattles(options: BattlesOptions): Battles {
     storage: () => model.storage(),
     send: request,
     closed: () => update(),
+    openLoadout: (index) => {
+      picker.open(index);
+      update();
+    },
   });
+  const picker = createLoadoutPicker(element<HTMLElement>('#loadout'), {
+    language: options.language,
+    progress: () => model.progress(),
+    send: request,
+    readToMe: options.readToMe,
+    say: options.say,
+    canSay: options.canSay,
+    closed: () => update(),
+  });
+  const newMoves = createNewMoveToast(element<HTMLButtonElement>('.new-move-toast'), {
+    language: options.language,
+    open: ({ index, move }) => {
+      picker.open(index, move);
+      update();
+    },
+  });
+  /** Offers already toasted, since the server sends an offer again after a reconnection. */
+  const offersSeen = new Set<number>();
   const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: request });
   // A move a level up offers is asked about once the battle screen is put away.
   const learn = createLearnModel();
@@ -117,7 +158,28 @@ export function createBattles(options: BattlesOptions): Battles {
     model.reset();
     learn.reset();
     team.close();
+    picker.close();
+    newMoves.reset();
     update();
+  }
+
+  /** Moves the team creatures at their places learned, named by species from the team as it is. */
+  const withSpecies = (moves: readonly { index: number; move: string }[]): NewMove[] =>
+    moves.flatMap(({ index, move }) => {
+      const species = model.progress()?.team[index]?.species;
+      return species === undefined ? [] : [{ index, species, move }];
+    });
+
+  /**
+   * Every move a creature learns gets a toast once the screen is free: those learned at once at the
+   * end of a battle and those a level up offers, which the arena keeps whatever the answer.
+   */
+  function toastLearned(message: ServerMessage) {
+    if (message.type === SERVER_MESSAGES.battleResult) newMoves.learned(withSpecies(message.payload.learned));
+    if (message.type === SERVER_MESSAGES.moveOffer && !offersSeen.has(message.payload.offer)) {
+      offersSeen.add(message.payload.offer);
+      newMoves.learned([{ index: message.payload.index, species: message.payload.species, move: message.payload.move }]);
+    }
   }
 
   /** Resting at a shrine heals the team: its button sparkles while the news shows. */
@@ -131,8 +193,10 @@ export function createBattles(options: BattlesOptions): Battles {
   function receive(message: ServerMessage) {
     const wasFighting = unfinished();
     const restedAt = model.storage()?.shrine;
+    toastLearned(message);
     model.receive(message, performance.now());
     learn.receive(message);
+    if (message.type === SERVER_MESSAGES.refused && message.payload.request === CLIENT_MESSAGES.loadoutSet) picker.refused();
     // Skill refusals are the skills' to explain.
     if (message.type === SERVER_MESSAGES.refused && !SKILL_REQUESTS.has(message.payload.request)) {
       if (wasFighting && !unfinished()) options.toast('battle.interrupted', 'news');
@@ -146,11 +210,15 @@ export function createBattles(options: BattlesOptions): Battles {
     const battle = model.battle(now);
     const progress = model.progress();
     const offer = battle ? null : learn.current();
-    if (battle || offer) team.close();
+    if (battle || offer) {
+      team.close();
+      picker.close();
+    }
     starter.render(battle || !options.starterOffered() ? null : progress);
     battleScreen.render(battle);
     learnPrompt.render(offer);
     team.render();
+    picker.render(now);
     teamButton.hidden = battle !== null || offer !== null || (progress?.team.length ?? 0) === 0;
     teamButton.setAttribute('aria-label', text('team.title', options.language()));
     const running = options.game().scene.isActive(BATTLE_SCENE);
@@ -158,7 +226,8 @@ export function createBattles(options: BattlesOptions): Battles {
       options.game().scene.run(BATTLE_SCENE);
       options.battleStarted();
     } else if (!battle && running) options.game().scene.stop(BATTLE_SCENE);
-    const next: BattleOverlay | null = battle ? 'battle' : offer ? 'learn' : starter.isOpen() ? 'starter' : team.isOpen() ? 'team' : null;
+    const next: BattleOverlay | null = battle ? 'battle' : offer ? 'learn' : starter.isOpen() ? 'starter' : picker.isOpen() ? 'loadout' : team.isOpen() ? 'team' : null;
+    newMoves.render(next === null && !options.bottomTaken(), now);
     if (next !== overlay) {
       overlay = next;
       options.changed();
@@ -214,7 +283,16 @@ export function createBattles(options: BattlesOptions): Battles {
         woke: state.result?.woke ?? null,
         befriended: state.befriended && { species: state.befriended.species, placedIn: state.befriended.placedIn },
       };
-      return { battle, progress: model.progress(), storage: model.storage(), teamScreen: team.isOpen() ? team.state() : null, starterChosen: starter.chosen(), learning: learn.current() };
+      return {
+        battle,
+        progress: model.progress(),
+        storage: model.storage(),
+        teamScreen: team.isOpen() ? team.state() : null,
+        loadout: picker.state(),
+        newMove: newMoves.current(),
+        starterChosen: starter.chosen(),
+        learning: learn.current(),
+      };
     },
   };
 }
