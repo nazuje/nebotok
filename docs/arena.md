@@ -332,6 +332,8 @@ Only in wild fights.
 - **Leave** (held 1 s) ends the fight as `ran`: no XP, as today's run.
 - **Outcomes:** `won`, `wonByRingOut`, `befriended`, `lost`, `ran`, `timeUp`. When the wild
   creature and yours go down on the same tick, the wild creature down counts: it is a win.
+- **Quests:** `won`, `wonByRingOut` and `befriended` each count as a won battle in the fight's
+  zone, as a befriending does in a turn battle; `befriended` also counts the new friend.
 - **Rewards** (`arenaRewards`): `xpForWin` of the wild creature's level to every creature that
   fought and still stands, as today. `won`, `wonByRingOut`, `befriended` and `timeUp` give it;
   `lost` and `ran` give nothing. A fight that runs out of time still gives the full XP: the

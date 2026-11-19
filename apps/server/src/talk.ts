@@ -111,11 +111,12 @@ export function battleEvents(outcome: BattleOutcome | null, zone: string, befrie
   return befriended === null ? [won] : [won, { kind: 'befriended', species: befriended }];
 }
 
-/** The quest events a settled wild fight counts: a win in its zone, by knockout or ring-out, or the creature it befriended. */
+/** The quest events a settled wild fight counts: a win in its zone, by knockout, ring-out or befriending as in a turn battle, and the creature it befriended. */
 export function fightEvents(outcome: WildOutcome | RoundsOutcome | null, zone: string | null, befriended: string | null): QuestEvent[] {
   const result = outcome?.result;
-  if (result === 'won' || result === 'wonByRingOut') return [{ kind: 'battleWon', zone }];
-  return befriended === null ? [] : [{ kind: 'befriended', species: befriended }];
+  if (result !== 'won' && result !== 'wonByRingOut' && result !== 'befriended') return [];
+  const won: QuestEvent = { kind: 'battleWon', zone };
+  return befriended === null ? [won] : [won, { kind: 'befriended', species: befriended }];
 }
 
 /** What changed the story: the progress after, and the quests that changed, in order. */

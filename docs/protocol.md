@@ -334,8 +334,8 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   is offered with `move.offer`; a turn battle's four moves take the new ones while there is room),
   the treats left, the befriended creature to the team or storage with `befriended`, and waking
   at a shrine when the whole team fainted. It saves at once and sends `arena.result`, then counts
-  the quest events: `battleWon` in the fight's zone on `won` and `wonByRingOut`, and
-  `befriended` on `befriended` (unlike a turn battle, a befriending is not a won battle), with any
+  the quest events: `battleWon` in the fight's zone on `won`, `wonByRingOut` and `befriended`
+  (a befriending is a won battle, as in a turn battle), and `befriended` too on `befriended`, with any
   `quest.changed`, then `progress` and, when quests moved, `story`; `inBattle` turns false. `seen` is
   saved as the fight starts.
 - **Starting points.** Tall grass with `ARENA_BATTLES` on (#150, built): a step that meets a

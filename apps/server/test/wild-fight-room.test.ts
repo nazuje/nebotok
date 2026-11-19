@@ -91,6 +91,16 @@ async function fightToTheEnd(who: Player, fighter: Fighter, deadline = Date.now(
   return fightToTheEnd(who, fighter, deadline, sent + 1);
 }
 
+/** Takes Vetrinka's round of a rest, a won battle in the meadow and a befriending, and rests at the shrine. */
+async function restOnRounds(who: Player): Promise<void> {
+  const offer = await send(who, 'talk.start', { npc: 'vetrinka' }).then(() => who.box.take<TalkNode>('talk.node'));
+  expect((await who.box.take<QuestChanged>('quest.changed')).change).toBe('started');
+  await send(who, 'talk.end', { conversation: offer.conversation });
+  await who.box.take<TalkEnded>('talk.ended');
+  who.room.send('walk.to', map().shrines['post-shrine']!);
+  expect(await who.box.take<QuestChanged>('quest.changed')).toMatchObject({ quest: 'test-rounds', change: 'step', step: 1 });
+}
+
 /** The arena room ends its fight as `result`, as the island would have, and hands it to the world room. */
 function endAs(join: ArenaJoinMessage, result: WildResult) {
   const room = server.colyseus.getRoomById<ArenaRoom>(join.reservation.roomId);
@@ -141,12 +151,7 @@ describe('wild fights in the grass', () => {
   it('counts a ring-out win in the zone and a befriending for quests, with no friend from the ring-out and a full team’s friend in storage', async () => {
     const team = [nearlyFifteen(), ...Array.from({ length: MAX_TEAM - 1 }, filler)];
     const who = await server.player('Questing Courier', besideNpc('vetrinka'), { team });
-    const offer = await send(who, 'talk.start', { npc: 'vetrinka' }).then(() => who.box.take<TalkNode>('talk.node'));
-    expect((await who.box.take<QuestChanged>('quest.changed')).change).toBe('started');
-    await send(who, 'talk.end', { conversation: offer.conversation });
-    await who.box.take<TalkEnded>('talk.ended');
-    who.room.send('walk.to', map().shrines['post-shrine']!);
-    expect(await who.box.take<QuestChanged>('quest.changed')).toMatchObject({ quest: 'test-rounds', change: 'step', step: 1 });
+    await restOnRounds(who);
 
     const ringOut = await meetWild(who);
     endAs(ringOut, 'wonByRingOut');
@@ -171,6 +176,17 @@ describe('wild fights in the grass', () => {
     expect(stored?.storage).toEqual([expect.objectContaining({ species: WILD.species, level: WILD.level })]);
     expect(stored?.befriended).toContain(WILD.species);
     expect(stored?.story.done).toEqual(['test-rounds']);
+  });
+
+  it('counts a befriending as a won battle in its zone, as a turn battle does', async () => {
+    const who = await server.player('Befriending Courier', besideNpc('vetrinka'), { team: [nearlyFifteen()] });
+    await restOnRounds(who);
+
+    endAs(await meetWild(who), 'befriended');
+    expect(await who.box.take<ArenaResultMessage>('arena.result')).toMatchObject({ outcome: { result: 'befriended' }, befriended: { species: WILD.species, placedIn: 'team' } });
+    expect(await who.box.take<QuestChanged>('quest.changed')).toMatchObject({ quest: 'test-rounds', change: 'step', step: 2 });
+    expect(await who.box.take<QuestChanged>('quest.changed')).toMatchObject({ quest: 'test-rounds', change: 'done', step: 3 });
+    expect(server.stored(who.id)?.story.done).toEqual(['test-rounds']);
   });
 
   it('ends the fight of a player who dropped out of it as ran after the idle time, with no experience', async () => {
