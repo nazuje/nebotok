@@ -4,8 +4,8 @@ import { moveArena } from './move-arena.ts';
 
 /**
  * The "try it" preview of the loadout picker: a move's shape played on a mini island, looping,
- * with no server. The arena's own painter can take over by being passed as `painter`; until then
- * `sketchShape` draws a simple stand-in.
+ * with no server. The loadout picker passes the arena's own painter (`arena/arena-preview.ts`) as
+ * `painter`; `sketchShape` is the simple stand-in when none is given.
  */
 
 export type PreviewColours = { readonly light: string; readonly main: string; readonly dark: string };

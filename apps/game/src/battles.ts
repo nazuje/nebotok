@@ -1,4 +1,4 @@
-import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type LearnedMove, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
 import { createBattleModel } from './battle-model.ts';
@@ -44,6 +44,8 @@ export type BattlesOptions = {
   canSay(words: string): boolean;
   /** A welcome line or a toast holds the spot at the bottom, where the new-move toast waits to show. */
   bottomTaken(): boolean;
+  /** An arena fight is on screen: the team, picker, starter and move prompts wait for it. */
+  arenaUp(): boolean;
 };
 
 export type Battles = {
@@ -57,6 +59,8 @@ export type Battles = {
   progress(): ProgressMessage | null;
   /** Forgets every battle and team, as when the player leaves the world. */
   reset(): void;
+  /** Toasts the moves an arena fight's end taught at once, as a battle's end does. */
+  learned(moves: readonly LearnedMove[]): void;
   snapshot(now: number): {
     battle: TestBattle | null;
     progress: ProgressMessage | null;
@@ -209,17 +213,18 @@ export function createBattles(options: BattlesOptions): Battles {
   function update(now = performance.now()) {
     const battle = model.battle(now);
     const progress = model.progress();
-    const offer = battle ? null : learn.current();
-    if (battle || offer) {
+    const arena = options.arenaUp();
+    const offer = battle || arena ? null : learn.current();
+    if (battle || offer || arena) {
       team.close();
       picker.close();
     }
-    starter.render(battle || !options.starterOffered() ? null : progress);
+    starter.render(battle || arena || !options.starterOffered() ? null : progress);
     battleScreen.render(battle);
     learnPrompt.render(offer);
     team.render();
     picker.render(now);
-    teamButton.hidden = battle !== null || offer !== null || (progress?.team.length ?? 0) === 0;
+    teamButton.hidden = battle !== null || offer !== null || arena || (progress?.team.length ?? 0) === 0;
     teamButton.setAttribute('aria-label', text('team.title', options.language()));
     const running = options.game().scene.isActive(BATTLE_SCENE);
     if (battle && !running) {
@@ -227,7 +232,7 @@ export function createBattles(options: BattlesOptions): Battles {
       options.battleStarted();
     } else if (!battle && running) options.game().scene.stop(BATTLE_SCENE);
     const next: BattleOverlay | null = battle ? 'battle' : offer ? 'learn' : starter.isOpen() ? 'starter' : picker.isOpen() ? 'loadout' : team.isOpen() ? 'team' : null;
-    newMoves.render(next === null && !options.bottomTaken(), now);
+    newMoves.render(next === null && !arena && !options.bottomTaken(), now);
     if (next !== overlay) {
       overlay = next;
       options.changed();
@@ -258,6 +263,7 @@ export function createBattles(options: BattlesOptions): Battles {
     overlay: () => overlay,
     progress: () => model.progress(),
     reset: forgetEverything,
+    learned: (moves) => newMoves.learned(withSpecies(moves)),
     snapshot: (now) => {
       const state = model.battle(now);
       const language = options.language();

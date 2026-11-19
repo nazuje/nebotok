@@ -21,7 +21,8 @@ export default defineConfig({
   preview: { open: false },
   build: {
     target: 'es2022',
-    // Phaser is one large module on purpose; splitting it would not make the first load smaller.
+    // Phaser's own chunk (about 1.4 MB) is past Vite's default warning size and cannot shrink; this
+    // limit keeps the warning for real growth.
     chunkSizeWarningLimit: 2_000,
     rolldownOptions: {
       output: {

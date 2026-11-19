@@ -7,6 +7,7 @@ import { buttonFor, buttonTiles, chosenLoadout, offeredMoves, powerPips, tappedB
 import { moveArena } from './move-arena.ts';
 import { abilityIcon, pictureIcon } from './pictures.ts';
 import { ANSWER_MS } from './request-pacer.ts';
+import { arenaShapePainter } from './arena/arena-preview.ts';
 import { createShapePreview } from './shape-preview.ts';
 import { speakerButton } from './speaker-button.ts';
 import { format, text } from './strings.ts';
@@ -54,7 +55,7 @@ export const HOLD_MS = 400;
 export const SAVED_MS = 2_000;
 
 /** A number as the picture kit's digits, such as a locked button's level. */
-function digits(value: number, sizePx: number): HTMLElement {
+export function digits(value: number, sizePx: number): HTMLElement {
   return el(
     'span',
     { className: 'loadout-digits', attrs: { 'aria-hidden': 'true' } },
@@ -91,7 +92,7 @@ export function createLoadoutPicker(root: HTMLElement, options: LoadoutPickerOpt
   const canvas = el('canvas', { className: 'loadout-island', attrs: { role: 'img', 'aria-label': t('loadout.try') } });
   const previewPanel = el('div', { className: 'loadout-preview', attrs: { 'aria-hidden': 'true' } }, [canvas]);
   previewPanel.hidden = true;
-  const preview = createShapePreview(canvas);
+  const preview = createShapePreview(canvas, arenaShapePainter);
 
   const creature = (): TeamCreature | null => (index === null ? null : (options.progress()?.team[index] ?? null));
   /** The loadout as the picker shows it: the server's, with a change on its way already in place. */

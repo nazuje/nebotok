@@ -512,6 +512,17 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   one shows the lock picture with its level in digits), Dash, and Treat and Swap only while they can
   be used. Leave sits in a top corner, held 1 s (wild fights only).
 - **Keys:** WASD or arrows, 1, 2, 3, Space (dash), E (treat), Q (swap).
+- **Arena screen** (#151, built): the island fills the screen, drawn by Phaser
+  (`apps/game/src/arena/arena-scene.ts`), with HTML over it: a card for each side at the top
+  (portrait, level badge, health bar, the turtle on yours when it is on), the stick's half, the
+  button cluster and Leave (`arena-controls.ts`, `arena-screen.ts`). Creatures follow the server's
+  positions with a short ease, snap when they jump far, squash on a hit, bob as they walk and fall
+  off the edge after a ring-out. The result is a card with one picture for the ending (trophy,
+  ring-out, heart, puff, leave, clock or cloud) and one line, each creature's XP bar, and Continue,
+  which goes back to the world. Swap shows while a team-mate could still come in, as far as the
+  fight's events tell (`fight-book.ts`); Treat while you hold a treat, none is out, and the wild
+  creature's health is under that treat's window. The world's toasts and the new-move toast stay
+  hidden while the arena is up.
 - **Pictures** (#143): one for each of the 13 shapes, a corner mark for each kind (quick a small
   tick, special a star, ultimate a sun-burst ring), and dash, treat, swap, leave, lock, turtle,
   challenge, accept, decline, watch, even match, real levels and ring-out. A move's button picture
@@ -525,10 +536,10 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   that kind, so no wrong choice is possible. A move tile shows 1 to 3 power pips (1 for 40 and 50,
   2 for 65 and 80, 3 for 100), not numbers. The new-move toast goes away by itself after 6 s.
   Opened from each team card and from the toast (`apps/game/src/loadout-picker.ts`,
-  `new-move-toast.ts`). The toast follows the turn battle's moves learned and offered; an arena
-  fight's are in `arena.result`'s `learned` (#150), for #151's client to hand to it;
-  holding a move plays a canvas sketch of its shape (`shape-preview.ts`) until #151's painter takes
-  its `ShapePainter` seam.
+  `new-move-toast.ts`). The toast follows the turn battle's moves learned and offered, and an arena
+  fight's `arena.result` `learned` (#150), which the arena client hands to it after Continue;
+  holding a move plays its shape on a mini island with the arena's own painter
+  (`arena/arena-preview.ts`, through `shape-preview.ts`'s `ShapePainter` seam).
 - **Duels** (#157, #158): ask a courier within 4 tiles; the answer card waits 20 s, then declines
   by itself; the same pair waits 30 s after a decline. Up to 6 watchers. The winner's courier wears
   a small trophy for 60 s.
@@ -558,10 +569,13 @@ Planned names, so the tickets agree:
 - Loadouts (#148): `learnedMoves(species, level, content)`, `setLoadout`, `setTurtle`, and the save's
   `SettingsV7 { readToMe, turtle }`.
 - Server (#149, #150): `apps/server/src/arena-room.ts`, `seat.fight`, `settleFight`.
-- Client (#151): `apps/game/src/arena/` (`arena-link.ts`, `arena-scene.ts`, `arena-controls.ts`),
+- Client (#151, built): `apps/game/src/arena/`: `arena-link.ts` (joins the room, sends input,
+  shows the result), `arena-scene.ts` (`ArenaScene`), `arena-controls.ts` (stick, buttons, keys,
+  Leave), `arena-screen.ts`, `arena-buttons.ts`, `arena-input.ts` and `fight-book.ts`;
   `abilityIcon(moveId, sizePx)` (#143) beside `pictureIcon` and `weatherIcon`.
-- Test hook: `arena` (mode, tick, both bodies, health, buttons with cooldown and lock, outcome),
-  with `arena.picks`, `arena.round` and `arena.score` for rounds (#155), next to `battle` until
+- Test hook: `arena` (built in #151: fight id, mode, side, phase, tick, radius, both creatures
+  with position and health, buttons with cooldown and lock, Leave, inputs and presses sent, what the
+  scene drew, and the result), with `arena.picks`, `arena.round` and `arena.score` for rounds (#155), next to `battle` until
   #160.
 
 ## Checks
@@ -582,8 +596,10 @@ Planned names, so the tickets agree:
   give XP only to creatures that fought, and befriend only as the wild species and level.
 - 10,000 random steps stay under 0.05 ms a step in Node.
 - Browser checks drive a fight by keys and taps from a prepared save against a weak wild creature,
-  wait on the test hook's state, never on wall-clock time, and run in parts of their own
-  (`chromium-arena`, `webkit-arena`).
+  wait on the test hook's state, never on wall-clock time, and run as verify steps of their own
+  (`arena-check-chromium`, `arena-check-webkit`; `scripts/arena-check.mjs`). The check runs the
+  server in its own process with `ARENA_BATTLES` on and starts each fight through the world room,
+  so every run meets the same wild creature; the bot run's arena bot meets its fight in the grass.
 ## Words
 
 - **arena:** a real-time fight on an island, and the Colyseus room that runs one.
