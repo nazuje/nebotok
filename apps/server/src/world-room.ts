@@ -115,6 +115,7 @@ import {
   continueTalk,
   countEvents,
   deliveredJobs,
+  fightEvents,
   openTalk,
   starterRefusal,
   storyChange,
@@ -215,7 +216,8 @@ type Seat = {
 
 type OutstandingOffer = PendingMove & { readonly id: number; readonly sentAt: number };
 
-type LiveFight = { readonly id: string };
+/** `zone` is the encounter zone the fight began in, for quests; null for one started elsewhere. */
+type LiveFight = { readonly id: string; readonly zone: string | null };
 
 /** In a turn battle or an arena fight: walking, talks, shrines, storage, skills and loadouts wait. */
 const fighting = (seat: Seat): boolean => seat.battle !== null || seat.fight !== null;
@@ -620,7 +622,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const zoneId = encounterZoneAt(map, tile);
       const zone = zoneId === null ? undefined : world.encounters.get(zoneId);
       const wild = zone ? rollEncounter(zone, this.encounterRng) : null;
-      if (zone && wild) this.startBattle(sessionId, seat, { tile, facing, zone, wild });
+      if (!zone || !wild) return;
+      // The step onto the grass has ended, and the walker may already have started the next one: it stays here.
+      if (arenaContent) void this.openWildFight(sessionId, seat, wild, zone, createWalker(tile, facing));
+      else this.startBattle(sessionId, seat, { tile, facing, zone, wild });
     }
 
     private rest(sessionId: string, seat: Seat, shrine: string) {
@@ -746,23 +751,43 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     /**
      * Starts an arena fight with a wild creature for a player in this room, when arena battles are on
-     * and the player could meet one in the grass. The fight is played in its own arena room, where
-     * `arena.join` seats the player. Resolves to the fight's id, or null when none started.
+     * and the player could meet one in the grass, as tall grass does but outside any zone. The fight
+     * is played in its own arena room, where `arena.join` seats the player. Resolves to the fight's
+     * id, or null when none started.
      */
     async startWildFight(playerId: number, wild: WildEncounter): Promise<string | null> {
       const found = [...this.seats].find(([, seat]) => seat.playerId === playerId && !seat.replaced && !seat.closing);
-      if (!arenaContent || !found) return null;
+      if (!found) return null;
       const [sessionId, seat] = found;
       if (fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return null;
+      return this.openWildFight(sessionId, seat, wild, null, withIntent(seat.walker, IDLE));
+    }
+
+    /**
+     * Plans a wild fight in `zone` (null for none), under its weather, with the player standing as
+     * `walker`, and sends `arena.join`. Resolves to the fight's id, or null when none started.
+     */
+    private async openWildFight(sessionId: string, seat: Seat, wild: WildEncounter, zone: EncounterZone | null, walker: Walker): Promise<string | null> {
+      if (!arenaContent) return null;
+      const { playerId } = seat;
       const fightId = randomUUID();
       const { turtle } = seat.settings;
-      const fight: LiveFight = { id: fightId };
+      const fight: LiveFight = { id: fightId, zone: zone?.id ?? null };
       // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
       try {
         this.endTalk(sessionId, seat, 'battle');
         this.endSkill(sessionId, seat, 'battle');
-        const setup = arenaWildSetup({ seed: seed(), team: seat.progress.team, wild, wildLoadout: wildLoadout(wild.species, wild.level, arenaContent), turtle, inventory: seat.progress.inventory, content: world.battle });
-        seat.walker = withIntent(seat.walker, IDLE);
+        const setup = arenaWildSetup({
+          seed: seed(),
+          team: seat.progress.team,
+          wild,
+          wildLoadout: wildLoadout(wild.species, wild.level, arenaContent),
+          turtle,
+          inventory: seat.progress.inventory,
+          content: world.battle,
+          weather: zone?.weather ?? null,
+        });
+        seat.walker = walker;
         seat.fight = fight;
         seat.progress = markSeen(seat.progress, wild.species);
         this.changed(seat);
@@ -777,7 +802,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         }
         return null;
       }
-      log.info('fight planned', { roomId: this.roomId, playerId, fight: fightId, species: wild.species, level: wild.level, turtle });
+      log.info('fight planned', { roomId: this.roomId, playerId, fight: fightId, zone: fight.zone, species: wild.species, level: wild.level, turtle });
       await this.sendFightJoin(sessionId, seat);
       return fightId;
     }
@@ -831,10 +856,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     }
 
     private settleFight(sessionId: string, seat: Seat, { fightId, fight, why }: FightEnd) {
+      const zone = seat.fight?.zone ?? null;
       const settled = settleFight(seat.progress, fight, world.battle);
       seat.progress = settled.fainted ? wakeAfterFainting(settled.progress, world.shrines.teamFainted, world.battle) : settled.progress;
       seat.fight = null;
-      seat.offers = [...settled.offers];
       const woke = settled.fainted ? this.wake(seat) : null;
       this.showFighting(sessionId, false);
       this.changed(seat);
@@ -848,16 +873,17 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         rounds: fight?.mode === 'rounds' ? fight.rounds : [],
         woke,
       } satisfies ArenaResultMessage);
-      this.offerNext(sessionId, seat);
+      const counted = countEvents(seat.progress, fightEvents(outcome, zone, settled.befriended?.species ?? null), story);
+      if (!this.applyStory(sessionId, seat, counted)) this.offerNext(sessionId, seat);
       log.info('fight settled', {
         roomId: this.roomId,
         playerId: seat.playerId,
         fight: fightId,
+        zone,
         why,
         result: outcome?.result ?? null,
         rewards: settled.rewards.length,
         learned: settled.learned.length,
-        offers: settled.offers.length,
         befriended: settled.befriended?.placedIn ?? null,
         woke: woke !== null,
       });

@@ -32,19 +32,22 @@ export type WildSetupOptions = {
   readonly turtle: boolean;
   readonly inventory: Inventory;
   readonly content: Pick<BattleContent, 'items'>;
+  /** The encounter zone's weather, or null for clear skies. */
+  readonly weather?: string | null;
 };
 
 /**
  * The wild fight an encounter starts: every team creature that can fight, in team order, each
- * with its loadout and the player's turtle setting; the wild creature as the computer's; and the
- * treats in the bag.
+ * with its loadout and the player's turtle setting; the wild creature as the computer's; the
+ * treats in the bag; and the zone's weather.
  */
-export function arenaWildSetup({ seed, team, wild, wildLoadout, turtle, inventory, content }: WildSetupOptions): WildFightSetup {
+export function arenaWildSetup({ seed, team, wild, wildLoadout, turtle, inventory, content, weather = null }: WildSetupOptions): WildFightSetup {
   const standing = team.flatMap((creature, place) =>
     creature.hp > 0 ? [{ place, hp: creature.hp, fighter: { id: `a${place + 1}`, species: creature.species, level: creature.level, loadout: [...creature.loadout] as ArenaLoadout, turtle, computer: false } }] : [],
   );
   const treats = inventory.filter(({ item, count }) => count > 0 && content.items.get(item)?.kind === 'treat').map(({ item, count }) => ({ item, count }));
-  return { mode: 'wild', seed, team: standing, wild: { id: 'b1', species: wild.species, level: wild.level, loadout: wildLoadout, turtle: false, computer: true }, treats };
+  const fighter = { id: 'b1', species: wild.species, level: wild.level, loadout: wildLoadout, turtle: false, computer: true };
+  return { mode: 'wild', seed, team: standing, wild: fighter, treats, ...(weather === null ? {} : { weather }) };
 }
 
 /** Real health from arena health, rounded up, so a creature with any health left keeps at least 1. */
