@@ -36,16 +36,17 @@ const DIRECTION_SCALE = 4096;
 const DEPTH = { sky: 0, island: 1, under: 2, creatures: 3, over: 6, bars: 7 } as const;
 /** How tall a creature's picture is, in body radii: the sprites leave room around the creature in their frame. */
 const CREATURE_BODIES = 3.4;
-/** How long the drawn position takes to catch up with the server's, in ms, and the jump past which it does not try. */
-const FOLLOW_MS = 45;
-const SNAP_BODIES = 4;
 const FALL_MS = 1_000;
 const FLASH_MS = 220;
 const SPRING = { stiffness: 900, damping: 17 } as const;
 const NO_TINT: Tint = { light: 0xe6eef6, main: 0x8fa9c4, dark: 0x334e68 };
 
-/** The fight to draw: the arena room's state and which side is yours. */
-export type ShownFight = { readonly state: ArenaRoomState; readonly side: Side };
+/**
+ * The fight to draw: the arena room's state, which side is yours, and where to draw each creature
+ * now in arena units (yours predicted, the other smoothed: src/arena/arena-predict.ts), or null
+ * for where the state has it.
+ */
+export type ShownFight = { readonly state: ArenaRoomState; readonly side: Side; place(side: Side, now: number): Point | null };
 
 export type ArenaSceneOptions = {
   fight(): ShownFight | null;
@@ -110,6 +111,8 @@ export class ArenaScene extends Scene {
   private framed = ARENA.arena.island.radius;
   private fit: Fit = { cx: 0, cy: 0, s: 1 };
   private lastDrawn: ArenaDrawn | null = null;
+  /** Until when the creatures are drawn where they were: a hit-stop holds the drawing only, never input or prediction. */
+  private heldUntil = 0;
 
   constructor(options: ArenaSceneOptions) {
     super({ key: ARENA_SCENE, active: false });
@@ -135,6 +138,11 @@ export class ArenaScene extends Scene {
     return this.lastDrawn;
   }
 
+  /** Holds the creatures where they are drawn for `ms`, then lets them catch up with where they are. */
+  holdDrawing(ms: number): void {
+    this.heldUntil = Math.max(this.heldUntil, performance.now() + ms);
+  }
+
   override update(_time: number, delta: number): void {
     const fight = this.options.fight();
     const layers = this.layers;
@@ -156,7 +164,7 @@ export class ArenaScene extends Scene {
     const things = this.drawThings(state, now, still);
     this.drawFlashes(state, now);
     const creatures: [string | null, string | null] = [null, null];
-    for (const side of [0, 1] as const) creatures[side] = this.drawBody(state, side, fight.side, radius, delta, now, still);
+    for (const side of [0, 1] as const) creatures[side] = this.drawBody(state, side, fight.side, this.placeOf(fight, side, now), radius, delta, now, still);
     this.lastDrawn = { creatures, radius: Math.round(radius), things };
   }
 
@@ -250,8 +258,15 @@ export class ArenaScene extends Scene {
     return look.image;
   }
 
-  /** Draws a side's creature and its marks; returns its species, or null when none shows. */
-  private drawBody(state: ArenaRoomState, side: Side, yours: Side, radius: number, delta: number, now: number, still: boolean): string | null {
+  /** Where a side's creature goes this frame: where it was during a hit-stop, else where the fight places it. */
+  private placeOf(fight: ShownFight, side: Side, now: number): Point | null {
+    const look = this.looks[side];
+    const held = now < this.heldUntil && look.id !== '' && look.id === fight.state.bodies.at(side)?.id;
+    return held ? { x: look.x, y: look.y } : fight.place(side, now);
+  }
+
+  /** Draws a side's creature at `place`, else where the state has it, and its marks; returns its species, or null when none shows. */
+  private drawBody(state: ArenaRoomState, side: Side, yours: Side, place: Point | null, radius: number, delta: number, now: number, still: boolean): string | null {
     const shown = state.bodies.at(side);
     const look = this.looks[side];
     const layers = this.layers;
@@ -261,11 +276,9 @@ export class ArenaScene extends Scene {
     }
     const image = this.imageFor(look, shown.species);
     const { body } = ARENA.arena.island;
-    const target = { x: shown.x / SUB, y: shown.y / SUB };
-    const fresh = look.id !== shown.id || Math.hypot(target.x - look.x, target.y - look.y) > body * SNAP_BODIES;
-    const follow = fresh ? 1 : 1 - Math.exp(-delta / FOLLOW_MS);
-    look.x += (target.x - look.x) * follow;
-    look.y += (target.y - look.y) * follow;
+    const target = place ?? { x: shown.x / SUB, y: shown.y / SUB };
+    look.x = target.x;
+    look.y = target.y;
     if (look.id !== shown.id && look.fall?.id !== shown.id) look.fall = null;
     look.id = shown.id;
     const size = body * CREATURE_BODIES * this.fit.s;

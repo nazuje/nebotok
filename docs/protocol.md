@@ -368,8 +368,14 @@ none is lost. The server declares it with
 `sanitize` turns anything else (NaN, 9999, a string) into none (core `cleanArenaInput`; the uint8
 wire already wraps a big number, so out of range means 16 to 254 for `dir` and 3 to 254 for
 `press`). `idle`, used when a tick's input is missing, keeps `dir` and clears every press: a held
-stick survives a lost packet and a tap never repeats. A watcher's input will be refused (#158). The client stamps each input ahead of the server by the
-round trip times the tick rate, clamped to 2 to 10 ticks.
+stick survives a lost packet and a tap never repeats. A watcher's input will be refused (#158). The stream carries no tick: the room takes one buffered
+input each fixed step, in order, so an input lands as many ticks ahead of the server as inputs wait
+before it. The client's input lead is that count, the inputs sent and not yet acknowledged
+(`pendingCount`), which the net meters show. The client keeps it to the network's round trip (a
+`room.ping` each second) plus the wait for the next patch, which carries the acknowledgement, in
+inputs, plus 2 spare (`leadLimit` in `arena-input.ts`): past that it skips one send, never two in a
+row, and the skipped send's presses go with the next. Without it, a page's 33 ms timer, a little
+faster than the room's step, fills the room's buffer over a fight and makes every input later.
 
 ### The step and the limits
 
@@ -461,18 +467,24 @@ closes the connection (4002), as everywhere.
 
 ### Prediction
 
-The client predicts its own creature by running core's `fightStep` from the last server state plus
-its unacknowledged inputs (Colyseus `Predict`; `self-walker.ts` is the house pattern). A correction
-is blended away over 120 ms, or snapped when the error is beyond 1.5 bodies (69 units). Knocks and
-ring-outs come only from the server; a cast is predicted only as the start of its animation. The
-other creature is drawn 100 ms in the past (as `OTHERS_DELAY_MS` in the world), between snapshots.
-Hit-stop pauses only the drawing, never input or prediction. The browser check (#152) keeps the
-mean prediction error under 8 units with fewer than 2 snaps over 5 s of movement, at 0, 50 and
-150 ms of lag.
+The client predicts its own creature (`apps/game/src/arena/arena-predict.ts`): each input it sends
+is stepped at once with core's `arenaStep`, two core steps as the room runs them, and each new
+state is rebuilt as core's island and the inputs past the room's acknowledgement (`lastProcessed`)
+replayed on it. What the state leaves out (a dash still going, a knock's ticks) comes from the
+prediction's own creature at the acknowledged input. A correction is blended away over 120 ms, or
+snapped when the error is beyond 1.5 bodies (69 units). Only movement and dashes are predicted:
+knocks and ring-outs come only from the server, and a cast you press is shown only as the start of
+its animation, the server's own cast then left out. The other creature is drawn 100 ms in the past
+(as `OTHERS_DELAY_MS` in the world), between snapshots placed by their tick (`arena-follow.ts`).
+Hit-stop pauses only the drawing (`ArenaScene.holdDrawing`), never input or prediction. The
+browser check (#152) keeps the mean prediction error under 8 units with fewer than 2 snaps over
+5 s of movement, at 0, 50 and 150 ms of lag; corrections while the state shows your creature
+tumbling are counted apart, since knocks are never predicted.
 
-Dev and test only: `ARENA_FAKE_LAG_MS` adds lag on the dev server and is refused in production
-config; `?test=1&net=1` shows the round trip, the input lead, corrections a second, the mean error
-and snaps, also in the test hook.
+Dev and test only: `ARENA_FAKE_LAG_MS` (0 to 1000) holds back each arena player's messages by half
+of it each way on the dev server, and the server refuses to start with it in production; scripts
+pass `fakeLagMs` to `createGameServer` instead. `?test=1&net=1` shows the round trip, the input
+lead, corrections a second, the mean error and snaps, also in the test hook (`arena.net`).
 
 ### Dropping and coming back
 

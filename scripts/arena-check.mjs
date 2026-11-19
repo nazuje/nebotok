@@ -6,7 +6,8 @@
 // as a player whose save it prepared, sees the island, the cards and the buttons (each at least
 // 64px, with its picture, a lock on one its level has not reached), steers with the stick, the
 // mouse or the keys and fires button 1 by tap or key until the wild creature is beaten, reads the
-// result and continues back to the world. The 360px run holds Leave instead. An iPhone, an iPad and
+// result and continues back to the world. Each run first walks 5 s at a fake lag of 0, 50 or 150 ms
+// with the net meters on (?net=1) and checks the prediction's mean error and snaps (#152). The 360px run holds Leave instead. An iPhone, an iPad and
 // 360px wide, in both languages across the two browsers. Fails on any console error, failed or
 // outside request, small touch target or sideways scrolling.
 //   node scripts/arena-check.mjs --browser chromium|webkit [--out <dir>]
@@ -49,6 +50,11 @@ const ARENA_BUTTON_PX = 64;
 const FIGHT_MS = 40_000;
 const STEER_MS = 350;
 const WINS = new Set(['won', 'wonByRingOut']);
+/** docs/protocol.md, "Prediction": over 5 s of walking, a mean error under 8 units and fewer than 2 snaps. */
+const NET_WALK = ['d', 'a', 'd', 'a', 's', 'w', 's', 'w'];
+const NET_WALK_MS = 5_000;
+const NET_MEAN_ERROR = 8;
+const NET_SNAPS = 2;
 const TAG = runTag();
 
 /**
@@ -58,14 +64,14 @@ const TAG = runTag();
  */
 const RUNS = {
   chromium: [
-    { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, leave: false },
-    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, leave: false },
-    { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], leave: true },
+    { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, leave: false, lagMs: 0 },
+    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, leave: false, lagMs: 150 },
+    { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], leave: true, lagMs: 50 },
   ],
   webkit: [
-    { where: 'iphone-portrait', language: 'sl', steer: 'keys', level: 20, leave: false },
-    { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, leave: false },
-    { where: '360px', language: 'en', steer: 'keys', level: ARENA.buttons[1], leave: true },
+    { where: 'iphone-portrait', language: 'sl', steer: 'keys', level: 20, leave: false, lagMs: 50 },
+    { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, leave: false, lagMs: 150 },
+    { where: '360px', language: 'en', steer: 'keys', level: ARENA.buttons[1], leave: true, lagMs: 0 },
   ],
 }[chosen.name];
 
@@ -74,7 +80,9 @@ const dataDir = mkdtempSync(join(tmpdir(), 'nebotok-arena-check-'));
 const config = readConfig({ NODE_ENV: 'production', DATA_DIR: dataDir, ARENA_BATTLES: 'on', LOG_LEVEL: 'info' });
 const log = createLog('info', (line) => lines.push(JSON.parse(line)));
 const services = createServices(config, Date.now, log);
-const gameServer = createGameServer(config, log, services);
+/** The fake lag of the run now, which the arena room gives each player as they join (runs go one at a time). */
+let lagMs = 0;
+const gameServer = createGameServer(config, log, services, { fakeLagMs: () => lagMs });
 const port = await freePort();
 await gameServer.listen(port, '127.0.0.1');
 const base = `http://127.0.0.1:${port}`;
@@ -205,6 +213,23 @@ async function fightOn(page, run, { endsBy, stopWhen }) {
   return state;
 }
 
+/**
+ * Five seconds of scripted walking, back and forth so it never nears the edge, at the run's fake
+ * lag: what the net meters measured over them, the window's mean prediction error and snaps.
+ */
+async function measureNet(page) {
+  const before = (await readState(page)).arena?.net;
+  await inTurn(NET_WALK, async (key) => {
+    await page.keyboard.down(key);
+    await sleep(NET_WALK_MS / NET_WALK.length);
+    await page.keyboard.up(key);
+  });
+  await sleep(500);
+  const after = (await readState(page)).arena?.net;
+  if (!before || !after) return null;
+  const samples = after.samples - before.samples;
+  return { rttMs: Math.round(after.rttMs), lead: after.lead, samples, meanError: samples > 0 ? (after.errorSum - before.errorSum) / samples : 0, snaps: after.snaps - before.snaps, knocked: after.knocked - before.knocked, worstError: after.worstError };
+}
 /** Holds Leave for longer than its second, by touch in Chromium and by mouse in WebKit. */
 async function holdLeave(page) {
   const at = await centre(page, '#arena .arena-leave');
@@ -246,6 +271,7 @@ async function checkRun(browser, run) {
   const expect = (ok, message) => {
     if (!ok) problems.push(message);
   };
+  lagMs = run.lagMs;
   const player = await preparePlayer(run);
   const device = DEVICES.find((each) => each.name === run.where);
   const contextOptions = device ? { ...device.descriptor } : { viewport: NARROW, hasTouch: true, isMobile: chosen.name === 'chromium' };
@@ -265,7 +291,7 @@ async function checkRun(browser, run) {
     if (over > 0) problems.push(`${where} scrolls sideways by ${over}px`);
   };
   try {
-    await page.goto(`${base}/?test=1`);
+    await page.goto(`${base}/?test=1&net=1`);
     await until(page, (s) => s.screen === 'profiles', 'the profile list');
     await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
     await until(page, (s) => s.screen === 'world' && s.connection === 'connected' && s.progress?.team.length === 2, 'the world as the arena player');
@@ -276,6 +302,20 @@ async function checkRun(browser, run) {
     await nextFrames(page);
     for (const problem of await fightProblems(page, state, run)) problems.push(problem);
     await fits('the arena fight');
+    const net = await measureNet(page);
+    if (net) {
+      notes.push(`at ${run.lagMs} ms of lag: round trip ${net.rttMs} ms, lead ${net.lead}, mean error ${net.meanError.toFixed(2)} over ${net.samples} corrections (worst ${net.worstError.toFixed(1)}), ${net.snaps} snaps, ${net.knocked} while knocked`);
+      // Headless browsers draw few frames on software WebGL, and the prediction hears a state once a frame.
+      expect(net.samples > 20, `the prediction heard only ${net.samples} states in 5 s`);
+      expect(net.meanError < NET_MEAN_ERROR, `the mean prediction error at ${run.lagMs} ms was ${net.meanError.toFixed(2)}, not under ${NET_MEAN_ERROR}`);
+      expect(net.snaps < NET_SNAPS, `the prediction snapped ${net.snaps} times at ${run.lagMs} ms`);
+      expect(net.rttMs >= run.lagMs, `the round trip shows ${net.rttMs} ms at ${run.lagMs} ms of lag`);
+    } else problems.push('the test hook shows no net meters');
+    const meters = (await page.locator('#arena .arena-net').textContent()) ?? '';
+    expect(await page.locator('#arena .arena-net').isVisible(), 'the net meters are not on screen with net=1');
+    expect(/\d+ ms/.test(meters), `the net meters say "${meters}"`);
+    await shot('0-net');
+    state = await readState(page);
     const startedAt = state.arena.mine;
     if (run.leave) {
       state = await fightOn(page, { ...run, steer: 'keys' }, { endsBy: Date.now() + 1_500, stopWhen: (s) => s.arena?.result != null });

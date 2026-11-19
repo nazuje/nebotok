@@ -9,16 +9,19 @@ import { closeMatchmakeCors, matchmakeRoutes } from './matchmake.ts';
 import type { Services } from './services.ts';
 import { worldRoom } from './world-room.ts';
 
-/** For tests and scripts: the fight book to share, and whether arena rooms keep their inputs for a replay. */
-export type GameServerOptions = { readonly fights?: FightBook; readonly recordFights?: boolean };
+/**
+ * For tests and scripts: the fight book to share, whether arena rooms keep their inputs for a
+ * replay, and the arena's fake lag for each fight as it is joined (else `ARENA_FAKE_LAG_MS`).
+ */
+export type GameServerOptions = { readonly fights?: FightBook; readonly recordFights?: boolean; readonly fakeLagMs?: () => number };
 
-export function createGameServer(config: Config, log: Log, services: Services, { fights = createFightBook(), recordFights = false }: GameServerOptions = {}) {
+export function createGameServer(config: Config, log: Log, services: Services, { fights = createFightBook(), recordFights = false, fakeLagMs = () => config.arenaFakeLagMs }: GameServerOptions = {}) {
   closeMatchmakeCors();
   const { world, profiles, progress, now } = services;
   return defineServer({
     rooms: {
       world: defineRoom(worldRoom({ log, world, profiles, progress, now, fights, arenaBattles: config.arenaBattles })),
-      [ARENA_ROOM]: defineRoom(arenaRoom({ log, world, profiles, fights, now, record: recordFights })),
+      [ARENA_ROOM]: defineRoom(arenaRoom({ log, world, profiles, fights, now, record: recordFights, fakeLagMs })),
     },
     routes: matchmakeRoutes(),
     transport: new WebSocketTransport(),
