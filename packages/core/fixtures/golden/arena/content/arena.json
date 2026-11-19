@@ -40,6 +40,8 @@
   "zonePulseTicks": 30,
   "wallThickness": 50,
   "ultimateWeatherTicks": 600,
+  "strongPercent": 200,
+  "weakPercent": 50,
   "shapes": {
     "bolt": { "speed": 900, "radius": 22, "reach": 560, "knock": 420, "sharePercent": 100 },
     "spray": { "speed": 950, "radius": 16, "reach": 460, "knock": 160, "sharePercent": 33, "count": 3, "spreadCosine": 4034 },

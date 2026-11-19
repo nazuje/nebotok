@@ -32,10 +32,10 @@ const content = loadArenaContent({ arena, rules: read('battle-rules'), species: 
 const species = [...content.species.keys()].toSorted();
 const SECOND = 60;
 
-/** How strongly one type's hits land on another's. */
+/** How strongly one type's hits land on another's in the arena, in percent. */
 function typePower(from, to) {
   const type = content.weather.get(from);
-  return type.strongAgainst.includes(to) ? 2 : type.weakAgainst.includes(to) ? 0.5 : 1;
+  return type.strongAgainst.includes(to) ? content.arena.strongPercent : type.weakAgainst.includes(to) ? content.arena.weakPercent : 100;
 }
 
 /** How the bot's type fares against the wild one's: its hits' effectiveness against the wild one's on it. */

@@ -89,6 +89,11 @@ describe('arena content', () => {
     expect(battleContentProblems({ ...battleFiles, moves: farDrip })).toEqual(['moves.json "drip-drop": reaches 1200, which must be shorter than the island\'s diameter (1040)']);
   });
 
+  it('keeps the arena type chart a real advantage: strong above 100%, weak below', () => {
+    expect(arenaRules()).toMatchObject({ strongPercent: 150, weakPercent: 75 });
+    expect(arenaProblems({ ...arena, strongPercent: 100, weakPercent: 100 })).toEqual(['strongPercent: a strong hit does 100%, which must be more than 100%', 'weakPercent: a weak hit does 100%, which must be less than 100%']);
+  });
+
   it('rejects buttons that do not start at level 1 or rise', () => {
     expect(arenaProblems({ ...arena, buttons: [2, 7, 12] })).toEqual(['buttons.0: button 1 is there from level 1']);
     expect(arenaProblems({ ...arena, buttons: [1, 12, 7] })).toEqual(['buttons: buttons unlock at rising levels']);

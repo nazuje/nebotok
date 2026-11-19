@@ -778,6 +778,9 @@ const ArenaRulesObject = z.strictObject({
   wallThickness: PositiveUnits,
   /** How long an ultimate's own type's weather lasts on the island. */
   ultimateWeatherTicks: ArenaTicks,
+  /** The arena's own type chart, softer than turn battles' `battle-rules.json`: a strong hit and a weak one, in percent. */
+  strongPercent: Whole(100, 400),
+  weakPercent: Whole(10, 100),
   shapes: z.strictObject(ARENA_SHAPE_NUMBERS),
   minds: ArenaMindRules,
 });
@@ -794,7 +797,7 @@ const KIND_PAIRS = [
   ['special', 'ultimate'],
 ] as const;
 
-function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes }: z.infer<typeof ArenaRulesObject>): RuleIssue[] {
+function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes, strongPercent, weakPercent }: z.infer<typeof ArenaRulesObject>): RuleIssue[] {
   const issues: RuleIssue[] = [];
   const diameter = 2 * island.radius;
   const floorDiameter = 2 * Math.floor((island.radius * storm.floorPercent) / 100);
@@ -813,5 +816,7 @@ function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes }: z.inf
   if (buttons[1] <= buttons[0] || buttons[2] <= buttons[1]) issues.push({ message: 'buttons unlock at rising levels', path: ['buttons'] });
   if (treat.likedWindowPercent < treat.windowPercent || treat.favouriteWindowPercent < treat.likedWindowPercent) issues.push({ message: 'a liked treat must not open a smaller window than a plain one, nor a favourite than a liked one', path: ['treat'] });
   if (treat.likedRadius < treat.radius || treat.favouriteRadius < treat.likedRadius) issues.push({ message: 'a liked treat must not be smaller than a plain one, nor a favourite than a liked one', path: ['treat'] });
+  if (strongPercent <= 100) issues.push({ message: `a strong hit does ${strongPercent}%, which must be more than 100%`, path: ['strongPercent'] });
+  if (weakPercent >= 100) issues.push({ message: `a weak hit does ${weakPercent}%, which must be less than 100%`, path: ['weakPercent'] });
   return issues;
 }

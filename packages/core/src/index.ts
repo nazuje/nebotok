@@ -548,6 +548,7 @@ export {
 } from './arena/fixed.ts';
 export {
   arenaContentOf,
+  arenaDamageContent,
   loadArenaContent,
   fightContentOf,
   loadFightContent,
