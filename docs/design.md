@@ -42,6 +42,8 @@ battles stay in the game until the arena replaces them (the switch-over, see
 - There are 6 weather types: Sun, Gale, Rain, Frost, Storm and Bloom. Each is strong against some
   and weak against others, and the weather on the island changes how moves work. Levels and the
   weather chart still matter; dodging, timing and position decide close fights.
+- In the arena the weather chart is softer: a strong hit does 1.5 times the damage and a weak one
+  0.75 times (2 and 0.5 times in turn battles), so skill decides more.
 - A creature keeps every move it learns. Each move has a kind (quick, about 1 s to cool down;
   special, about 6 s; weather ultimate, about 20 s) and one of 13 shapes (bolt, spray, cone, snare,
   lunge, burst, puddle, shield, strike, wall, freeze, zone, weather). Before a fight the player puts

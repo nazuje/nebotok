@@ -81,7 +81,8 @@ settles the ending.
   arena function takes: the whole `arena.json` (`ArenaRules` in core `content.ts`), the battle
   rules and weather chart that damage reads, the species and the moves. `arenaContentOf` takes it
   from a `BattleContent` loaded with `arena.json`; `loadArenaContent` parses the five raw files, as
-  the goldens' frozen copy needs.
+  the goldens' frozen copy needs. `arenaDamageContent` is what a hit hands `damageOf`: the battle
+  rules with the arena's own `strongPercent` and `weakPercent`.
 - `state.ts`: `ArenaState` (`tick`, `rng`, `radius`, `storm`, two `bodies`, `things`, `nextId`,
   `weather`, `outcome`), `Body`, `Thing`, `ArenaInput` (`{ dir, dash, press }`; #147 adds `treat`,
   `swap` and `leave`), `ArenaSetup` (`{ seed, fighters }`, each `ArenaFighter` an `id`, `species`,
@@ -156,6 +157,9 @@ of health at the time limit.
 - **Damage:** core `damageOf` (`battle/damage.ts`) with the move's power, both creatures' stats and
   levels, the weather chart, the same-type bonus and a roll of 85 to 100 from the seeded RNG, times
   the shape's share, at least 1. `accuracy` is not used: aiming and dodging replace it.
+- **Type chart:** softer than in turn battles, so skill decides more: a strong hit does 1.5 times and a
+  weak one 0.75 times (`strongPercent` 150, `weakPercent` 75 in `arena.json`; turn battles keep 2
+  and 0.5 times from `battle-rules.json`).
 - **Knock:** `shape knock × (45% + 175% × share of health lost)`: 0.45× at full health, up to
   2.2× nearly out, so a worn-down creature flies further.
 - **Tumble:** 22 ticks after a knock: weak steering, and the lip does not hold it.
@@ -411,13 +415,13 @@ targets:
 - no shape deals more than 1.5 times the average of its kind;
 - ring-outs end 20 to 45% of fights.
 
-Measured with 3 seeds (#146): fights last 49.6 s on average and 95% reach the storm; `BOT` beats
-`WILD` 80.6% with neither type ahead (72.8% over all pairs, 68 to 80% by level) and `WILD_EASIER` 80
-to 93%; the most damaging shape deals 1.42 times its kind's average (cone); ring-outs end 39%. The
-type swing misses: a type advantage moves the win rate by about 43 points each way (100% and 14%),
-because the battle rules' type chart (`strongPercent`, `weakPercent` in `battle-rules.json`) makes a
-strong hit four times a weak one, and `arena.json` cannot reach it. With `WILD` four levels up, `BOT`
-wins 32% of even match-ups.
+Measured with 3 seeds, with the softer type chart (#178): fights last 50.0 s on average and 97%
+reach the storm; `BOT` beats `WILD` 84.3% with neither type ahead (79.3% over all pairs, 73 to 86%
+by level) and `WILD_EASIER` 90 to 99%; the most damaging shape deals 1.46 times its kind's average
+(cone); ring-outs end 41%. The type swing still misses: a type advantage moves the win rate by about
+29 points each way (99% and 40%). With turn battles' chart, where a strong hit does four times a weak
+one, it was 43 points (#146: 100% and 14%). With `WILD` four levels up, `BOT` wins 32% of even
+match-ups.
 
 Load-time checks (`npm run content:validate`): `ArenaRules` in core `content.ts` checks
 `arena.json` on its own, and `arenaLinkProblems` (`arena-links.ts`) checks it against
@@ -431,6 +435,7 @@ Load-time checks (`npm run content:validate`): `ArenaRules` in core `content.ts`
   the island's diameter;
 - every quick move cools down quicker than every special one, and every special quicker than every
   ultimate;
+- the arena's `strongPercent` is above 100 and its `weakPercent` below 100;
 - buttons unlock at rising levels from 1, and every species learns a move of each kind by the level
   its button unlocks.
 
@@ -487,6 +492,7 @@ marked.
 | | `zonePulseTicks` | 30 | `ZONE_PULSE` |
 | | `wallThickness` | 50 | `WALL_THICKNESS` |
 | | `ultimateWeatherTicks` | 600 | **plan** |
+| | `strongPercent`, `weakPercent` | 150, 75 (turn battles: 200, 50) | **owner**, #178 |
 | `shapes` | each shape's numbers | see "The 13 shapes" | KITS |
 | `minds` | `skills`: `WILD`, `WILD_EASIER`, `BOT`; `edgeMargin`; `ranges` by shape | see "Minds" | `arena-ai.ts` |
 

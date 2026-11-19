@@ -3,6 +3,7 @@ import {
   ARENA_IDLE,
   abilityOf,
   aimOf,
+  arenaDamageContent,
   arenaStart,
   arenaStep,
   battleCreature,
@@ -17,8 +18,10 @@ import {
   type ArenaInputs,
   type ArenaState,
   type Body,
+  type DamageContent,
 } from '../../src/index.ts';
 import { arenaContent as content } from '../support/arena-content.ts';
+import { battleContent } from '../support/battle-content.ts';
 import { fighter, loadoutWith, stick } from '../support/arena-fighters.ts';
 
 const rules = content.arena;
@@ -61,12 +64,12 @@ function share(move: string, damage: number): number {
   return Math.max(1, Math.trunc((damage * ('sharePercent' in ability ? ability.sharePercent : 100)) / 100));
 }
 
-/** The damage `damageOf` gives a full hit of `move` from side 0 on side 1 in `weather`, with the step's roll. */
-function expectedDamage(state: ArenaState, move: string, weather: string | null): number {
+/** The damage `damageOf` gives a full hit of `move` from side 0 on side 1 in `weather`, with the step's roll and the arena's type chart (or `chart`). */
+function expectedDamage(state: ArenaState, move: string, weather: string | null, chart: DamageContent = arenaDamageContent(content)): number {
   const [a, b] = state.bodies;
   const roll = rngFromState(state.rng).int(content.rules.minRollPercent, 100);
   const field = weather === null ? null : { type: weather, turnsLeft: null };
-  return damageOf(content, battleCreature(a.id, speciesOf(a), a.level), battleCreature(b.id, speciesOf(b), b.level), content.moves.get(move)!, field, roll).damage;
+  return damageOf(chart, battleCreature(a.id, speciesOf(a), a.level), battleCreature(b.id, speciesOf(b), b.level), content.moves.get(move)!, field, roll).damage;
 }
 
 describe('arena hits', () => {
@@ -102,6 +105,30 @@ describe('arena hits', () => {
     const zone = hitsOf(hold(state, pressing(2), 31).events).find((hit) => hit.move === 'noon-blaze');
     const sunny = withBody({ ...state, weather: { type: 'sun', ticks: 600 } }, 0, {});
     expect(zone?.damage).toBe(share('noon-blaze', expectedDamage(sunny, 'noon-blaze', 'sun')));
+  });
+
+  it('makes a strong hit 1.5 times and a weak one 0.75 times, where a turn battle makes them 2 and 0.5 times', () => {
+    const attacker = battleCreature('a', content.species.get('glowbun')!, 30);
+    const target = battleCreature('b', content.species.get('pinwhirl')!, 30);
+    const sunTap = content.moves.get('sun-tap')!;
+    const hit = (chart: DamageContent, type: string) => damageOf(chart, attacker, { ...target, type }, sunTap, null, 100);
+    const arena = arenaDamageContent(content);
+    const normal = hit(arena, 'gale').damage;
+    expect(normal).toBe(16);
+    expect(hit(battleContent, 'gale').damage).toBe(normal);
+    expect([hit(arena, 'frost'), hit(arena, 'rain')]).toMatchObject([
+      { effectiveness: 'strong', damage: (normal * 3) / 2 },
+      { effectiveness: 'weak', damage: (normal * 3) / 4 },
+    ]);
+    expect([hit(battleContent, 'frost'), hit(battleContent, 'rain')]).toMatchObject([
+      { effectiveness: 'strong', damage: normal * 2 },
+      { effectiveness: 'weak', damage: normal / 2 },
+    ]);
+    const caster = fighter('puddlepip', { level: 20, loadout: loadoutWith('drip-drop') });
+    const state = face(caster, fighter('glowbun', { level: 20 }), 200);
+    const [landed] = hitsOf(hold(state, pressing(0), 30).events);
+    expect(landed).toMatchObject({ effectiveness: 'strong', damage: expectedDamage(state, 'drip-drop', null) });
+    expect(landed!.damage).toBeLessThan(expectedDamage(state, 'drip-drop', null, battleContent));
   });
 
   it('takes 70% of the damage with the turtle setting', () => {
