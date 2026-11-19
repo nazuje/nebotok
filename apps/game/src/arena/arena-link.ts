@@ -64,12 +64,18 @@ export type Arena = {
 };
 
 const SEND_MS = 1_000 / INPUTS_PER_SECOND;
+/** How long the island stays in view after the fight ends, in ms, so a fall or a befriending's hearts play out before the result covers it. */
+export const RESULT_HOLD_MS = 1_500;
 
 type Fight = {
   readonly id: string;
   room: ArenaRoom | null;
+  /** The room's last state once the server has closed it, so the island stays drawn while the result is held back. */
+  last: ShownFight['state'] | null;
   started: ArenaStartedMessage | null;
   result: ArenaResultMessage | null;
+  /** When the result card goes up, in page ms. */
+  resultAt: number;
   book: FightBook;
   events: FightEvent[];
   inputs: number;
@@ -97,7 +103,7 @@ export function createArena(options: ArenaOptions): Arena {
   let sender: ReturnType<typeof setInterval> | undefined;
 
   const shown = (): ShownFight | null => {
-    const state = fight?.room?.state;
+    const state = fight?.room?.state ?? fight?.last;
     const side = fight?.started?.side;
     return state?.bodies && side !== undefined ? { state, side } : null;
   };
@@ -179,7 +185,9 @@ export function createArena(options: ArenaOptions): Arena {
       }),
     ];
     room.onLeave(() => {
-      if (target.room === room) target.room = null;
+      if (target.room !== room) return;
+      target.last = room.state;
+      target.room = null;
     });
     target.stop = () => {
       for (const stop of stops) stop();
@@ -193,7 +201,7 @@ export function createArena(options: ArenaOptions): Arena {
     if (!connection) return;
     if (fight?.id !== fightId) {
       if (fight) leaveRoom(fight);
-      fight = { id: fightId, room: null, started: null, result: null, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, stop: () => {} };
+      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, stop: () => {} };
       controls.reset();
       options.started();
       options.changed();
@@ -210,6 +218,7 @@ export function createArena(options: ArenaOptions): Arena {
     options.learned(result.learned);
     if (fight?.id !== result.fightId) return;
     fight.result = result;
+    fight.resultAt = performance.now() + RESULT_HOLD_MS;
     controls.reset();
     clearInterval(sender);
     sender = undefined;
@@ -247,7 +256,7 @@ export function createArena(options: ArenaOptions): Arena {
     },
     frame: (now) => {
       const language = options.language();
-      const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: fight.result, team: options.progress()?.team ?? [] };
+      const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [] };
       screen.render(view, language);
       if (fight) controls.render(buttons(), language, now, fighting() && shown()?.state.mode === 'wild');
       const game = options.game();

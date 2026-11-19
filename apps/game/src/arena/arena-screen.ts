@@ -18,9 +18,6 @@ import type { BadgeTone, Popup } from './arena-juice.ts';
 /** A creature on the island, as its card shows it; `tone` compares its level with the other creature's. */
 export type CardView = { readonly species: string; readonly level: number; readonly tone: BadgeTone; readonly health: number; readonly max: number; readonly turtle: boolean };
 
-/** How long a damage number shows, in ms; arena.css animates it over the same time. */
-export const POPUP_MS = 850;
-
 export type ArenaScreenView = {
   /** Your creature's card, then the other side's. */
   readonly cards: readonly [CardView | null, CardView | null];
@@ -188,8 +185,9 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
       shown.dataset.tone = popup.tone;
       shown.style.left = `${Math.round(x)}px`;
       shown.style.top = `${Math.round(y)}px`;
+      // arena.css fades every number out, under reduced motion too, so its end removes it.
+      shown.addEventListener('animationend', () => shown.remove(), { once: true });
       popups.append(shown);
-      setTimeout(() => shown.remove(), POPUP_MS);
     },
   };
 }

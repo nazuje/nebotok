@@ -527,11 +527,22 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   tick, special a star, ultimate a sun-burst ring), and dash, treat, swap, leave, lock, turtle,
   challenge, accept, decline, watch, even match, real levels and ring-out. A move's button picture
   is its shape tinted by its type with its kind's mark (`abilityIcon`).
-- **Juice** (#153): health bars with a trail, level badges red, green or blue for higher, lower or
+- **Juice** (#153, built): health bars with a trail, level badges red, green or blue for higher, lower or
   even, damage numbers (yellow with "!" for strong hits), hit-stop 60 to 160 ms (drawing only),
   shake 150 to 350 ms up to 14 px, sparks, falling spin, hearts. Under reduced motion: no shake, no
   hit-stop, no particles, no camera ease; numbers and bars stay. Haptics on hits to you, a ring-out
-  and a befriend, where the device allows, never under reduced motion.
+  and a befriend, where the device allows, never under reduced motion. Built in
+  `apps/game/src/arena/`: `arena-juice.ts` holds the rules (`badgeTone`, `HIT_STOP_MS` by event,
+  `shakeFor`, `popupFor`, `buzzFor`), `arena-effects.ts` and `arena-sparks.ts` play them in the
+  scene, and `arena-screen.ts` shows the numbers as HTML over the island. A hit flashes the creature
+  white (Phaser 4's fill tint) and its bar over it, smaller where creatures overlap, keeps a white
+  trail of what was lost; a wind-up shows its telegraph, the storm's warning darkens the band
+  about to go and rings the next edge for its 2 s, with lightning, a creature near the edge lights
+  the rim red beside it, and the island's weather sits in the top left corner (`weatherIcon`). The island stays in view 1.5 s after the fight ends, so a fall or
+  the hearts play out before the result. Haptics are `navigator.vibrate` only, so iPhones and
+  iPads, whose Safari has none, never buzz. `scripts/arena-check.mjs` takes a picture of a strong
+  hit's number, the storm's warning and a befriending's hearts on phone and tablet, and checks a
+  hit under reduced motion leaves the island unshaken, with no hit-stop and no sparks.
 - **Loadout picker** (#154, built): three button tiles (at least 64 px), then only the learned moves of
   that kind, so no wrong choice is possible. A move tile shows 1 to 3 power pips (1 for 40 and 50,
   2 for 65 and 80, 3 for 100), not numbers. The new-move toast goes away by itself after 6 s.
