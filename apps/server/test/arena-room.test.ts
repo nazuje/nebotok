@@ -435,7 +435,8 @@ describe('the arena room', () => {
     const who = await player('Test Courier', { team });
     const join = await startPractice(who);
     await sleep(200);
-    clock.offset = ARENA_PICK_MS;
+    // Away for a third of the picking time, well inside the wait for an away player.
+    clock.offset = ARENA_PICK_MS / 3;
     const fighter = await enter(who, join);
     await fighter.box.take('arena.started');
     // The time away did not count.
