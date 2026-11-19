@@ -213,6 +213,10 @@ export {
   ArenaDashRules,
   ArenaStormRules,
   ArenaRules,
+  ARENA_MINDS,
+  ArenaMindName,
+  ArenaMindSkill,
+  ArenaMindRules,
   arenaReach,
 } from './content.ts';
 export { arenaLinkProblems } from './arena-links.ts';
@@ -591,6 +595,7 @@ export { knockFor, healthPermille, SLOW_HOLD_TICKS } from './arena/hits.ts';
 export { abilityOf, aimOf, fanOf, inCone, isBusy, type Ability, type AbilityOf } from './arena/abilities.ts';
 export type { Aim } from './arena/working.ts';
 export { ArenaInputRun, ArenaGoldenFile, arenaReplay, arenaReplayHash, type ArenaReplay } from './arena/golden.ts';
+export { createBrain, directionOf, mindFight, wildInput, wildLoadout, wildMindFor, type Brain, type MindStep } from './arena/mind.ts';
 export {
   TreatStack,
   WildTeamEntry,

@@ -28,7 +28,9 @@ in the browser later.
   refuses `Math.random`, `Date.now`, trigonometry and `sqrt` there. Arena goldens
   (`fixtures/golden/arena/`) and fight goldens (`fixtures/golden/arena/fights/`: wild fights and
   best of 3s through `fightStep`) replay against `fixtures/golden/arena/content/` and are recorded
-  by `npm run golden:update`, after the same check as battle goldens.
+  by `npm run golden:update`, after the same check as battle goldens. The computer's mind is
+  `src/arena/mind.ts` (`wildInput`, `mindFight`); `node scripts/arena-sim.mjs` plays its skills
+  against each other for every species pair and checks docs/arena.md's balance targets.
 - **Wild creatures and progress:** `rollEncounter` (`src/encounter.ts`), `befriendChance`
   (`src/befriend.ts`), team, storage, treat and shrine rules (`src/creatures.ts`, pure functions on a
   `Progress`), experience (`src/growth.ts`), the moves a level up teaches or offers

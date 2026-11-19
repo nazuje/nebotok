@@ -715,6 +715,37 @@ export const ArenaStormRules = z
   .refine((storm) => storm.warnTicks + storm.shrinkTicks <= storm.everyTicks, 'a shrink and the next warning fit between two shrinks');
 export type ArenaStormRules = z.infer<typeof ArenaStormRules>;
 
+/** The computer's minds (arena/mind.ts): `WILD` for wild creatures, `WILD_EASIER` against the turtle setting, `BOT` for tests and trainers. */
+export const ARENA_MINDS = ['WILD', 'WILD_EASIER', 'BOT'] as const;
+export const ArenaMindName = z.enum(ARENA_MINDS);
+export type ArenaMindName = z.infer<typeof ArenaMindName>;
+
+/** How well a mind plays. */
+export const ArenaMindSkill = z.strictObject({
+  /** Ticks between choosing where to walk. */
+  thinkTicks: Whole(1, 600),
+  /** The chance of dashing aside from a shot, a lunge or a wind-up coming at it. */
+  dodgePercent: ArenaPercent,
+  /** The largest aim error, as the cosine in 1/4096 of its angle. */
+  aimErrorCosine: Cosine,
+  /** How much of the target's movement it aims a shot ahead by. */
+  leadPercent: ArenaPercent,
+  /** Ticks it waits after an ability before the next: 50 to 150% of this. */
+  reactTicks: ArenaTicks,
+  /** The chance a tick, in permille, of starting a ready special or ultimate when the moment is right. */
+  eagerPermille: Whole(0, 1_000),
+});
+export type ArenaMindSkill = z.infer<typeof ArenaMindSkill>;
+
+export const ArenaMindRules = z.strictObject({
+  skills: z.strictObject({ WILD: ArenaMindSkill, WILD_EASIER: ArenaMindSkill, BOT: ArenaMindSkill }),
+  /** A mind stays this far inside the edge, or inside the edge the storm is about to shrink to. */
+  edgeMargin: ArenaUnits,
+  /** The distance a mind likes to fight at, by the shape of its button 1 move. */
+  ranges: z.record(z.enum(ARENA_SHAPES), ArenaUnits),
+});
+export type ArenaMindRules = z.infer<typeof ArenaMindRules>;
+
 const ArenaRulesObject = z.strictObject({
   island: ArenaIslandRules,
   dash: ArenaDashRules,
@@ -748,6 +779,7 @@ const ArenaRulesObject = z.strictObject({
   /** How long an ultimate's own type's weather lasts on the island. */
   ultimateWeatherTicks: ArenaTicks,
   shapes: z.strictObject(ARENA_SHAPE_NUMBERS),
+  minds: ArenaMindRules,
 });
 
 export const ArenaRules = ArenaRulesObject.superRefine((rules, ctx) => {

@@ -55,6 +55,12 @@ function hold(state: ArenaState, inputs: ArenaInputs, ticks: number): { state: A
 const hitsOf = (events: readonly ArenaEvent[]) => events.flatMap((event) => (event.kind === 'hit' ? [event] : []));
 const pressing = (button: 0 | 1 | 2): ArenaInputs => [stick(null, button), ARENA_IDLE];
 
+/** The damage one hit of `move` deals, its shape's share of a full hit of `damage`. */
+function share(move: string, damage: number): number {
+  const ability = abilityOf(move, content);
+  return Math.max(1, Math.trunc((damage * ('sharePercent' in ability ? ability.sharePercent : 100)) / 100));
+}
+
 /** The damage `damageOf` gives a full hit of `move` from side 0 on side 1 in `weather`, with the step's roll. */
 function expectedDamage(state: ArenaState, move: string, weather: string | null): number {
   const [a, b] = state.bodies;
@@ -92,10 +98,10 @@ describe('arena hits', () => {
     const caster = fighter('glowbun', { level: 20, loadout: loadoutWith('heat-shimmer', 'noon-blaze') });
     const state = face(caster, fighter('puddlepip', { level: 20 }), 120);
     const [cone] = hitsOf(hold(state, pressing(0), 1).events);
-    expect(cone).toMatchObject({ effectiveness: 'weak', damage: expectedDamage(state, 'heat-shimmer', null) });
+    expect(cone).toMatchObject({ effectiveness: 'weak', damage: share('heat-shimmer', expectedDamage(state, 'heat-shimmer', null)) });
     const zone = hitsOf(hold(state, pressing(2), 31).events).find((hit) => hit.move === 'noon-blaze');
     const sunny = withBody({ ...state, weather: { type: 'sun', ticks: 600 } }, 0, {});
-    expect(zone?.damage).toBe(Math.max(1, Math.trunc((expectedDamage(sunny, 'noon-blaze', 'sun') * 20) / 100)));
+    expect(zone?.damage).toBe(share('noon-blaze', expectedDamage(sunny, 'noon-blaze', 'sun')));
   });
 
   it('takes 70% of the damage with the turtle setting', () => {

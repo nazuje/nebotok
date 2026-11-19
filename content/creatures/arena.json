@@ -42,17 +42,26 @@
   "ultimateWeatherTicks": 600,
   "shapes": {
     "bolt": { "speed": 900, "radius": 22, "reach": 560, "knock": 420, "sharePercent": 100 },
-    "spray": { "speed": 950, "radius": 16, "reach": 460, "knock": 160, "sharePercent": 33, "count": 3, "spreadCosine": 4034 },
-    "cone": { "radius": 230, "halfAngleCosine": 3133, "knock": 560, "sharePercent": 100 },
+    "spray": { "speed": 950, "radius": 16, "reach": 460, "knock": 160, "sharePercent": 40, "count": 3, "spreadCosine": 4034 },
+    "cone": { "radius": 230, "halfAngleCosine": 3133, "knock": 560, "sharePercent": 70 },
     "snare": { "speed": 900, "radius": 20, "reach": 520, "knock": 0, "sharePercent": 100, "rootTicks": 48, "pull": 0 },
     "lunge": { "speed": 1350, "ticks": 14, "knock": 1150, "sharePercent": 100 },
-    "burst": { "radius": 170, "knock": 900, "sharePercent": 100 },
-    "puddle": { "reach": 300, "radius": 115, "armTicks": 18, "ticks": 240, "slowPercent": 45, "sharePercent": 100 },
-    "shield": { "ticks": 240, "reflectPercent": 40, "knock": 500 },
-    "strike": { "reach": 300, "radius": 90, "armTicks": 30, "knock": 600, "count": 1, "spacing": 0, "sharePercent": 100 },
-    "wall": { "speed": 650, "radius": 190, "ticks": 60, "knock": 1250, "sharePercent": 100 },
-    "freeze": { "reach": 200, "radius": 190, "armTicks": 30, "rootTicks": 96, "sharePercent": 100 },
-    "zone": { "radius": 210, "ticks": 300, "sharePercent": 20, "healPercent": 0, "slowPercent": 100 },
+    "burst": { "radius": 170, "knock": 900, "sharePercent": 60 },
+    "puddle": { "reach": 300, "radius": 115, "armTicks": 18, "ticks": 240, "slowPercent": 45, "sharePercent": 85 },
+    "shield": { "ticks": 240, "reflectPercent": 60, "knock": 500 },
+    "strike": { "reach": 300, "radius": 120, "armTicks": 30, "knock": 600, "count": 1, "spacing": 0, "sharePercent": 100 },
+    "wall": { "speed": 650, "radius": 190, "ticks": 60, "knock": 1250, "sharePercent": 45 },
+    "freeze": { "reach": 200, "radius": 190, "armTicks": 20, "rootTicks": 96, "sharePercent": 130 },
+    "zone": { "radius": 210, "ticks": 300, "sharePercent": 30, "healPercent": 0, "slowPercent": 100 },
     "weather": { "radius": 150, "knock": 500, "weatherTicks": 900 }
+  },
+  "minds": {
+    "skills": {
+      "WILD": { "thinkTicks": 20, "dodgePercent": 10, "aimErrorCosine": 3133, "leadPercent": 0, "reactTicks": 36, "eagerPermille": 15 },
+      "WILD_EASIER": { "thinkTicks": 24, "dodgePercent": 5, "aimErrorCosine": 2854, "leadPercent": 0, "reactTicks": 60, "eagerPermille": 10 },
+      "BOT": { "thinkTicks": 8, "dodgePercent": 50, "aimErrorCosine": 4083, "leadPercent": 60, "reactTicks": 10, "eagerPermille": 50 }
+    },
+    "edgeMargin": 180,
+    "ranges": { "bolt": 380, "spray": 300, "cone": 150, "snare": 380, "lunge": 300, "burst": 150, "puddle": 300, "shield": 150, "strike": 300, "wall": 330, "freeze": 200, "zone": 150, "weather": 150 }
   }
 }
