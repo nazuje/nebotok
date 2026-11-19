@@ -54,5 +54,14 @@
     "freeze": { "reach": 200, "radius": 190, "armTicks": 30, "rootTicks": 96, "sharePercent": 100 },
     "zone": { "radius": 210, "ticks": 300, "sharePercent": 20, "healPercent": 0, "slowPercent": 100 },
     "weather": { "radius": 150, "knock": 500, "weatherTicks": 900 }
+  },
+  "minds": {
+    "skills": {
+      "WILD": { "thinkTicks": 10, "dodgePercent": 35, "aimErrorCosine": 4056, "leadPercent": 50, "reactTicks": 14, "eagerPermille": 40 },
+      "WILD_EASIER": { "thinkTicks": 16, "dodgePercent": 15, "aimErrorCosine": 3979, "leadPercent": 20, "reactTicks": 26, "eagerPermille": 25 },
+      "BOT": { "thinkTicks": 8, "dodgePercent": 50, "aimErrorCosine": 4083, "leadPercent": 60, "reactTicks": 10, "eagerPermille": 50 }
+    },
+    "edgeMargin": 180,
+    "ranges": { "bolt": 380, "spray": 300, "cone": 150, "snare": 380, "lunge": 300, "burst": 150, "puddle": 300, "shield": 150, "strike": 300, "wall": 330, "freeze": 200, "zone": 150, "weather": 150 }
   }
 }
