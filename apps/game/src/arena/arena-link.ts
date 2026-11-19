@@ -106,7 +106,8 @@ export function createArena(options: ArenaOptions): Arena {
 
   function send() {
     const room = fight?.room;
-    if (!fight || !room || !fighting()) return;
+    // A room the server just closed is gone only once its socket has finished closing.
+    if (!fight || !room || !room.connection.isOpen || !fighting()) return;
     const pressed = controls.take();
     const input = room.input();
     Object.assign(input.data, wireInput(controls.direction(), pressed, controls.leaving()));

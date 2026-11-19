@@ -540,8 +540,11 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   fight's `arena.result` `learned` (#150), which the arena client hands to it after Continue;
   holding a move plays its shape on a mini island with the arena's own painter
   (`arena/arena-preview.ts`, through `shape-preview.ts`'s `ShapePainter` seam).
-- **Duels** (#157, #158): ask a courier within 4 tiles; the answer card waits 20 s, then declines
-  by itself; the same pair waits 30 s after a decline. Up to 6 watchers. The winner's courier wears
+- **Duels** (#157, #158): tap a courier within 4 tiles for a picture menu (even match first, then
+  real levels); the answer card shows the asker's courier, their first three creatures and the
+  even or real picture, with a big tick and cross, and "Read to me" reads a fixed line with no name
+  in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline
+  (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`). Up to 6 watchers. The winner's courier wears
   a small trophy for 60 s.
 
 ## Trainers

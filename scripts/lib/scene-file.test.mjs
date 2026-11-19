@@ -66,6 +66,20 @@ describe('parseScene', () => {
     expect(read({ ...base, steps: [...base.steps, { do: 'talk', player: 'lan', npc: 'nobody' }] }).ok).toBe(false);
   });
 
+  it('takes a prepared team, with or without a quest step, and refuses half a quest or nothing to prepare', () => {
+    const prepared = (value) => read({ ...base, players: [{ ...base.players[0], prepared: value }] });
+    const team = [{ species: 'glowbun', level: 8 }];
+    expect(prepared({ at: { x: 14, y: 16 }, team }).ok).toBe(true);
+    expect(prepared({ quest: 'the-grey-letter', step: 'lookout', at: { x: 33, y: 14 }, team }).ok).toBe(true);
+    expect(prepared({ quest: 'the-grey-letter', at: { x: 33, y: 14 }, team }).problems).toContain('a quest and its step go together');
+    expect(prepared({ at: { x: 14, y: 16 } }).problems).toContain('say a quest and step, a team, or both');
+    expect(prepared({ at: { x: 14, y: 16 }, team: [{ species: 'nobody', level: 8 }] }).ok).toBe(false);
+  });
+
+  it('refuses a duel ask of a player who is not in the scene', () => {
+    expect(read({ ...base, steps: [...base.steps, { do: 'ask', player: 'lan', to: 'mira' }] }).problems).toContain('no player "mira"');
+  });
+
   it('says when the file is not JSON', () => {
     expect(parseScene('{').problems).toMatch(/^not JSON/);
   });
