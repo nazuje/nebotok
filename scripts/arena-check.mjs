@@ -1,7 +1,8 @@
 // Level 4 arena check: a real fight in the real client (apps/game/src/arena/) against the real
 // server, in headless, muted Chromium or WebKit. The server runs in this process, from the built
-// game, with ARENA_BATTLES on, since grass does not start arena fights yet: the check starts each
-// fight through the world room as the bot run does (scripts/lib/arena-bot.mjs). Each run signs in
+// game, with ARENA_BATTLES on. The check starts each fight through the world room, so every run meets
+// the same weak wild creature rather than whatever the grass sends (the bot run's arena bot,
+// scripts/lib/arena-bot.mjs, covers the grass). Each run signs in
 // as a player whose save it prepared, sees the island, the cards and the buttons (each at least
 // 64px, with its picture, a lock on one its level has not reached), steers with the stick, the
 // mouse or the keys and fires button 1 by tap or key until the wild creature is beaten, reads the

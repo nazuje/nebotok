@@ -22,13 +22,18 @@ export type TreatStack = z.infer<typeof TreatStack>;
 export const WildTeamEntry = z.strictObject({ place: TeamPlace, fighter: ArenaFighter, hp: z.number().int().min(1).max(10_000) });
 export type WildTeamEntry = z.infer<typeof WildTeamEntry>;
 
-/** A wild fight: the standing team in order, the lead first, the wild creature, and the treats in the bag. */
+/**
+ * A wild fight: the standing team in order, the lead first, the wild creature, and the treats in the
+ * bag. `weather` is the encounter zone's, on the island from the start until a move's weather
+ * replaces it; none for clear skies.
+ */
 export const WildFightSetup = z.strictObject({
   mode: z.literal('wild'),
   seed: Seed,
   team: z.array(WildTeamEntry).min(1).max(MAX_TEAM),
   wild: ArenaFighter,
   treats: z.array(TreatStack).max(100),
+  weather: ContentId.optional(),
 });
 export type WildFightSetup = z.infer<typeof WildFightSetup>;
 

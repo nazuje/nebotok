@@ -302,8 +302,8 @@ request gives it up after 1.5 s without an answer, so the next tap asks again.
 **Planned** for the milestone "Phase 2: Arena battles" (#141 to #160). Built so far: loadouts and
 the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148), and the arena
 room with its input, limits, state and messages, the hand-off and `ARENA_BATTLES` (protocol 12,
-#149). Nothing starts a fight yet but tests and the bot run, through the world room's
-`startWildFight(playerId, wild)`; tall grass calls it from #150. Parts still to come are marked.
+#149), and wild fights from tall grass with the setting on (#150). Tests can also start one with
+the world room's `startWildFight(playerId, wild)`. Parts still to come are marked.
 The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md). Until the switch-over
 (#160) both kinds of battle exist: the server setting `ARENA_BATTLES` (default `off`, in
@@ -329,16 +329,22 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
 - **The end.** The arena room hands `{ fightId, fight, why }`, the fight as it ended, to the
   world room through the fight book (same process), and closes 2 s later. The world room settles it
   against the seat's progress (`settleFight` in `src/battles.ts`): team health
-  (`teamAfterFight`), then XP and level ups to the creatures still standing (`arenaRewards`), the
-  moves of new levels (learned at once or offered with `move.offer`), the treats left, the
-  befriended creature to the team or storage with `befriended`, and waking at a shrine when the
-  whole team fainted. It saves at once and sends `arena.result` and `progress`, and `inBattle`
-  turns false. `seen` is saved as the fight starts. Still to come with the grass (#150): the
-  `battleWon` quest event on `won` and `wonByRingOut`, and the zone's weather.
-- **Starting points.** The world room's `startWildFight` (#149, for tests and the bot run), and
-  tall grass with `ARENA_BATTLES` on (#150): a wild fight, set up by
-  `arenaWildSetup` with the zone's weather, the player's loadouts and turtle setting, and the wild
-  loadout. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
+  (`teamAfterFight`), then XP and level ups to the creatures still standing (`arenaRewards`), every
+  move a level up teaches in `learned` (an arena creature keeps every move it learns, so nothing
+  is offered with `move.offer`; a turn battle's four moves take the new ones while there is room),
+  the treats left, the befriended creature to the team or storage with `befriended`, and waking
+  at a shrine when the whole team fainted. It saves at once and sends `arena.result`, then counts
+  the quest events: `battleWon` in the fight's zone on `won` and `wonByRingOut`, and
+  `befriended` on `befriended` (unlike a turn battle, a befriending is not a won battle), with any
+  `quest.changed`, then `progress` and, when quests moved, `story`; `inBattle` turns false. `seen` is
+  saved as the fight starts.
+- **Starting points.** Tall grass with `ARENA_BATTLES` on (#150, built): a step that meets a
+  wild creature (`rollEncounter`, as for turn battles) starts a wild fight instead of
+  `battle.started`, set up by `arenaWildSetup` with the zone's weather (on the island from the
+  start and for the whole fight, until a move's weather replaces it), the player's loadouts and
+  turtle setting, and the wild loadout. The courier stays on the grass tile where it met the
+  creature, and `arena.join` follows. The world room's `startWildFight` (#149) does the same
+  outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
   An accepted duel (#157): rounds with two human sides. A dev-only `arena.practice` switch starts
   rounds against `BOT` for the browser check (#155).
 

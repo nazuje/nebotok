@@ -106,7 +106,8 @@ settles the ending.
 The whole fight (#147), around the island:
 
 - `fight-state.ts`: `FightSetup`, either a `WildFightSetup` (`{ mode: 'wild', seed, team, wild,
-  treats }`, each team entry its save `place`, real `hp` and `fighter`) or a `RoundsFightSetup`
+  treats, weather? }`, each team entry its save `place`, real `hp` and `fighter`; `weather` the
+  encounter zone's, #150) or a `RoundsFightSetup`
   (`{ mode: 'rounds', seed, picks }`, one to three picks a side). `ArenaFight` is a `WildFight`
   (the `island`, the `team` with each creature's arena `health`, `fought` and `out`, the
   `active` one, `swapCooldown`, the `treats` in the bag, the `treat` out, `treatWait`,
@@ -234,8 +235,10 @@ Where the aim lands: a thrown puddle or freeze lands at the other creature's dis
 help has it, clamped to 120 to 420 units, else at the shape's reach (prototype `aimOf`).
 
 **Weather on the island:** a `weather` move sets its weather for 900 ticks; every ultimate also sets
-its own type's weather for 600 ticks (10 s, `ultimateWeatherTicks`). A new weather ends the old one early. The weather chart
-in `content/creatures/weather.json` applies to every hit, as in turns.
+its own type's weather for 600 ticks (10 s, `ultimateWeatherTicks`). A new weather ends the old one early. A wild fight
+starts under its encounter zone's weather, which lasts the whole fight (`limitTicks`) until a move's weather ends it;
+it does not come back after (#150). The weather chart in `content/creatures/weather.json` applies to every hit, as in
+turns.
 
 ### Every move's kind and shape
 
@@ -531,7 +534,8 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   that kind, so no wrong choice is possible. A move tile shows 1 to 3 power pips (1 for 40 and 50,
   2 for 65 and 80, 3 for 100), not numbers. The new-move toast goes away by itself after 6 s.
   Opened from each team card and from the toast (`apps/game/src/loadout-picker.ts`,
-  `new-move-toast.ts`). Until #150 the toast follows the turn battle's moves learned and offered;
+  `new-move-toast.ts`). The toast follows the turn battle's moves learned and offered, and an arena
+  fight's `arena.result` `learned` (#150), which the arena client hands to it after Continue;
   holding a move plays its shape on a mini island with the arena's own painter
   (`arena/arena-preview.ts`, through `shape-preview.ts`'s `ShapePainter` seam).
 - **Duels** (#157, #158): ask a courier within 4 tiles; the answer card waits 20 s, then declines
@@ -591,9 +595,9 @@ Planned names, so the tickets agree:
 - 10,000 random steps stay under 0.05 ms a step in Node.
 - Browser checks drive a fight by keys and taps from a prepared save against a weak wild creature,
   wait on the test hook's state, never on wall-clock time, and run as verify steps of their own
-  (`arena-check-chromium`, `arena-check-webkit`; `scripts/arena-check.mjs`). Until #150 lets
-  grass start arena fights, the check runs the server in its own process with `ARENA_BATTLES` on and
-  starts each fight through the world room, as the bot run does.
+  (`arena-check-chromium`, `arena-check-webkit`; `scripts/arena-check.mjs`). The check runs the
+  server in its own process with `ARENA_BATTLES` on and starts each fight through the world room,
+  so every run meets the same wild creature; the bot run's arena bot meets its fight in the grass.
 ## Words
 
 - **arena:** a real-time fight on an island, and the Colyseus room that runs one.

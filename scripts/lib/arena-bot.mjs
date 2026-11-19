@@ -1,8 +1,9 @@
 // The arena bot of the bot run (scripts/bot-run.mjs). On an in-process server with ARENA_BATTLES on,
-// the script starts a wild fight through the world room (grass does not start them yet), the bot
-// joins its arena room with the reservation from arena.join and streams 30 inputs a second: the
-// stick towards the wild creature and a press of button 1 every fourth step. It leaves after
-// FIGHT_MS if the fight has not ended by then. Then it checks arena.result against the save.
+// the bot steps back and forth in the tall grass until a wild creature appears, which there starts
+// an arena fight; it joins its arena room with the reservation from arena.join and streams 30
+// inputs a second: the stick towards the wild creature and a press of button 1 every fourth step.
+// It leaves after FIGHT_MS if the fight has not ended by then. Then it checks arena.result against
+// the save.
 import { matchMaker } from '@colyseus/core';
 import { Client } from '@colyseus/sdk';
 import { ARENA_NONE, DIRECTION_VECTORS, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, newCreature } from '../../packages/core/src/index.ts';
@@ -10,6 +11,7 @@ import { poll, sleep } from './in-turn.mjs';
 
 export const ARENA_BOT = { name: 'Bot Arena', avatar: 'blue' };
 const FIGHT_MS = 15_000;
+const MAX_GRASS_STEPS = 200;
 const STEP_MS = 33;
 const PRESS_EVERY = 4;
 const XP_RESULTS = new Set(['won', 'wonByRingOut', 'befriended', 'timeUp']);
@@ -37,21 +39,36 @@ async function stream(fight, endsAt, sent = 0) {
   return stream(fight, endsAt, sent + 1);
 }
 
+const standsOn = (room, tile) => {
+  const me = room.state.players?.get(room.sessionId);
+  return me?.x === tile.x && me?.y === tile.y && me?.moving === false;
+};
+
+/** Steps between the two grass `tiles` until `met()` says a wild creature appeared. */
+async function pace(room, tiles, met, steps = 0) {
+  if (met()) return;
+  if (steps >= MAX_GRASS_STEPS) throw new Error(`${ARENA_BOT.name} met no wild creature in ${MAX_GRASS_STEPS} steps`);
+  const tile = tiles[steps % 2];
+  room.send('walk.to', tile);
+  await poll(() => standsOn(room, tile) || met(), { deadline: Date.now() + 5_000 });
+  return pace(room, tiles, met, steps + 1);
+}
+
 /**
- * Plays one arena fight on `server` (startSideServer's) and checks it with `expect`: one
+ * Plays one arena fight from the grass on `server` (startSideServer's) and checks it with `expect`: one
  * arena.result, experience only for a result that gives it, the saved team as the result says,
  * one settlement in the log, the seat free again and the arena room closed.
  */
 export async function arenaRun(server, { starter, expect }) {
   const { services } = server;
   const world = services.world;
-  const [zone] = world.encounters.values();
-  const wild = { species: zone.creatures[0].species, level: zone.creatures[0].minLevel };
+  const area = world.map.encounterAreas[0];
+  const grass = [{ x: area.x, y: area.y }, { x: area.x + 1, y: area.y }];
   const made = await services.profiles.create(ARENA_BOT);
   if (!made.ok) throw new Error(made.error);
   const playerId = made.value.id;
   const team = [newCreature(starter, 30, world.battle)];
-  const position = { map: world.map.id, ...server.stand, facing: 'down' };
+  const position = { map: world.map.id, ...grass[0], facing: 'down' };
   services.progress.save(playerId, createSave({ settings: defaultSettings(), name: ARENA_BOT.name, language: 'en', createdAt: new Date().toISOString(), position, ...emptyProgress(), team }));
   const session = await services.profiles.login({ profileId: playerId });
   if (!session.ok) throw new Error(session.error);
@@ -68,11 +85,19 @@ export async function arenaRun(server, { starter, expect }) {
   };
   await message('progress');
 
-  const fightId = await matchMaker.getLocalRoomById(room.roomId).startWildFight(playerId, wild);
-  if (!fightId) throw new Error('the world room started no fight');
+  await pace(room, grass, () => heard.some((entry) => entry.type === 'arena.join'));
   const join = await message('arena.join');
+  const { fightId } = join;
+  expect(!heard.some((entry) => entry.type === 'battle.started'), `${ARENA_BOT.name} met a turn battle in the grass`);
   const arena = await client.consumeSeatReservation(join.reservation);
-  arena.onMessage('*', () => {});
+  const lineups = [];
+  arena.onMessage('*', (type, payload) => {
+    if (type === 'arena.started') lineups.push(payload.sides);
+  });
+  await poll(() => lineups.length > 0, { deadline: Date.now() + 5_000 });
+  const opponent = lineups[0]?.[1]?.[0];
+  if (!opponent) throw new Error(`${ARENA_BOT.name} heard no arena.started`);
+  const wild = { species: opponent.species, level: opponent.level };
   const fight = { room: arena, ended: () => heard.some((entry) => entry.type === 'arena.result') };
   const steps = await stream(fight, Date.now() + FIGHT_MS);
   const ranOut = !fight.ended();

@@ -225,6 +225,17 @@ describe('setting up a wild fight', () => {
     expect(setup.wild).toEqual({ id: 'b1', species: 'snowsnoot', level: 9, loadout: loadoutWith('frost-tap'), turtle: false, computer: true });
     expect(setup.treats).toEqual([{ item: 'sun-treat', count: 2 }]);
     expect(wildOf(fightStart(setup, content)).island.bodies[0].health).toBe(team[1]!.hp * rules.island.hpScale);
+    expect(setup).not.toHaveProperty('weather');
+    expect(wildOf(fightStart(setup, content)).island.weather).toBeNull();
+  });
+
+  it('puts the zone’s weather on the island for the whole fight', () => {
+    const team = [newCreature('puddlepip', 12, battleContent)];
+    const setup = arenaWildSetup({ seed: 7, team, wild: { species: 'glowbun', level: 9 }, wildLoadout: loadoutWith('sun-tap'), turtle: false, inventory: [], content: battleContent, weather: 'rain' });
+    expect(setup.weather).toBe('rain');
+    const fight = wildOf(fightStart(setup, content));
+    expect(fight.island.weather).toEqual({ type: 'rain', ticks: rules.island.limitTicks });
+    expect(wildOf(hold(fight, press({}), 600).fight).island.weather).toEqual({ type: 'rain', ticks: rules.island.limitTicks - 600 });
   });
 });
 

@@ -16,8 +16,10 @@
 //   9. meanwhile a courier bot, whose save was given a delivery job and its items while the
 //      server was stopped, gets its board on joining, opens the job board when the map places one
 //      (which draws the empty slots), and delivers the job to its character in a talk.
-//  10. meanwhile, on the gatherer's server with ARENA_BATTLES on, an arena bot plays one wild arena
-//      fight by script (scripts/lib/arena-bot.mjs) and checks its result and its save.
+//  10. meanwhile, on the gatherer's server with ARENA_BATTLES on, an arena bot steps in the tall grass
+//      until a wild creature starts an arena fight, plays it by script (scripts/lib/arena-bot.mjs)
+//      and checks its result and its save. The real server keeps the setting off, so its grass
+//      still starts the turn battles of 6 and 7.
 //   node scripts/bot-run.mjs [--out <dir>]
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -437,8 +439,8 @@ async function courierRun(bot, map, tiles, job) {
 
 // The served map places no spots or stations yet, so the gatherer plays on a server started in this
 // process, on the same content, whose map puts every spot on one tile beside the spawn and every
-// station on another. Its messages still go over a real WebSocket. Nothing starts arena fights yet
-// either, so the arena bot plays there too, where the script can reach the world room.
+// station on another. Its messages still go over a real WebSocket. It has ARENA_BATTLES on, so the
+// arena bot plays there too.
 const SKILLS = WORLD.story.skills;
 const GATHERER = { name: 'Bot Nabiralka', avatar: 'green' };
 /** How long after its last tap the gatherer finishes, so no tap is ahead of the server's clock. */
@@ -654,7 +656,7 @@ try {
   side = await sideRunning;
   const { gatherer, arena } = side;
   if (gatherer) step(`${gatherer.bot} gathered and cooked: ${gatherer.outcomes.join(', ')}; skills ${gatherer.skills.join(', ')}`);
-  if (arena) step(`${arena.bot} fought a wild ${arena.wild} in an arena room: ${arena.outcome}${arena.ranOut ? ' (left after its time)' : ''}, ${arena.inputs} inputs, mean step ${arena.meanStepMs} ms`);
+  if (arena) step(`${arena.bot} met a wild ${arena.wild} in the grass and fought it in an arena room: ${arena.outcome}${arena.ranOut ? ' (left after its time)' : ''}, ${arena.inputs} inputs, mean step ${arena.meanStepMs} ms`);
   const everyone = [...back, courierBot];
   await Promise.all(everyone.map((bot) => bot.room.leave()));
   await until(() => second.lines.filter((line) => line.msg === 'player left').length === everyone.length, 'the restarted server to log every leave');

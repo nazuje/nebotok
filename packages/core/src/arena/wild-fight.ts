@@ -41,10 +41,12 @@ export function wildStart(setup: WildFightSetup, content: FightContent): WildFig
   if (!lead) throw new RangeError('arena: a wild fight needs a creature that can fight');
   const island = arenaStart({ seed: setup.seed, fighters: [lead.fighter, setup.wild] }, content);
   const [mine, wild] = island.bodies;
+  // The zone's weather lasts the whole fight, so only a move's weather ends it.
+  const weather = setup.weather === undefined ? null : { type: setup.weather, ticks: content.arena.island.limitTicks };
   return {
     mode: 'wild',
     tick: 0,
-    island: { ...island, bodies: [{ ...mine, health: lead.health }, wild] },
+    island: { ...island, bodies: [{ ...mine, health: lead.health }, wild], weather },
     team: team.with(0, { ...lead, fought: true }),
     active: 0,
     swapCooldown: 0,
