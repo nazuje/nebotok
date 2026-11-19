@@ -32,6 +32,7 @@ const NEWS_PICTURES: Readonly<Partial<Record<StringId, string>>> = {
   'battle.interrupted': spriteFor.picture('cloud-off'),
   'shrine.rested': SHRINE_SPRITE,
   'profile.error.hasPin': spriteFor.picture('lock'),
+  'duel.no': spriteFor.picture('cross'),
 };
 
 const isRefusal = (reason: string): reason is RefusalReason => (REFUSAL_REASONS as readonly string[]).includes(reason);

@@ -10,6 +10,7 @@ import { createFollower, type Follower } from './arena-follow.ts';
 import { INPUTS_PER_SECOND, leadLimit, wireInput } from './arena-input.ts';
 import { createNetPanel, netMetersAsked } from './arena-net.ts';
 import { createCastEcho, createPredictor, type CastEcho, type NetMeters, type Predictor } from './arena-predict.ts';
+import { badgeTone, buzzFor, motionReduced } from './arena-juice.ts';
 import { ARENA_SCENE, ArenaScene, type ArenaDrawn, type ShownFight } from './arena-scene.ts';
 import { createArenaScreen, type CardView } from './arena-screen.ts';
 import { fightBook, type FightBook } from './fight-book.ts';
@@ -49,6 +50,8 @@ export type TestArena = {
   /** Inputs sent, and how many asked for a move. */
   inputs: number;
   presses: number;
+  /** Buzzes asked of the device, where it can vibrate. */
+  buzzes: number;
   drawn: ArenaDrawn | null;
   result: ArenaResultMessage | null;
   /** The netcode meters (docs/protocol.md, "Prediction"), once the fight has started. */
@@ -70,16 +73,23 @@ export type Arena = {
 const SEND_MS = 1_000 / INPUTS_PER_SECOND;
 /** How much of each new ping the round trip takes in. */
 const PING_EASE = 0.25;
+/** How long the island stays in view after the fight ends, in ms, so a fall or a befriending's hearts play out before the result covers it. */
+export const RESULT_HOLD_MS = 1_500;
 
 type Fight = {
   readonly id: string;
   room: ArenaRoom | null;
+  /** The room's last state once the server has closed it, so the island stays drawn while the result is held back. */
+  last: ShownFight['state'] | null;
   started: ArenaStartedMessage | null;
   result: ArenaResultMessage | null;
+  /** When the result card goes up, in page ms. */
+  resultAt: number;
   book: FightBook;
   events: FightEvent[];
   inputs: number;
   presses: number;
+  buzzes: number;
   stop: () => void;
   /** Your creature, predicted, and the other one, smoothed; made when the room says which side is yours. */
   predictor: Predictor | null;
@@ -90,6 +100,13 @@ type Fight = {
   /** Whether the last send was skipped to drain the room's buffer: never two in a row. */
   skipped: boolean;
 };
+
+/** Buzzes the device where it can (`navigator.vibrate`; Safari on iPhone and iPad has none). Returns whether it asked. */
+function buzz(pattern: readonly number[]): boolean {
+  if (typeof navigator.vibrate !== 'function') return false;
+  navigator.vibrate([...pattern]);
+  return true;
+}
 
 /**
  * The arena fights of this page (docs/arena.md, "Screens and controls"; docs/protocol.md "Arena
@@ -105,7 +122,7 @@ export function createArena(options: ArenaOptions): Arena {
   let sender: ReturnType<typeof setInterval> | undefined;
 
   const shown = (): ShownFight | null => {
-    const state = fight?.room?.state;
+    const state = fight?.room?.state ?? fight?.last;
     const side = fight?.started?.side;
     if (!fight || !state?.bodies || side === undefined) return null;
     const { predictor, follower } = fight;
@@ -123,11 +140,24 @@ export function createArena(options: ArenaOptions): Arena {
       return events;
     },
     field: () => screen.field.getBoundingClientRect(),
+    popup: (popup, x, y) => screen.popup(popup, x, y, options.language()),
   });
+
+  /** A hit to your creature, a ring-out or a befriending buzzes the device, unless motion is reduced. */
+  function feel(target: Fight, events: readonly FightEvent[]) {
+    const side = target.started?.side;
+    if (side === undefined) return;
+    const motion = !motionReduced();
+    for (const event of events) {
+      const pattern = buzzFor(event, side, motion);
+      if (pattern && buzz(pattern)) target.buzzes += 1;
+    }
+  }
 
   function send() {
     const room = fight?.room;
-    if (!fight || !room || !fighting()) return;
+    // A room the server just closed is gone only once its socket has finished closing.
+    if (!fight || !room || !room.connection.isOpen || !fighting()) return;
     if (fight.inputs % INPUTS_PER_SECOND === 0) ping(fight, room);
     const input = room.input();
     // A skipped send takes nothing from the controls, so its presses go with the next.
@@ -223,10 +253,13 @@ export function createArena(options: ArenaOptions): Arena {
       room.onMessage(ARENA_MESSAGES.events, (message: ArenaEventsMessage) => {
         target.events.push(...(target.echo ? target.echo.settle(message.events, performance.now()) : message.events));
         target.book.saw(message.events);
+        feel(target, message.events);
       }),
     ];
     room.onLeave(() => {
-      if (target.room === room) target.room = null;
+      if (target.room !== room) return;
+      target.last = room.state;
+      target.room = null;
     });
     target.stop = () => {
       for (const stop of stops) stop();
@@ -240,7 +273,7 @@ export function createArena(options: ArenaOptions): Arena {
     if (!connection) return;
     if (fight?.id !== fightId) {
       if (fight) leaveRoom(fight);
-      fight = { id: fightId, room: null, started: null, result: null, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
+      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
       controls.reset();
       options.started();
       options.changed();
@@ -257,6 +290,7 @@ export function createArena(options: ArenaOptions): Arena {
     options.learned(result.learned);
     if (fight?.id !== result.fightId) return;
     fight.result = result;
+    fight.resultAt = performance.now() + RESULT_HOLD_MS;
     controls.reset();
     clearInterval(sender);
     sender = undefined;
@@ -267,7 +301,8 @@ export function createArena(options: ArenaOptions): Arena {
     if (!now) return [null, null];
     const card = (side: Side): CardView | null => {
       const body = now.state.bodies.at(side);
-      return body ? { species: body.species, level: body.level, health: body.health, max: body.max, turtle: body.turtle } : null;
+      const other = now.state.bodies.at(side === 0 ? 1 : 0);
+      return body ? { species: body.species, level: body.level, tone: badgeTone(body.level, other?.level ?? null), health: body.health, max: body.max, turtle: body.turtle } : null;
     };
     return [card(now.side), card(now.side === 0 ? 1 : 0)];
   }
@@ -295,7 +330,7 @@ export function createArena(options: ArenaOptions): Arena {
       const language = options.language();
       if (fight) track(fight);
       netPanel?.render(fight && fight.result === null ? meters(fight) : null, language);
-      const view = fight && { cards: cards(), result: fight.result, team: options.progress()?.team ?? [] };
+      const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [] };
       screen.render(view, language);
       if (fight) controls.render(buttons(), language, now, fighting() && shown()?.state.mode === 'wild');
       const game = options.game();
@@ -310,9 +345,10 @@ export function createArena(options: ArenaOptions): Arena {
     snapshot: () => {
       if (!fight) return { arena: null };
       const now = shown();
-      const body = (side: Side) => {
+      const [mine, theirs] = cards();
+      const body = (side: Side, card: CardView | null) => {
         const at = now?.state.bodies.at(side);
-        return at ? { species: at.species, level: at.level, health: at.health, max: at.max, turtle: at.turtle, x: at.x, y: at.y } : null;
+        return at && card ? { ...card, x: at.x, y: at.y } : null;
       };
       const side = fight.started?.side ?? null;
       return {
@@ -324,12 +360,13 @@ export function createArena(options: ArenaOptions): Arena {
           phase: now?.state.phase ?? null,
           tick: now?.state.tick ?? 0,
           radius: now?.state.radius ?? 0,
-          mine: side === null ? null : body(side),
-          theirs: side === null ? null : body(side === 0 ? 1 : 0),
+          mine: side === null ? null : body(side, mine),
+          theirs: side === null ? null : body(side === 0 ? 1 : 0, theirs),
           buttons: buttons().map(({ action, move, shown: visible, locked, ring }) => ({ action, move, shown: visible, locked, ring })),
           leave: controls.leaving(),
           inputs: fight.inputs,
           presses: fight.presses,
+          buzzes: fight.buzzes,
           drawn: scene.drawn(),
           result: fight.result,
           net: meters(fight),

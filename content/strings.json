@@ -242,6 +242,9 @@
   "arena.emptyButton": { "en": "Button {button}: no move yet", "sl": "Gumb {button}: še brez poteze" },
   "arena.timeUp": { "en": "Time is up!", "sl": "Časa je zmanjkalo!" },
   "arena.net": { "en": "Round trip {rtt} ms · lead {lead} · {corrections} corrections a second · mean error {error} · snaps {snaps}", "sl": "Povratni čas {rtt} ms · vnaprej {lead} · popravki na sekundo {corrections} · povprečna napaka {error} · preskoki {snaps}" },
+  "arena.damage": { "en": "{damage}", "sl": "{damage}" },
+  "arena.damageStrong": { "en": "{damage}!", "sl": "{damage}!" },
+  "arena.healed": { "en": "+{amount}", "sl": "+{amount}" },
   "loadout.title": { "en": "Fight buttons", "sl": "Gumbi za boj" },
   "loadout.hint": { "en": "Tap a button, then a move for it. Hold a move to see what it does.", "sl": "Tapni gumb in nato potezo zanj. Pridrži potezo, da vidiš, kaj naredi." },
   "loadout.empty": { "en": "No move yet", "sl": "Še brez poteze" },
@@ -256,5 +259,10 @@
   "duel.decline": { "en": "No, thanks", "sl": "Ne, hvala" },
   "duel.watch": { "en": "Watch", "sl": "Glej" },
   "duel.evenMatch": { "en": "Even match: same levels", "sl": "Pošten boj: enake ravni" },
-  "duel.realLevels": { "en": "Real levels", "sl": "Prave ravni" }
+  "duel.realLevels": { "en": "Real levels", "sl": "Prave ravni" },
+  "duel.asked": { "en": "Someone wants a friendly duel!", "sl": "Nekdo te vabi na prijateljski dvoboj!" },
+  "duel.waiting": { "en": "Waiting for an answer…", "sl": "Čakaš na odgovor …" },
+  "duel.cancel": { "en": "Take it back", "sl": "Prekliči" },
+  "duel.close": { "en": "Close", "sl": "Zapri" },
+  "duel.no": { "en": "No duel this time.", "sl": "Tokrat ne bo dvoboja." }
 }

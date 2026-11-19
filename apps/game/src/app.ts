@@ -5,6 +5,7 @@ import { addPin, listProfiles, logout } from './api.ts';
 import { createArena } from './arena/arena-link.ts';
 import { createBattles } from './battles.ts';
 import { createClipPlayer } from './clip-player.ts';
+import { createDuels } from './duels.ts';
 import { connect, type ConnectionStatus, type WorldConnection, type WorldRoom } from './connection.ts';
 import { initialControls, otherControls, saveControls, type Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
@@ -58,6 +59,7 @@ let canAddPin = false;
 let stopFeed: () => void = () => {};
 let stopBattles: () => void = () => {};
 let stopArena: () => void = () => {};
+let stopDuels: () => void = () => {};
 let stopStory: () => void = () => {};
 let stopTalks: () => void = () => {};
 let stopCues: () => void = () => {};
@@ -132,6 +134,19 @@ const playerSettings = createPlayerSettings({
 });
 const clips = createClipPlayer();
 const speech = createSpeech({ language: () => language, readToMe: () => playerSettings.readToMe() === true, player: clips });
+const duels = createDuels(element<HTMLElement>('#duel'), {
+  language: () => language,
+  couriers: () => view.shown(performance.now()),
+  standing: () => view.predicted()?.tile ?? null,
+  requests,
+  speech,
+  toast: (id) => hud.toast(id, 'news'),
+  changed: () => {
+    input.release();
+    if (scene.mapId !== null) scene.setMarker(null);
+    showScreen();
+  },
+});
 const storyCues = createStoryCues({
   scene,
   speech,
@@ -264,11 +279,12 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && !creaturesUp() && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && !creaturesUp() && duels.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => scene.setMarker(tile, refused),
   ...useControls(view, talks, skills),
+  tapped: (tile) => duels.tapped(tile),
 });
 
 /** Where the new player's hint points: at the character who gives the first creature, while nothing else is up. */
@@ -283,6 +299,7 @@ function frame(now: number) {
   view.tick(now);
   battles.frame(now);
   arena.frame(now);
+  duels.frame(now);
   talks.frame(now);
   story.frame();
   skills.frame(now);
@@ -317,7 +334,7 @@ function setLanguage(next: Language) {
 }
 
 function screen(): Screen {
-  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (arena.overlay() ?? battles.overlay() ?? story.overlay() ?? skills.overlay() ?? jobs.overlay() ?? 'world');
+  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (arena.overlay() ?? battles.overlay() ?? duels.overlay() ?? story.overlay() ?? skills.overlay() ?? jobs.overlay() ?? 'world');
 }
 
 function showScreen() {
@@ -381,6 +398,8 @@ function forgetRoom() {
   stopBattles = () => {};
   stopArena();
   stopArena = () => {};
+  stopDuels();
+  stopDuels = () => {};
   stopStory();
   stopStory = () => {};
   stopTalks();
@@ -409,6 +428,8 @@ async function leaveWorld() {
   forgetRoom();
   battles.reset();
   arena.reset();
+  duels.reset();
+  duels.setArena(false);
   story.reset();
   talks.reset();
   skills.reset();
@@ -460,6 +481,7 @@ function enterWorld() {
     },
     welcome: (welcome) => {
       protocol = welcome.protocol;
+      duels.setArena(welcome.arena);
       hud.setWelcome(welcome);
     },
     players: (count) => {
@@ -474,6 +496,7 @@ function enterWorld() {
       room = joined;
       stopBattles = battles.joined(joined);
       stopArena = arena.joined(joined);
+      stopDuels = duels.joined(joined);
       stopStory = story.joined(joined);
       stopTalks = talks.joined(joined);
       stopCues = storyCues.joined(joined);
@@ -588,6 +611,7 @@ installTestHook({
       turtle: playerSettings.turtle(),
       ...battles.snapshot(performance.now()),
       ...arena.snapshot(),
+      ...duels.snapshot(performance.now()),
       ...story.snapshot(),
       ...skills.snapshot(performance.now()),
       ...jobs.snapshot(),
