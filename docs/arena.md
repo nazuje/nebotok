@@ -345,11 +345,15 @@ Only in wild fights.
 
 - Each side **picks 3** creatures in order; the default is the first three standing, and a 30 s
   timer picks it. One creature a round, in that order; the island and the storm reset every round.
+  A side with fewer than three standing picks them all (#155, built: core `arena/picks.ts`, the
+  arena room's `picking` phase and `arena.pick`). Neither side sees the other's picks until
+  round 1 starts.
 - A round ends on a knockout, a ring-out or the time limit, where the larger share of health
   left wins. An equal share replays that round once, then it is a draw round. First to 2 round wins.
   Each round and each replay gets its own island seed (`<seed>/<rounds played>`). A side that has no
   creature left for a round loses that round (`forfeit`).
-- 3 s between rounds with the score as round pips (trophy, puff, empty).
+- 3 s between rounds with the score as round pips (trophy, puff, empty) (#155, built): the room
+  stops stepping, and the next two creatures already stand on the fresh island.
 - No Swap, no Treat, no Leave. A duel has a give-up button, held 2 s, which loses the rest.
 - **Outcomes:** `won`, `lost` or `draw`, with the list of rounds.
 - **Duel rewards** (`duelRewards`): 25% of `xpForWin` to every creature that fought, on both sides,
@@ -551,10 +555,16 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   fight's `arena.result` `learned` (#150), which the arena client hands to it after Continue;
   holding a move plays its shape on a mini island with the arena's own painter
   (`arena/arena-preview.ts`, through `shape-preview.ts`'s `ShapePainter` seam).
+- **Pick three and the score** (#155, built, `arena/arena-rounds.ts`): the pick screen shows three
+  numbered slots, then every team creature as a tile (a 64 px portrait, level badge, weather type and
+  health; a fainted one greyed out and not tappable). A tap puts a creature in the first empty slot,
+  a second tap takes it out and the ones after it move up. It opens on the defaults, so Go (with a
+  tick, and the 30 s left as a ring around it) is enough. Between rounds a card shows the three round
+  pips and both next creatures sliding in from their sides, with no words.
 - **Duels** (#157, #158): tap a courier within 4 tiles for a picture menu (even match first, then
   real levels); the answer card shows the asker's courier, their first three creatures and the
   even or real picture, with a big tick and cross, and "Read to me" reads a fixed line with no name
-  in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline
+  in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline or a take-back
   (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`). Up to 6 watchers. The winner's courier wears
   a small trophy for 60 s.
 
@@ -583,14 +593,17 @@ Planned names, so the tickets agree:
 - Loadouts (#148): `learnedMoves(species, level, content)`, `setLoadout`, `setTurtle`, and the save's
   `SettingsV7 { readToMe, turtle }`.
 - Server (#149, #150): `apps/server/src/arena-room.ts`, `seat.fight`, `settleFight`.
+- Rounds (#155, built): core `pickCount`, `defaultPickOrder`, `togglePick`, `isPickOrder` and
+  `roundsTeam`; a fight plan's `pickers`; the world room's `startPractice`; the client's
+  `arena-rounds.ts`.
 - Client (#151, built): `apps/game/src/arena/`: `arena-link.ts` (joins the room, sends input,
   shows the result), `arena-scene.ts` (`ArenaScene`), `arena-controls.ts` (stick, buttons, keys,
   Leave), `arena-screen.ts`, `arena-buttons.ts`, `arena-input.ts` and `fight-book.ts`;
   `abilityIcon(moveId, sizePx)` (#143) beside `pictureIcon` and `weatherIcon`.
 - Test hook: `arena` (built in #151: fight id, mode, side, phase, tick, radius, both creatures
   with position and health, buttons with cooldown and lock, Leave, inputs and presses sent, what the
-  scene drew, and the result), with `arena.picks`, `arena.round` and `arena.score` for rounds (#155), next to `battle` until
-  #160.
+  scene drew, and the result), with `arena.picks`, `arena.round`, `arena.score` (yours first) and
+  `arena.countdown` for rounds (built in #155), next to `battle` until #160.
 
 ## Checks
 

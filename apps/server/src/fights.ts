@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { matchMaker, type IRoomCache } from '@colyseus/core';
-import type { ArenaFight, ArenaMindName, ArenaSeatReservation, FightSetup, Side } from '@nebotok/core';
+import type { ArenaFight, ArenaMindName, ArenaSeatReservation, FightSetup, RoundPick, Side } from '@nebotok/core';
 
 /**
  * The fights this server runs, shared by the world room, which plans each fight and settles its
@@ -15,6 +15,9 @@ export type FightSeat = { readonly playerId: number; readonly side: Side };
 /** The computer on one side of a fight, with one of arena.json's minds. */
 export type FightMind = { readonly side: Side; readonly mind: ArenaMindName };
 
+/** A side whose player picks its creatures for a best of 3, from its standing `team` in team order. */
+export type FightPicker = { readonly side: Side; readonly team: readonly RoundPick[] };
+
 /** Why a fight was stopped before its end: its player was away too long, left the world, was taken over, the server is closing, or an error. */
 export type FightStop = 'away' | 'left' | 'replaced' | 'shutdown' | 'failed';
 
@@ -26,6 +29,11 @@ export type FightPlan = {
   readonly setup: FightSetup;
   readonly seats: readonly FightSeat[];
   readonly minds: readonly FightMind[];
+  /**
+   * A best of 3's sides that pick in the room's `picking` phase; the setup's picks for them are the
+   * defaults, which the room takes when the time runs out. None for a wild fight.
+   */
+  readonly pickers?: readonly FightPicker[];
   /** Called once, in this process, when the fight is over. */
   readonly ended: (end: FightEnd) => void;
   /** Called when a player's seat in the fight's room is gone while the fight goes on, so a new one can be offered. */

@@ -34,6 +34,8 @@ export type ArenaScreen = {
   readonly zone: HTMLElement;
   readonly cluster: HTMLElement;
   readonly leave: HTMLButtonElement;
+  /** Where a best of 3 shows picking and the score between rounds. */
+  readonly rounds: HTMLElement;
   render(view: ArenaScreenView | null, language: Language): void;
   /** Pops a damage number or health back up at (x, y), in CSS pixels from the page's top left. */
   popup(popup: Popup, x: number, y: number, language: Language): void;
@@ -121,8 +123,9 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
   const popups = el('div', { className: 'arena-popups', attrs: { 'aria-hidden': 'true' } });
   const zone = el('div', { className: 'arena-zone', attrs: { role: 'application' } });
   const cluster = el('div', { className: 'arena-cluster' });
+  const rounds = el('div', { className: 'arena-rounds' });
   const result = el('div', { className: 'arena-result', attrs: { role: 'dialog', 'aria-modal': 'true' } });
-  root.replaceChildren(field, weather, popups, top, zone, cluster, result);
+  root.replaceChildren(field, weather, popups, top, zone, cluster, rounds, result);
   let resultKey = '';
   let weatherKey = '';
 
@@ -166,6 +169,7 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
     zone,
     cluster,
     leave,
+    rounds,
     render: (view, language) => {
       root.hidden = view === null;
       if (!view) {

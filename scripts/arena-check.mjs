@@ -9,10 +9,13 @@
 // picture of a strong hit's number, reads the result and continues back to the world. One run on
 // a phone or tablet waits for the storm's warning with the weather called; the other weakens the
 // wild creature and befriends it with a treat. The 360px run asks for reduced motion, checks a hit
-// gives no shake, no hit-stop and no sparks, and holds Leave. An iPhone, an iPad and 360px wide,
-// in both languages across the two browsers. Each run first walks 5 s at a fake lag of 0, 50 or
-// 150 ms with the net meters on (?net=1) and checks the prediction's mean error and snaps (#152).
-// Fails on any console error, failed or outside request, small touch target or sideways scrolling.
+// gives no shake, no hit-stop and no sparks, and holds Leave. Each of these runs first walks 5 s
+// at a fake lag of 0, 50 or 150 ms with the net meters on (?net=1) and checks the prediction's
+// mean error and snaps (#152). Best of 3 runs start a practice fight against BOT the same way (the
+// world room's `arena.practice` switch), pick three on the pick screen, fight each round, check
+// the score between rounds and finish. An iPhone, an iPad and 360px wide, in both languages across
+// the two browsers. Fails on any console error, failed or outside request, small touch target or
+// sideways scrolling.
 //   node scripts/arena-check.mjs --browser chromium|webkit [--out <dir>]
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,7 +27,7 @@ import { readConfig } from '../apps/server/src/config.ts';
 import { createLog } from '../apps/server/src/log.ts';
 import { createServices } from '../apps/server/src/services.ts';
 import { PLAYER_SPAWN, createSave, defaultSettings, emptyProgress, newCreature } from '../packages/core/src/index.ts';
-import { BROWSERS, DEVICES, nextFrames, presetLanguage, readState, reportCspViolations, screenshot, until, watch } from './lib/game-page.mjs';
+import { BROWSERS, DEVICES, animationsSettled, nextFrames, presetLanguage, readState, reportCspViolations, screenshot, until, watch } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, freePort } from './lib/server-process.mjs';
 import { arenaName, runTag } from './lib/test-players.mjs';
@@ -56,6 +59,7 @@ const ARENA_BUTTON_PX = 64;
 const FIGHT_MS = 40_000;
 /** The storm's first warning comes 2 s before its first shrink, at 18 s. */
 const STORM_WAIT_MS = 30_000;
+const ROUNDS_MS = 120_000;
 const STEER_MS = 350;
 const WINS = new Set(['won', 'wonByRingOut']);
 /** docs/protocol.md, "Prediction": over 5 s of walking, a mean error under 8 units and fewer than 2 snaps. */
@@ -74,19 +78,29 @@ const TAG = runTag();
  * drag), and the keys. Each browser waits for the storm on one of phone and tablet and befriends
  * on the other, so both are seen on both. The 360px player's creature is too young for button 3,
  * asks for reduced motion and holds Leave.
+ * The best of 3 runs (`rounds`) take the other language of their place, so each player's name is new.
  */
 const RUNS = {
   chromium: [
     { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, plan: 'storm', lagMs: 0 },
     { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 150 },
     { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], plan: 'leave', lagMs: 50 },
+    { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'rounds', lagMs: 0 },
+    { where: '360px', language: 'en', steer: 'keys', level: 20, plan: 'rounds', lagMs: 0 },
   ],
   webkit: [
     { where: 'iphone-portrait', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 50 },
     { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, plan: 'storm', lagMs: 150 },
     { where: '360px', language: 'en', steer: 'keys', level: ARENA.buttons[1], plan: 'leave', lagMs: 0 },
+    { where: 'ipad-landscape', language: 'sl', steer: 'mouse', level: 20, plan: 'rounds', lagMs: 0 },
   ],
 }[chosen.name];
+
+/** A best of 3's team: four creatures with the second fainted, so the defaults are places 0, 2 and 3. Its opponents are weak, so a round is won soon. */
+const ROUNDS_TEAM = [STARTERS[0], STARTERS[1], STARTERS[2], STARTERS[0]];
+const FAINTED_PLACE = 1;
+const DEFAULT_PICKS = [0, 2, 3];
+const PRACTICE = STARTERS.slice(0, 3).map((species) => ({ species, level: 2 }));
 
 const lines = [];
 const dataDir = mkdtempSync(join(tmpdir(), 'nebotok-arena-check-'));
@@ -113,12 +127,11 @@ const results = [];
 /** The wild creature a run meets. */
 const wildOf = (run) => ({ species: wildSpecies, level: run.plan === 'befriend' ? BEFRIEND_LEVEL : WILD_LEVEL });
 
-/** A player standing at the spawn with two creatures of `level` and treats (the wild creature's favourite, to befriend it), saved in this server's database. */
-async function preparePlayer(run) {
+/** A player standing at the spawn with `team` (two creatures of `level`) and treats (the wild creature's favourite, to befriend it), saved in this server's database. */
+async function preparePlayer(run, team = [newCreature(STARTERS[0], run.level, world.battle), newCreature(STARTERS[1], run.level, world.battle)]) {
   const name = arenaName(chosen.name, run.where, run.language, TAG);
   const made = await services.profiles.create({ name, avatar: 'green' });
   if (!made.ok) throw new Error(`arena-check: making ${name}: ${made.error}`);
-  const team = [newCreature(STARTERS[0], run.level, world.battle), newCreature(STARTERS[1], run.level, world.battle)];
   const position = { map: world.map.id, ...world.map.spawns[PLAYER_SPAWN], facing: 'down' };
   const treat = run.plan === 'befriend' ? SPECIES.find((species) => species.id === wildSpecies).favouriteTreat : 'plain-treat';
   const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: 3 }] };
@@ -332,8 +345,12 @@ async function fightProblems(page, state, run) {
   return problems;
 }
 
-async function checkRun(browser, run) {
-  const label = `${chosen.name}-${run.where}-${run.language}`;
+/**
+ * A run's player, prepared with `team`, and its page on the run's device and language: `tab`, with
+ * what it found wrong, its notes and screenshots, and `signIn` to the world as that player.
+ */
+async function openRun(browser, run, team) {
+  const label = `${chosen.name}-${run.where}-${run.language}${run.plan === 'rounds' ? '-rounds' : ''}`;
   const problems = [];
   const notes = [];
   const screenshots = [];
@@ -341,30 +358,40 @@ async function checkRun(browser, run) {
     if (!ok) problems.push(message);
   };
   lagMs = run.lagMs;
-  const player = await preparePlayer(run);
+  const player = await preparePlayer(run, team);
   const device = DEVICES.find((each) => each.name === run.where);
   const reducedMotion = run.plan === 'leave' ? 'reduce' : 'no-preference';
   const contextOptions = device ? { ...device.descriptor, reducedMotion } : { viewport: NARROW, hasTouch: true, isMobile: chosen.name === 'chromium', reducedMotion };
   const context = await browser.newContext(contextOptions);
   await context.addInitScript(presetLanguage, run.language);
   await context.addInitScript(reportCspViolations);
-  const page = await context.newPage();
-  watch(context, page, problems, { allowedHost });
+  const tab = await context.newPage();
+  watch(context, tab, problems, { allowedHost });
   const shot = async (step) => {
     const path = join(shots, `${label}-${step}.png`);
-    await screenshot(page, path);
+    await screenshot(tab, path);
     screenshots.push(path);
   };
   const fits = async (where) => {
-    for (const target of await smallTargets(page)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
-    const over = await sideways(page);
+    for (const target of await smallTargets(tab)) problems.push(`${where}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    const over = await sideways(tab);
     if (over > 0) problems.push(`${where} scrolls sideways by ${over}px`);
   };
+  const signIn = async () => {
+    // The net meters are for the wild fights' walk; the pick screen is checked without them.
+    await tab.goto(`${base}/?test=1${run.plan === 'rounds' ? '' : '&net=1'}`);
+    await until(tab, (s) => s.screen === 'profiles', 'the profile list');
+    await tab.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
+    await until(tab, (s) => s.screen === 'world' && s.connection === 'connected' && s.progress?.team.length === (team?.length ?? 2), 'the world as the arena player');
+  };
+  return { label, player, tab, problems, notes, screenshots, expect, shot, fits, signIn, close: () => context.close() };
+}
+
+async function checkRun(browser, run) {
+  const opened = await openRun(browser, run);
+  const { label, player, tab: page, problems, notes, screenshots, expect, shot, fits } = opened;
   try {
-    await page.goto(`${base}/?test=1&net=1`);
-    await until(page, (s) => s.screen === 'profiles', 'the profile list');
-    await page.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
-    await until(page, (s) => s.screen === 'world' && s.connection === 'connected' && s.progress?.team.length === 2, 'the world as the arena player');
+    await opened.signIn();
     const fightId = await startFight(player.id, wildOf(run));
     let state = await until(page, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'fighting' && s.arena.drawn !== null && s.arena.mine !== null, 'the arena fight on screen', 15_000);
     expect(state.arena.fightId === fightId && state.arena.mode === 'wild' && state.arena.side === 0, `the page shows fight ${JSON.stringify(state.arena)}, not ${fightId}`);
@@ -462,9 +489,118 @@ async function checkRun(browser, run) {
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
-    await context.close();
+    await opened.close();
   }
   results.push({ label: `${label} (arena)`, ok: problems.length === 0, problems, notes, screenshots });
+}
+
+/** Starts a best of 3 against BOT, the `arena.practice` switch, in the world room the player is in. */
+async function startPractice(playerId) {
+  const rooms = await matchMaker.query({ name: 'world' });
+  const started = await inTurn(rooms, (listed) => matchMaker.getLocalRoomById(listed.roomId)?.startPractice(playerId, PRACTICE));
+  const fightId = started.find(Boolean);
+  if (!fightId) throw new Error('the world room started no best of 3');
+  return fightId;
+}
+
+/** What is wrong with the pick screen: the team's choices, the fainted one, the three slots and Go. */
+async function pickProblems(page) {
+  const problems = [];
+  const choices = await page.locator('#arena .arena-choice:visible').evaluateAll((items) =>
+    items.map((item) => ({ place: Number(item.dataset.place), disabled: item.disabled, portrait: Math.round(item.querySelector('canvas')?.getBoundingClientRect().width ?? 0), weather: item.querySelector('[data-picture^="weather"]') !== null, level: item.querySelector('.arena-level')?.textContent ?? '' })),
+  );
+  if (choices.length !== ROUNDS_TEAM.length) problems.push(`the pick screen shows ${choices.length} creatures, not ${ROUNDS_TEAM.length}`);
+  for (const choice of choices) {
+    if (choice.portrait < 64) problems.push(`the creature at place ${choice.place} has a ${choice.portrait}px portrait, under 64px`);
+    if (choice.disabled !== (choice.place === FAINTED_PLACE)) problems.push(`the creature at place ${choice.place} is ${choice.disabled ? '' : 'not '}greyed out`);
+    if (!choice.weather || choice.level === '') problems.push(`the creature at place ${choice.place} shows no weather type or level: ${JSON.stringify(choice)}`);
+  }
+  const slots = await page.locator('#arena .arena-slot:visible').count();
+  if (slots !== 3) problems.push(`the pick screen has ${slots} slots, not 3`);
+  const go = await page.locator('#arena .arena-go:visible [data-picture="pictures/check"]').count();
+  if (go !== 1) problems.push('Go shows no tick');
+  return problems;
+}
+
+/** What is wrong with the score between rounds: its pips for the rounds so far and both next creatures. */
+async function betweenProblems(page, state) {
+  const problems = [];
+  const pips = await page.locator('#arena .arena-pip:visible').evaluateAll((items) => items.map((item) => [item.dataset.pip, item.querySelector('[data-picture]')?.dataset.picture ?? null]));
+  const [mine, theirs] = state.arena.score;
+  const won = pips.filter(([pip, picture]) => pip === 'won' && picture === 'pictures/trophy').length;
+  const lost = pips.filter(([pip, picture]) => pip === 'lost' && picture === 'pictures/puff').length;
+  if (pips.length !== 3 || won !== mine || lost < theirs || pips.filter(([pip]) => pip === 'empty').length !== 3 - won - lost) problems.push(`the score ${mine} to ${theirs} shows the pips ${JSON.stringify(pips)}`);
+  const next = await page.locator('#arena .arena-next canvas:visible').count();
+  if (next !== 2) problems.push(`the score shows ${next} next creatures, not 2`);
+  return problems;
+}
+
+/**
+ * A best of 3 against BOT: the pick screen with a fainted creature greyed out, a tap that takes
+ * the first pick out and one that puts it back last, Go, then each round fought as a wild fight
+ * is, with the score between rounds, to the result and back to the world.
+ */
+async function checkRoundsRun(browser, run) {
+  const opened = await openRun(browser, run, ROUNDS_TEAM.map((species, place) => ({ ...newCreature(species, run.level, world.battle), ...(place === FAINTED_PLACE ? { hp: 0 } : {}) })));
+  const { tab, problems, notes, expect, shot, fits } = opened;
+  try {
+    await opened.signIn();
+    const fightId = await startPractice(opened.player.id);
+    let state = await until(tab, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'picking' && s.arena.picks?.length === 3, 'the pick screen', 15_000);
+    expect(state.arena.fightId === fightId && state.arena.mode === 'rounds', `the page shows fight ${JSON.stringify(state.arena)}, not the best of 3 ${fightId}`);
+    expect(JSON.stringify(state.arena.picks) === JSON.stringify(DEFAULT_PICKS), `the defaults are ${JSON.stringify(state.arena.picks)}, not ${JSON.stringify(DEFAULT_PICKS)}`);
+    await tab.locator('#arena .arena-pick').waitFor({ state: 'visible', timeout: 5_000 });
+    await nextFrames(tab);
+    for (const problem of await pickProblems(tab)) problems.push(problem);
+    const [first, ...rest] = DEFAULT_PICKS;
+    await tab.locator(`#arena .arena-choice[data-place="${first}"]`).tap();
+    state = await until(tab, (s) => JSON.stringify(s.arena?.picks) === JSON.stringify(rest), 'the first pick to be taken out', 5_000);
+    await tab.locator(`#arena .arena-choice[data-place="${first}"]`).tap();
+    state = await until(tab, (s) => JSON.stringify(s.arena?.picks) === JSON.stringify([...rest, first]), 'the first pick to come back last', 5_000);
+    await nextFrames(tab);
+    await fits('the pick screen');
+    await shot('1-pick');
+    await tab.locator('#arena .arena-go').tap();
+    state = await until(tab, (s) => s.arena?.phase === 'fighting' && s.arena.mine !== null, 'round 1', 10_000);
+    expect(state.arena.mine.species === ROUNDS_TEAM[rest[0]], `round 1 sends out ${state.arena.mine.species}, not the first pick`);
+    const endsBy = Date.now() + ROUNDS_MS;
+    let pauses = 0;
+    /** Fights each round to its end, checking the score between rounds, until the result or `endsBy`. */
+    const fightRounds = async (now) => {
+      if (now.arena?.result != null || Date.now() >= endsBy) return now;
+      const after = await fightOn(tab, run, { endsBy, stopWhen: (s) => s.arena?.result != null || s.arena?.phase === 'between' });
+      if (after.arena?.phase !== 'between') return fightRounds(after);
+      pauses += 1;
+      await tab.locator('#arena .arena-between').waitFor({ state: 'visible', timeout: 5_000 });
+      await animationsSettled(tab, 1_500);
+      for (const problem of await betweenProblems(tab, after)) problems.push(problem);
+      if (pauses === 1) {
+        await fits('the score between rounds');
+        await shot('2-score');
+      }
+      return fightRounds(await until(tab, (s) => s.arena?.phase !== 'between', 'the next round', 10_000));
+    };
+    state = await fightRounds(state);
+    state = await until(tab, (s) => s.arena?.result != null, 'the best of 3 result', 10_000);
+    const outcome = state.arena.result.outcome?.result ?? null;
+    notes.push(`${outcome} ${state.arena.score.join(' to ')} in ${state.arena.result.rounds?.length ?? '?'} rounds after ${state.arena.inputs} inputs`);
+    expect(outcome === 'won', `the best of 3 ended with ${outcome}, not a win`);
+    expect(pauses >= 1, 'the score never showed between rounds');
+    await tab.locator('#arena .arena-continue').waitFor({ state: 'visible', timeout: 5_000 });
+    const picture = await tab.locator('#arena .arena-result-picture').getAttribute('data-picture');
+    expect(picture === 'pictures/trophy', `the result shows the picture ${picture}`);
+    await fits('the best of 3 result');
+    await shot('3-result');
+    await tab.locator('#arena .arena-continue').tap();
+    await until(tab, (s) => s.screen === 'world' && s.arena === null && s.players.find((each) => each.self)?.inBattle === false, 'the world after the best of 3', 10_000);
+    const saved = services.progress.load(opened.player.id)?.data;
+    expect(saved?.team.every((creature, place) => creature.level === run.level && (place === FAINTED_PLACE) === (creature.hp === 0)), `a best of 3 changed the saved team: ${JSON.stringify(saved?.team.map(({ level, hp }) => ({ level, hp })))}`);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await opened.close();
+  }
+  results.push({ label: `${opened.label} (best of 3)`, ok: problems.length === 0, problems, notes, screenshots: opened.screenshots });
 }
 
 try {
@@ -472,7 +608,7 @@ try {
   try {
     await inTurn(RUNS, async (run) => {
       const started = performance.now();
-      await checkRun(browser, run);
+      await (run.plan === 'rounds' ? checkRoundsRun(browser, run) : checkRun(browser, run));
       results.at(-1).durationMs = Math.round(performance.now() - started);
     });
   } finally {

@@ -19,8 +19,10 @@ import type { PlayerSettings } from './save.ts';
  * the world room, and `arena.started` and `arena.events` from the arena room.
  * 13: duels: `duel.ask`, `duel.answer` and `duel.cancel`, `duel.asked` and `duel.answered`, their
  * rules (`DUEL_REACH`, `DUEL_ANSWER_MS`, `DUEL_PAUSE_MS`, `DUEL_TEAM`), and `arena` in `welcome`.
+ * 14: picking three for a best of 3: `arena.pick`, `refused` from the arena room, and its
+ * `picking` and `between` phases with `countdown`, `picked` and `rounds` in its state.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -35,6 +37,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   11: '09d3bce56b47cb',
   12: '0262812411765a',
   13: '0f0b76d24fb1b5',
+  14: '1e9eadd51b162d',
 };
 
 export type WorldInfo = {
@@ -132,10 +135,11 @@ export const SERVER_MESSAGES = {
   duelAnswered: 'duel.answered',
 } as const;
 
-/** Messages the arena room sends to its players. Its input stream is `ARENA_INPUT_FIELDS` (arena-messages.ts). */
+/** Messages the arena room sends to its players. Its input stream is `ARENA_INPUT_FIELDS` and `arena.pick` is in `ARENA_CLIENT_MESSAGES` (arena-messages.ts). */
 export const ARENA_MESSAGES = {
   started: 'arena.started',
   events: 'arena.events',
+  refused: 'refused',
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);
