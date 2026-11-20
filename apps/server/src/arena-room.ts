@@ -1,11 +1,17 @@
-import { ErrorCode, Room, ServerError, type AuthContext, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
+import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
 import {
+  ARENA_BETWEEN_MS,
+  ARENA_CLIENT_MESSAGES,
   ARENA_IDLE,
   ARENA_MESSAGES,
   ARENA_NONE,
+  ARENA_PICK_MS,
+  ArenaPickMessage,
   CLOSE_CODES,
   arenaInputOf,
   cleanArenaInput,
+  defaultPickOrder,
+  isPickOrder,
   createBrain,
   createRng,
   fightContentOf,
@@ -20,14 +26,17 @@ import {
   type ArenaStartedMessage,
   type Brain,
   type FightEvent,
+  type RefusalReason,
+  type Refused,
   type Rng,
+  type RoundPick,
   type Side,
 } from '@nebotok/core';
 import { z } from 'zod';
-import { ArenaInputSchema, ArenaRoomState, showFight } from './arena-state.ts';
+import { ArenaInputSchema, ArenaRoomState, showFight, type ArenaPhase } from './arena-state.ts';
 import { BATTLE_IDLE_MS } from './battles.ts';
 import { addFakeLag } from './fake-lag.ts';
-import type { FightBook, FightPlan, FightStop } from './fights.ts';
+import type { FightBook, FightPicker, FightPlan, FightStop } from './fights.ts';
 import type { Log } from './log.ts';
 import type { ProfileStore } from './profiles.ts';
 import type { WorldContent } from './world.ts';
@@ -44,6 +53,8 @@ export const ARENA_RECONNECT_SECONDS = 20;
 /** A fight with people on both sides waits this long for one who is away, then ends with no result. */
 export const DUEL_WAIT_MS = 30_000;
 const INPUT_BUFFER = 16;
+/** The state's countdown moves in steps this long, so it changes ten times a second rather than every step. */
+const COUNTDOWN_STEP_MS = 100;
 /** After its end the room stays this long, so the last state and events reach the players, then closes. */
 const CLOSE_AFTER_MS = 2_000;
 
@@ -77,6 +88,12 @@ const lineup = (fight: ArenaFight, side: Side): ArenaLineupCreature[] => {
   return [{ id: wild.id, species: wild.species, level: wild.level, place: null }];
 };
 
+/** The team places a picking side can choose from. */
+const placesOf = (picker: FightPicker): number[] => picker.team.flatMap(({ place }) => (place === null ? [] : [place]));
+
+/** The creatures of `order`, from the picking side's team. */
+const picksOf = (picker: FightPicker, order: readonly number[]): RoundPick[] => order.flatMap((place) => picker.team.filter((pick) => pick.place === place));
+
 /** Refused events the step before already sent, as `side:button:reason`: a held button is refused every tick, but told once. */
 function freshRefusals(events: readonly FightEvent[], before: ReadonlySet<string>): { events: FightEvent[]; seen: Set<string> } {
   const seen = new Set<string>();
@@ -103,6 +120,9 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
     // The room outlives an empty moment: its player may be away, and it closes itself at the end.
     override autoDispose = false;
     override state = new ArenaRoomState();
+    override messages = {
+      [ARENA_CLIENT_MESSAGES.pick]: validate(ArenaPickMessage, (client: Client, { order }) => this.pick(client, order)),
+    };
     override inputs = this.defineInput(ArenaInputSchema, {
       bufferMaxSize: INPUT_BUFFER,
       sanitize: (input) => Object.assign(input, cleanArenaInput(input as unknown as Record<string, unknown>)),
@@ -121,6 +141,14 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
     private readonly lastPress: [ArenaInput['press'], ArenaInput['press']] = [null, null];
     private refusedBefore: ReadonlySet<string> = new Set();
     private stepCount = 0;
+    /** Picking a best of 3's creatures, fighting, or the pause between its rounds. */
+    private phase: ArenaPhase = 'fighting';
+    /** Milliseconds left of picking or of the pause, counted only while everyone is here. */
+    private left = 0;
+    /** When the last fixed step ran, by the room's clock. */
+    private steppedAt = 0;
+    /** The order each picking side sent, once it has. */
+    private readonly chosen: [number[] | null, number[] | null] = [null, null];
     readonly stats = { steps: 0, totalMs: 0, worstMs: 0, inputs: 0, droppedInputs: 0, droppedPresses: 0, refusedPresses: 0 };
     /** Each core step's inputs, oldest first, when `record` is on. */
     readonly recorded: ArenaInputs[] = [];
@@ -151,7 +179,12 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       void this.setPrivate(true);
       this.fight = fightStart(plan.setup, content);
       for (const { side, mind } of plan.minds) this.minds.set(side, { brain: createBrain(mind, content.arena), rng: createRng(`mind:${side}:${plan.setup.seed}`) });
-      showFight(this.state, this.fight, content);
+      this.steppedAt = now();
+      if (this.pickers().length > 0) {
+        this.wait('picking', ARENA_PICK_MS);
+        this.state.picked.push(false, false);
+      }
+      showFight(this.state, this.fight, content, this.phase);
       // Nothing moves until everyone is in.
       if (plan.seats.length > 0) this.awaySince = now();
       fights.attach(plan.fightId, { stop: (why) => this.stop(why), holds: (playerId) => [...this.fighters.values()].some((fighter) => fighter.playerId === playerId) });
@@ -237,25 +270,105 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       log.info('fake lag', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, lagMs });
     }
 
+    /** While picking, a side is told only its own line-up, the defaults, and the other side's is empty. */
     private sendStarted(client: Client, side: Side) {
       const { fight } = this;
-      client.send(ARENA_MESSAGES.started, { fightId: this.plan.fightId, mode: fight.mode, side, sides: [lineup(fight, 0), lineup(fight, 1)] } satisfies ArenaStartedMessage);
+      const shown = (of: Side) => (this.phase === 'picking' && of !== side ? [] : lineup(fight, of));
+      client.send(ARENA_MESSAGES.started, { fightId: this.plan.fightId, mode: fight.mode, side, sides: [shown(0), shown(1)] } satisfies ArenaStartedMessage);
+    }
+
+    /** The sides that pick in this fight: a best of 3's, from its plan. */
+    private pickers(): readonly FightPicker[] {
+      return this.plan.setup.mode === 'rounds' ? (this.plan.pickers ?? []) : [];
+    }
+
+    private refuse(client: Client, request: string, reason: RefusalReason) {
+      client.send(ARENA_MESSAGES.refused, { request, reason } satisfies Refused);
+    }
+
+    /** `arena.pick`: a picking side's order, once, while picking. The rounds start when every picking side has sent one. */
+    private pick(client: Client, order: readonly number[]) {
+      const fighter = this.fighters.get(client.sessionId);
+      const picker = fighter && this.pickers().find((each) => each.side === fighter.side);
+      if (!fighter || !picker || this.phase !== 'picking' || this.chosen[fighter.side] !== null) {
+        this.refuse(client, ARENA_CLIENT_MESSAGES.pick, 'notNow');
+        return;
+      }
+      if (!isPickOrder(order, placesOf(picker))) {
+        this.refuse(client, ARENA_CLIENT_MESSAGES.pick, 'invalid');
+        return;
+      }
+      this.chosen[fighter.side] = [...order];
+      this.state.picked[fighter.side] = true;
+      log.info('fighter picked', { roomId: this.roomId, fight: this.plan.fightId, side: fighter.side, picks: order.length });
+      if (this.pickers().every((each) => this.chosen[each.side] !== null)) this.startRounds();
+    }
+
+    /** Pauses the fight in `phase` for `ms`. */
+    private wait(phase: Exclude<ArenaPhase, 'fighting'>, ms: number) {
+      this.phase = phase;
+      this.left = ms;
+      this.state.countdown = ms;
+    }
+
+    /** Counts a pause down by the time since the last step; at its end the rounds start or go on. */
+    private countDown(elapsed: number) {
+      this.left = Math.max(0, this.left - elapsed);
+      this.state.countdown = Math.ceil(this.left / COUNTDOWN_STEP_MS) * COUNTDOWN_STEP_MS;
+      if (this.left > 0) return;
+      if (this.phase === 'picking') this.startRounds();
+      else this.play();
+    }
+
+    /** Starts round 1 with each picking side's order, or its first three standing creatures when it sent none, and tells every player the line-ups. */
+    private startRounds() {
+      const { setup } = this.plan;
+      if (setup.mode !== 'rounds' || this.phase !== 'picking') return;
+      const picks: [RoundPick[], RoundPick[]] = [[...setup.picks[0]], [...setup.picks[1]]];
+      for (const picker of this.pickers()) picks[picker.side] = picksOf(picker, this.chosen[picker.side] ?? defaultPickOrder(placesOf(picker)));
+      this.fight = fightStart({ ...setup, picks }, content);
+      log.info('rounds picked', { roomId: this.roomId, fight: this.plan.fightId, chose: this.pickers().map((picker) => this.chosen[picker.side] !== null) });
+      this.play();
+      for (const [sessionId, fighter] of this.fighters) {
+        const client = this.clients.getById(sessionId);
+        if (client) this.sendStarted(client, fighter.side);
+      }
+    }
+
+    /** Back to fighting after picking or a pause, with what was sent meanwhile thrown away. */
+    private play() {
+      this.phase = 'fighting';
+      this.left = 0;
+      this.state.countdown = 0;
+      showFight(this.state, this.fight, content, this.phase);
+      for (const sessionId of this.fighters.keys()) this.inputs.get(sessionId).clear();
     }
 
     private resumeIfEveryoneIsHere() {
       const here = this.plan.seats.every((seat) => [...this.fighters.values()].some((fighter) => fighter.playerId === seat.playerId && fighter.connected));
       if (!here || this.awaySince === null) return;
       this.awaySince = null;
+      this.steppedAt = now();
       // What was sent while the fight waited is stale.
       for (const sessionId of this.fighters.keys()) this.inputs.get(sessionId).clear();
     }
 
-    /** One fixed step: each side's input, two core steps, the state and the events. A waiting fight does not move. */
+    /**
+     * One fixed step: each side's input, two core steps, the state and the events. A waiting fight
+     * does not move, and neither does its picking or pause clock.
+     */
     private step() {
       if (this.over) return;
+      const at = now();
+      const elapsed = at - this.steppedAt;
+      this.steppedAt = at;
       if (this.awaySince !== null) {
         const wait = this.fight.mode === 'wild' ? BATTLE_IDLE_MS : DUEL_WAIT_MS;
-        if (now() - this.awaySince >= wait) this.stop('away');
+        if (at - this.awaySince >= wait) this.stop('away');
+        return;
+      }
+      if (this.phase !== 'fighting') {
+        this.countDown(elapsed);
         return;
       }
       const started = performance.now();
@@ -269,7 +382,8 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
         events.push(...result.events);
       }
       this.stepCount += 1;
-      showFight(this.state, this.fight, content);
+      if (!this.fight.outcome && events.some((event) => event.kind === 'roundEnded')) this.wait('between', ARENA_BETWEEN_MS);
+      showFight(this.state, this.fight, content, this.phase);
       this.sendEvents(events);
       const took = performance.now() - started;
       this.stats.steps += 1;
@@ -346,8 +460,9 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
     /** Hands the end to the world room once, then closes the room. */
     private end(why: FightStop | 'done') {
       this.over = true;
-      showFight(this.state, this.fight, content);
+      showFight(this.state, this.fight, content, this.phase);
       this.state.phase = 'ended';
+      this.state.countdown = 0;
       const { stats } = this;
       log.info('fight ended', {
         roomId: this.roomId,

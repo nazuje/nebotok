@@ -10,7 +10,8 @@ protocol 6 with the starter only through a talk, protocol 8 adds skills and the 
 protocol 9 judges the tiny games exactly as they are drawn, protocol 10 adds the player's
 settings ("Read to me"), protocol 11 adds arena loadouts and the turtle setting
 (`loadout.set`, `settings.turtle`; see "Arena fights"), protocol 12 the arena room, its input
-and its messages, and protocol 13 duels (`duel.*` and `arena` in `welcome`).
+and its messages, protocol 13 duels (`duel.*` and `arena` in `welcome`), and protocol 14 picking
+three for a best of 3 (`arena.pick` and the arena room's `picking` and `between` phases).
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants, server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`,
 and the arena room's name, input fields, messages and limits, and fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -302,8 +303,8 @@ request gives it up after 1.5 s without an answer, so the next tap asks again.
 **Planned** for the milestone "Phase 2: Arena battles" (#141 to #160). Built so far: loadouts and
 the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148), and the arena
 room with its input, limits, state and messages, the hand-off and `ARENA_BATTLES` (protocol 12,
-#149), wild fights from tall grass with the setting on (#150), and duels (protocol 13, #157).
-Tests can also start one with
+#149), wild fights from tall grass with the setting on (#150), duels (protocol 13, #157), and picking
+three and the pause between rounds of a best of 3 (protocol 14, #155). Tests can also start one with
 the world room's `startWildFight(playerId, wild)`. Parts still to come are marked.
 The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md). Until the switch-over
@@ -347,10 +348,15 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   creature, and `arena.join` follows. The world room's `startWildFight` (#149) does the same
   outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
   An accepted duel (#157, built): rounds with two human sides, the asker on side 0, each with the
-  first three standing creatures of their team (until #155's picking) and their own turtle setting,
-  all at core `evenLevel` for an even match (`duelSetup`); nothing about it is saved. A duel gives
-  no rewards and counts no quest events (rewards come with #158); its health is put back. A dev-only `arena.practice` switch starts
-  rounds against `BOT` for the browser check (#155).
+  first three standing creatures of their team and their own turtle setting, all at core
+  `evenLevel` for an even match (`duelSetup`); nothing about it is saved. Duels do not pick yet:
+  the arena room's picking (#155) runs only for the sides a fight plan names in `pickers`. A duel
+  gives no rewards and counts no quest events (rewards come with #158); its health is put back.
+  The `arena.practice` switch (#155, built), the world room's `startPractice(playerId, opponents)`,
+  starts a best of 3 against `BOT` with up to three `{ species, level }` opponents. Like
+  `startWildFight` it is called in the server's own process by the room tests and the browser
+  check, never by a client, so it needs no setting and no message. The player picks from their
+  standing team in the arena room, and the fight changes nothing on the team.
 
 ### Input
 
@@ -408,7 +414,10 @@ state shows others only `inBattle` (and, for duels, the duelling and watching ma
 ArenaRoomState (apps/server/src/arena-state.ts)
   mode               'wild' | 'rounds'
   tick, limit        uint32   the step, and the tick the island's time limit falls on
-  phase              'fighting' | 'ended' now; 'picking' and 'between' come with #155
+  phase              'picking' | 'fighting' | 'between' | 'ended': 'picking' before round 1 of
+                     rounds with a picking side, 'between' for the 3 s after each round but the last
+  countdown          uint16   ms left of picking or of the pause, in steps of 100; 0 otherwise
+  picked             2 × boolean: each side has sent its picks (while picking)
   radius             int32    the island's radius now, in 1/256 units
   storm              { step, phase, next }: the tick the next shrink starts, -1 at the floor
   weather            string   the weather on the island, or ''
@@ -418,6 +427,8 @@ ArenaRoomState (apps/server/src/arena-state.ts)
   treat              { item, x, y, landed }: a treat in the air or on the ground; item '' for none
   score              round wins of each side (rounds; 0 and 0 in a wild fight)
   round              uint8    the round now (rounds)
+  rounds             uint8 each: the winner's side of every round played, 2 for a level one
+                     (a replayed round is left out)
 
 ArenaBody
   id                 string   the fighter: a<place + 1> for a team creature, b1 for the wild one
@@ -461,8 +472,9 @@ Arena room:
 | Type | Direction | Payload | When |
 | --- | --- | --- | --- |
 | input (`arena.input`) | client to server | The input above | 30 times a second while fighting |
-| `arena.pick` | client to server | `{ order }`: 3 team places, different, each standing | In the `picking` phase of rounds; refused `invalid` otherwise. A 30 s timer picks the first three standing |
-| `arena.started` (built) | server to client | `{ fightId, mode, side, sides }`: `sides` both line-ups, `[{ id, species, level, place }]` (`place` null for a creature not of your team) | On joining and on reconnecting |
+| `arena.pick` (built) | client to server | `{ order }`: 1 to 3 team places 0 to 5 | Once, in the `picking` phase of rounds: three different standing creatures in round order, or all of them when fewer stand; refused `invalid` otherwise, and `notNow` outside picking, in a wild fight or after a pick. When every picking side has picked, or after 30 s (`ARENA_PICK_MS`) counted only while every player is in, round 1 starts with each side's picks or its first three standing, and `arena.started` goes again |
+| `arena.started` (built) | server to client | `{ fightId, mode, side, sides }`: `sides` both line-ups, `[{ id, species, level, place }]` (`place` null for a creature not of your team). While picking, your side's is the defaults and the other side's is empty | On joining and on reconnecting, and to everyone when round 1 starts |
+| `refused` (built) | server to client | `{ request, reason }`, as from the world room | A refused `arena.pick` |
 | `arena.events` (built) | server to client | `{ tick, events }`: core's fight events of one fixed step's core steps. A `refused` press repeats every tick it is held, so one already sent the step before is left out | Each fixed step with events |
 
 A request that matches its schema but is not allowed now is answered with `refused` and the reasons
@@ -521,8 +533,9 @@ lead, corrections a second, the mean error and snaps, also in the test hook (`ar
 The protocol was 10 before the arena work. Each wire change bumps it once, in the order the tickets
 merge: #148 to 11 (`loadout.set`, `settings.turtle`, `loadout` and `learned` in `progress`;
 done), then #149 to 12 (the arena room, its input and `arena.join`, `arena.started`,
-`arena.events`, `arena.result`; done), #157 to 13 (`duel.*`, `arena` in `welcome`; done), #155
-(`arena.pick`) and #160. So the switch-over's
+`arena.events`, `arena.result`; done), #157 to 13 (`duel.*`, `arena` in `welcome`; done), #155 to
+14 (`arena.pick`, the arena room's `refused`, and `countdown`, `picked` and `rounds` in its state;
+done) and #160. So the switch-over's
 number is whatever comes next then, not fixed here. Tickets merged at the same time conflict on the
 one line in `scripts/lib/protocol-contract.test.mjs`; the later one takes the next number.
 

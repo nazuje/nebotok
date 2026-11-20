@@ -623,6 +623,7 @@ export {
 export { fightStart, fightStep } from './arena/fight.ts';
 export { ENTRY_GRACE_TICKS } from './arena/wild-fight.ts';
 export { ROUNDS, ROUND_WINS } from './arena/rounds.ts';
+export { defaultPickOrder, isPickOrder, pickCount, togglePick } from './arena/picks.ts';
 export {
   TREAT_WINDOW_CAP_PERCENT,
   TREAT_HEAL_PERCENT,
@@ -635,6 +636,7 @@ export {
 export {
   DUEL_XP_PERCENT,
   arenaWildSetup,
+  roundsTeam,
   teamAfterFight,
   befriendedFromFight,
   arenaRewards,
@@ -666,6 +668,11 @@ export { FightGoldenFile, fightReplay, fightReplayHash, type FightReplay } from 
 export {
   ARENA_INPUT_FIELDS,
   ARENA_NONE,
+  ARENA_CLIENT_MESSAGES,
+  ARENA_PICK_MS,
+  ARENA_BETWEEN_MS,
+  ROUND_DRAW,
+  ArenaPickMessage,
   cleanArenaInput,
   arenaInputOf,
   type ArenaWireInput,

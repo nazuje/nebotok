@@ -33,6 +33,7 @@ import {
   WalkHoldMessage,
   WalkStopMessage,
   WalkToMessage,
+  ROUNDS,
   answerMove,
   arenaContentOf,
   arenaWildSetup,
@@ -62,6 +63,7 @@ import {
   questEvent,
   reorderTeam,
   rollEncounter,
+  roundsTeam,
   setLoadout,
   setTurtle,
   shrineAt,
@@ -96,6 +98,7 @@ import {
   type RefusalReason,
   type Refused,
   type Rng,
+  type RoundsFightSetup,
   type SaveFile,
   type SettingsMessage,
   type StorageMessage,
@@ -109,7 +112,7 @@ import {
   type WorldInfo,
 } from '@nebotok/core';
 import { z } from 'zod';
-import type { FightBook, FightEnd, FightStop } from './fights.ts';
+import type { FightBook, FightEnd, FightPlan, FightStop } from './fights.ts';
 import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, settleFight, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
 import { createDuelDesk, type AskEnd, type DuelAsk } from './duels.ts';
 import type { Log } from './log.ts';
@@ -772,11 +775,37 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
      * id, or null when none started.
      */
     async startWildFight(playerId: number, wild: WildEncounter): Promise<string | null> {
+      const found = this.freeToFight(playerId);
+      return found ? this.openWildFight(found[0], found[1], wild, null, withIntent(found[1].walker, IDLE)) : null;
+    }
+
+    /**
+     * The `arena.practice` switch, for tests and the browser check only, never a client's: a best of 3
+     * against the computer's `BOT` with `opponents` (the first three), when arena battles are on.
+     * The player picks three in the arena room. Like every best of 3 it changes nothing on the team.
+     * Resolves to the fight's id, or null when none started.
+     */
+    async startPractice(playerId: number, opponents: readonly WildEncounter[]): Promise<string | null> {
+      const found = this.freeToFight(playerId);
+      if (!found || !arenaContent || opponents.length === 0) return null;
+      const [sessionId, seat] = found;
+      const computer = opponents.slice(0, ROUNDS).map(({ species, level }, at) => ({
+        place: null,
+        fighter: { id: `b${at + 1}`, species, level, loadout: wildLoadout(species, level, arenaContent), turtle: false, computer: true },
+      }));
+      return this.openFight(sessionId, seat, null, withIntent(seat.walker, IDLE), { practice: true }, () => {
+        const team = roundsTeam(seat.progress.team, seat.settings.turtle);
+        const setup: RoundsFightSetup = { mode: 'rounds', seed: seed(), picks: [team.slice(0, ROUNDS), computer] };
+        return { setup, minds: [{ side: 1, mind: 'BOT' }], pickers: [{ side: 0, team }] };
+      });
+    }
+
+    /** The player's seat in this room when it could start a fight now, with its session id. */
+    private freeToFight(playerId: number): [string, Seat] | null {
       const found = [...this.seats].find(([, seat]) => seat.playerId === playerId && !seat.replaced && !seat.closing);
       if (!found) return null;
-      const [sessionId, seat] = found;
-      if (fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return null;
-      return this.openWildFight(sessionId, seat, wild, null, withIntent(seat.walker, IDLE));
+      const [, seat] = found;
+      return fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress) ? null : found;
     }
 
     /**
@@ -785,14 +814,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
      */
     private async openWildFight(sessionId: string, seat: Seat, wild: WildEncounter, zone: EncounterZone | null, walker: Walker): Promise<string | null> {
       if (!arenaContent) return null;
-      const { playerId } = seat;
-      const fightId = randomUUID();
       const { turtle } = seat.settings;
-      const fight: LiveFight = { id: fightId, zone: zone?.id ?? null, duel: false };
-      // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
-      try {
-        this.endTalk(sessionId, seat, 'battle');
-        this.endSkill(sessionId, seat, 'battle');
+      return this.openFight(sessionId, seat, zone?.id ?? null, walker, { species: wild.species, level: wild.level, turtle }, () => {
         const setup = arenaWildSetup({
           seed: seed(),
           team: seat.progress.team,
@@ -803,12 +826,37 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           content: world.battle,
           weather: zone?.weather ?? null,
         });
+        seat.progress = markSeen(seat.progress, wild.species);
+        return { setup, minds: [{ side: 1, mind: wildMindFor(turtle) }] };
+      });
+    }
+
+    /**
+     * Plans a fight for the seat's player on side 0, standing as `walker`, and sends `arena.join`.
+     * `plan` makes its setup once talks and skills have ended; when anything throws, no fight
+     * starts. `logged` goes on the `fight planned` line. Resolves to the fight's id, or null.
+     */
+    private async openFight(
+      sessionId: string,
+      seat: Seat,
+      zone: string | null,
+      walker: Walker,
+      logged: Readonly<Record<string, unknown>>,
+      plan: () => Pick<FightPlan, 'setup' | 'minds' | 'pickers'>,
+    ): Promise<string | null> {
+      const { playerId } = seat;
+      const fightId = randomUUID();
+      const fight: LiveFight = { id: fightId, zone, duel: false };
+      // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
+      try {
+        this.endTalk(sessionId, seat, 'battle');
+        this.endSkill(sessionId, seat, 'battle');
+        const planned = plan();
         seat.walker = walker;
         seat.fight = fight;
-        seat.progress = markSeen(seat.progress, wild.species);
         this.changed(seat);
         this.showFighting(sessionId, true);
-        await fights.open({ fightId, setup, seats: [{ playerId, side: 0 }], minds: [{ side: 1, mind: wildMindFor(turtle) }], ended: (end) => this.finishFight(end), seatLost: (lost) => this.fightSeatLost(fightId, lost) });
+        await fights.open({ fightId, ...planned, seats: [{ playerId, side: 0 }], ended: (end) => this.finishFight(end), seatLost: (lost) => this.fightSeatLost(fightId, lost) });
       } catch (error) {
         log.warn('could not start a fight', { roomId: this.roomId, playerId, fight: fightId, ...errorOf(error) });
         if (seat.fight === fight) {
@@ -818,7 +866,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         }
         return null;
       }
-      log.info('fight planned', { roomId: this.roomId, playerId, fight: fightId, zone: fight.zone, species: wild.species, level: wild.level, turtle });
+      log.info('fight planned', { roomId: this.roomId, playerId, fight: fightId, zone, ...logged });
       await this.sendFightJoin(sessionId, seat);
       return fightId;
     }

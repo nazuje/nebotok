@@ -464,6 +464,225 @@
   gap: 8px;
 }
 
+/* A best of 3: picking three, and the score between rounds (arena-rounds.ts). */
+.arena[data-phase='picking'] :is(.arena-zone, .arena-cluster, .arena-top),
+.arena[data-phase='between'] :is(.arena-zone, .arena-cluster) {
+  display: none;
+}
+
+.arena-rounds {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.arena-rounds > * {
+  pointer-events: auto;
+}
+
+.arena-pick {
+  position: absolute;
+  top: calc(var(--top) + 56px);
+  max-height: calc(100% - var(--top) - 56px - max(12px, env(safe-area-inset-bottom)));
+  left: 50%;
+  translate: -50% 0;
+  width: min(40rem, calc(100% - 24px));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 12px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 6px 0 rgb(16 42 67 / 0.2);
+}
+
+.arena-pick-title {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.arena-slots {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 12px;
+}
+
+.arena-slot {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--muted);
+  border-radius: 16px;
+}
+
+.arena-slot[data-filled='true'] {
+  border: 3px solid #ffd43b;
+  background: rgb(255 212 59 / 0.15);
+}
+
+.arena-slot > canvas {
+  width: 64px;
+  height: 64px;
+}
+
+.arena-slot > .loadout-digits,
+.arena-choice > .loadout-digits {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+}
+
+.arena-slot-empty {
+  width: 24px;
+  height: 24px;
+}
+
+.arena-choices {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.arena-choice {
+  position: relative;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 3px solid rgb(16 42 67 / 0.15);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.arena-choice[aria-pressed='true'] {
+  border-color: #ffd43b;
+  background: rgb(255 212 59 / 0.2);
+}
+
+.arena-choice:disabled {
+  filter: grayscale(1) opacity(0.5);
+  cursor: default;
+}
+
+.arena-choice > canvas {
+  width: 64px;
+  height: 64px;
+}
+
+.arena-choice-words {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.arena-choice .health-bar {
+  width: 100%;
+}
+
+/* Go, with the time left to pick as a ring around it. */
+.arena-go-ring {
+  flex: none;
+  padding: 6px;
+  border-radius: 999px;
+  background: conic-gradient(#ffd43b calc(var(--left, 1) * 360deg), rgb(16 42 67 / 0.15) 0);
+}
+
+.arena-go {
+  min-width: 96px;
+  min-height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.arena-between {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 6px 0 rgb(16 42 67 / 0.2);
+}
+
+.arena-pips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 12px;
+}
+
+.arena-pip {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #ffd43b;
+  border-radius: 50%;
+}
+
+.arena-pip[data-pip='empty'] {
+  border: 3px dashed var(--muted);
+}
+
+.arena-next {
+  display: flex;
+  gap: 48px;
+}
+
+.arena-next > span {
+  display: grid;
+}
+
+.arena-next canvas {
+  width: 96px;
+  height: 96px;
+}
+
+.arena-next-mine {
+  border-bottom: 4px solid #ffd43b;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .arena-next-mine {
+    animation: arena-slide-left 0.5s ease-out;
+  }
+
+  .arena-next-theirs {
+    animation: arena-slide-right 0.5s ease-out;
+  }
+}
+
+@keyframes arena-slide-left {
+  from {
+    translate: -120px 0;
+    opacity: 0;
+  }
+}
+
+@keyframes arena-slide-right {
+  from {
+    translate: 120px 0;
+    opacity: 0;
+  }
+}
+
 /* The netcode meters, only with ?test=1&net=1: one line at the top of the island. */
 .arena-net {
   position: absolute;

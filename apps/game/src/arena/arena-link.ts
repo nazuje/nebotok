@@ -1,4 +1,22 @@
-import { ARENA_MESSAGES, SERVER_MESSAGES, SUBUNITS, arenaInputOf, otherSide, type ArenaJoinMessage, type ArenaResultMessage, type ArenaStartedMessage, type ArenaEventsMessage, type FightEvent, type Language, type LearnedMove, type ProgressMessage, type Side } from '@nebotok/core';
+import {
+  ARENA_CLIENT_MESSAGES,
+  ARENA_MESSAGES,
+  SERVER_MESSAGES,
+  SUBUNITS,
+  arenaInputOf,
+  otherSide,
+  type ArenaJoinMessage,
+  type ArenaPickMessage,
+  type ArenaResultMessage,
+  type ArenaStartedMessage,
+  type ArenaEventsMessage,
+  type FightEvent,
+  type Language,
+  type LearnedMove,
+  type ProgressMessage,
+  type Refused,
+  type Side,
+} from '@nebotok/core';
 import type { Game } from 'phaser';
 import type { ArenaRoom, WorldConnection, WorldRoom } from '../connection.ts';
 import { element } from '../dom.ts';
@@ -11,6 +29,7 @@ import { INPUTS_PER_SECOND, leadLimit, wireInput } from './arena-input.ts';
 import { createNetPanel, netMetersAsked } from './arena-net.ts';
 import { createCastEcho, createPredictor, type CastEcho, type NetMeters, type Predictor } from './arena-predict.ts';
 import { badgeTone, buzzFor, motionReduced } from './arena-juice.ts';
+import { createRoundsScreen, pipsOf, tappedOrder, type RoundsView } from './arena-rounds.ts';
 import { ARENA_SCENE, ArenaScene, type ArenaDrawn, type ShownFight } from './arena-scene.ts';
 import { createArenaScreen, type CardView } from './arena-screen.ts';
 import { fightBook, type FightBook } from './fight-book.ts';
@@ -52,6 +71,13 @@ export type TestArena = {
   presses: number;
   /** Buzzes asked of the device, where it can vibrate. */
   buzzes: number;
+  /** A best of 3's picks by team place, in round order: the ones on the pick screen while picking, then the server's. */
+  picks: number[] | null;
+  /** The round now, from 0, and the round wins of your side and of the other's. */
+  round: number;
+  score: [number, number];
+  /** Milliseconds left of picking or of the pause between rounds. */
+  countdown: number;
   drawn: ArenaDrawn | null;
   result: ArenaResultMessage | null;
   /** The netcode meters (docs/protocol.md, "Prediction"), once the fight has started. */
@@ -90,6 +116,10 @@ type Fight = {
   inputs: number;
   presses: number;
   buzzes: number;
+  /** A best of 3's picks, by team place in round order, once `arena.started` has told the defaults. */
+  order: number[] | null;
+  /** Whether `order` has gone to the server. */
+  sent: boolean;
   stop: () => void;
   /** Your creature, predicted, and the other one, smoothed; made when the room says which side is yours. */
   predictor: Predictor | null;
@@ -100,6 +130,9 @@ type Fight = {
   /** Whether the last send was skipped to drain the room's buffer: never two in a row. */
   skipped: boolean;
 };
+
+/** The team places of a side's line-up: your own creatures', for a best of 3's picks. */
+const placesOf = (started: ArenaStartedMessage): number[] => started.sides[started.side].flatMap(({ place }) => (place === null ? [] : [place]));
 
 /** Buzzes the device where it can (`navigator.vibrate`; Safari on iPhone and iPad has none). Returns whether it asked. */
 function buzz(pattern: readonly number[]): boolean {
@@ -131,6 +164,17 @@ export function createArena(options: ArenaOptions): Arena {
   const fighting = (): boolean => fight !== null && fight.result === null && fight.room !== null && shown()?.state.phase === 'fighting';
 
   const controls = createArenaControls(screen, { active: fighting });
+  const rounds = createRoundsScreen(screen.rounds, {
+    tapped: (place) => {
+      if (fight?.order && !fight.sent) fight.order = tappedOrder(fight.order, place, options.progress()?.team ?? []);
+    },
+    go: () => {
+      const room = fight?.room;
+      if (!fight?.order || fight.sent || !room) return;
+      room.send(ARENA_CLIENT_MESSAGES.pick, { order: fight.order } satisfies ArenaPickMessage);
+      fight.sent = true;
+    },
+  });
   const scene = new ArenaScene({
     fight: shown,
     events: () => {
@@ -246,9 +290,14 @@ export function createArena(options: ArenaOptions): Arena {
       room.onMessage(ARENA_MESSAGES.started, (message: ArenaStartedMessage) => {
         target.started = message;
         target.book = fightBook(message, options.progress());
+        if (message.mode === 'rounds' && target.order === null) target.order = placesOf(message);
         // Also on a reconnection, whose input stream starts again from nothing.
         target.predictor = createPredictor(message.side, ARENA, SEND_MS);
         target.echo = createCastEcho(message.side);
+      }),
+      // A pick the server refused can be changed and sent again.
+      room.onMessage(ARENA_MESSAGES.refused, (message: Refused) => {
+        if (message.request === ARENA_CLIENT_MESSAGES.pick) target.sent = false;
       }),
       room.onMessage(ARENA_MESSAGES.events, (message: ArenaEventsMessage) => {
         target.events.push(...(target.echo ? target.echo.settle(message.events, performance.now()) : message.events));
@@ -273,7 +322,7 @@ export function createArena(options: ArenaOptions): Arena {
     if (!connection) return;
     if (fight?.id !== fightId) {
       if (fight) leaveRoom(fight);
-      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
+      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, order: null, sent: false, stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
       controls.reset();
       options.started();
       options.changed();
@@ -307,6 +356,20 @@ export function createArena(options: ArenaOptions): Arena {
     return [card(now.side), card(now.side === 0 ? 1 : 0)];
   }
 
+  /** The pick screen while picking, and the score between rounds. */
+  function roundsView(): RoundsView {
+    const now = shown();
+    if (!fight?.order || !now || fight.result) return { pick: null, between: null };
+    const { state, side } = now;
+    const other = side === 0 ? 1 : 0;
+    if (state.phase === 'picking') {
+      return { pick: { team: options.progress()?.team ?? [], order: fight.order, sent: fight.sent || state.picked.at(side) === true, countdown: state.countdown }, between: null };
+    }
+    if (state.phase !== 'between') return { pick: null, between: null };
+    const species = (of: Side) => state.bodies.at(of)?.species ?? null;
+    return { pick: null, between: { pips: pipsOf([...state.rounds], side), score: [state.score.at(side) ?? 0, state.score.at(other) ?? 0], next: [species(side), species(other)] } };
+  }
+
   function buttons(): ButtonState[] {
     const now = shown();
     const mine = now?.state.bodies.at(now.side);
@@ -332,6 +395,8 @@ export function createArena(options: ArenaOptions): Arena {
       netPanel?.render(fight && fight.result === null ? meters(fight) : null, language);
       const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [] };
       screen.render(view, language);
+      root.dataset.phase = shown()?.state.phase ?? '';
+      rounds.render(roundsView(), language);
       if (fight) controls.render(buttons(), language, now, fighting() && shown()?.state.mode === 'wild');
       const game = options.game();
       const running = game.scene.isActive(ARENA_SCENE);
@@ -351,6 +416,8 @@ export function createArena(options: ArenaOptions): Arena {
         return at && card ? { ...card, x: at.x, y: at.y } : null;
       };
       const side = fight.started?.side ?? null;
+      const picking = now?.state.phase === 'picking';
+      const score: [number, number] = now ? [now.state.score.at(now.side) ?? 0, now.state.score.at(now.side === 0 ? 1 : 0) ?? 0] : [0, 0];
       return {
         arena: {
           fightId: fight.id,
@@ -367,6 +434,10 @@ export function createArena(options: ArenaOptions): Arena {
           inputs: fight.inputs,
           presses: fight.presses,
           buzzes: fight.buzzes,
+          picks: picking ? fight.order : fight.started?.mode === 'rounds' ? placesOf(fight.started) : null,
+          round: now?.state.round ?? 0,
+          score,
+          countdown: now?.state.countdown ?? 0,
           drawn: scene.drawn(),
           result: fight.result,
           net: meters(fight),
