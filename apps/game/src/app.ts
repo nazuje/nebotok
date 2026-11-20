@@ -169,6 +169,7 @@ const talks = createTalks({
   speech,
   cue: (cue, key) => storyCues.fromTalk(cue, key),
   requests,
+  held: () => creaturesUp(),
 });
 const story = createStory({
   language: () => language,

@@ -49,6 +49,7 @@ import {
   duelSetup,
   emptyProgress,
   encounterZoneAt,
+  endTrainerFight,
   freeTileNear,
   healTeam,
   inBounds,
@@ -70,6 +71,8 @@ import {
   stepWalker,
   swapStorage,
   talkNodeMessage,
+  trainerMind,
+  trainerPicks,
   wakeAfterFainting,
   wakePoint,
   welcome,
@@ -83,6 +86,7 @@ import {
   type BattleUpdate,
   type BattleViewMessage,
   type BefriendResult,
+  type Conversation,
   type Direction,
   type DuelAnsweredMessage,
   type DuelAskedMessage,
@@ -105,6 +109,7 @@ import {
   type StoryMessage,
   type TalkEnded,
   type TalkStep,
+  type Trainer,
   type WakePoint,
   type WalkCommand,
   type Walker,
@@ -229,8 +234,13 @@ type Seat = {
 
 type OutstandingOffer = PendingMove & { readonly id: number; readonly sentAt: number };
 
-/** `zone` is the encounter zone the fight began in, for quests; null for one started elsewhere. A `duel` counts for no quest. */
-type LiveFight = { readonly id: string; readonly zone: string | null; readonly duel: boolean };
+/**
+ * `zone` is the encounter zone the fight began in, for quests; null for one started elsewhere. A
+ * `duel` counts for no quest. A `trainer` fight came from a talk at `conversation`, which its end
+ * opens again.
+ */
+type LiveFight = { readonly id: string; readonly zone: string | null; readonly duel: boolean; readonly trainer: TrainerTalk | null };
+type TrainerTalk = { readonly trainer: Trainer; readonly conversation: Conversation };
 
 /** In a turn battle or an arena fight: walking, talks, shrines, storage, skills and loadouts wait. */
 const fighting = (seat: Seat): boolean => seat.battle !== null || seat.fight !== null;
@@ -264,7 +274,9 @@ function arrivedAt(before: Walker, after: Walker): Point | null {
  * services ride on the class.
  */
 export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed, fights, arenaBattles }: WorldServices) {
-  const { map, stepMs, story } = world;
+  const { map, stepMs } = world;
+  // Without arena fights no trainer is in the story, so no `canFight` holds and no talk offers one.
+  const story = arenaBattles ? world.story : { ...world.story, trainers: new Map() };
   const spawn = spawnOf(world);
   const arenaContent = arenaBattles ? arenaContentOf(world.battle) : null;
 
@@ -843,10 +855,11 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       walker: Walker,
       logged: Readonly<Record<string, unknown>>,
       plan: () => Pick<FightPlan, 'setup' | 'minds' | 'pickers'>,
+      trainer: TrainerTalk | null = null,
     ): Promise<string | null> {
       const { playerId } = seat;
       const fightId = randomUUID();
-      const fight: LiveFight = { id: fightId, zone, duel: false };
+      const fight: LiveFight = { id: fightId, zone, duel: false, trainer };
       // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
       try {
         this.endTalk(sessionId, seat, 'battle');
@@ -921,7 +934,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private settleFight(sessionId: string, seat: Seat, { fightId, fight, why }: FightEnd) {
       const zone = seat.fight?.zone ?? null;
       const duel = seat.fight?.duel ?? false;
-      const settled = settleFight(seat.progress, fight, world.battle);
+      const trainer = seat.fight?.trainer ?? null;
+      const settled = settleFight(seat.progress, fight, world.battle, trainer?.trainer.reward.xpPercent ?? 0);
       seat.progress = settled.fainted ? wakeAfterFainting(settled.progress, world.shrines.teamFainted, world.battle) : settled.progress;
       seat.fight = null;
       const woke = settled.fainted ? this.wake(seat) : null;
@@ -939,6 +953,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       } satisfies ArenaResultMessage);
       const counted = countEvents(seat.progress, duel ? [] : fightEvents(outcome, zone, settled.befriended?.species ?? null), story);
       if (!this.applyStory(sessionId, seat, counted)) this.offerNext(sessionId, seat);
+      if (trainer) this.backToTalk(sessionId, seat, trainer, outcome?.result === 'won');
       log.info('fight settled', {
         roomId: this.roomId,
         playerId: seat.playerId,
@@ -952,6 +967,51 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         befriended: settled.befriended?.placedIn ?? null,
         woke: woke !== null,
       });
+    }
+
+    /**
+     * Starts a best of 3 against `trainer` from the talk at `conversation`, the node with its fight:
+     * the talk ends, the player picks three in the arena room, and the fight's end opens the talk
+     * again (`backToTalk`). Resolves to the fight's id, or null when none started.
+     */
+    private async startTrainerFight(sessionId: string, seat: Seat, conversation: Conversation, trainer: Trainer): Promise<string | null> {
+      if (!arenaContent || fighting(seat) || seat.offer || seat.skills.attempt || !canBattle(seat.progress)) {
+        this.endTalk(sessionId, seat, 'failed');
+        return null;
+      }
+      const { turtle } = seat.settings;
+      const opened = { trainer, conversation };
+      return this.openFight(
+        sessionId,
+        seat,
+        null,
+        withIntent(seat.walker, IDLE),
+        { trainer: trainer.id },
+        () => {
+          const team = roundsTeam(seat.progress.team, turtle);
+          const setup: RoundsFightSetup = { mode: 'rounds', seed: seed(), picks: [team.slice(0, ROUNDS), trainerPicks(trainer)] };
+          return { setup, minds: [{ side: 1, mind: trainerMind(trainer, turtle) }], pickers: [{ side: 0, team }] };
+        },
+        opened,
+      );
+    }
+
+    /**
+     * After a trainer's fight: the talk goes on to the fight node's `won` or `lost` node
+     * (`endTrainerFight`), whose story is applied, and opens again there for a player still here
+     * and free to talk (no move offer waiting). The page shows it once the fight's result is put away.
+     */
+    private backToTalk(sessionId: string, seat: Seat, { conversation }: TrainerTalk, won: boolean) {
+      const step = endTrainerFight(conversation, won, seat.progress, story);
+      if (!step) return;
+      this.applyStory(sessionId, seat, step, this.deliveries(seat, step));
+      const player = this.state.players.get(sessionId);
+      if (!step.conversation || !player || !this.clients.get(sessionId) || seat.reconnection || seat.closing || seat.replaced || fighting(seat) || seat.talk || seat.offer) return;
+      this.talkCount += 1;
+      seat.talk = { id: this.talkCount, conversation: step.conversation, lastInputAt: now() };
+      player.talking = true;
+      log.info('talk started', { roomId: this.roomId, playerId: seat.playerId, conversation: seat.talk.id, npc: conversation.npc, node: step.conversation.node, won });
+      this.sendTalkNode(sessionId, seat);
     }
 
     /** After the whole team fainted: back at the last shrine on this map, or the spawn, on a free tile near it. */
@@ -1177,7 +1237,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private async openDuel(ask: DuelAsk, ...players: readonly [readonly [string, Seat], readonly [string, Seat]]): Promise<string | null> {
       const [[, asker], [, answerer]] = players;
       const fightId = randomUUID();
-      const fight: LiveFight = { id: fightId, zone: null, duel: true };
+      const fight: LiveFight = { id: fightId, zone: null, duel: true, trainer: null };
       try {
         const setup = duelSetup({ seed: seed(), teams: [asker.progress.team, answerer.progress.team], even: ask.even, turtles: [asker.settings.turtle, answerer.settings.turtle], content: world.battle });
         for (const [sessionId, seat] of players) {
@@ -1243,6 +1303,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       }
       talk.lastInputAt = now();
       const next = continueTalk(talk.conversation, choice, seat.progress, story);
+      if (next.kind === 'fight') {
+        void this.startTrainerFight(client.sessionId, seat, talk.conversation, next.trainer);
+        return;
+      }
       if (next.kind === 'refused' || next.kind === 'failed') {
         this.refuse(client, CLIENT_MESSAGES.talkNext, 'invalid');
         if (next.kind === 'failed') {

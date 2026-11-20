@@ -45,6 +45,7 @@ const content = loadStoryContent(
     quests: read('quests'),
     story: read('story'),
     inventory: read('inventory'),
+    trainers: read('trainers'),
     skills: { skills: read('skills'), spots: read('spots'), recipes: read('recipes'), stations: read('stations'), jobs: read('jobs') },
   },
   battle,

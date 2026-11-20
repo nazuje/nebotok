@@ -56,6 +56,11 @@ export type TalksOptions = {
   cue(cue: TalkCue, key: string): void;
   /** Paces every talk request with the page's other requests, under the server's limit. */
   requests: RequestPacer;
+  /**
+   * A screen is up over the world, such as a trainer's fight and its result, so a node that comes
+   * now waits and opens once it is gone: the talk box is hidden under it and would take its keys.
+   */
+  held(): boolean;
 };
 
 export type Talks = {
@@ -82,6 +87,8 @@ export function createTalks(options: TalksOptions): Talks {
   const { speech } = options;
   let link: TalkLink | null = null;
   let talk: TalkNode | null = null;
+  /** A node that came while `held`, shown once it is not. */
+  let pending: TalkNode | null = null;
   let story: StoryMessage | null = null;
   /** When the line on screen began typing, and whether a tap showed all of it. */
   let typingFrom = 0;
@@ -134,8 +141,11 @@ export function createTalks(options: TalksOptions): Talks {
   }
 
   function receive(message: TalkServerMessage) {
-    if (message.type === SERVER_MESSAGES.talkNode) show(message.payload);
-    else if (message.type === SERVER_MESSAGES.talkEnded) {
+    if (message.type === SERVER_MESSAGES.talkNode) {
+      if (talk === null && options.held()) pending = message.payload;
+      else show(message.payload);
+    } else if (message.type === SERVER_MESSAGES.talkEnded) {
+      if (pending?.conversation === message.payload.conversation) pending = null;
       if (talk?.conversation === message.payload.conversation) show(null);
     } else if (message.type === SERVER_MESSAGES.story) story = message.payload;
     else if (message.payload.request === CLIENT_MESSAGES.talkStart) asked = null;
@@ -194,6 +204,7 @@ export function createTalks(options: TalksOptions): Talks {
   return {
     joined: (room) => {
       // A fresh join starts a new seat, and the server has ended any talk the old one had.
+      pending = null;
       show(null);
       story = null;
       asked = null;
@@ -212,6 +223,10 @@ export function createTalks(options: TalksOptions): Talks {
       send({ type: CLIENT_MESSAGES.talkStart, payload: { npc } });
     },
     frame: (now) => {
+      if (pending && !options.held()) {
+        show(pending);
+        pending = null;
+      }
       if (waiting && now - sentAt >= ANSWER_MS) waiting = false;
       const shown = line();
       const language = options.language();
@@ -234,6 +249,7 @@ export function createTalks(options: TalksOptions): Talks {
     look: (npc, at, self) => ({ facing: talk?.npc === npc && self ? facingToward(at, self) : 'down', mark: currentMarks().get(npc) ?? null }),
     starterNpc: () => starterNpc(options.progress(), story, STORY),
     reset: () => {
+      pending = null;
       show(null);
       story = null;
       asked = null;

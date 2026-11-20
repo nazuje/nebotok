@@ -1,0 +1,47 @@
+{
+  "trainers": [
+    {
+      "id": "vetrinka",
+      "npc": "vetrinka",
+      "creatures": [
+        {
+          "species": "pinwhirl",
+          "level": 6,
+          "loadout": [
+            "gust-push",
+            null,
+            null
+          ]
+        },
+        {
+          "species": "drizzlesnail",
+          "level": 7,
+          "loadout": [
+            "drip-drop",
+            "puddle-jump",
+            null
+          ]
+        },
+        {
+          "species": "gustowl",
+          "level": 8,
+          "loadout": [
+            "gust-push",
+            "twirl",
+            null
+          ]
+        }
+      ],
+      "mind": "WILD",
+      "reward": {
+        "xpPercent": 50,
+        "item": {
+          "item": "gale-treat",
+          "count": 2
+        }
+      },
+      "flag": "vetrinka-test-won",
+      "rematch": "again"
+    }
+  ]
+}

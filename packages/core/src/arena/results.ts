@@ -124,13 +124,26 @@ export function arenaRewards(team: readonly CreatureInstance[], fight: WildFight
  * `DUEL_XP_PERCENT` of `xpForWin` of the level of the creature it faced. Nothing is lost.
  */
 export function duelRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, content: BattleContent): Rewarded {
+  return roundsRewards(team, fight, side, DUEL_XP_PERCENT, content);
+}
+
+/**
+ * Experience after a trainer's best of 3, win or lose: each of `side`'s creatures that fought gets
+ * the trainer's `xpPercent` of `xpForWin` of the level of the creature it faced.
+ */
+export function trainerRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, xpPercent: number, content: BattleContent): Rewarded {
+  return roundsRewards(team, fight, side, xpPercent, content);
+}
+
+/** `percent` of `xpForWin` of the level of the creature each of `side`'s creatures that fought faced. */
+function roundsRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, percent: number, content: BattleContent): Rewarded {
   const mine = fight.picks[side];
   const theirs = fight.picks[otherSide(side)];
   const xpByPlace = new Map<number, number>();
   mine.forEach((creature, round) => {
     const faced = theirs[round];
     if (!creature.fought || creature.place === null || !faced) return;
-    xpByPlace.set(creature.place, percentOf(xpForWin(faced.fighter.level), DUEL_XP_PERCENT));
+    xpByPlace.set(creature.place, percentOf(xpForWin(faced.fighter.level), percent));
   });
   return rewarded(team, (place) => xpByPlace.get(place) ?? 0, content);
 }

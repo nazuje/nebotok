@@ -124,7 +124,7 @@ describe('story content files', () => {
     expect(dialogueIssues({ npc: 'bavko', entries: [{ node: 'hi' }], nodes: { hi: twoCues } })).not.toEqual([]);
   });
 
-  it('gives a choice its own picture, a tick when it takes a quest, a clock when it declines, and none otherwise', () => {
+  it('gives a choice its own picture, a tick when it takes a quest, a clock when it declines, a challenge when it fights, and none otherwise', () => {
     const nodes = {
       ask: { say, choices: [{ say, next: 'yes' }, { say, next: 'no' }, { say, next: 'gift' }] },
       yes: { say, next: 'start' },
@@ -140,7 +140,9 @@ describe('story content files', () => {
     expect(choices.map((choice) => choicePicture(parsed.nodes, choice))).toEqual([CHOICE_PICTURES.takes, CHOICE_PICTURES.declines, null]);
     const own = parsed.nodes['more']!.choices![0]!;
     expect([choiceKind(parsed.nodes, own), choicePicture(parsed.nodes, own)]).toEqual(['declines', 'heart']);
-    expect(CHOICE_PICTURES).toEqual({ takes: 'check', declines: 'clock' });
+    expect(CHOICE_PICTURES).toEqual({ takes: 'check', declines: 'clock', fights: 'challenge' });
+    const fights = DialogueFile.parse({ npc: 'bavko', entries: [{ node: 'ask' }], nodes: { ask: { say, choices: [{ say, next: 'fight' }] }, fight: { say, fight: 'bavko', won: 'bye', lost: 'bye' }, bye: { say } } });
+    expect(choicePicture(fights.nodes, fights.nodes['ask']!.choices![0]!)).toBe(CHOICE_PICTURES.fights);
     const looped = DialogueFile.parse({ npc: 'bavko', entries: [{ node: 'ask' }], nodes: { ask: { say, choices: [{ say, next: 'round' }] }, round: { say, next: 'round' } } });
     expect(choiceKind(looped.nodes, looped.nodes['ask']!.choices![0]!)).toBeNull();
     expect(dialogueIssues({ npc: 'bavko', entries: [{ node: 'ask' }], nodes: { ...nodes, ask: { say, choices: [{ say, next: 'bye', picture: 'banana' }] } } })).not.toEqual([]);

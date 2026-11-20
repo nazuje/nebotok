@@ -1,0 +1,47 @@
+{
+  "trainers": [
+    {
+      "id": "vetrinka",
+      "npc": "vetrinka",
+      "creatures": [
+        {
+          "species": "sun-blob",
+          "level": 3,
+          "loadout": [
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "species": "rain-blob",
+          "level": 4,
+          "loadout": [
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "species": "frost-blob",
+          "level": 5,
+          "loadout": [
+            null,
+            null,
+            null
+          ]
+        }
+      ],
+      "mind": "WILD",
+      "reward": {
+        "xpPercent": 50,
+        "item": {
+          "item": "gale-treat",
+          "count": 2
+        }
+      },
+      "flag": "vetrinka-beaten",
+      "rematch": "again"
+    }
+  ]
+}

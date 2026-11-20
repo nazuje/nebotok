@@ -315,6 +315,43 @@
           "setFlag": "chapter-1-done"
         }
       ]
+    },
+    {
+      "id": "vetrinka-test",
+      "chapter": "side",
+      "giver": "vetrinka",
+      "requires": [
+        "grey-letter"
+      ],
+      "name": {
+        "en": "vetrinka-test",
+        "sl": "vetrinka-test"
+      },
+      "summary": {
+        "en": "summary of vetrinka-test",
+        "sl": "summary of vetrinka-test"
+      },
+      "steps": [
+        {
+          "id": "beat-vetrinka",
+          "kind": "beatTrainer",
+          "trainer": "vetrinka",
+          "hint": {
+            "en": "hint for beat-vetrinka",
+            "sl": "hint for beat-vetrinka"
+          }
+        }
+      ],
+      "rewards": {
+        "items": [
+          {
+            "item": "sun-treat",
+            "count": 1
+          }
+        ],
+        "xp": 10
+      },
+      "effects": []
     }
   ]
 }

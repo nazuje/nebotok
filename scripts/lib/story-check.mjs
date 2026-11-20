@@ -31,7 +31,7 @@ const dialogue = Object.fromEntries(
 );
 const STORY = loadStoryContent(
   {
-    npcs: readContent('npcs.json'), dialogue, quests: readContent('quests.json'), story: readContent('story.json'), inventory: readContent('inventory.json'),
+    npcs: readContent('npcs.json'), dialogue, quests: readContent('quests.json'), story: readContent('story.json'), inventory: readContent('inventory.json'), trainers: readContent('trainers.json'),
     skills: { skills: readContent('skills.json'), spots: readContent('spots.json'), recipes: readContent('recipes.json'), stations: readContent('stations.json'), jobs: readContent('jobs.json') },
   },
   CONTENT,

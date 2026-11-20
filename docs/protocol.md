@@ -346,7 +346,8 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   start and for the whole fight, until a move's weather replaces it), the player's loadouts and
   turtle setting, and the wild loadout. The courier stays on the grass tile where it met the
   creature, and `arena.join` follows. The world room's `startWildFight` (#149) does the same
-  outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
+  outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156, built, "A trainer's
+  fight" below): rounds against the trainer's three creatures and mind, the player picking three.
   An accepted duel (#157, built): rounds with two human sides, the asker on side 0, each with the
   first three standing creatures of their team and their own turtle setting, all at core
   `evenLevel` for an even match (`duelSetup`); nothing about it is saved. Duels do not pick yet:
@@ -567,7 +568,7 @@ there.
 | Type | Payload | When | Effect |
 | --- | --- | --- | --- |
 | `talk.start` | `{ npc }` | Standing next to the character (core `npcInReach`: on a tile beside theirs, not diagonally), not in a battle, not talking, no `move.offer` waiting | Opens the talk at the first entry of `dialogue/<npc>.json` whose `if` holds (core `openConversation`), does that node's effects, sets `talking` and sends `talk.node` |
-| `talk.next` | `{ conversation, choice }`: `choice` 0 to 2, or null | Talking, `conversation` the id of the current talk | With a number, picks that choice, which must be one of `talk.node`'s `choices`; with null, goes on to the node's `next`, or ends the talk when the node has neither `next` nor a choice to show (core `advanceConversation`) |
+| `talk.next` | `{ conversation, choice }`: `choice` 0 to 2, or null | Talking, `conversation` the id of the current talk | With a number, picks that choice, which must be one of `talk.node`'s `choices`; with null, goes on to the node's `next`, or ends the talk when the node has neither `next` nor a choice to show (core `advanceConversation`). At a node with a trainer's `fight`, null ends the talk and starts the fight (below) |
 | `talk.end` | `{ conversation }` | Talking | Ends the talk at once. Nothing is undone: effects happen on entering a node |
 | `starter.choose` | `{ species }` | See "The starter" below | As in protocol 5 |
 
@@ -597,6 +598,25 @@ that changed, then `progress` (items and experience), then `story`, and then the
 step leads to, if any. A `quest.changed` with experience brings the same learning of moves as after
 a battle: a move offered on a level up comes as `move.offer` just before that `progress`, and
 `talk.start` is refused with `notNow` until it is answered.
+
+### A trainer's fight
+
+A dialogue node with `fight: <trainerId>` (#156, `docs/arena.md`, "Trainers") has no `next` and no
+choices. `talk.next` with null there (any choice is refused with `invalid`) ends the talk with
+`talk.ended` and starts a best of 3 against the trainer (core `trainerPicks` and `trainerMind`),
+with `arena.join` as for any fight; the player picks three in the arena room. A node with a fight is
+reached only through a `{ "canFight": trainerId }` check, which fails while the player has no
+creature that can fight, after the first win of a trainer whose `rematch` is `once`, and always
+while `ARENA_BATTLES` is off, since the server then loads the story without its trainers. Should the
+fight still not start (the trainer's character asked after a team fainted, say), the talk ends.
+
+When the fight is settled the server sends `arena.result` (with the trainer's experience share in
+`rewards`), then the fight's quest events as for any fight, then the trainer's: a win counts for
+`beatTrainer` steps and, the first time, gives the trainer's item and sets their flag (core
+`endTrainerFight`), with any `quest.changed`, `progress` and `story`. Then, for a player still in
+the world with no `move.offer` waiting, the talk opens again at the fight node's `won` node (a
+loss or draw: `lost`) with a new `conversation`, `talking` and `talk.node`. The client keeps that
+`talk.node` until the fight's result is put away, then shows it.
 
 ### The starter
 

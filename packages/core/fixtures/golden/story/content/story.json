@@ -24,6 +24,17 @@
         "grey-letter"
       ],
       "endsWith": "chapter-1-done"
+    },
+    {
+      "id": "side",
+      "name": {
+        "en": "Side",
+        "sl": "Side"
+      },
+      "quests": [
+        "vetrinka-test"
+      ],
+      "side": true
     }
   ],
   "flags": [
@@ -42,6 +53,10 @@
     {
       "id": "met-bavko",
       "about": "Talked to Bavko once"
+    },
+    {
+      "id": "vetrinka-beaten",
+      "about": "Won Vetrinka's best of 3 once"
     }
   ]
 }
