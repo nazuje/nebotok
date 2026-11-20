@@ -35,6 +35,26 @@
       "node": "letter"
     },
     {
+      "if": [
+        {
+          "quest": "vetrinka-test",
+          "is": "available"
+        },
+        {
+          "canFight": "vetrinka"
+        }
+      ],
+      "node": "test-offer"
+    },
+    {
+      "if": [
+        {
+          "canFight": "vetrinka"
+        }
+      ],
+      "node": "test-ask"
+    },
+    {
       "node": "idle"
     }
   ],
@@ -89,6 +109,72 @@
       "say": {
         "en": "The wind turns.",
         "sl": "The wind turns."
+      }
+    },
+    "test-offer": {
+      "say": {
+        "en": "Test your creatures?",
+        "sl": "Test your creatures?"
+      },
+      "effects": [
+        {
+          "startQuest": "vetrinka-test"
+        }
+      ],
+      "next": "test-ask"
+    },
+    "test-ask": {
+      "say": {
+        "en": "Best of three?",
+        "sl": "Best of three?"
+      },
+      "choices": [
+        {
+          "say": {
+            "en": "Not now.",
+            "sl": "Not now."
+          },
+          "next": "test-later"
+        },
+        {
+          "say": {
+            "en": "Yes!",
+            "sl": "Yes!"
+          },
+          "if": [
+            {
+              "canFight": "vetrinka"
+            }
+          ],
+          "next": "test-go"
+        }
+      ]
+    },
+    "test-go": {
+      "say": {
+        "en": "Pick three.",
+        "sl": "Pick three."
+      },
+      "fight": "vetrinka",
+      "won": "test-won",
+      "lost": "test-lost"
+    },
+    "test-won": {
+      "say": {
+        "en": "Well fought.",
+        "sl": "Well fought."
+      }
+    },
+    "test-lost": {
+      "say": {
+        "en": "Good try.",
+        "sl": "Good try."
+      }
+    },
+    "test-later": {
+      "say": {
+        "en": "Another time.",
+        "sl": "Another time."
       }
     }
   }

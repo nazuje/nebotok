@@ -2,5 +2,5 @@
   "description": "Story golden: the bot plays the whole frozen story from a new player, choosing the first starter and every quest as nextGoal asks.",
   "commands": [],
   "botCommands": 200,
-  "expectedHash": "0e5df8a5e14db0"
+  "expectedHash": "0fcfc70d8796e0"
 }

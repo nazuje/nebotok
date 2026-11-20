@@ -17,7 +17,8 @@ function storyFiles(dir: string): StoryContentFiles {
       .toSorted()
       .map((name) => [name.replace(/\.json$/, ''), json(dir, `dialogue/${name}`)]),
   );
-  const files = { npcs: json(dir, 'npcs.json'), quests: json(dir, 'quests.json'), story: json(dir, 'story.json'), inventory: json(dir, 'inventory.json'), dialogue };
+  const trainers = existsSync(join(dir, 'trainers.json')) ? { trainers: json(dir, 'trainers.json') } : {};
+  const files = { npcs: json(dir, 'npcs.json'), quests: json(dir, 'quests.json'), story: json(dir, 'story.json'), inventory: json(dir, 'inventory.json'), dialogue, ...trainers };
   if (!existsSync(join(dir, 'skills.json'))) return files;
   return { ...files, skills: { skills: json(dir, 'skills.json'), spots: json(dir, 'spots.json'), recipes: json(dir, 'recipes.json'), stations: json(dir, 'stations.json'), jobs: json(dir, 'jobs.json') } };
 }

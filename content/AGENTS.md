@@ -216,6 +216,13 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
   an optional closing flag `endsWith`, and every story `flags` id with what it means.
 - `inventory.json`: how many of one item fit in the bag, by kind (`stack`), and the order of the bag
   screen's sections. Items are never discarded.
+- `trainers.json`: characters who fight a best of 3 (`docs/arena.md`, "Trainers"): the `npc`,
+  three `creatures` (species, level and a `loadout` of moves learned by then), the `mind`
+  (`WILD` or `BOT`), the `reward` (`xpPercent` and an optional `item`, given on the first win), the
+  declared story `flag` the first win sets, and `rematch` (`again` or `once`). A node of the
+  character's dialogue with `fight`, `won` and `lost` (and no `next` or choices) starts it; every
+  entry or choice leading there checks `{ "canFight": trainerId }`, and such a choice shows the
+  challenge picture. The quest step `beatTrainer` (`{ trainer }`) counts a win.
 
 `content:validate` checks every link: each character has a dialogue file, every id a condition or
 effect names exists, every quest is started by its giver and every talk or deliver step is

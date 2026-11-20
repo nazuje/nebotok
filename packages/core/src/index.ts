@@ -363,6 +363,11 @@ export {
   StoryFlag,
   StoryFile,
   InventoryFile,
+  TRAINER_CREATURES,
+  TRAINER_REMATCHES,
+  Trainer,
+  TrainerCreature,
+  TrainersFile,
   nodeTargets,
   reachableNodes,
   CHOICE_PICTURES,
@@ -414,6 +419,9 @@ export {
   conversationView,
   openConversation,
   advanceConversation,
+  trainerFightAt,
+  endTrainerFight,
+  type TrainerFightAt,
   type Conversation,
   type TalkCue,
   type TalkView,
@@ -440,6 +448,7 @@ export {
   type StoryRecord,
   type StoryWorldRules,
 } from './story-bot.ts';
+export { beatenBefore, canFightTrainer, trainerMind, trainerPicks, trainerWon, type TrainerWin } from './trainers.ts';
 export { StoryGoldenFile, storyReplay, storyReplayHash, type StoryReplay } from './story-golden.ts';
 export {
   GAMES,
@@ -641,6 +650,7 @@ export {
   befriendedFromFight,
   arenaRewards,
   duelRewards,
+  trainerRewards,
   inventoryAfterFight,
   type WildSetupOptions,
 } from './arena/results.ts';

@@ -34,8 +34,8 @@ function boardSprite(content: StoryContent): string {
  * The pictures of what a step asks for, in the order they read: the thing to bring before the
  * one to bring it to. A delivery shows the item and the receiver's portrait, a talk the
  * character, gathering and cooking the item, befriending the creature or its weather with a
- * heart, battles a trophy, a shrine a heart (it heals the team), reaching a place footprints and
- * the job board its own picture.
+ * heart, battles a trophy, a shrine a heart (it heals the team), reaching a place footprints,
+ * the job board its own picture and a trainer the challenge with their portrait.
  */
 export function stepPictures(step: QuestStep, content: StoryContent): string[] {
   const chosen = step.picture === undefined ? null : pictureSprite(step.picture, content);
@@ -61,5 +61,10 @@ export function stepPictures(step: QuestStep, content: StoryContent): string[] {
       return [spriteFor.item(step.treat)];
     case 'finishJobs':
       return [boardSprite(content)];
+    case 'beatTrainer': {
+      const npc = content.trainers.get(step.trainer)?.npc;
+      const challenge = spriteFor.picture('challenge');
+      return npc === undefined ? [challenge] : [challenge, spriteFor.portrait(npc)];
+    }
   }
 }

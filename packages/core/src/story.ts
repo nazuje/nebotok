@@ -1,6 +1,6 @@
 /**
- * The story as the rules read it: the content of npcs.json, dialogue/, quests.json, story.json and
- * inventory.json, with the skill files when given, looked up by id (`loadStoryContent`), a
+ * The story as the rules read it: the content of npcs.json, dialogue/, quests.json, story.json,
+ * inventory.json and trainers.json, with the skill files when given, looked up by id (`loadStoryContent`), a
  * player's empty story, `pruneStory` for saves that name ids the content no longer has, and
  * `storyProblems` / `storyMapProblems`, the links between those files that no single schema can
  * check (with `skillProblems` / `skillMapProblems` in skill-links.ts for the skill files).
@@ -8,6 +8,7 @@
 import type { ZodType } from 'zod';
 import type { BattleContent } from './battle/content.ts';
 import type { Item } from './content.ts';
+import { loadoutFits } from './loadout.ts';
 import type { WorldMap } from './map.ts';
 import type { StoryProgress } from './save.ts';
 import { JobsFile, RecipesFile, SkillsFile, SpotsFile, StationsFile, skillContentOf, type SkillContent, type SkillContentFiles } from './skill-content.ts';
@@ -19,6 +20,7 @@ import {
   NpcsFile,
   QuestsFile,
   StoryFile,
+  TrainersFile,
   reachableNodes,
   type Chapter,
   type Condition,
@@ -28,6 +30,7 @@ import {
   type Quest,
   type QuestStep,
   type StepPicture,
+  type Trainer,
 } from './story-content.ts';
 
 /** The story files, raw or parsed. `dialogue` is each `dialogue/<npc>.json` by npc id. */
@@ -39,6 +42,8 @@ export type StoryContentFiles = {
   readonly inventory: unknown;
   /** skills.json, spots.json, recipes.json, stations.json and jobs.json; without them nothing can be gathered, cooked or delivered. */
   readonly skills?: SkillContentFiles;
+  /** trainers.json; without it no one fights a best of 3 from a talk. */
+  readonly trainers?: unknown;
 };
 
 /** Everything the story rules read, looked up by id, with the battle content they also need. */
@@ -55,6 +60,8 @@ export type StoryContent = {
   readonly battle: BattleContent;
   /** The skills, spots, recipes, stations and job templates, or null when the content has none. */
   readonly skills: SkillContent | null;
+  /** The trainers by id. The server leaves them out while arena fights are off, so none can be fought. */
+  readonly trainers: ReadonlyMap<string, Trainer>;
 };
 
 export class StoryContentError extends Error {
@@ -79,6 +86,7 @@ function analyse(files: StoryContentFiles, battle: BattleContent): { content: St
   const quests = parse('quests.json', QuestsFile, files.quests);
   const story = parse('story.json', StoryFile, files.story);
   const inventory = parse('inventory.json', InventoryFile, files.inventory);
+  const trainers = files.trainers === undefined ? { trainers: [] } : parse('trainers.json', TrainersFile, files.trainers);
   const dialogue = new Map<string, DialogueFile>();
   for (const npc of Object.keys(files.dialogue).toSorted()) {
     const parsed = parse(`dialogue/${npc}.json`, DialogueFile, files.dialogue[npc]);
@@ -95,7 +103,7 @@ function analyse(files: StoryContentFiles, battle: BattleContent): { content: St
         jobs: parse('jobs.json', JobsFile, skillFiles.jobs),
       }
     : null;
-  if (!npcs || !quests || !story || !inventory || problems.length > 0) return { content: null, problems };
+  if (!npcs || !quests || !story || !inventory || !trainers || problems.length > 0) return { content: null, problems };
   const content: StoryContent = {
     npcs: new Map(npcs.npcs.map((npc) => [npc.id, npc])),
     dialogue,
@@ -106,6 +114,7 @@ function analyse(files: StoryContentFiles, battle: BattleContent): { content: St
     items: battle.items,
     battle,
     skills: skills && skills.skills && skills.spots && skills.recipes && skills.stations && skills.jobs ? skillContentOf({ skills: skills.skills, spots: skills.spots, recipes: skills.recipes, stations: skills.stations, jobs: skills.jobs }) : null,
+    trainers: new Map(trainers.trainers.map((trainer) => [trainer.id, trainer])),
   };
   return { content, problems: [...storyProblems(content), ...skillProblems(content)] };
 }
@@ -175,7 +184,12 @@ function conditionProblems(label: string, condition: Condition, content: StoryCo
   if ('lacks' in condition) return itemProblems(label, condition.lacks, content);
   if ('flag' in condition) return flagProblems(label, condition.flag, content);
   if ('skill' in condition) return skillIdProblems(label, condition.skill, content);
+  if ('canFight' in condition) return trainerIdProblems(label, condition.canFight, content);
   return [];
+}
+
+function trainerIdProblems(label: string, trainer: string, content: StoryContent): string[] {
+  return content.trainers.has(trainer) ? [] : [`${label}: trainer "${trainer}" is not in trainers.json`];
 }
 
 function skillIdProblems(label: string, skill: string, content: StoryContent): string[] {
@@ -211,16 +225,25 @@ function arrivals(dialogue: DialogueFile): Map<string, Arrival[]> {
   for (const [id, node] of Object.entries(dialogue.nodes)) {
     if (node.next !== undefined) add(node.next, { label: `node "${id}"`, if: undefined, byNext: true });
     (node.choices ?? []).forEach((choice, at) => add(choice.next, { label: `node "${id}" choice ${at}`, if: choice.if, byNext: false }));
+    for (const end of [node.won, node.lost]) if (end !== undefined) add(end, { label: `node "${id}"'s fight`, if: undefined, byNext: true });
   }
   return into;
 }
 
 /**
  * A node that takes an item is only reached by an entry or choice that checks the player has enough
- * of it, and a node that delivers a job only by one that checks a delivery is ready.
+ * of it, a node that delivers a job only by one that checks a delivery is ready, and a node with a
+ * fight only by one that checks the trainer would fight (`canFight`), so the choice is hidden
+ * whenever the fight could not start.
  */
 function takeGuardProblems(label: string, id: string, node: DialogueNode, into: readonly Arrival[]): string[] {
   const problems: string[] = [];
+  const { fight } = node;
+  if (fight !== undefined) {
+    for (const arrival of into) {
+      if (!(arrival.if ?? []).some((condition) => 'canFight' in condition && condition.canFight === fight)) problems.push(`${label} node "${id}": fights "${fight}", so ${arrival.label} must lead here only with { "canFight": "${fight}" } (a "next" cannot check it)`);
+    }
+  }
   for (const effect of node.effects ?? []) {
     for (const arrival of into) {
       if ('take' in effect) {
@@ -264,8 +287,34 @@ function dialogueProblems(npc: string, dialogue: DialogueFile, content: StoryCon
     if (node.speaker !== undefined && node.speaker !== NARRATOR && !content.npcs.has(node.speaker)) problems.push(`${at}: speaker "${node.speaker}" is not in npcs.json`);
     for (const choice of node.choices ?? []) for (const condition of choice.if ?? []) problems.push(...conditionProblems(at, condition, content));
     for (const effect of node.effects ?? []) problems.push(...effectProblems(at, npc, effect, content));
+    if (node.fight !== undefined) problems.push(...fightProblems(at, npc, node.fight, content));
     problems.push(...takeGuardProblems(label, id, node, into.get(id) ?? []));
   }
+  return problems;
+}
+
+/** A trainer is fought from a node of their own character's dialogue. */
+function fightProblems(label: string, npc: string, id: string, content: StoryContent): string[] {
+  const trainer = content.trainers.get(id);
+  if (!trainer) return trainerIdProblems(label, id, content);
+  return trainer.npc === npc ? [] : [`${label}: fights "${id}", whose character is "${trainer.npc}", not "${npc}"`];
+}
+
+/**
+ * A trainer's character, flag, reward item and creatures exist, each creature's loadout suits it
+ * (`loadoutFits`), and a node of their character's dialogue fights them.
+ */
+function trainerProblems(trainer: Trainer, content: StoryContent): string[] {
+  const label = `trainers.json "${trainer.id}"`;
+  const problems = [...flagProblems(label, trainer.flag, content)];
+  if (!content.npcs.has(trainer.npc)) problems.push(`${label}: "${trainer.npc}" is not in npcs.json`);
+  else if (!Object.values(content.dialogue.get(trainer.npc)?.nodes ?? {}).some((node) => node.fight === trainer.id)) problems.push(`${label}: no node of dialogue/${trainer.npc}.json fights it ({ "fight": "${trainer.id}" })`);
+  const { item } = trainer.reward;
+  if (item) problems.push(...itemProblems(`${label} reward`, item.item, content), ...stackProblems(`${label} reward`, item.item, item.count, content));
+  trainer.creatures.forEach((creature, at) => {
+    if (!content.battle.species.has(creature.species)) problems.push(`${label} creature ${at}: species "${creature.species}" is not in species.json`);
+    else if (!loadoutFits(creature, creature.loadout, content.battle)) problems.push(`${label} creature ${at}: loadout ${JSON.stringify(creature.loadout)} is not moves ${creature.species} has learned by level ${creature.level}, each of its button's kind on an unlocked button`);
+  });
   return problems;
 }
 
@@ -293,6 +342,7 @@ function stepProblems(quest: Quest, step: QuestStep, content: StoryContent, effe
   if (step.kind === 'gather' && ![...(content.skills?.spots.values() ?? [])].some((spot) => spot.item === step.item)) problems.push(`${label}: no spot in spots.json gives "${step.item}"`);
   if (step.kind === 'cook' && ![...(content.skills?.recipes.values() ?? [])].some((recipe) => recipe.makes === step.treat)) problems.push(`${label}: no recipe in recipes.json makes "${step.treat}"`);
   if (step.kind === 'finishJobs' && (content.skills?.templates.size ?? 0) === 0) problems.push(`${label}: jobs.json has no jobs to finish`);
+  if (step.kind === 'beatTrainer') problems.push(...trainerIdProblems(label, step.trainer, content));
   if (step.picture !== undefined) problems.push(...pictureProblems(`${label} picture`, step.picture, content));
   return problems;
 }
@@ -333,7 +383,8 @@ function questProblems(quest: Quest, content: StoryContent, effects: ReturnType<
  * started by its giver's dialogue and sits in the chapter it names; each talk or deliver step is
  * completed by a node of its npc's file; a node that takes an item is only reached after checking
  * the player has it; reminders before a job entry are marked and lead to no effect; delivered items are given somewhere; quest items belong to a quest; every
- * flag is declared and every chapter's closing flag is set; no gift is more than one stack; and
+ * flag is declared and every chapter's closing flag is set; no gift is more than one stack; each
+ * trainer is fought from their character's dialogue with creatures that suit their loadouts; and
  * some node offers a new player their starter.
  */
 export function storyProblems(content: StoryContent): string[] {
@@ -342,6 +393,7 @@ export function storyProblems(content: StoryContent): string[] {
   for (const id of content.npcs.keys()) if (!content.dialogue.has(id)) problems.push(`npcs.json "${id}": has no dialogue/${id}.json`);
   for (const [npc, dialogue] of content.dialogue) problems.push(...dialogueProblems(npc, dialogue, content));
   for (const quest of content.quests.values()) problems.push(...questProblems(quest, content, effects));
+  for (const trainer of content.trainers.values()) problems.push(...trainerProblems(trainer, content));
   for (const chapter of content.chapters) {
     for (const id of chapter.quests) if (!content.quests.has(id)) problems.push(`story.json chapter "${chapter.id}": quest "${id}" is not in quests.json`);
     if (chapter.endsWith === undefined) continue;

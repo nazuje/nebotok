@@ -1,6 +1,6 @@
 import { ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from '@colyseus/sdk';
-import { DIRECTIONS, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
+import { DIRECTIONS, PROTOCOL_VERSION, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, wildLoadout, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
 import { createGameServer } from '../src/app.ts';
 import { createFightBook } from '../src/fights.ts';
 import { REQUESTS_PER_SECOND } from '../src/world-room.ts';
@@ -20,11 +20,13 @@ export const WILD = { species: 'drizzlesnail', level: 3 } as const;
  * A small frozen story for room tests, so editing content/ never moves them. It uses the four
  * characters the map places: Bavko offers the starter and a delivery to Tobolko, Mehurka a walk to
  * the lookout (and a node whose effect cannot happen once it is done), and Vetrinka a round of a
- * rest, a won battle and a befriending.
+ * rest, a won battle and a befriending. With arena fights on, Mehurka is a trainer first: a quest
+ * to beat her best of 3, and the best of 3 again after.
  */
 export function testStory(battle: BattleContent): StoryContent {
   const note: Item = { id: 'test-note', kind: 'quest', quest: 'test-delivery', name: text('Test note'), description: text('A note for tests.') };
   const items = [...[...battle.items.values()].filter((item) => item.kind === 'treat'), note];
+  const trainee = (level: number) => ({ species: WILD.species, level, loadout: wildLoadout(WILD.species, level, arenaContentOf(battle)) });
   const files = {
     npcs: { npcs: ['bavko', 'tobolko', 'mehurka', 'vetrinka'].map((id) => ({ id, name: text(id), role: text('Tester'), voice: { pitch: 3, pace: 2 } })) },
     dialogue: {
@@ -51,8 +53,20 @@ export function testStory(battle: BattleContent): StoryContent {
       },
       mehurka: {
         npc: 'mehurka',
-        entries: [offer('test-walk'), { if: [{ quest: 'test-walk', is: 'done' }], node: 'done' }, { node: 'idle' }],
+        entries: [
+          { if: [{ quest: 'test-trainer', is: 'available' }, { canFight: 'test-trainer' }], node: 'trainer' },
+          { if: [{ canFight: 'test-trainer' }], node: 'challenge' },
+          offer('test-walk'),
+          { if: [{ quest: 'test-walk', is: 'done' }], node: 'done' },
+          { node: 'idle' },
+        ],
         nodes: {
+          trainer: { ...say('Beat me.'), effects: [{ startQuest: 'test-trainer' }], next: 'challenge' },
+          challenge: { ...say('Best of three?'), choices: [{ ...say('Yes.'), if: [{ canFight: 'test-trainer' }], next: 'fight' }, { ...say('Later.'), next: 'later' }] },
+          fight: { ...say('Pick three.'), fight: 'test-trainer', won: 'won', lost: 'lost' },
+          won: say('You won.'),
+          lost: say('You lost.'),
+          later: say('Later, then.'),
           offer: { ...say('Walk to the lookout.'), effects: [{ startQuest: 'test-walk' }] },
           done: { ...say('Again?'), next: 'again' },
           again: { ...say('Again!'), effects: [{ startQuest: 'test-walk' }] },
@@ -79,9 +93,16 @@ export function testStory(battle: BattleContent): StoryContent {
           ],
           { items: [], xp: 0 },
         ),
+        quest('test-trainer', 'mehurka', [{ id: 'beat', kind: 'beatTrainer', trainer: 'test-trainer', hint: text('Beat Mehurka.') }], { items: [], xp: 0 }),
       ],
     },
-    story: { chapters: [{ id: 'test-chapter', name: text('Tests'), quests: ['test-delivery', 'test-walk', 'test-rounds'] }], flags: [] },
+    story: {
+      chapters: [{ id: 'test-chapter', name: text('Tests'), quests: ['test-delivery', 'test-walk', 'test-rounds', 'test-trainer'] }],
+      flags: [{ id: 'test-trainer-won', about: 'The player beat Mehurka the first time.' }],
+    },
+    trainers: {
+      trainers: [{ id: 'test-trainer', npc: 'mehurka', creatures: [trainee(1), trainee(2), trainee(3)], mind: 'WILD', reward: { xpPercent: 50, item: { item: 'plain-treat', count: 3 } }, flag: 'test-trainer-won', rematch: 'again' }],
+    },
     inventory: { kinds: { quest: { stack: 1 }, treat: { stack: 99 }, ingredient: { stack: 99 }, material: { stack: 99 } }, order: ['quest', 'treat', 'ingredient', 'material'] },
   };
   return loadStoryContent(files, { ...battle, items: new Map(items.map((item) => [item.id, item])) });

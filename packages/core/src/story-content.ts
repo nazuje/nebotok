@@ -1,8 +1,9 @@
 /**
  * Schemas of the story content: the characters (`npcs.json`), what each one says
- * (`dialogue/<npc>.json`), the quests (`quests.json`), the chapters and story flags (`story.json`)
- * and how many of each kind of item fit in one stack (`inventory.json`). The links between these
- * files are checked by `storyProblems` in story.ts; docs/protocol.md explains how talks and quests run.
+ * (`dialogue/<npc>.json`), the quests (`quests.json`), the chapters and story flags (`story.json`),
+ * the trainers (`trainers.json`) and how many of each kind of item fit in one stack
+ * (`inventory.json`). The links between these files are checked by `storyProblems` in story.ts;
+ * docs/protocol.md explains how talks and quests run.
  */
 import { z } from 'zod';
 import { PICTURES, type PictureId } from './art.ts';
@@ -48,6 +49,7 @@ export type NpcsFile = z.infer<typeof NpcsFile>;
  * `needsStarter` is whether the player has no creature yet. `jobReady` holds when a delivery job
  * to this character is on the player's board and they carry all of it; `jobWaiting` when one is on
  * the board and they do not. `{ skill, level }` holds when that skill is at least that level.
+ * `canFight` holds when that trainer would fight the player now (`canFightTrainer` in trainers.ts).
  */
 export const Condition = z.union([
   z.strictObject({ quest: ContentId, is: z.enum(['available', 'active', 'done']) }),
@@ -59,6 +61,7 @@ export const Condition = z.union([
   z.strictObject({ jobReady: z.literal(true) }),
   z.strictObject({ jobWaiting: z.literal(true) }),
   z.strictObject({ skill: ContentId, level: z.number().int().min(1).max(99) }),
+  z.strictObject({ canFight: ContentId }),
 ]);
 export type Condition = z.infer<typeof Condition>;
 const Conditions = z.array(Condition).min(1).max(4);
@@ -100,6 +103,9 @@ const cueCount = (node: { cue?: unknown; effects?: readonly Effect[] | undefined
 /**
  * One line of a talk. After it the talk goes on to `next`, offers `choices`, or ends (neither).
  * `speaker` is an npc id or `narrator`; without it, the character whose file this is speaks.
+ * A node with `fight` (a trainer id) has neither: going on from it ends the talk and starts a best
+ * of 3 against that trainer, and the fight's end opens the talk again at `won`, or at `lost` after
+ * a loss or a draw.
  */
 export const DialogueNode = z
   .strictObject({
@@ -110,9 +116,14 @@ export const DialogueNode = z
     next: NodeId.optional(),
     effects: z.array(Effect).min(1).max(8).optional(),
     cue: StoryCueSchema.optional(),
+    fight: ContentId.optional(),
+    won: NodeId.optional(),
+    lost: NodeId.optional(),
   })
   .refine((node) => !(node.choices && node.next), 'a node has choices or next, not both')
-  .refine((node) => cueCount(node) <= 1, 'a node plays at most one cue: its cue, one cue effect or offerStarter');
+  .refine((node) => cueCount(node) <= 1, 'a node plays at most one cue: its cue, one cue effect or offerStarter')
+  .refine((node) => (node.fight === undefined) === (node.won === undefined && node.lost === undefined) && (node.won === undefined) === (node.lost === undefined), 'a node with "fight" has both "won" and "lost", and only such a node has them')
+  .refine((node) => node.fight === undefined || (node.choices === undefined && node.next === undefined), 'a node with "fight" goes on to its fight, so it has no choices or next');
 export type DialogueNode = z.infer<typeof DialogueNode>;
 
 /**
@@ -122,20 +133,21 @@ export type DialogueNode = z.infer<typeof DialogueNode>;
 export const DialogueEntry = z.strictObject({ if: Conditions.optional(), node: NodeId, reminder: z.literal(true).optional() });
 export type DialogueEntry = z.infer<typeof DialogueEntry>;
 
-/** The node ids a node leads to, in order. */
+/** The node ids a node leads to, in order: `next`, its choices', then a fight's `won` and `lost`. */
 export function nodeTargets(node: DialogueNode): string[] {
-  return [...(node.next === undefined ? [] : [node.next]), ...(node.choices ?? []).map((choice) => choice.next)];
+  const fought = node.won === undefined || node.lost === undefined ? [] : [node.won, node.lost];
+  return [...(node.next === undefined ? [] : [node.next]), ...(node.choices ?? []).map((choice) => choice.next), ...fought];
 }
 
 /**
  * What a choice does, for players who cannot read its words: `takes` when the lines it leads to
- * (through `next`, up to the next choices) start a quest, `declines` when they end the talk with
- * nothing done. Null for any other choice.
+ * (through `next`, up to the next choices) start a quest, `fights` when they start a trainer
+ * fight, `declines` when they end the talk with nothing done. Null for any other choice.
  */
-export type ChoiceKind = 'takes' | 'declines';
+export type ChoiceKind = 'takes' | 'fights' | 'declines';
 
 /** The picture a choice of each kind shows unless its own `picture` names another. */
-export const CHOICE_PICTURES: Readonly<Record<ChoiceKind, PictureId>> = { takes: 'check', declines: 'clock' };
+export const CHOICE_PICTURES: Readonly<Record<ChoiceKind, PictureId>> = { takes: 'check', fights: 'challenge', declines: 'clock' };
 
 export function choiceKind(nodes: Readonly<Record<string, DialogueNode>>, choice: DialogueChoice): ChoiceKind | null {
   const seen = new Set<string>();
@@ -145,6 +157,7 @@ export function choiceKind(nodes: Readonly<Record<string, DialogueNode>>, choice
     if (!node || seen.has(id) || node.choices) return null;
     seen.add(id);
     if ((node.effects ?? []).some((effect) => 'startQuest' in effect)) return 'takes';
+    if (node.fight !== undefined) return 'fights';
     didSomething ||= node.effects !== undefined || node.cue !== undefined;
     id = node.next;
   }
@@ -233,7 +246,7 @@ const stepBase = { id: ContentId, hint: LocalizedText, picture: StepPicture.opti
  * character (`completeStep`); the others count events from the moment the step begins: battles
  * won (in `zone`, or anywhere), creatures befriended (of `species` or `type`, or any), a rest at
  * `shrine`, reaching the map mark `mark`, `item`s gathered (a perfect counts 2), `treat`s cooked,
- * or jobs from the board finished.
+ * jobs from the board finished, or a best of 3 won against `trainer`.
  */
 export const QuestStep = z.discriminatedUnion('kind', [
   z.strictObject({ ...stepBase, kind: z.literal('talk'), npc: ContentId }),
@@ -245,6 +258,7 @@ export const QuestStep = z.discriminatedUnion('kind', [
   z.strictObject({ ...stepBase, kind: z.literal('gather'), item: ContentId, count: Count }),
   z.strictObject({ ...stepBase, kind: z.literal('cook'), treat: ContentId, count: Count }),
   z.strictObject({ ...stepBase, kind: z.literal('finishJobs'), count: Count }),
+  z.strictObject({ ...stepBase, kind: z.literal('beatTrainer'), trainer: ContentId }),
 ]);
 export type QuestStep = z.infer<typeof QuestStep>;
 
@@ -340,6 +354,44 @@ export const StoryFile = z
     if (chapters.every((chapter) => chapter.side)) ctx.addIssue({ code: 'custom', message: 'the story needs a main chapter, not only side ones', path: ['chapters'] });
   });
 export type StoryFile = z.infer<typeof StoryFile>;
+
+/** What a trainer may do once beaten: fight again any time (`again`), or never again (`once`). */
+export const TRAINER_REMATCHES = ['again', 'once'] as const;
+/** A trainer fights with three creatures, one a round of a best of 3. */
+export const TRAINER_CREATURES = 3;
+
+/**
+ * One of a trainer's creatures: its species, level and the move on each arena button, each a move
+ * it has learned by that level, of that button's kind, on a button unlocked (`loadoutFits`, checked
+ * in story.ts), or null for an empty one.
+ */
+export const TrainerCreature = z.strictObject({
+  species: ContentId,
+  level: z.number().int().min(1).max(100),
+  loadout: z.tuple([ContentId.nullable(), ContentId.nullable(), ContentId.nullable()]),
+});
+export type TrainerCreature = z.infer<typeof TrainerCreature>;
+
+/**
+ * A character who fights a best of 3 from a talk (docs/arena.md, "Trainers"): `npc`, whose dialogue
+ * has the node that starts it; three creatures, in the order they fight; the mind that plays them
+ * (`WILD` turns gentler against a player with the turtle setting); and the reward. Each creature of
+ * the player's that fought gets `xpPercent` of a win's experience over the creature it faced, win
+ * or lose; the first win also gives `item` and sets `flag`, which `rematch` reads.
+ */
+export const Trainer = z.strictObject({
+  id: ContentId,
+  npc: ContentId,
+  creatures: z.array(TrainerCreature).length(TRAINER_CREATURES),
+  mind: z.enum(['WILD', 'BOT']),
+  reward: z.strictObject({ xpPercent: z.number().int().min(0).max(100), item: z.strictObject({ item: ContentId, count: Count }).optional() }),
+  flag: ContentId,
+  rematch: z.enum(TRAINER_REMATCHES),
+});
+export type Trainer = z.infer<typeof Trainer>;
+
+export const TrainersFile = z.strictObject({ trainers: z.array(Trainer).max(50) }).superRefine(({ trainers }, ctx) => noRepeatedIds(trainers, 'trainers', ctx));
+export type TrainersFile = z.infer<typeof TrainersFile>;
 
 /** How many of one item fit in a stack of the bag; extra is not taken. The save allows 999 at most. */
 const KindRule = z.strictObject({ stack: z.number().int().min(1).max(999) });

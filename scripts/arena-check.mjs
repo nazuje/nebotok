@@ -13,8 +13,11 @@
 // at a fake lag of 0, 50 or 150 ms with the net meters on (?net=1) and checks the prediction's
 // mean error and snaps (#152). Best of 3 runs start a practice fight against BOT the same way (the
 // world room's `arena.practice` switch), pick three on the pick screen, fight each round, check
-// the score between rounds and finish. An iPhone, an iPad and 360px wide, in both languages across
-// the two browsers. Fails on any console error, failed or outside request, small touch target or
+// the score between rounds and finish. Trainer runs (#156) stand beside Vetrinka with the first
+// chapter done, take her challenge in a talk, pick three, win the best of 3 against her trainer
+// made easy for the check, and see the talk come back at her won line once the result is put
+// away, with her first win's treats and flag saved. An iPhone, an iPad and 360px wide, in both
+// languages across the two browsers. Fails on any console error, failed or outside request, small touch target or
 // sideways scrolling.
 //   node scripts/arena-check.mjs --browser chromium|webkit [--out <dir>]
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -26,11 +29,11 @@ import { createGameServer } from '../apps/server/src/app.ts';
 import { readConfig } from '../apps/server/src/config.ts';
 import { createLog } from '../apps/server/src/log.ts';
 import { createServices } from '../apps/server/src/services.ts';
-import { PLAYER_SPAWN, createSave, defaultSettings, emptyProgress, newCreature } from '../packages/core/src/index.ts';
-import { BROWSERS, DEVICES, animationsSettled, nextFrames, presetLanguage, readState, reportCspViolations, screenshot, until, watch } from './lib/game-page.mjs';
+import { PLAYER_SPAWN, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, newCreature, wildLoadout } from '../packages/core/src/index.ts';
+import { BROWSERS, DEVICES, animationsSettled, nextFrames, openTalk, presetLanguage, readState, reportCspViolations, screenshot, servedMap, talkThrough, until, watch } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, freePort } from './lib/server-process.mjs';
-import { arenaName, runTag } from './lib/test-players.mjs';
+import { arenaName, runTag, trainerName } from './lib/test-players.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, browser: { type: 'string' } } });
 const chosen = BROWSERS.find((browser) => browser.name === values.browser);
@@ -87,12 +90,14 @@ const RUNS = {
     { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], plan: 'leave', lagMs: 50 },
     { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'rounds', lagMs: 0 },
     { where: '360px', language: 'en', steer: 'keys', level: 20, plan: 'rounds', lagMs: 0 },
+    { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'trainer', lagMs: 0 },
   ],
   webkit: [
     { where: 'iphone-portrait', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 50 },
     { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, plan: 'storm', lagMs: 150 },
     { where: '360px', language: 'en', steer: 'keys', level: ARENA.buttons[1], plan: 'leave', lagMs: 0 },
     { where: 'ipad-landscape', language: 'sl', steer: 'mouse', level: 20, plan: 'rounds', lagMs: 0 },
+    { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, plan: 'trainer', lagMs: 0 },
   ],
 }[chosen.name];
 
@@ -101,12 +106,20 @@ const ROUNDS_TEAM = [STARTERS[0], STARTERS[1], STARTERS[2], STARTERS[0]];
 const FAINTED_PLACE = 1;
 const DEFAULT_PICKS = [0, 2, 3];
 const PRACTICE = STARTERS.slice(0, 3).map((species) => ({ species, level: 2 }));
+/** The trainer the trainer runs fight, the character they talk to, and the level the check makes her creatures, so a round is won soon. */
+const TRAINER = 'vetrinka';
+const EASY_TRAINER_LEVEL = 2;
+const QUESTS = JSON.parse(readFileSync(join(ROOT, 'content/quests.json'), 'utf8')).quests.map((quest) => quest.id);
+const DIALOGUE = JSON.parse(readFileSync(join(ROOT, `content/dialogue/${TRAINER}.json`), 'utf8'));
+/** The nodes of the trainer's talk: the challenge, and the lines after a win. */
+const CHALLENGE = DIALOGUE.entries.find((entry) => (entry.if ?? []).some((condition) => condition.canFight === TRAINER)).node;
+const FIGHT = Object.entries(DIALOGUE.nodes).find(([, node]) => node.fight === TRAINER)[1];
 
 const lines = [];
 const dataDir = mkdtempSync(join(tmpdir(), 'nebotok-arena-check-'));
 const config = readConfig({ NODE_ENV: 'production', DATA_DIR: dataDir, ARENA_BATTLES: 'on', LOG_LEVEL: 'info' });
 const log = createLog('info', (line) => lines.push(JSON.parse(line)));
-const services = createServices(config, Date.now, log);
+const services = easyTrainers(createServices(config, Date.now, log));
 /** The fake lag of the run now, which the arena room gives each player as they join (runs go one at a time). */
 let lagMs = 0;
 const gameServer = createGameServer(config, log, services, { fakeLagMs: () => lagMs });
@@ -124,17 +137,37 @@ const wildSpecies = SPECIES.filter((species) => strongAgainst.includes(species.t
 if (!wildSpecies) throw new Error(`arena-check: no species is weak to ${starterType}`);
 const results = [];
 
+/** `services` with every trainer's creatures at EASY_TRAINER_LEVEL, each with a wild creature's buttons at that level. */
+function easyTrainers(real) {
+  const arena = arenaContentOf(real.world.battle);
+  const { story } = real.world;
+  const easy = (trainer) => ({ ...trainer, creatures: trainer.creatures.map(({ species }) => ({ species, level: EASY_TRAINER_LEVEL, loadout: wildLoadout(species, EASY_TRAINER_LEVEL, arena) })) });
+  const trainers = new Map([...story.trainers].map(([id, trainer]) => [id, easy(trainer)]));
+  return { ...real, world: { ...real.world, story: { ...story, trainers } } };
+}
+
+/** A walkable tile beside the trainer's character, out of the grass, for a trainer run to stand on. */
+function besideTrainer() {
+  const at = world.story.trainers.get(TRAINER) && world.map.npcs[world.story.trainers.get(TRAINER).npc];
+  const beside = at && [{ x: at.x, y: at.y + 1 }, { x: at.x - 1, y: at.y }, { x: at.x + 1, y: at.y }, { x: at.x, y: at.y - 1 }].find((tile) => isWalkable(world.map, tile) && encounterZoneAt(world.map, tile) === null);
+  if (!beside) throw new Error(`arena-check: nowhere to stand beside ${TRAINER}`);
+  return beside;
+}
+
 /** The wild creature a run meets. */
 const wildOf = (run) => ({ species: wildSpecies, level: run.plan === 'befriend' ? BEFRIEND_LEVEL : WILD_LEVEL });
 
 /** A player standing at the spawn with `team` (two creatures of `level`) and treats (the wild creature's favourite, to befriend it), saved in this server's database. */
 async function preparePlayer(run, team = [newCreature(STARTERS[0], run.level, world.battle), newCreature(STARTERS[1], run.level, world.battle)]) {
-  const name = arenaName(chosen.name, run.where, run.language, TAG);
+  const trainer = run.plan === 'trainer';
+  const name = (trainer ? trainerName : arenaName)(chosen.name, run.where, run.language, TAG);
   const made = await services.profiles.create({ name, avatar: 'green' });
   if (!made.ok) throw new Error(`arena-check: making ${name}: ${made.error}`);
-  const position = { map: world.map.id, ...world.map.spawns[PLAYER_SPAWN], facing: 'down' };
+  const position = { map: world.map.id, ...(trainer ? besideTrainer() : world.map.spawns[PLAYER_SPAWN]), facing: 'down' };
   const treat = run.plan === 'befriend' ? SPECIES.find((species) => species.id === wildSpecies).favouriteTreat : 'plain-treat';
-  const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: 3 }] };
+  // A trainer run's player is past the whole story, so the trainer's challenge is the talk that opens.
+  const story = trainer ? { active: [], done: QUESTS, flags: ['grey-letter-read', 'storm-seen', 'chapter-1-done'] } : emptyProgress().story;
+  const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: 3 }], story };
   services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name, language: run.language, createdAt: new Date().toISOString(), position, ...progress }));
   return { id: made.value.id, name };
 }
@@ -350,7 +383,7 @@ async function fightProblems(page, state, run) {
  * what it found wrong, its notes and screenshots, and `signIn` to the world as that player.
  */
 async function openRun(browser, run, team) {
-  const label = `${chosen.name}-${run.where}-${run.language}${run.plan === 'rounds' ? '-rounds' : ''}`;
+  const label = `${chosen.name}-${run.where}-${run.language}${run.plan === 'rounds' || run.plan === 'trainer' ? `-${run.plan}` : ''}`;
   const problems = [];
   const notes = [];
   const screenshots = [];
@@ -379,7 +412,7 @@ async function openRun(browser, run, team) {
   };
   const signIn = async () => {
     // The net meters are for the wild fights' walk; the pick screen is checked without them.
-    await tab.goto(`${base}/?test=1${run.plan === 'rounds' ? '' : '&net=1'}`);
+    await tab.goto(`${base}/?test=1${run.plan === 'rounds' || run.plan === 'trainer' ? '' : '&net=1'}`);
     await until(tab, (s) => s.screen === 'profiles', 'the profile list');
     await tab.locator(`.profile-card[data-profile-id="${player.id}"]`).tap();
     await until(tab, (s) => s.screen === 'world' && s.connection === 'connected' && s.progress?.team.length === (team?.length ?? 2), 'the world as the arena player');
@@ -536,6 +569,41 @@ async function betweenProblems(page, state) {
 }
 
 /**
+ * Fights each round of the best of 3 on screen from `state` to the end, checking the score between
+ * rounds (`2-score` the first time), then that it was won, its result (`3-result`), and continues.
+ */
+async function winRounds({ tab, problems, notes, expect, shot, fits }, run, state) {
+  const endsBy = Date.now() + ROUNDS_MS;
+  let pauses = 0;
+  const fightRounds = async (now) => {
+    if (now.arena?.result != null || Date.now() >= endsBy) return now;
+    const after = await fightOn(tab, run, { endsBy, stopWhen: (s) => s.arena?.result != null || s.arena?.phase === 'between' });
+    if (after.arena?.phase !== 'between') return fightRounds(after);
+    pauses += 1;
+    await tab.locator('#arena .arena-between').waitFor({ state: 'visible', timeout: 5_000 });
+    await animationsSettled(tab, 1_500);
+    for (const problem of await betweenProblems(tab, after)) problems.push(problem);
+    if (pauses === 1) {
+      await fits('the score between rounds');
+      await shot('2-score');
+    }
+    return fightRounds(await until(tab, (s) => s.arena?.phase !== 'between', 'the next round', 10_000));
+  };
+  await fightRounds(state);
+  const last = await until(tab, ended, 'the best of 3 result', 10_000);
+  const outcome = last.arena.result.outcome?.result ?? null;
+  notes.push(`${outcome} ${last.arena.score.join(' to ')} in ${last.arena.result.rounds?.length ?? '?'} rounds after ${last.arena.inputs} inputs`);
+  expect(outcome === 'won', `the best of 3 ended with ${outcome}, not a win`);
+  expect(pauses >= 1, 'the score never showed between rounds');
+  await tab.locator('#arena .arena-continue').waitFor({ state: 'visible', timeout: 5_000 });
+  const picture = await tab.locator('#arena .arena-result-picture').getAttribute('data-picture');
+  expect(picture === 'pictures/trophy', `the result shows the picture ${picture}`);
+  await fits('the best of 3 result');
+  await shot('3-result');
+  await tab.locator('#arena .arena-continue').tap();
+}
+
+/**
  * A best of 3 against BOT: the pick screen with a fainted creature greyed out, a tap that takes
  * the first pick out and one that puts it back last, Go, then each round fought as a wild fight
  * is, with the score between rounds, to the result and back to the world.
@@ -563,35 +631,7 @@ async function checkRoundsRun(browser, run) {
     await tab.locator('#arena .arena-go').tap();
     state = await until(tab, (s) => s.arena?.phase === 'fighting' && s.arena.mine !== null, 'round 1', 10_000);
     expect(state.arena.mine.species === ROUNDS_TEAM[rest[0]], `round 1 sends out ${state.arena.mine.species}, not the first pick`);
-    const endsBy = Date.now() + ROUNDS_MS;
-    let pauses = 0;
-    /** Fights each round to its end, checking the score between rounds, until the result or `endsBy`. */
-    const fightRounds = async (now) => {
-      if (now.arena?.result != null || Date.now() >= endsBy) return now;
-      const after = await fightOn(tab, run, { endsBy, stopWhen: (s) => s.arena?.result != null || s.arena?.phase === 'between' });
-      if (after.arena?.phase !== 'between') return fightRounds(after);
-      pauses += 1;
-      await tab.locator('#arena .arena-between').waitFor({ state: 'visible', timeout: 5_000 });
-      await animationsSettled(tab, 1_500);
-      for (const problem of await betweenProblems(tab, after)) problems.push(problem);
-      if (pauses === 1) {
-        await fits('the score between rounds');
-        await shot('2-score');
-      }
-      return fightRounds(await until(tab, (s) => s.arena?.phase !== 'between', 'the next round', 10_000));
-    };
-    state = await fightRounds(state);
-    state = await until(tab, (s) => s.arena?.result != null, 'the best of 3 result', 10_000);
-    const outcome = state.arena.result.outcome?.result ?? null;
-    notes.push(`${outcome} ${state.arena.score.join(' to ')} in ${state.arena.result.rounds?.length ?? '?'} rounds after ${state.arena.inputs} inputs`);
-    expect(outcome === 'won', `the best of 3 ended with ${outcome}, not a win`);
-    expect(pauses >= 1, 'the score never showed between rounds');
-    await tab.locator('#arena .arena-continue').waitFor({ state: 'visible', timeout: 5_000 });
-    const picture = await tab.locator('#arena .arena-result-picture').getAttribute('data-picture');
-    expect(picture === 'pictures/trophy', `the result shows the picture ${picture}`);
-    await fits('the best of 3 result');
-    await shot('3-result');
-    await tab.locator('#arena .arena-continue').tap();
+    await winRounds(opened, run, state);
     await until(tab, (s) => s.screen === 'world' && s.arena === null && s.players.find((each) => each.self)?.inBattle === false, 'the world after the best of 3', 10_000);
     const saved = services.progress.load(opened.player.id)?.data;
     expect(saved?.team.every((creature, place) => creature.level === run.level && (place === FAINTED_PLACE) === (creature.hp === 0)), `a best of 3 changed the saved team: ${JSON.stringify(saved?.team.map(({ level, hp }) => ({ level, hp })))}`);
@@ -603,12 +643,63 @@ async function checkRoundsRun(browser, run) {
   results.push({ label: `${opened.label} (best of 3)`, ok: problems.length === 0, problems, notes, screenshots: opened.screenshots });
 }
 
+/**
+ * A trainer's best of 3 from a talk: the trainer's challenge (`1-challenge`), the choice that
+ * fights and the line before it, the pick screen with the defaults, each round, the result, and
+ * then the talk again at the fight's won line (`4-won`), with the first win's treats, flag and
+ * experience saved.
+ */
+async function checkTrainerRun(browser, run) {
+  const team = STARTERS.map((species) => newCreature(species, run.level, world.battle));
+  const opened = await openRun(browser, run, team);
+  const { tab, problems, notes, expect, shot, fits } = opened;
+  const trainer = world.story.trainers.get(TRAINER);
+  try {
+    await opened.signIn();
+    const served = await servedMap(base, world.map.id);
+    const talk = await openTalk(tab, served, trainer.npc, { notes });
+    expect(talk.talk.node === CHALLENGE, `${trainer.npc}'s talk opens at ${talk.talk.node}, not her challenge ${CHALLENGE}`);
+    const seen = async (state) => {
+      if (state.talk.node !== CHALLENGE) return;
+      expect(state.talk.choices.some((choice) => choice.kind === 'fights' && choice.picture === 'challenge'), `the challenge shows no choice with the challenge picture: ${JSON.stringify(state.talk.choices)}`);
+      await fits('the challenge');
+      await shot('1-challenge');
+    };
+    await talkThrough(tab, { toward: (node) => node.fight === TRAINER, stop: (s) => s.screen === 'arena', seen });
+    let state = await until(tab, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'picking' && s.arena.picks?.length === 3, 'the pick screen', 15_000);
+    expect(state.arena.mode === 'rounds' && state.talk === null, `the trainer's fight shows ${JSON.stringify({ mode: state.arena.mode, talk: state.talk })}`);
+    await tab.locator('#arena .arena-pick').waitFor({ state: 'visible', timeout: 5_000 });
+    await tab.locator('#arena .arena-go').tap();
+    state = await until(tab, (s) => s.arena?.phase === 'fighting' && s.arena.mine !== null, 'round 1', 10_000);
+    await winRounds(opened, run, state);
+    state = await until(tab, (s) => s.screen === 'world' && s.arena === null && s.talk?.node === FIGHT.won, `the talk again at ${FIGHT.won}`, 10_000);
+    if (!state.talk.typed) await tab.locator('#talk .talk-line').tap();
+    await until(tab, (s) => s.talk?.typed === true, 'the won line shown whole', 10_000);
+    await nextFrames(tab);
+    await fits('the won line');
+    await shot('4-won');
+    const saved = services.progress.load(opened.player.id)?.data;
+    const { item } = trainer.reward;
+    expect(saved?.story.flags.includes(trainer.flag), `the save has no flag ${trainer.flag}: ${JSON.stringify(saved?.story.flags)}`);
+    expect(!item || saved?.inventory.some((entry) => entry.item === item.item && entry.count >= item.count), `the save has no ${JSON.stringify(item)}: ${JSON.stringify(saved?.inventory)}`);
+    expect(saved?.team.some((creature) => creature.xp > 0 || creature.level > run.level), 'no creature got experience from the trainer');
+    await talkThrough(tab);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await opened.close();
+  }
+  results.push({ label: `${opened.label} (trainer)`, ok: problems.length === 0, problems, notes, screenshots: opened.screenshots });
+}
+
+const CHECKS = { rounds: checkRoundsRun, trainer: checkTrainerRun };
+
 try {
   const browser = await chosen.type.launch(chosen.options);
   try {
     await inTurn(RUNS, async (run) => {
       const started = performance.now();
-      await (run.plan === 'rounds' ? checkRoundsRun(browser, run) : checkRun(browser, run));
+      await (CHECKS[run.plan] ?? checkRun)(browser, run);
       results.at(-1).durationMs = Math.round(performance.now() - started);
     });
   } finally {

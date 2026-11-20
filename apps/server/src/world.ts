@@ -64,6 +64,7 @@ function storyContentOf(dir: string, battle: BattleContent): StoryContent {
   return loadStoryContent(
     {
       npcs: readJson(dir, 'npcs.json'), dialogue, quests: readJson(dir, 'quests.json'), story: readJson(dir, 'story.json'), inventory: readJson(dir, 'inventory.json'),
+      trainers: readJson(dir, 'trainers.json'),
       skills: {
         skills: readJson(dir, 'skills.json'),
         spots: readJson(dir, 'spots.json'),
