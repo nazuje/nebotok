@@ -16,7 +16,7 @@ export const DUEL_TEAM = 3;
 export const DUEL_REACH = 4;
 /** An ask with no answer this long declines by itself. */
 export const DUEL_ANSWER_MS = 20_000;
-/** After a decline the same two players wait this long before either asks the other again. */
+/** After a no, no answer or a take-back the same two players wait this long before either asks the other again. */
 export const DUEL_PAUSE_MS = 30_000;
 /** At most this many players watch one duel. */
 export const DUEL_WATCHERS = 6;

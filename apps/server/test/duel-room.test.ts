@@ -128,14 +128,24 @@ describe('asking for a duel', () => {
     expect(await refusal(asker, 'duel.ask')).toBe('notNow');
   });
 
-  it('takes an ask back without a pause', async () => {
+  it('takes an ask back; the pair then waits 30 s, as after a no', async () => {
     const [asker, answerer] = await pair();
     await ask(asker, answerer);
     await send(asker, 'duel.cancel', {});
     expect(await answered(asker, answerer)).toEqual([false, false]);
+
+    // Asking straight again, either way round, is refused, so the answer card cannot be flashed.
+    await send(asker, 'duel.ask', { to: keyOf(answerer), even: true });
+    expect(await refusal(asker, 'duel.ask')).toBe('notNow');
+    await send(answerer, 'duel.ask', { to: keyOf(asker), even: true });
+    expect(await refusal(answerer, 'duel.ask')).toBe('notNow');
+    expect(answerer.box.has('duel.asked') || asker.box.has('duel.asked')).toBe(false);
+
+    server.clock.offset = DUEL_PAUSE_MS;
     await ask(asker, answerer);
     await send(answerer, 'duel.cancel', {});
     expect(await refusal(answerer, 'duel.cancel')).toBe('notNow');
+    expect(server.logged.lines.filter((line) => line['msg'] === 'duel answered').map((line) => line['end'])).toEqual(['cancelled']);
   });
 
   it('ends the ask when the asker leaves', async () => {

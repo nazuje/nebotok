@@ -571,7 +571,7 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
 - **Duels** (#157, #158): tap a courier within 4 tiles for a picture menu (even match first, then
   real levels); the answer card shows the asker's courier, their first three creatures and the
   even or real picture, with a big tick and cross, and "Read to me" reads a fixed line with no name
-  in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline
+  in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline or a take-back
   (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`).
 - **The duel island** (#158, built): both duellists get the pick screen above, from every standing
   creature (all at the even level in an even match), opening on the first three, with its 30 s.
