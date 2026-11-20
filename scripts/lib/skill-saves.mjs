@@ -17,6 +17,7 @@ const CONTENT = loadBattleContent({
   rules: readContent('creatures/battle-rules.json'),
   befriending: readContent('creatures/befriending.json'),
   items: readContent('items.json'),
+  arena: readContent('creatures/arena.json'),
 });
 const SKILLS = readContent('skills.json').skills;
 const LEVEL_COSTS = readContent('skills.json').levelCosts;

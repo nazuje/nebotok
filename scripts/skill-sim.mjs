@@ -32,6 +32,7 @@ const battle = loadBattleContent({
   rules: read('creatures/battle-rules'),
   befriending: read('creatures/befriending'),
   items: read('items'),
+  arena: read('creatures/arena'),
 });
 const dialogue = Object.fromEntries(
   readdirSync(new URL('../content/dialogue/', import.meta.url))

@@ -23,6 +23,7 @@ const CONTENT = loadBattleContent({
   rules: readContent('creatures/battle-rules.json'),
   befriending: readContent('creatures/befriending.json'),
   items: readContent('items.json'),
+  arena: readContent('creatures/arena.json'),
 });
 const dialogue = Object.fromEntries(
   readdirSync(join(ROOT, 'content/dialogue'))
