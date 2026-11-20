@@ -3,12 +3,13 @@
  * starter to choose when a node offers it) or a world event. `storyBotCommand` picks the command
  * that `nextGoal` asks for, so tests, goldens and bots can play the whole story through. Gathering,
  * cooking and finishing a job are simulated as their events: one successful gather or cook at a
- * time, and a job done, without playing the game or the board.
+ * time, and a job done, without playing the game or the board. A trainer's fight is won by a
+ * scripted outcome: answering its node with null wins it, without playing the best of 3.
  */
 import { z } from 'zod';
 import { ContentId, type StartersFile } from './content.ts';
 import { chooseStarter, needsStarter, type Progress } from './creatures.ts';
-import { advanceConversation, conversationView, offersStarter, openConversation, type Conversation, type TalkStep, type TalkView } from './dialogue.ts';
+import { advanceConversation, conversationView, endTrainerFight, offersStarter, openConversation, trainerFightAt, type Conversation, type TalkStep, type TalkView } from './dialogue.ts';
 import type { ItemCount } from './inventory.ts';
 import { nextGoal, questEvent, type QuestChange, type QuestEvent } from './quests.ts';
 import type { StoryContent } from './story.ts';
@@ -21,9 +22,10 @@ export const QuestEventSchema = z.union([
   z.strictObject({ kind: z.literal('reached'), mark: ContentId }),
   z.strictObject({ kind: z.enum(['gathered', 'cooked']), item: ContentId, count: z.number().int().min(1).max(2) }),
   z.strictObject({ kind: z.literal('jobDone') }),
+  z.strictObject({ kind: z.literal('trainerBeaten'), trainer: ContentId }),
 ]);
 
-/** Talk to `talk`, answering each node in turn (a choice's place, or null to go on), choosing `starter` where a node offers it; or count `event`. */
+/** Talk to `talk`, answering each node in turn (a choice's place, or null to go on, and at a fight to win it), choosing `starter` where a node offers it; or count `event`. */
 export const StoryCommand = z.union([
   z.strictObject({ talk: ContentId, answers: z.array(z.number().int().min(0).max(MAX_CHOICES - 1).nullable()).max(50), starter: ContentId.optional() }),
   z.strictObject({ event: QuestEventSchema }),
@@ -57,6 +59,12 @@ function step(walk: Walk, result: TalkStep, rules: StoryWorldRules, starter: str
   }
 }
 
+/** Goes on from the node a talk is at, as `advanceConversation` does; at a trainer's fight, null wins it. */
+function answerTalk(conversation: Conversation, answer: number | null, progress: Progress, content: StoryContent): TalkStep | null {
+  if (!trainerFightAt(conversation, content)) return advanceConversation(conversation, answer, progress, content);
+  return answer === null ? endTrainerFight(conversation, true, progress, content) : null;
+}
+
 /** Plays one command. A talk left open after its answers is walked away from. Throws on an answer the node does not take. */
 export function runStoryCommand(progress: Progress, command: StoryCommand, rules: StoryWorldRules): { readonly progress: Progress; readonly record: StoryRecord } {
   if ('event' in command) {
@@ -69,7 +77,7 @@ export function runStoryCommand(progress: Progress, command: StoryCommand, rules
   step(walk, opened, rules, command.starter);
   for (const [at, answer] of command.answers.entries()) {
     if (!walk.conversation) throw new StoryCommandError(`answer ${at} to "${command.talk}" comes after the talk ended`);
-    const next = advanceConversation(walk.conversation, answer, walk.progress, rules.content);
+    const next = answerTalk(walk.conversation, answer, walk.progress, rules.content);
     if (!next) throw new StoryCommandError(`answer ${at} (${String(answer)}) does not fit node "${walk.conversation.node}" of "${command.talk}"`);
     step(walk, next, rules, command.starter);
   }
@@ -91,7 +99,7 @@ function talkPlan(npc: string, progress: Progress, rules: StoryWorldRules, start
     const view = conversationView(walk.conversation, walk.progress, rules.content);
     const options = view && view.choices.length > 0 ? view.choices : [null];
     for (const answer of options) {
-      const next = advanceConversation(walk.conversation, answer, walk.progress, rules.content);
+      const next = answerTalk(walk.conversation, answer, walk.progress, rules.content);
       if (!next) continue;
       const branch: Walk = { ...walk, views: [], changes: [], extra: [] };
       step(branch, next, rules, starter);
@@ -140,6 +148,10 @@ export function storyBotCommand(progress: Progress, rules: StoryWorldRules): Sto
   };
   if (questStep.kind === 'talk') return talk(questStep.npc);
   if (questStep.kind === 'deliver') return talk(questStep.to);
+  if (questStep.kind === 'beatTrainer') {
+    const npc = rules.content.trainers.get(questStep.trainer)?.npc;
+    return npc === undefined ? null : talk(npc);
+  }
   const event = events[questStep.kind]?.() ?? null;
   return event ? { event } : null;
 }

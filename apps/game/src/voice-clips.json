@@ -36,6 +36,7 @@
       "Later.": "be7f4e411d4833b5.mp3",
       "Leave it to me!": "15e7c08cef08953e.mp3",
       "Let's cook!": "346e369e64961705.mp3",
+      "Let's test them!": "c7a80bb96ed328f8.mp3",
       "Look out over the clouds from the lookout, east of Vetrinka.": "0ce812d7f8d79694.mp3",
       "New move!": "99ee03e959e4566e.mp3",
       "Noon Blaze": "6e274defafea3135.mp3",
@@ -142,12 +143,16 @@
     },
     "pitch4-pace3": {
       "\"The clouds over the far islands are going quiet. Something out there is hungry.\"": "83c62a4b8c08c315.mp3",
+      "A friendly test: the first to win two rounds wins. Pick your three well!": "efb21136fdfbb5a4.mp3",
       "A grey letter, brought by the wind? Let me read it...": "35b8969482b9a0f6.mp3",
       "A job from the board for me? Bring it all at once. The wind won't wait, but I will.": "5bc95497b02866c7.mp3",
+      "Another time, then. The clouds aren't going anywhere.": "83975d1877b51a4f.mp3",
       "Bavko must see that letter. Hurry back to the post.": "6e830def9a2e3ba2.mp3",
       "Go to the lookout, just east of me. Look out over the sea of clouds. Quickly!": "c8fcf331ee487b34.mp3",
+      "Good try! Maybe pick a different three and come back. I'll be here, watching the clouds.": "59838456a4adf706.mp3",
       "Hm. The wind turns east again. I don't like it.": "5c373f7263f15372.mp3",
       "I watch the far clouds every day now. If that thing comes back, we'll see it in time.": "ba4910d2bb110c78.mp3",
+      "I watch the far clouds every day now. Want a break? Let's test your creatures: three of mine against three of yours.": "f6c9ad2fd752b455.mp3",
       "My wind gauge! Finally. Bavko never forgets... well, sometimes he forgets.": "2825e4233b227d81.mp3",
       "Right on time, before the wind turns. Thank you!": "4e087051d9bb8ff7.mp3",
       "See how it spins? The wind is wrong today. Win a battle in the windy grass to the south-west, then come back to me.": "562605b72354789a.mp3",
@@ -156,7 +161,8 @@
       "Thank you for the help. Tell Bavko I'll keep watching the sky.": "524bfaad51ac9ed2.mp3",
       "That was no storm. Storms don't eat.": "8f169e7c756a195b.mp3",
       "The lookout is just east of me. Go and look out over the clouds.": "46569c2ceb5752da.mp3",
-      "The windy grass is in the south-west. Win one battle there, then come back. Too hard? Train in the meadow first.": "e1738854c4ee125b.mp3"
+      "The windy grass is in the south-west. Win one battle there, then come back. Too hard? Train in the meadow first.": "e1738854c4ee125b.mp3",
+      "Well fought! Your creatures trust you. Come back for a rematch any time.": "f0677a91fb1acce2.mp3"
     }
   },
   "sl": {
@@ -208,6 +214,7 @@
       "Povej Vetrinki, kaj se je zgodilo.": "9b7d75a9ce570211.mp3",
       "Počij v svetišču.": "664c8b9addd3fc52.mp3",
       "Prasketanje neba": "ea63b87bdb55f0bd.mp3",
+      "Preizkusiva jih!": "c04ffee946a3f8e4.mp3",
       "Prepusti meni!": "422ba5feadd005e9.mp3",
       "Prevzamem!": "6f096f781088e540.mp3",
       "Prinesi sivo pismo Vetrinki.": "631622dce68a4c28.mp3",
@@ -303,11 +310,15 @@
     "pitch4-pace3": {
       "Bavko mora videti tisto pismo. Pohiti nazaj na pošto.": "d2a7021539158187.mp3",
       "Delo z deske zame? Prinesi vse skupaj. Veter ne čaka, jaz pa počakam.": "38ca88a8d7dd3291.mp3",
+      "Dober poskus! Morda izberi druge tri in se vrni. Jaz bom tu, pri oblakih.": "3f62c427c063856c.mp3",
       "Hm. Veter se spet obrača proti vzhodu. To mi ni všeč.": "83c1250c5a671480.mp3",
       "Hvala za pomoč. Povej Bavku, da bom še naprej opazovala nebo.": "b001b17eb996d99b.mp3",
       "Moj vetromer! Končno. Bavko nikoli ne pozabi ... no, včasih pozabi.": "0fc1c20cebbe06c0.mp3",
+      "Odlično! Tvoja bitja ti zaupajo. Vrni se na nov dvoboj, kadar želiš.": "4cdf457f54e650b4.mp3",
       "Odnesi pismo nazaj Bavku. To mora videti.": "1ca1d666e16f4b94.mp3",
+      "Pa drugič. Oblaki ne gredo nikamor.": "1015944ac1d34209.mp3",
       "Pojdi na razgledišče, malo vzhodno od mene. Poglej čez morje oblakov. Hitro!": "c666366580170e39.mp3",
+      "Prijateljski preizkus: zmaga, kdor prvi dobi dve rundi. Dobro izberi svoje tri!": "37706f7fd2aa124d.mp3",
       "Ravno pravi čas, preden se veter obrne. Hvala!": "9965304a4a926d0c.mp3",
       "Razgledišče je malo vzhodno od mene. Pojdi in poglej čez oblake.": "fc0f06ae5671c535.mp3",
       "Sivo pismo, ki ga je prinesel veter? Naj ga preberem ...": "5f40e53dff73ab1f.mp3",
@@ -315,6 +326,7 @@
       "To ni bila nevihta. Nevihte ne jedo.": "12a60e918d767ae9.mp3",
       "Vetrovna trava je na jugozahodu. Tam zmagaj v enem boju, nato se vrni. Pretežko? Najprej treniraj na travniku.": "00bffdea00f1592c.mp3",
       "Vidiš, kako se vrti? Veter je danes čuden. Zmagaj v boju v vetrovni travi na jugozahodu, nato se vrni k meni.": "4fa4a15f581f03cd.mp3",
+      "Zdaj vsak dan opazujem daljne oblake. Si za premor? Preizkusiva tvoja bitja: tri moja proti trem tvojim.": "59253bbc6c0e506d.mp3",
       "Zdaj vsak dan opazujem daljne oblake. Če se tisto vrne, ga bomo pravočasno opazili.": "d9b7dfd912e77acb.mp3",
       "»Oblaki nad daljnimi otoki utihujejo. Nekaj tam zunaj je lačno.«": "8d450e6eb5a53b09.mp3"
     }

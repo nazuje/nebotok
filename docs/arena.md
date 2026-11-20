@@ -365,7 +365,9 @@ Only in wild fights.
 - **Duel rewards** (`duelRewards`, #158, built: `settleDuel` in `apps/server/src/battles.ts`): 25% of
   `xpForWin` to every creature that fought, on both sides, win or lose. Duel health is put back as
   it was before; nothing is lost. The winner's courier wears a trophy for 60 s (`DUEL_TROPHY_MS`).
-- **Trainer rewards:** from the trainer's entry in `content/trainers.json` (XP share, an item).
+- **Trainer rewards** (`trainerRewards`, #156): the trainer's `reward.xpPercent` of `xpForWin` to every
+  creature of the player's that fought, win or lose, as a duel's share is given; health is put back.
+  The first win also gives the reward's item and sets the trainer's flag.
 
 **Even match** (duels, on by default): every creature fights at the higher of the two players'
 average team levels, for that duel only. Nothing about it is saved. With it off, real levels.
@@ -588,13 +590,26 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
 
 ## Trainers
 
-A trainer (#156) is content: `content/trainers.json` gives each one an id, the character (`npc`),
-three creatures (species, level and a loadout of learned moves), a mind skill (`WILD` or `BOT`), a
-reward (an XP share and an item) and a rematch rule. A dialogue node's action `fight: <trainerId>`
-starts a best of 3, and leads on to its `won` or `lost` node; the quest step `beatTrainer` counts a
-win, next to `winBattles`. The one placeholder trainer is Vetrinka, the weather-watcher at the
-lookout, with three creatures at levels 6 to 8 in the side chapter, until the kids' trainers
-replace her.
+A trainer (#156, built) is content: `content/trainers.json` gives each one an id, the character
+(`npc`), three creatures (species, level and a loadout of moves learned by that level, each on an
+unlocked button of its kind), a mind skill (`WILD`, which becomes `WILD_EASIER` against a turtle,
+or `BOT`), a reward (`xpPercent`, 0 to 100, and an optional item), the story `flag` their first
+win sets and a `rematch` rule: `again` fights after a win too, `once` never again.
+
+A dialogue node with `fight: <trainerId>` and its `won` and `lost` nodes starts the best of 3 when
+the player goes on from it, and takes the talk on to `won` or (a loss or a draw) `lost` once the
+fight's result is put away (`docs/protocol.md`, "A trainer's fight"). Every choice or entry that
+leads there checks `{ "canFight": trainerId }`, so the challenge only shows while the fight can
+start; such a choice shows the `challenge` picture. The quest step `beatTrainer` (`{ trainer }`)
+counts a win, next to `winBattles`, which a trainer's win counts too. `content:validate` checks the
+character has a node with the fight, the flag is declared, the species, item and loadouts exist
+and fit. With `ARENA_BATTLES` off the server loads the story without its trainers, so no challenge
+shows. The story bot wins a fight by a scripted outcome (null at the fight node).
+
+The one placeholder trainer is Vetrinka, the weather-watcher at the lookout, with a pinwhirl,
+drizzlesnail and gustowl at levels 6 to 8, the `WILD` mind, half a win's experience and two gale
+treats the first time. She challenges the player once the first chapter is done, until the kids'
+trainers replace her. The browser check makes her creatures level 2, so its rounds end soon.
 
 ## Names in code
 
@@ -611,6 +626,9 @@ Planned names, so the tickets agree:
 - Loadouts (#148): `learnedMoves(species, level, content)`, `setLoadout`, `setTurtle`, and the save's
   `SettingsV7 { readToMe, turtle }`.
 - Server (#149, #150): `apps/server/src/arena-room.ts`, `seat.fight`, `settleFight`.
+- Trainers (#156, built): `content/trainers.json` (`TrainersFile`), core `trainers.ts`
+  (`canFightTrainer`, `trainerPicks`, `trainerMind`, `trainerWon`), `endTrainerFight` and
+  `trainerRewards`; the world room's `startTrainerFight` and `backToTalk`.
 - Rounds (#155, built): core `pickCount`, `defaultPickOrder`, `togglePick`, `isPickOrder` and
   `roundsTeam`; a fight plan's `pickers`; the world room's `startPractice`; the client's
   `arena-rounds.ts`.

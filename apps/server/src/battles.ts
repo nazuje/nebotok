@@ -28,6 +28,7 @@ import {
   startBattle,
   teamAfterBattle,
   teamAfterFight,
+  trainerRewards,
   useItem,
   wildBattleSetup,
   type ArenaBefriended,
@@ -44,6 +45,7 @@ import {
   type PendingMove,
   type Progress,
   type RefusalReason,
+  type RoundsFight,
   type Rng,
   type RoundsOutcome,
   type Side,
@@ -242,10 +244,11 @@ function newlyLearned(before: readonly CreatureInstance[], after: readonly Creat
  * A wild fight's results, as settleBattle gives a battle's: health first, then experience to the
  * creatures still standing, the moves of new levels, the treats left and a befriended creature.
  * Every move a level up teaches is `learned`; the four a turn battle uses take the new ones while
- * there is room, and the rest are not offered. A best of 3, or a fight that never started, changes
- * nothing.
+ * there is room, and the rest are not offered. A best of 3 against a trainer gives the trainer's
+ * `xpPercent` (`trainerRewards`); any other best of 3, or a fight that never started, changes nothing.
  */
-export function settleFight(progress: Progress, fight: ArenaFight | null, content: BattleContent): FightSettlement {
+export function settleFight(progress: Progress, fight: ArenaFight | null, content: BattleContent, xpPercent = 0): FightSettlement {
+  if (fight?.mode === 'rounds' && fight.outcome && xpPercent > 0) return settleTrainerFight(progress, fight, xpPercent, content);
   if (fight?.mode !== 'wild' || !fight.outcome) return { progress, rewards: [], learned: [], befriended: null, fainted: !canBattle(progress) };
   const ended = teamAfterFight(progress.team, fight, arenaContentOf(content));
   const grown = arenaRewards(ended, fight, content);
@@ -270,7 +273,16 @@ export function settleFight(progress: Progress, fight: ArenaFight | null, conten
  */
 export function settleDuel(progress: Progress, fight: ArenaFight | null, side: Side, content: BattleContent): FightSettlement {
   if (fight?.mode !== 'rounds' || !fight.outcome) return { progress, rewards: [], learned: [], befriended: null, fainted: !canBattle(progress) };
-  const grown = duelRewards(progress.team, fight, side, content);
+  return grownBy(progress, duelRewards(progress.team, fight, side, content), content);
+}
+
+/** A trainer's best of 3: no health is lost, and each of the player's creatures that fought gets `xpPercent` of a win's experience. */
+function settleTrainerFight(progress: Progress, fight: RoundsFight, xpPercent: number, content: BattleContent): FightSettlement {
+  return grownBy(progress, trainerRewards(progress.team, fight, PLAYER_SIDE, xpPercent, content), content);
+}
+
+/** A best of 3's experience on a team whose health it never touched, with the moves the new levels teach. */
+function grownBy(progress: Progress, grown: ReturnType<typeof duelRewards>, content: BattleContent): FightSettlement {
   const taught = learnTeamMoves(progress.team, grown.team, content);
   const next: Progress = { ...progress, team: taught.team };
   return { progress: next, rewards: grown.rewards, learned: newlyLearned(progress.team, grown.team, content), befriended: null, fainted: !canBattle(next) };

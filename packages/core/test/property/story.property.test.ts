@@ -6,11 +6,13 @@ import {
   conversationView,
   createSave,
   emptyProgress,
+  endTrainerFight,
   nextGoal,
   openConversation,
   playStory,
   questEvent,
   stackLimit,
+  trainerFightAt,
   type Progress,
   type QuestEvent,
   type StoryWorldRules,
@@ -54,7 +56,7 @@ function eventsOf(rules: StoryWorldRules): fc.Arbitrary<QuestEvent> {
   );
 }
 
-/** Talks to a character, answering with picks among what each node takes, as long as the talk lasts. */
+/** Talks to a character, answering with picks among what each node takes, as long as the talk lasts; at a trainer's fight an even pick wins it. */
 function talk(progress: Progress, npc: string, picks: readonly number[], rules: StoryWorldRules): Progress {
   const opened = openConversation(npc, progress, rules.content);
   if (!opened) throw new Error(`${npc} has no dialogue`);
@@ -64,7 +66,7 @@ function talk(progress: Progress, npc: string, picks: readonly number[], rules: 
     const view = conversationView(conversation, current, rules.content);
     if (!view) throw new Error(`node ${conversation.node} is gone`);
     const answer = view.choices.length > 0 ? (view.choices[pick % view.choices.length] ?? null) : null;
-    const next = advanceConversation(conversation, answer, current, rules.content);
+    const next = trainerFightAt(conversation, rules.content) ? endTrainerFight(conversation, pick % 2 === 0, current, rules.content) : advanceConversation(conversation, answer, current, rules.content);
     if (!next) throw new Error(`answer ${String(answer)} refused at ${conversation.node}`);
     ({ conversation, progress: current } = next);
   }
