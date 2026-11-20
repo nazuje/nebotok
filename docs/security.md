@@ -155,7 +155,7 @@ else, guesses a PIN, or a web page elsewhere tricks a browser into using the gam
 | API calls that change anything must name this same host in `Origin` and send JSON. Neither the API nor Colyseus's join endpoint (`/matchmake`) sends CORS headers, so other pages cannot read their answers or send them JSON with a token. | `apps/server/src/api.ts`, `matchmake.ts` |
 | API and join request bodies are at most 1 KB and checked by strict zod schemas; errors never include stack traces. Room messages are checked the same way and rate-limited: 30 a second disconnects, and `walk.to` beyond 5 a second is dropped. | `api.ts`, `world-room.ts`, `packages/core/src/profile.ts`, `protocol.ts` |
 | Logs carry profile ids and counts, never names, PINs or tokens. | `apps/server/src/log.ts` callers |
-| The room state other players receive holds only a name, an avatar and a position. | `apps/server/src/world-state.ts` |
+| The room state other players receive holds only a name, an avatar and a position. A duel ask (`duel.asked`) also sends the player asked the asker's first three standing creatures, species and level only. | `apps/server/src/world-state.ts`, `world-room.ts` |
 
 Profiles are for telling children apart, not a security boundary against the family: a four-digit
 PIN is easy to guess for someone who watches, and a profile without one is open to anyone on the

@@ -296,7 +296,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private attemptRng: Rng | null = null;
     /** Each profile's gather or cook and resting spots, kept across its seats while the room is open. */
     private readonly skillSeatOf = skillSeats();
-    /** The duel asks waiting for an answer, and the pauses after a decline. */
+    /** The duel asks waiting for an answer, and the pauses after a no or a take-back. */
     private readonly duels = createDuelDesk();
 
     override messages = {
@@ -1140,7 +1140,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       void this.openDuel(ask, [ask.from, asker], [client.sessionId, seat]);
     }
 
-    /** \`duel.cancel\`: takes back this player's ask. */
+    /** \`duel.cancel\`: takes back this player's ask, which pauses the pair like a no. */
     private duelCancel(client: Client) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
