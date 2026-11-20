@@ -1,4 +1,5 @@
 import { StartersFile, loadBattleContent, treatLiking, type BattleContent, type Language } from '@nebotok/core';
+import arena from '../../../content/creatures/arena.json';
 import rules from '../../../content/creatures/battle-rules.json';
 import befriending from '../../../content/creatures/befriending.json';
 import moves from '../../../content/creatures/moves.json';
@@ -8,8 +9,8 @@ import items from '../../../content/items.json';
 import starters from '../../../content/starters.json';
 import type { FavouriteOf } from './battle-playback.ts';
 
-/** The creatures, moves, weather types and treats, by id, for naming and drawing what the server sends. */
-export const CONTENT: BattleContent = loadBattleContent({ weather, moves, species, rules, befriending, items });
+/** The creatures, moves, weather types and treats, by id, for naming and drawing what the server sends, and the arena's rules, whose buttons loadouts read. */
+export const CONTENT: BattleContent = loadBattleContent({ weather, moves, species, rules, befriending, items, arena });
 export const STARTERS = StartersFile.parse(starters);
 
 export const speciesName = (id: string, language: Language): string => CONTENT.species.get(id)?.name[language] ?? id;

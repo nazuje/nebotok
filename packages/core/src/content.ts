@@ -254,12 +254,34 @@ export const REQUIRED_STRING_IDS = [
   'arena.locked',
   'arena.turtle',
   'arena.ringOut',
+  'arena.move',
+  'arena.button',
+  'arena.emptyButton',
+  'arena.timeUp',
+  'arena.net',
+  'arena.damage',
+  'arena.damageStrong',
+  'arena.healed',
+  'loadout.title',
+  'loadout.hint',
+  'loadout.empty',
+  'loadout.power',
+  'loadout.saved',
+  'loadout.done',
+  'loadout.try',
+  'loadout.newMove',
+  'loadout.learned',
   'duel.challenge',
   'duel.accept',
   'duel.decline',
   'duel.watch',
   'duel.evenMatch',
   'duel.realLevels',
+  'duel.asked',
+  'duel.waiting',
+  'duel.cancel',
+  'duel.close',
+  'duel.no',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 
@@ -706,6 +728,37 @@ export const ArenaStormRules = z
   .refine((storm) => storm.warnTicks + storm.shrinkTicks <= storm.everyTicks, 'a shrink and the next warning fit between two shrinks');
 export type ArenaStormRules = z.infer<typeof ArenaStormRules>;
 
+/** The computer's minds (arena/mind.ts): `WILD` for wild creatures, `WILD_EASIER` against the turtle setting, `BOT` for tests and trainers. */
+export const ARENA_MINDS = ['WILD', 'WILD_EASIER', 'BOT'] as const;
+export const ArenaMindName = z.enum(ARENA_MINDS);
+export type ArenaMindName = z.infer<typeof ArenaMindName>;
+
+/** How well a mind plays. */
+export const ArenaMindSkill = z.strictObject({
+  /** Ticks between choosing where to walk. */
+  thinkTicks: Whole(1, 600),
+  /** The chance of dashing aside from a shot, a lunge or a wind-up coming at it. */
+  dodgePercent: ArenaPercent,
+  /** The largest aim error, as the cosine in 1/4096 of its angle. */
+  aimErrorCosine: Cosine,
+  /** How much of the target's movement it aims a shot ahead by. */
+  leadPercent: ArenaPercent,
+  /** Ticks it waits after an ability before the next: 50 to 150% of this. */
+  reactTicks: ArenaTicks,
+  /** The chance a tick, in permille, of starting a ready special or ultimate when the moment is right. */
+  eagerPermille: Whole(0, 1_000),
+});
+export type ArenaMindSkill = z.infer<typeof ArenaMindSkill>;
+
+export const ArenaMindRules = z.strictObject({
+  skills: z.strictObject({ WILD: ArenaMindSkill, WILD_EASIER: ArenaMindSkill, BOT: ArenaMindSkill }),
+  /** A mind stays this far inside the edge, or inside the edge the storm is about to shrink to. */
+  edgeMargin: ArenaUnits,
+  /** The distance a mind likes to fight at, by the shape of its button 1 move. */
+  ranges: z.record(z.enum(ARENA_SHAPES), ArenaUnits),
+});
+export type ArenaMindRules = z.infer<typeof ArenaMindRules>;
+
 const ArenaRulesObject = z.strictObject({
   island: ArenaIslandRules,
   dash: ArenaDashRules,
@@ -738,7 +791,11 @@ const ArenaRulesObject = z.strictObject({
   wallThickness: PositiveUnits,
   /** How long an ultimate's own type's weather lasts on the island. */
   ultimateWeatherTicks: ArenaTicks,
+  /** The arena's own type chart, softer than turn battles' `battle-rules.json`: a strong hit and a weak one, in percent. */
+  strongPercent: Whole(100, 400),
+  weakPercent: Whole(10, 100),
   shapes: z.strictObject(ARENA_SHAPE_NUMBERS),
+  minds: ArenaMindRules,
 });
 
 export const ArenaRules = ArenaRulesObject.superRefine((rules, ctx) => {
@@ -753,7 +810,7 @@ const KIND_PAIRS = [
   ['special', 'ultimate'],
 ] as const;
 
-function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes }: z.infer<typeof ArenaRulesObject>): RuleIssue[] {
+function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes, strongPercent, weakPercent }: z.infer<typeof ArenaRulesObject>): RuleIssue[] {
   const issues: RuleIssue[] = [];
   const diameter = 2 * island.radius;
   const floorDiameter = 2 * Math.floor((island.radius * storm.floorPercent) / 100);
@@ -772,5 +829,7 @@ function arenaRuleIssues({ island, storm, treat, kinds, buttons, shapes }: z.inf
   if (buttons[1] <= buttons[0] || buttons[2] <= buttons[1]) issues.push({ message: 'buttons unlock at rising levels', path: ['buttons'] });
   if (treat.likedWindowPercent < treat.windowPercent || treat.favouriteWindowPercent < treat.likedWindowPercent) issues.push({ message: 'a liked treat must not open a smaller window than a plain one, nor a favourite than a liked one', path: ['treat'] });
   if (treat.likedRadius < treat.radius || treat.favouriteRadius < treat.likedRadius) issues.push({ message: 'a liked treat must not be smaller than a plain one, nor a favourite than a liked one', path: ['treat'] });
+  if (strongPercent <= 100) issues.push({ message: `a strong hit does ${strongPercent}%, which must be more than 100%`, path: ['strongPercent'] });
+  if (weakPercent >= 100) issues.push({ message: `a weak hit does ${weakPercent}%, which must be less than 100%`, path: ['weakPercent'] });
   return issues;
 }

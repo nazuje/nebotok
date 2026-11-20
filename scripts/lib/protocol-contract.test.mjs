@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import * as core from '../../packages/core/src/index.ts';
 import { PROTOCOL_CONTRACTS } from '../../packages/core/src/protocol.ts';
+import { ARENA_MESSAGES_PER_SECOND, ARENA_SUB_STEPS, ARENA_TICK_RATE, PRESSES_PER_SECOND } from '../../apps/server/src/arena-room.ts';
+import { ARENA_ROOM } from '../../apps/server/src/fights.ts';
 import { SKILLS_NEED_STARTER } from '../../apps/server/src/skills.ts';
 import { STARTER_NEEDS_TALK } from '../../apps/server/src/talk.ts';
 
@@ -30,6 +32,18 @@ const CLIENT_SCHEMAS = {
   SettingsSetMessage: core.SettingsSetMessage,
   SettingsTurtleMessage: core.SettingsTurtleMessage,
   LoadoutSetMessage: core.LoadoutSetMessage,
+  DuelAskMessage: core.DuelAskMessage,
+  DuelAnswerMessage: core.DuelAnswerMessage,
+  DuelCancelMessage: core.DuelCancelMessage,
+};
+
+// Who may ask whom for a duel, and how long an ask and a decline last: a client that offers asks
+// the server refuses, or keeps an answer card up longer, gets in the way.
+const DUEL_RULES = {
+  DUEL_TEAM: core.DUEL_TEAM,
+  DUEL_REACH: core.DUEL_REACH,
+  DUEL_ANSWER_MS: core.DUEL_ANSWER_MS,
+  DUEL_PAUSE_MS: core.DUEL_PAUSE_MS,
 };
 
 // The timing rules a skill attempt is judged by: a client that times its taps differently is judged wrong.
@@ -55,7 +69,21 @@ const contract = {
   refusalReasons: core.REFUSAL_REASONS,
   schemas: Object.fromEntries(Object.entries(CLIENT_SCHEMAS).map(([name, schema]) => [name, z.toJSONSchema(schema)])),
   attempts: ATTEMPT_RULES,
+  duels: DUEL_RULES,
+  // The fields of `welcome`, which the page reads before anything else.
+  welcome: Object.keys(core.welcome({ name: 'sky' }, 1)).toSorted(),
   server: { STARTER_NEEDS_TALK, SKILLS_NEED_STARTER },
+  // The arena room's name, input, messages and pace: a client that streams faster or presses more is cut off or dropped.
+  arena: {
+    room: ARENA_ROOM,
+    messages: core.ARENA_MESSAGES,
+    input: core.ARENA_INPUT_FIELDS,
+    none: core.ARENA_NONE,
+    tickRate: ARENA_TICK_RATE,
+    subSteps: ARENA_SUB_STEPS,
+    messagesPerSecond: ARENA_MESSAGES_PER_SECOND,
+    pressesPerSecond: PRESSES_PER_SECOND,
+  },
 };
 
 describe('the protocol contract', () => {

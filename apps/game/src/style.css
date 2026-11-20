@@ -173,8 +173,8 @@ body:not([data-screen='world']) #names {
   line-height: 36px;
 }
 
-body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .title,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .badge,
+body:is([data-screen='world'], [data-screen='duel'], [data-screen='arena'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .title,
+body:not([data-screen='world'], [data-screen='duel'], [data-screen='arena'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .badge,
 body:not([data-screen='world']) .welcome,
 body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .toast,
 body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .quest-toast,
@@ -302,14 +302,16 @@ body:not([data-screen='world']) .walk-hint {
 
 .settings-language,
 .settings-controls,
-.settings-read {
+.settings-read,
+.settings-turtle {
   margin: 0;
   font-weight: 700;
 }
 
 .language,
 .controls,
-.read-to-me {
+.read-to-me,
+.turtle {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;
@@ -336,7 +338,8 @@ body:not([data-screen='world']) .walk-hint {
   color: white;
 }
 
-.read-to-me {
+.read-to-me,
+.turtle {
   align-items: center;
   gap: 4px;
 }

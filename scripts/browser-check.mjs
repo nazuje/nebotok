@@ -29,7 +29,11 @@
 // signs in with it and meets a wild creature. Against its own server, a
 // player saved one point short of a level up wins a wild battle at 360px, sees the fainted wild
 // creature's favourite marked in the treat picker, and answers the offer of a new move
-// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way. At 360px in muted
+// (scripts/lib/learn-check.mjs), opening the bag and the journal on the way, then sees the new-move
+// toast. Against its own server, each browser's 360px part also plays the loadout picker on a phone,
+// a tablet and at 360px (scripts/lib/loadout-check.mjs): locked buttons that a tap leaves alone, a
+// battle won to a new move, its toast, holding the move to try it, putting it on button 2, finding
+// it there after a reload, and the turtle setting. At 360px in muted
 // Chromium, against its own server, a player hears "Read to me" (scripts/lib/voice-check.mjs): the
 // right clip asked for each line and quest hint with it on, none with it off but from a speaker
 // button, every clip answered with silence by the check. Fails on any console
@@ -87,11 +91,12 @@ import { learnerStory, playStory, storySave, storyScreensFit } from './lib/story
 import { playSkills, skillScreensFit } from './lib/skill-check.mjs';
 import { boardSave, skillSave } from './lib/skill-saves.mjs';
 import { boardScreenFits, playBoard } from './lib/board-check.mjs';
+import { loadoutSave, playLoadout } from './lib/loadout-check.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
-import { battlerName, boardName, botName, deviceName, learnerName, lockedName, pinlessName, runTag, skillerName, storyName, voiceName } from './lib/test-players.mjs';
+import { battlerName, boardName, botName, deviceName, learnerName, loadoutName, lockedName, pinlessName, runTag, skillerName, storyName, voiceName } from './lib/test-players.mjs';
 import { playVoice, silenceClips } from './lib/voice-check.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
@@ -1254,6 +1259,58 @@ async function timed(check) {
   for (const result of results.slice(from)) result.durationMs = Math.round(performance.now() - started);
 }
 
+/**
+ * The loadout picker, on our own server only (scripts/lib/loadout-check.mjs): a player whose glowbun
+ * is a point of experience short of learning a second special move sees a young creature's locked
+ * buttons do nothing, wins a wild battle, taps the new-move toast, tries the move and puts it on
+ * button 2, and finds it there after a reload. Each browser plays it on a phone, a tablet and at
+ * 360px, the languages crossed so each size is seen in both.
+ */
+async function checkLoadout(browser, browserName, bot, { where, device, language }) {
+  const label = `${browserName}-${where}-${language}`;
+  const name = loadoutName(browserName, where, language, TAG);
+  const problems = [];
+  const screenshots = [];
+  const notes = [];
+  const expect = (ok, message) => {
+    if (!ok) problems.push(message);
+  };
+  const made = await api('/profiles', { body: { name, avatar: 'green' }, address: nextAddress() });
+  if (made.status !== 201) throw new Error(`browser-check: making ${name} answered ${made.status}`);
+  prepareSave(dataDir, made.data.id, loadoutSave({ name, language, position: { map: START_MAP, ...bot.map.spawns[PLAYER_SPAWN], facing: 'down' } }));
+  const contextOptions = device ? { ...device.descriptor } : {};
+  const { context, page, shot, noSideways } = await narrowPage(browser, browserName, label, language, problems, screenshots, { contextOptions });
+  const check = async (step, file) => {
+    for (const target of await smallTargets(page)) problems.push(`${step}: touch target under ${MIN_TARGET_PX}px: ${target}`);
+    await noSideways(step);
+    await shot(file);
+  };
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list');
+    await page.locator(`.profile-card[data-profile-id="${made.data.id}"]`).tap();
+    await enterWorld(page, bot, (s) => inWorld(s) && s.progress?.team.length === 2, 'the world as the loadout player', { notes });
+    await playLoadout(page, bot, { strings: STRINGS, language, expect, check, notes });
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+    deleteProfile(dataDir, made.data.id);
+  }
+  results.push({ label: `${label} (loadout)`, ok: problems.length === 0, problems, screenshots, notes });
+}
+
+/** Where each browser plays the loadout picker: a phone, a tablet and 360px, in crossed languages. */
+const loadoutRuns = (browserName) => {
+  const first = browserName === 'chromium' ? 'en' : 'sl';
+  return [
+    { where: '360px', device: null, language: first },
+    { where: DEVICES[0].name, device: DEVICES[0], language: other(first) },
+    { where: DEVICES[1].name, device: DEVICES[1], language: first },
+  ];
+};
+
 /** A part's device runs (each device in each language), then the groups of 360px runs it names. */
 async function playPart(browser, part, bot) {
   const name = part.browser;
@@ -1273,6 +1330,7 @@ async function playPart(browser, part, bot) {
   if (LOCAL && plays('learn')) await timed(() => checkLearn(browser, name, bot));
   if (LOCAL && plays('skills')) await timed(() => checkSkillsNarrow(browser, name, bot));
   if (LOCAL && plays('board')) await timed(() => checkBoardNarrow(browser, name, bot));
+  if (LOCAL && plays('loadout')) await inTurn(loadoutRuns(name), (run) => timed(() => checkLoadout(browser, name, bot, run)));
 }
 
 let bot = null;

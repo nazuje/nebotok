@@ -10,6 +10,7 @@ import { ROOT } from './server-process.mjs';
 const AVATARS = JSON.parse(readFileSync(join(ROOT, 'content/avatars.json'), 'utf8')).avatars.map((avatar) => avatar.id);
 const NPCS = JSON.parse(readFileSync(join(ROOT, 'content/npcs.json'), 'utf8')).npcs.map((npc) => npc.id);
 const SPOTS = JSON.parse(readFileSync(join(ROOT, 'content/spots.json'), 'utf8')).spots.map((spot) => spot.id);
+const SPECIES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/species.json'), 'utf8')).species.map((species) => species.id);
 
 const Id = z.string().regex(/^[a-z][a-z0-9-]{0,15}$/, 'a lower-case id such as "lan"');
 const Label = z.string().regex(/^[a-z0-9-]{1,40}$/, 'lower-case letters, digits and dashes');
@@ -26,8 +27,20 @@ const Player = z.strictObject({
   language: LanguageSchema.default('en'),
   /** The device asks for reduced motion. */
   reducedMotion: z.literal(true).optional(),
-  /** Starts the player part way through the story: at a quest's step, standing on a tile (scripts/lib/story-saves.mjs). */
-  prepared: z.strictObject({ quest: z.string().min(1), step: z.string().min(1), at: Tile }).optional(),
+  /**
+   * Starts the player standing on a tile, part way through the story at a quest's step
+   * (scripts/lib/story-saves.mjs), with this team instead of the one the story gave, or both.
+   */
+  prepared: z
+    .strictObject({
+      quest: z.string().min(1).optional(),
+      step: z.string().min(1).optional(),
+      at: Tile,
+      team: z.array(z.strictObject({ species: z.enum(SPECIES), level: z.number().int().min(1).max(100) })).min(1).max(6).optional(),
+    })
+    .refine((prepared) => (prepared.quest === undefined) === (prepared.step === undefined), 'a quest and its step go together')
+    .refine((prepared) => prepared.quest !== undefined || prepared.team !== undefined, 'say a quest and step, a team, or both')
+    .optional(),
 });
 
 const Until = z
@@ -42,7 +55,7 @@ const Until = z
     unmarked: z.literal(true).optional(),
     welcome: z.array(z.enum(['alone', 'together', 'hidden'])).min(1).optional(),
     refused: z.literal(true).optional(),
-    toast: z.literal('hidden').optional(),
+    toast: z.union([z.literal('hidden'), z.string().regex(/^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/, 'a string id such as "duel.no"')]).optional(),
     hint: z.enum(['tap', 'joystick', 'hidden']).optional(),
     battle: z.enum(['menu', 'none']).optional(),
     sameBattle: z.literal(true).optional(),
@@ -60,6 +73,8 @@ const Until = z
     band: z.enum(['shown', 'hidden']).optional(),
     flags: z.array(z.string().min(1)).min(1).optional(),
     lacksFlags: z.array(z.string().min(1)).min(1).optional(),
+    duel: z.enum(['menu', 'asking', 'asked', 'none']).optional(),
+    arena: z.enum(['rounds', 'none']).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 
@@ -78,11 +93,13 @@ const Step = z.discriminatedUnion('do', [
   step('run', { player: Id }),
   step('talk', { player: Id, npc: z.enum(NPCS), open: z.literal(true).optional() }),
   step('play', { player: Id, miss: z.literal(true).optional() }),
+  step('ask', { player: Id, to: Id, even: z.boolean().default(true) }),
+  step('answer', { player: Id, yes: z.boolean() }),
 ]);
 
 /** Every player a step names, so a typo is caught before any browser starts. */
 const named = (entry) =>
-  [entry.player, ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? []), ...(entry.until?.talking ?? []), ...(entry.until?.quiet ?? []), ...(entry.until?.skilling ?? []), ...(entry.until?.idle ?? [])].filter(Boolean);
+  [entry.player, ...(entry.do === 'ask' ? [entry.to] : []), ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? []), ...(entry.until?.talking ?? []), ...(entry.until?.quiet ?? []), ...(entry.until?.skilling ?? []), ...(entry.until?.idle ?? [])].filter(Boolean);
 
 export const Scene = z
   .strictObject({ name: Label, about: z.string().min(1), players: z.array(Player).min(1).max(6), steps: z.array(Step).min(1) })

@@ -1,11 +1,13 @@
 import { arenaLinkProblems } from '../arena-links.ts';
 import type { BattleContent } from '../battle/content.ts';
+import type { DamageContent } from '../battle/damage.ts';
 import { ArenaRules, BattleRules, ItemsFile, MovesFile, SpeciesFile, WeatherFile, type Item, type Move, type Species, type WeatherType } from '../content.ts';
 
 /**
  * Everything an arena step and its start read: the arena's numbers (`content/creatures/arena.json`),
- * the battle rules and weather chart that damage uses, the species, for walk caps, health and
- * stats, and the moves, whose `arena` blocks say what each button does.
+ * the battle rules and weather chart that damage uses (with the arena's own strong and weak
+ * percents, `arenaDamageContent`), the species, for walk caps, health and stats, and the moves,
+ * whose `arena` blocks say what each button does.
  */
 export type ArenaContent = {
   readonly arena: ArenaRules;
@@ -14,6 +16,12 @@ export type ArenaContent = {
   readonly moves: ReadonlyMap<string, Move>;
   readonly weather: ReadonlyMap<string, WeatherType>;
 };
+
+/** What arena damage reads: the battle rules with arena.json's softer type chart in place of theirs. */
+export function arenaDamageContent(content: ArenaContent): DamageContent {
+  const { strongPercent, weakPercent } = content.arena;
+  return { rules: { ...content.rules, strongPercent, weakPercent }, weather: content.weather };
+}
 
 /** The arena's share of a battle's content, which must have been loaded with arena.json. */
 export function arenaContentOf(content: BattleContent): ArenaContent {

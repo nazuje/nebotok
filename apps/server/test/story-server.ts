@@ -2,6 +2,7 @@ import { ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from '@colyseus/sdk';
 import { DIRECTIONS, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
 import { createGameServer } from '../src/app.ts';
+import { createFightBook } from '../src/fights.ts';
 import { REQUESTS_PER_SECOND } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
 import type { WorldContent } from '../src/world.ts';
@@ -122,11 +123,18 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 
 export type Player = { id: number; room: Room<unknown, WorldState>; box: Inbox; progress: ProgressMessage };
 
+type StoryServerOptions = {
+  /** `ARENA_BATTLES`: the grass starts arena fights instead of turn battles. */
+  readonly arenaBattles?: boolean;
+  /** Every zone's weather instead of its own; null for clear skies. */
+  readonly zoneWeather?: string | null;
+};
+
 /**
  * A real server whose world has the test story, wild creatures that appear at every step in the
  * grass and always take their favourite treat, and a clock tests can move on with `clock.offset`.
  */
-export async function storyServer() {
+export async function storyServer({ arenaBattles = false, zoneWeather }: StoryServerOptions = {}) {
   const clock = { offset: 0 };
   const logged = capturedLog('info');
   const temp = tempServices(() => Date.now() + clock.offset);
@@ -135,19 +143,23 @@ export async function storyServer() {
     ...real,
     story: testStory(real.battle),
     encounters: new Map(
-      [...real.encounters].map(([id, zone]) => [id, { ...zone, encounterPercent: 100, creatures: [{ species: WILD.species, minLevel: WILD.level, maxLevel: WILD.level, weight: 1 }] }]),
+      [...real.encounters].map(([id, zone]) => [
+        id,
+        { ...zone, encounterPercent: 100, creatures: [{ species: WILD.species, minLevel: WILD.level, maxLevel: WILD.level, weight: 1 }], weather: zoneWeather === undefined ? zone.weather : zoneWeather },
+      ]),
     ),
     battle: {
       ...real.battle,
       befriending: { basePercent: 0, tiredPercent: 0, favouritePercent: 100, likedPercent: 0, levelPenaltyPer10Levels: 0, minPercent: 0, maxPercent: 100, windowPercent: 100 },
     },
   };
-  const server = createGameServer(temp.config, logged.log, { ...temp.services, world });
+  const fights = createFightBook();
+  const server = createGameServer({ ...temp.config, arenaBattles }, logged.log, { ...temp.services, world }, { fights });
   await server.listen(await freePort(), '127.0.0.1');
   const colyseus = new ColyseusTestServer(server);
 
   /** Joins a player saved at `at` with `progress`, after taking `welcome` and the first `progress`. */
-  async function player(name: string, at: Point, progress: Partial<Progress> = {}): Promise<Player> {
+  async function player(name: string, at: Point, progress: Partial<Progress> = {}): Promise<Player & { readonly token: string }> {
     const made = await temp.services.profiles.create({ name, avatar: 'green' });
     if (!made.ok) throw new Error(made.error);
     const { id } = made.value;
@@ -160,7 +172,7 @@ export async function storyServer() {
     room.reconnection.enabled = false;
     const box = inbox(room);
     await box.take('welcome');
-    return { id, room, box, progress: await box.take<ProgressMessage>('progress') };
+    return { id, token: login.value.token, room, box, progress: await box.take<ProgressMessage>('progress') };
   }
 
   /** The saved data as stored, before the load repair (which would drop the test story's ids). */
@@ -175,6 +187,7 @@ export async function storyServer() {
     temp,
     world,
     colyseus,
+    fights,
     player,
     stored,
     async reset() {

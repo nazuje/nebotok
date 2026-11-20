@@ -9,6 +9,7 @@ import {
   type BattleUpdate,
   type BattleViewMessage,
   type BefriendResult,
+  type LoadoutSetMessage,
   type MoveChooseMessage,
   type MoveOffer,
   type ProgressMessage,
@@ -42,6 +43,7 @@ export type ClientPayloads = {
   [CLIENT_MESSAGES.storageSwap]: StorageSwapMessage;
   [CLIENT_MESSAGES.starterChoose]: StarterChooseMessage;
   [CLIENT_MESSAGES.moveChoose]: MoveChooseMessage;
+  [CLIENT_MESSAGES.loadoutSet]: LoadoutSetMessage;
 };
 
 type Tagged<Payloads> = { [Type in keyof Payloads]: { readonly type: Type; readonly payload: Payloads[Type] } }[keyof Payloads];

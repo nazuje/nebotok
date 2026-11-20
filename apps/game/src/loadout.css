@@ -1,0 +1,296 @@
+/*
+ * The loadout picker (#loadout, src/loadout-picker.ts) over the team screen, the button to it on each
+ * team card, and the toast for a new move (src/new-move-toast.ts). Button tiles are 72px and move
+ * tiles at least 64px tall, past the 48px every control needs, since these are what fights use.
+ */
+
+/* Opaque, so the team screen under it does not show through as a second, muddled layer. */
+#loadout {
+  z-index: 2;
+  background: rgb(143 211 255);
+}
+
+.loadout-body {
+  gap: 12px;
+}
+
+.loadout-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.loadout-who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.loadout-head .screen-title {
+  text-align: left;
+}
+
+.loadout-head .creature-name {
+  font-weight: 700;
+}
+
+.loadout-slots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.loadout-slot {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 3px solid transparent;
+  border-radius: 18px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.loadout-slot[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: #dceafb;
+}
+
+.loadout-slot.locked {
+  background: #e6eef6;
+  cursor: default;
+  grid-template-columns: auto auto;
+  gap: 2px;
+}
+
+.loadout-slot.locked:active {
+  transform: none;
+}
+
+.loadout-slot:not(.locked) .loadout-digits {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+}
+
+.loadout-digits {
+  display: inline-flex;
+}
+
+/* Each digit is drawn in the middle of its own square, so a two-digit level pulls them together to read as one number. */
+.loadout-slot.locked .loadout-digits .picture + .picture {
+  margin-left: -10px;
+}
+
+.loadout-empty {
+  width: 48px;
+  height: 48px;
+  border: 3px dashed #8fa9c4;
+  border-radius: 12px;
+}
+
+.loadout-kind {
+  margin: 0;
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.loadout-moves {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loadout-move-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.loadout-move {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  color: var(--ink);
+  text-align: left;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.loadout-move[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+
+.loadout-move[aria-busy='true'] {
+  opacity: 0.7;
+}
+
+.loadout-move-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.loadout-move-name {
+  font-weight: 800;
+}
+
+.loadout-move-shape {
+  font-size: 0.85rem;
+}
+
+.loadout-pips {
+  flex: none;
+  display: flex;
+  gap: 3px;
+}
+
+.loadout-pip {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+.loadout-pip.on {
+  background: var(--ink);
+}
+
+.loadout-chosen {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+}
+
+.loadout-answer {
+  min-height: 32px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ok);
+  font-weight: 800;
+}
+
+.loadout-done {
+  align-self: center;
+}
+
+/* The mini island a held move plays on, in the middle of the screen. */
+.loadout-preview {
+  position: fixed;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 8px 24px rgb(16 42 67 / 0.25);
+  pointer-events: none;
+}
+
+.loadout-island {
+  display: block;
+  width: min(80vw, 288px);
+  height: min(54vw, 192px);
+  border-radius: 14px;
+}
+
+/* On the team card: the fight buttons in small, a lock on each still locked. */
+.team-loadout {
+  min-height: 56px;
+  padding: 4px 12px;
+}
+
+.team-loadout .button-pictures {
+  gap: 6px;
+}
+
+.team-loadout-empty {
+  width: 32px;
+  height: 32px;
+  border: 2px dashed #8fa9c4;
+  border-radius: 8px;
+}
+
+/* A move just learned: tap to open the picker on that creature. */
+.new-move-toast {
+  position: fixed;
+  z-index: 3;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: min(92vw, 26rem);
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border: 3px solid var(--wait);
+  border-radius: 18px;
+  background: white;
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgb(16 42 67 / 0.25);
+}
+
+.new-move-toast:active {
+  transform: translateX(-50%) translateY(1px);
+}
+
+.new-move-star {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.new-move-toast canvas.creature {
+  width: 48px;
+  height: 48px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .new-move-toast:not([hidden]) {
+    animation: new-move-in 0.3s ease-out both;
+  }
+
+  .new-move-star .picture {
+    animation: new-move-twinkle 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes new-move-in {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+}
+
+@keyframes new-move-twinkle {
+  50% {
+    scale: 1.2;
+  }
+}

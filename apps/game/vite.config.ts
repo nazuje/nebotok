@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { refuseLargePrecache } from './precache-guard.ts';
 
 // scripts/dev.mjs moves both ports when another dev server already holds them.
 const SERVER = `http://127.0.0.1:${process.env.NEBOTOK_SERVER_PORT ?? '2567'}`;
@@ -20,8 +21,16 @@ export default defineConfig({
   preview: { open: false },
   build: {
     target: 'es2022',
-    // Phaser is one large module on purpose; splitting it would not make the first load smaller.
+    // Phaser's own chunk (about 1.4 MB) is past Vite's default warning size and cannot shrink; this
+    // limit keeps the warning for real growth.
     chunkSizeWarningLimit: 2_000,
+    rolldownOptions: {
+      output: {
+        // Phaser gets a chunk of its own so the game's code beside it stays under the service
+        // worker's 2 MiB precache limit, and a deploy that changes only the game keeps Phaser cached.
+        codeSplitting: { groups: [{ name: 'phaser', test: /node_modules[\\/]phaser[\\/]/ }] },
+      },
+    },
   },
   plugins: [
     VitePWA({
@@ -51,6 +60,7 @@ export default defineConfig({
         // deploy. Every other file is named by content hash or changes with the build, so cache-first
         // is right for those.
         globPatterns: ['**/*.{js,css,png,webmanifest}'],
+        manifestTransforms: [refuseLargePrecache],
         // vite-plugin-pwa sets these for autoUpdate only when it writes the registration itself.
         // Without them a new worker waits behind the old one while any page is open, which on an
         // iPad Home Screen app can be for ever.

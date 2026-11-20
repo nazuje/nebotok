@@ -1,4 +1,4 @@
-import { CLIENT_MESSAGES, SERVER_MESSAGES, type SettingsMessage, type SettingsSetMessage } from '@nebotok/core';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, type Refused, type SettingsMessage, type SettingsSetMessage, type SettingsTurtleMessage } from '@nebotok/core';
 import type { WorldRoom } from './connection.ts';
 import type { RequestPacer } from './request-pacer.ts';
 
@@ -16,6 +16,10 @@ export type PlayerSettings = {
   readToMe(): boolean | null;
   /** Turns "Read to me" over and asks the server to save it with the player. */
   toggleReadToMe(): void;
+  /** The turtle setting, for easier arena fights, as the server last sent it or as the player just set it; null before the server has said. */
+  turtle(): boolean | null;
+  /** Turns the turtle setting over and asks the server to save it. A refusal, as during a fight, turns it back. */
+  toggleTurtle(): void;
   /** Forgets the player's settings, as when they leave the world. */
   reset(): void;
 };
@@ -26,30 +30,54 @@ export type PlayerSettings = {
  */
 export function createPlayerSettings(options: PlayerSettingsOptions): PlayerSettings {
   let room: WorldRoom | null = null;
-  let readToMe: boolean | null = null;
+  let settings: SettingsMessage | null = null;
+  /** The turtle setting before a change the server has not answered yet. */
+  let turtleBefore: boolean | null = null;
 
-  const set = (next: boolean | null) => {
-    readToMe = next;
+  const set = (next: SettingsMessage | null) => {
+    settings = next;
     options.changed();
   };
 
   return {
     joined: (joined) => {
       room = joined;
-      const stop = joined.onMessage(SERVER_MESSAGES.settings, (message: SettingsMessage) => set(message.readToMe));
+      const stops = [
+        joined.onMessage(SERVER_MESSAGES.settings, (message: SettingsMessage) => {
+          turtleBefore = null;
+          set(message);
+        }),
+        joined.onMessage(SERVER_MESSAGES.refused, (message: Refused) => {
+          if (message.request !== CLIENT_MESSAGES.settingsTurtle || turtleBefore === null || !settings) return;
+          set({ ...settings, turtle: turtleBefore });
+          turtleBefore = null;
+        }),
+      ];
       return () => {
-        stop();
+        for (const stop of stops) stop();
         if (room === joined) room = null;
       };
     },
-    readToMe: () => readToMe,
+    readToMe: () => settings?.readToMe ?? null,
     toggleReadToMe: () => {
-      if (readToMe === null || !room) return;
-      const wanted: SettingsSetMessage = { readToMe: !readToMe };
-      set(wanted.readToMe);
+      if (!settings || !room) return;
+      const wanted: SettingsSetMessage = { readToMe: !settings.readToMe };
+      set({ ...settings, ...wanted });
       const to = room;
       options.requests.send(() => to.send(CLIENT_MESSAGES.settingsSet, wanted));
     },
-    reset: () => set(null),
+    turtle: () => settings?.turtle ?? null,
+    toggleTurtle: () => {
+      if (!settings || !room) return;
+      const wanted: SettingsTurtleMessage = { on: !settings.turtle };
+      turtleBefore ??= settings.turtle;
+      set({ ...settings, turtle: wanted.on });
+      const to = room;
+      options.requests.send(() => to.send(CLIENT_MESSAGES.settingsTurtle, wanted));
+    },
+    reset: () => {
+      turtleBefore = null;
+      set(null);
+    },
   };
 }

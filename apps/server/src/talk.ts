@@ -22,10 +22,12 @@ import {
   type QuestChange,
   type QuestEvent,
   type RefusalReason,
+  type RoundsOutcome,
   type SkillsMessage,
   type SpotRest,
   type StoryContent,
   type TalkStep,
+  type WildOutcome,
   type WorldMap,
 } from '@nebotok/core';
 
@@ -105,6 +107,14 @@ export function continueTalk(conversation: Conversation, choice: number | null, 
 /** The quest events a finished battle counts: a won battle in its zone, and a befriending as well. A refused treat after the creature fainted is a win too. */
 export function battleEvents(outcome: BattleOutcome | null, zone: string, befriended: string | null): QuestEvent[] {
   if (outcome?.winner !== PLAYER_SIDE) return [];
+  const won: QuestEvent = { kind: 'battleWon', zone };
+  return befriended === null ? [won] : [won, { kind: 'befriended', species: befriended }];
+}
+
+/** The quest events a settled wild fight counts: a win in its zone, by knockout, ring-out or befriending as in a turn battle, and the creature it befriended. */
+export function fightEvents(outcome: WildOutcome | RoundsOutcome | null, zone: string | null, befriended: string | null): QuestEvent[] {
+  const result = outcome?.result;
+  if (result !== 'won' && result !== 'wonByRingOut' && result !== 'befriended') return [];
   const won: QuestEvent = { kind: 'battleWon', zone };
   return befriended === null ? [won] : [won, { kind: 'befriended', species: befriended }];
 }

@@ -162,7 +162,7 @@ function checkStory(battle, maps, encounters, shrines) {
   const storyWorld = { maps, zones: encounters.zones.map((zone) => zone.id), shrines: shrines.shrines.map((shrine) => shrine.id) };
   const mapProblems = storyMapProblems(loadStoryContent(storyFiles, battle), storyWorld);
   if (mapProblems.length) fail('story', mapProblems);
-  checkVoice(storyFiles);
+  checkVoice({ ...storyFiles, moves: parsed.get(BATTLE_FILES.moves), strings: parsed.get('strings.json') });
 }
 
 function checkVoice(storyFiles) {

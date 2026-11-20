@@ -2,8 +2,10 @@ import { WorldSettings, samePoint, walkMessage, type Language, type LoginRespons
 import { AUTO, Game, Scale } from 'phaser';
 import worldSettings from '../../../content/world.json';
 import { addPin, listProfiles, logout } from './api.ts';
+import { createArena } from './arena/arena-link.ts';
 import { createBattles } from './battles.ts';
 import { createClipPlayer } from './clip-player.ts';
+import { createDuels } from './duels.ts';
 import { connect, type ConnectionStatus, type WorldConnection, type WorldRoom } from './connection.ts';
 import { initialControls, otherControls, saveControls, type Controls } from './controls-choice.ts';
 import { element } from './dom.ts';
@@ -56,6 +58,8 @@ let mapFailed = false;
 let canAddPin = false;
 let stopFeed: () => void = () => {};
 let stopBattles: () => void = () => {};
+let stopArena: () => void = () => {};
+let stopDuels: () => void = () => {};
 let stopStory: () => void = () => {};
 let stopTalks: () => void = () => {};
 let stopCues: () => void = () => {};
@@ -89,6 +93,20 @@ const scene = new WorldScene({
   },
 });
 const hud = createHud(language);
+/** A battle, an arena fight or a screen about creatures is up over the world. */
+const creaturesUp = (): boolean => arena.overlay() !== null || battles.overlay() !== null;
+const arena = createArena({
+  game: () => game,
+  language: () => language,
+  connection: () => world,
+  progress: () => battles.progress(),
+  changed: () => {
+    input.release();
+    showScreen();
+  },
+  started: () => startClean(),
+  learned: (moves) => battles.learned(moves),
+});
 const battles = createBattles({
   game: () => game,
   language: () => language,
@@ -101,15 +119,39 @@ const battles = createBattles({
   standing: () => view.standing(),
   starterOffered: () => talks.offersStarter(),
   requests,
+  readToMe: () => playerSettings.readToMe() === true,
+  say: (words) => speech.say(null, words),
+  canSay: (words) => speech.has(null, words),
+  bottomTaken: () => hud.state().welcome !== null || hud.state().toast !== null,
+  arenaUp: () => arena.overlay() !== null,
 });
-const playerSettings = createPlayerSettings({ requests, changed: () => settings.setReadToMe(playerSettings.readToMe()) });
+const playerSettings = createPlayerSettings({
+  requests,
+  changed: () => {
+    settings.setReadToMe(playerSettings.readToMe());
+    settings.setTurtle(playerSettings.turtle());
+  },
+});
 const clips = createClipPlayer();
 const speech = createSpeech({ language: () => language, readToMe: () => playerSettings.readToMe() === true, player: clips });
+const duels = createDuels(element<HTMLElement>('#duel'), {
+  language: () => language,
+  couriers: () => view.shown(performance.now()),
+  standing: () => view.predicted()?.tile ?? null,
+  requests,
+  speech,
+  toast: (id) => hud.toast(id, 'news'),
+  changed: () => {
+    input.release();
+    if (scene.mapId !== null) scene.setMarker(null);
+    showScreen();
+  },
+});
 const storyCues = createStoryCues({
   scene,
   speech,
   language: () => language,
-  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null,
+  free: () => inWorld && !settings.isOpen() && !pinSetup.isOpen() && !creaturesUp() && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null,
   changed: () => {
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
@@ -130,7 +172,7 @@ const talks = createTalks({
 });
 const story = createStory({
   language: () => language,
-  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || skills.overlay() !== null || jobs.overlay() !== null,
+  blocked: () => !inWorld || pinSetup.isOpen() || creaturesUp() || talks.isOpen() || storyCues.playing() || skills.overlay() !== null || jobs.overlay() !== null,
   standing: () => view.standing(),
   skills: () => skills.message(),
   lookAt: (tile) => scene.lookAt(tile),
@@ -144,7 +186,7 @@ const skills = createSkills({
   language: () => language,
   player: () => session?.profile?.id ?? null,
   progress: () => battles.progress(),
-  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || jobs.overlay() !== null,
+  blocked: () => !inWorld || pinSetup.isOpen() || creaturesUp() || talks.isOpen() || storyCues.playing() || jobs.overlay() !== null,
   news: (lines, tone, picture) => story.news(lines, tone, picture),
   openBoard: (station) => jobs.open(station),
   changed: () => {
@@ -158,7 +200,7 @@ const jobs = createJobs({
   language: () => language,
   progress: () => battles.progress(),
   skills: () => skills.message(),
-  blocked: () => !inWorld || pinSetup.isOpen() || battles.overlay() !== null || talks.isOpen() || storyCues.playing() || story.overlay() !== null || skills.overlay() !== null,
+  blocked: () => !inWorld || pinSetup.isOpen() || creaturesUp() || talks.isOpen() || storyCues.playing() || story.overlay() !== null || skills.overlay() !== null,
   news: (lines, picture) => story.news(lines, 'good', picture),
   refused: (id) => hud.toast(id),
   changed: () => {
@@ -173,13 +215,14 @@ const restMs = (spot: string): number => {
   const skill = STORY.skills?.skills.get(STORY.skills.spots.get(spot)?.skill ?? '');
   return skill?.uses === 'spots' ? skill.restSeconds * 1_000 : 0;
 };
-const updates = createUpdates({ language, busy: () => battles.overlay() !== null || talks.isOpen() || skills.overlay() !== null || jobs.overlay() !== null });
+const updates = createUpdates({ language, busy: () => creaturesUp() || talks.isOpen() || skills.overlay() !== null || jobs.overlay() !== null });
 const hint = createWalkHint(element<HTMLElement>('.walk-hint'));
 const talkHint = createTalkHint(element<HTMLElement>('.talk-hint'));
 const settings = createSettings(language, controls, {
   onLanguage: () => setLanguage(otherLanguage(language)),
   onControls: () => setControls(otherControls(controls)),
   onReadToMe: () => playerSettings.toggleReadToMe(),
+  onTurtle: () => playerSettings.toggleTurtle(),
   onAddPin: () => {
     pinSetup.open();
     showScreen();
@@ -236,17 +279,18 @@ const input = createInput({
   joystick: { base: element<HTMLElement>('.joystick'), knob: element<HTMLElement>('.joystick-knob') },
   outbox,
   controls: () => controls,
-  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing(),
+  active: () => inWorld && room !== null && connection === 'connected' && !settings.isOpen() && !pinSetup.isOpen() && !creaturesUp() && duels.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing(),
   screenToTile: (x, y) => scene.screenToTile(x, y),
   canReach: (tile) => view.canReach(tile),
   marker: (tile, refused) => scene.setMarker(tile, refused),
   ...useControls(view, talks, skills),
+  tapped: (tile) => duels.tapped(tile),
 });
 
 /** Where the new player's hint points: at the character who gives the first creature, while nothing else is up. */
 function talkHintSpot(): { npc: string; at: Point } | null {
   const npc = talks.starterNpc();
-  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || battles.overlay() !== null || story.overlay() !== null || skills.overlay() !== null || jobs.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
+  if (npc === null || !inWorld || connection !== 'connected' || settings.isOpen() || pinSetup.isOpen() || creaturesUp() || story.overlay() !== null || skills.overlay() !== null || jobs.overlay() !== null || talks.isOpen() || storyCues.playing()) return null;
   const at = scene.npcOnScreen(npc);
   return at ? { npc, at } : null;
 }
@@ -254,6 +298,8 @@ function talkHintSpot(): { npc: string; at: Point } | null {
 function frame(now: number) {
   view.tick(now);
   battles.frame(now);
+  arena.frame(now);
+  duels.frame(now);
   talks.frame(now);
   story.frame();
   skills.frame(now);
@@ -264,7 +310,7 @@ function frame(now: number) {
   const pointing = talkHintSpot();
   talkHint.update(pointing?.at ?? null);
   // A new player is shown whom to tap first; the walking hint waits until then.
-  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && battles.overlay() === null && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
+  hint.update(inWorld && connection === 'connected' && view.predicted() !== null && !settings.isOpen() && !pinSetup.isOpen() && !creaturesUp() && story.overlay() === null && skills.overlay() === null && jobs.overlay() === null && !talks.isOpen() && !storyCues.playing() && pointing === null, controls);
   const predicted = view.predicted();
   const marked = scene.markerTile;
   if (marked && predicted && predicted.intent === 'idle' && !predicted.moving && samePoint(predicted.tile, marked)) scene.setMarker(null);
@@ -288,7 +334,7 @@ function setLanguage(next: Language) {
 }
 
 function screen(): Screen {
-  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (battles.overlay() ?? story.overlay() ?? skills.overlay() ?? jobs.overlay() ?? 'world');
+  return !inWorld ? profiles.state().view : pinSetup.isOpen() ? 'pinSetup' : (arena.overlay() ?? battles.overlay() ?? duels.overlay() ?? story.overlay() ?? skills.overlay() ?? jobs.overlay() ?? 'world');
 }
 
 function showScreen() {
@@ -350,6 +396,10 @@ function forgetRoom() {
   stopFeed = () => {};
   stopBattles();
   stopBattles = () => {};
+  stopArena();
+  stopArena = () => {};
+  stopDuels();
+  stopDuels = () => {};
   stopStory();
   stopStory = () => {};
   stopTalks();
@@ -377,6 +427,9 @@ async function leaveWorld() {
   connection = null;
   forgetRoom();
   battles.reset();
+  arena.reset();
+  duels.reset();
+  duels.setArena(false);
   story.reset();
   talks.reset();
   skills.reset();
@@ -428,6 +481,7 @@ function enterWorld() {
     },
     welcome: (welcome) => {
       protocol = welcome.protocol;
+      duels.setArena(welcome.arena);
       hud.setWelcome(welcome);
     },
     players: (count) => {
@@ -441,6 +495,8 @@ function enterWorld() {
       playerCount = null;
       room = joined;
       stopBattles = battles.joined(joined);
+      stopArena = arena.joined(joined);
+      stopDuels = duels.joined(joined);
       stopStory = story.joined(joined);
       stopTalks = talks.joined(joined);
       stopCues = storyCues.joined(joined);
@@ -482,7 +538,7 @@ const game = new Game({
   // Phaser plays nothing: the only sound is "Read to me", through one audio element of the page's own (clip-player.ts).
   audio: { noAudio: true },
   scale: { mode: Scale.NONE, width: initialView.width, height: initialView.height, zoom: initialView.zoom },
-  scene: [scene, battles.scene],
+  scene: [scene, battles.scene, arena.scene],
 });
 
 window.addEventListener('resize', () => {
@@ -552,7 +608,10 @@ installTestHook({
       canAddPin,
       settingsOpen: settings.isOpen(),
       voice: { readToMe: playerSettings.readToMe(), ...clips.state() },
+      turtle: playerSettings.turtle(),
       ...battles.snapshot(performance.now()),
+      ...arena.snapshot(),
+      ...duels.snapshot(performance.now()),
       ...story.snapshot(),
       ...skills.snapshot(performance.now()),
       ...jobs.snapshot(),
