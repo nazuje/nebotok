@@ -84,11 +84,15 @@ export type ArenaJoinMessage = { readonly fightId: string; readonly reservation:
 /** One creature of a side's line-up: its fighter id, species and level, and its team place, or null for a creature not of your team. */
 export type ArenaLineupCreature = { readonly id: string; readonly species: string; readonly level: number; readonly place: number | null };
 
-/** `arena.started`: the fight's mode, both sides' line-ups and which side is yours. */
+/**
+ * `arena.started`: the fight's mode, both sides' line-ups and which side is yours. A watcher of a
+ * duel is `watching`, sees it from side 0 and sends no input.
+ */
 export type ArenaStartedMessage = {
   readonly fightId: string;
   readonly mode: 'wild' | 'rounds';
   readonly side: Side;
+  readonly watching: boolean;
   readonly sides: readonly [readonly ArenaLineupCreature[], readonly ArenaLineupCreature[]];
 };
 

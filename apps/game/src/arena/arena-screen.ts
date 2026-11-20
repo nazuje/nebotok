@@ -12,7 +12,8 @@ import type { BadgeTone, Popup } from './arena-juice.ts';
  * level badge coloured by the level gap, and health with a trail of what was just lost), the
  * island's weather in the corner, the damage numbers over the creatures, the parts the controls
  * fill in, and the result once the server has settled the fight, with a picture for every ending
- * so it reads without words.
+ * so it reads without words. A duel's watcher gets Stop watching, a one-tap button, instead of the
+ * controls, and everyone sees when the fight waits for a player.
  */
 
 /** A creature on the island, as its card shows it; `tone` compares its level with the other creature's. */
@@ -26,6 +27,10 @@ export type ArenaScreenView = {
   readonly result: ArenaResultMessage | null;
   /** Your team as the server last sent it, for the result's experience bars. */
   readonly team: readonly TeamCreature[];
+  /** Whether you watch someone's duel, rather than fight. */
+  readonly watching: boolean;
+  /** Whether the fight waits for a player who is away, or a watcher waits for the players to pick. */
+  readonly waiting: boolean;
 };
 
 export type ArenaScreen = {
@@ -43,18 +48,20 @@ export type ArenaScreen = {
 
 type Ending = { readonly picture: PictureId; readonly line: StringId; readonly also: StringId | null };
 
-/** The picture and words for how a fight ended. */
-export function endingOf(result: ArenaResultMessage): Ending {
+/** The picture and words for how a fight ended, for one who fought it or, `watching`, one who watched. */
+export function endingOf(result: ArenaResultMessage, watching = false): Ending {
   const outcome = result.outcome?.result ?? null;
+  const gaveUp = result.rounds.some((round) => round.how === 'gaveUp') ? 'arena.gaveUp' : null;
+  if (watching) return outcome === null ? { picture: 'cloud-off', line: 'battle.interrupted', also: null } : { picture: 'trophy', line: 'arena.duelOver', also: gaveUp };
   switch (outcome) {
     case 'won':
-      return { picture: 'trophy', line: 'battle.won', also: null };
+      return { picture: 'trophy', line: 'battle.won', also: gaveUp };
     case 'wonByRingOut':
       return { picture: 'ring-out', line: 'battle.won', also: 'arena.ringOut' };
     case 'befriended':
       return { picture: 'heart', line: result.befriended?.placedIn === 'storage' ? 'battle.befriendedStored' : 'battle.befriended', also: null };
     case 'lost':
-      return { picture: 'puff', line: result.woke ? 'battle.teamFainted' : 'battle.over', also: null };
+      return { picture: 'puff', line: result.woke ? 'battle.teamFainted' : 'battle.over', also: gaveUp };
     case 'ran':
       return { picture: 'leave', line: 'battle.ranAway', also: null };
     case 'timeUp':
@@ -114,7 +121,7 @@ function rewardRow(reward: ArenaResultMessage['rewards'][number], team: readonly
   ]);
 }
 
-export function createArenaScreen(root: HTMLElement, options: { continue(): void }): ArenaScreen {
+export function createArenaScreen(root: HTMLElement, options: { continue(): void; unwatch(): void }): ArenaScreen {
   const cards = [makeCard('mine'), makeCard('theirs')] as const;
   const leave = el('button', { className: 'arena-leave', attrs: { type: 'button' } });
   const top = el('div', { className: 'arena-top' }, [cards[0].root, cards[1].root, leave]);
@@ -125,9 +132,23 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
   const cluster = el('div', { className: 'arena-cluster' });
   const rounds = el('div', { className: 'arena-rounds' });
   const result = el('div', { className: 'arena-result', attrs: { role: 'dialog', 'aria-modal': 'true' } });
-  root.replaceChildren(field, weather, popups, top, zone, cluster, rounds, result);
+  const waiting = el('p', { className: 'arena-waiting', attrs: { role: 'status' } });
+  const unwatch = el('div', { className: 'arena-unwatch' });
+  root.replaceChildren(field, weather, popups, top, zone, cluster, rounds, waiting, unwatch, result);
   let resultKey = '';
   let weatherKey = '';
+  let watchKey = '';
+
+  function renderWatching(view: ArenaScreenView, language: Language) {
+    root.dataset.watching = String(view.watching);
+    waiting.hidden = !view.waiting || view.result !== null;
+    unwatch.hidden = !view.watching || view.result !== null;
+    const key = `${language}/${view.watching}`;
+    if (key === watchKey) return;
+    watchKey = key;
+    waiting.replaceChildren(pictureIcon('clock', 32), el('span', { text: text('arena.waiting', language) }));
+    unwatch.replaceChildren(...(view.watching ? [pictureButton('arena-stop-watching secondary', pictureIcon('watch', 32), text('arena.stopWatching', language), options.unwatch)] : []));
+  }
 
   function renderWeather(type: string, language: Language) {
     const key = `${type}/${language}`;
@@ -145,7 +166,7 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
     const key = JSON.stringify([language, shown, view.team.map((creature) => [creature.species, creature.level, creature.xp])]);
     if (!shown || key === resultKey) return;
     resultKey = key;
-    const ending = endingOf(shown);
+    const ending = endingOf(shown, view.watching);
     const befriended = shown.befriended;
     const line = format(ending.line, language, { creature: befriended ? speciesName(befriended.species, language) : '' });
     const proceed = pictureButton('arena-continue primary', pictureIcon('check', 32), text('battle.continue', language), options.continue);
@@ -174,6 +195,7 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
       root.hidden = view === null;
       if (!view) {
         resultKey = '';
+        watchKey = '';
         popups.replaceChildren();
         return;
       }
@@ -181,6 +203,7 @@ export function createArenaScreen(root: HTMLElement, options: { continue(): void
       renderCard(cards[0], view.cards[0], language);
       renderCard(cards[1], view.cards[1], language);
       renderWeather(view.weather, language);
+      renderWatching(view, language);
       renderResult(view, language);
     },
     popup: (popup, x, y, language) => {

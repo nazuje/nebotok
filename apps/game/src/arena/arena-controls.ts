@@ -1,4 +1,4 @@
-import type { Language } from '@nebotok/core';
+import { DUEL_GIVE_UP_MS, type Language, type PictureId, type StringId } from '@nebotok/core';
 import { el } from '../dom.ts';
 import { digits } from '../loadout-picker.ts';
 import { abilityIcon, pictureIcon } from '../pictures.ts';
@@ -10,7 +10,7 @@ import { ARENA_ACTIONS, PAD_RADIUS, createLatch, stickDirection, type ArenaActio
  * The fight's touch and keyboard controls (docs/arena.md, "Screens and controls"). A floating stick
  * appears wherever a thumb lands on the left half; the right side holds buttons 1 to 3, Dash, and
  * Treat and Swap while they can be used, each with a cooldown ring; Leave sits in a top corner and
- * is held for `LEAVE_HOLD_MS`. Keys: WASD or arrows, 1, 2, 3, Space, E and Q. Ported from the
+ * is held for `LEAVE_HOLD_MS`, or in a duel Give up, held for `DUEL_GIVE_UP_MS`. Keys: WASD or arrows, 1, 2, 3, Space, E and Q. Ported from the
  * battle-feel prototype's controls. They only collect input; the link sends it.
  */
 
@@ -31,6 +31,13 @@ const keyOf = (key: string): string => (key.length === 1 ? key.toLowerCase() : k
 
 const ACTION_PICTURES = { dash: 'dash', treat: 'treat', swap: 'swap' } as const;
 
+/** The corner button's two jobs: leave a wild fight, or give a duel up. Both send `leave` once held. */
+export type Quit = 'leave' | 'giveUp';
+const QUITS: Readonly<Record<Quit, { readonly picture: PictureId; readonly label: StringId; readonly holdMs: number }>> = {
+  leave: { picture: 'leave', label: 'arena.leave', holdMs: LEAVE_HOLD_MS },
+  giveUp: { picture: 'flag', label: 'arena.giveUp', holdMs: DUEL_GIVE_UP_MS },
+};
+
 export type ArenaControlsOptions = {
   /** Whether the fight takes input now; keys and the stick do nothing otherwise. */
   active(): boolean;
@@ -41,10 +48,10 @@ export type ArenaControls = {
   direction(): number | null;
   /** The buttons for the next send. */
   take(): Pressed;
-  /** Whether Leave has been held long enough: then every send asks to leave. */
+  /** Whether Leave or Give up has been held long enough: then every send asks to leave. */
   leaving(): boolean;
-  /** Shows the buttons as they are now and runs Leave's hold. */
-  render(buttons: readonly ButtonState[], language: Language, now: number, canLeave: boolean): void;
+  /** Shows the buttons as they are now and runs the corner button's hold, hidden for `quit` null. */
+  render(buttons: readonly ButtonState[], language: Language, now: number, quit: Quit | null): void;
   /** Lets go of every key, button and the stick, and forgets a Leave held. */
   reset(): void;
   /** Whether a thumb is on the stick. */
@@ -146,7 +153,7 @@ export function createArenaControls(parts: { zone: HTMLElement; cluster: HTMLEle
   const keys = new Set<string>();
   const buttons = new Map<ArenaAction, Button>(ARENA_ACTIONS.map((action) => [action, makeButton(action, latch, options.active)]));
   parts.cluster.append(...[...buttons.values()].map((button) => button.element));
-  parts.leave.append(pictureIcon('leave', 32));
+  let quitShown: Quit | null = null;
   let leaveFrom: number | null = null;
   let leaving = false;
 
@@ -207,7 +214,7 @@ export function createArenaControls(parts: { zone: HTMLElement; cluster: HTMLEle
     },
     take: () => latch.take(),
     leaving: () => leaving,
-    render: (states, language, now, canLeave) => {
+    render: (states, language, now, quit) => {
       for (const state of states) {
         const shown = buttons.get(state.action);
         if (!shown) continue;
@@ -223,10 +230,17 @@ export function createArenaControls(parts: { zone: HTMLElement; cluster: HTMLEle
         element.setAttribute('aria-label', buttonLabel(state, language));
         element.replaceChildren(...picturesOf(state), ring);
       }
-      parts.leave.hidden = !canLeave;
-      parts.leave.setAttribute('aria-label', text('arena.leave', language));
-      const held = leaveFrom === null ? 0 : Math.min(1, (now - leaveFrom) / LEAVE_HOLD_MS);
-      if (held >= 1 && canLeave) leaving = true;
+      parts.leave.hidden = quit === null;
+      if (quit === null) return;
+      const look = QUITS[quit];
+      if (quitShown !== quit) {
+        quitShown = quit;
+        parts.leave.dataset.quit = quit;
+        parts.leave.replaceChildren(pictureIcon(look.picture, 32));
+      }
+      parts.leave.setAttribute('aria-label', text(look.label, language));
+      const held = leaveFrom === null ? 0 : Math.min(1, (now - leaveFrom) / look.holdMs);
+      if (held >= 1) leaving = true;
       parts.leave.style.setProperty('--hold', (leaving ? 1 : held).toFixed(3));
     },
     reset: () => {

@@ -16,6 +16,12 @@ export const Player = schema(
     connected: t.boolean().default(true),
     /** True while the player is in a battle. Everything about the battle goes only to them, as messages. */
     inBattle: t.boolean().default(false),
+    /** True while the player fights a duel (`inBattle` too): others see the duel mark and may tap it to watch. */
+    duelling: t.boolean().default(false),
+    /** True while the player watches a duel, standing where they were. */
+    watching: t.boolean().default(false),
+    /** True for `DUEL_TROPHY_MS` after the player won a duel: their courier wears a small trophy. */
+    trophy: t.boolean().default(false),
     /** True while the player is talking to a character. What is said goes only to them, as messages. */
     talking: t.boolean().default(false),
     /** `''`, or the skill the player is doing (`foraging`, `fishing`, `cooking`), for the pose others see. Everything else about it goes only to them. */

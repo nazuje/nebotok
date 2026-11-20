@@ -27,7 +27,7 @@ import { readConfig } from '../apps/server/src/config.ts';
 import { createLog } from '../apps/server/src/log.ts';
 import { createServices } from '../apps/server/src/services.ts';
 import { PLAYER_SPAWN, createSave, defaultSettings, emptyProgress, newCreature } from '../packages/core/src/index.ts';
-import { BROWSERS, DEVICES, animationsSettled, nextFrames, presetLanguage, readState, reportCspViolations, screenshot, until, watch } from './lib/game-page.mjs';
+import { BROWSERS, DEVICES, animationsSettled, makeThumb, nextFrames, presetLanguage, readState, reportCspViolations, screenshot, until, watch } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, freePort } from './lib/server-process.mjs';
 import { arenaName, runTag } from './lib/test-players.mjs';
@@ -184,23 +184,6 @@ function towardWild(state) {
   return length === 0 ? null : { x: dx / length, y: dy / length };
 }
 
-/** A thumb, or WebKit's mouse, that lands on the stick's half of the screen and pushes. */
-async function makeThumb(page) {
-  if (chosen.name === 'chromium') {
-    const cdp = await page.context().newCDPSession(page);
-    const touch = (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [{ x: at.x, y: at.y, id: 1 }] : [] });
-    return { down: (at) => touch('touchStart', at), move: (at) => touch('touchMove', at), up: () => touch('touchEnd') };
-  }
-  return {
-    down: async (at) => {
-      await page.mouse.move(at.x, at.y);
-      await page.mouse.down();
-    },
-    move: (at) => page.mouse.move(at.x, at.y, { steps: 2 }),
-    up: () => page.mouse.up(),
-  };
-}
-
 const KEYS = { right: 'd', left: 'a', down: 's', up: 'w' };
 function keysToward(push) {
   const held = [];
@@ -236,7 +219,7 @@ const befriend = (state) => (treatShown(state) ? { push: towardWild(state), pres
 async function fightOn(page, run, { endsBy, stopWhen, plan = attack, seen = async () => {} }) {
   const { width, height } = page.viewportSize();
   const origin = { x: Math.round(width * 0.22), y: Math.round(height * 0.72) };
-  const thumb = run.steer === 'keys' ? null : await makeThumb(page);
+  const thumb = run.steer === 'keys' ? null : await makeThumb(page, chosen.name);
   const keys = { held: [] };
 
   /** One push and one press, by thumb or by keys. */
@@ -312,7 +295,7 @@ function holdStrongNumber() {
 async function holdLeave(page) {
   const at = await centre(page, '#arena .arena-leave');
   if (!at) throw new Error('Leave is not on the screen');
-  const thumb = await makeThumb(page);
+  const thumb = await makeThumb(page, chosen.name);
   await thumb.down(at);
   await sleep(1_400);
   await thumb.up();

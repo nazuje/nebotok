@@ -13,6 +13,7 @@ import {
   befriendedFromFight,
   canBattle,
   createRng,
+  duelRewards,
   greedyPolicy,
   hasRoomForCreature,
   inventoryAfterFight,
@@ -44,6 +45,8 @@ import {
   type Progress,
   type RefusalReason,
   type Rng,
+  type RoundsOutcome,
+  type Side,
   type WildEncounter,
 } from '@nebotok/core';
 
@@ -258,6 +261,25 @@ export function settleFight(progress: Progress, fight: ArenaFight | null, conten
     befriended: creature && added ? { species: creature.species, level: creature.level, placedIn: added.placedIn } : null,
     fainted: !canBattle(next),
   };
+}
+
+/**
+ * A duel's results for its player on `side`, win or lose: `duelRewards` to each of their creatures
+ * that fought, and every move its new levels teach in `learned`. Health is put back as it was
+ * before the duel, which never touched the team. A duel stopped with no result gives nothing.
+ */
+export function settleDuel(progress: Progress, fight: ArenaFight | null, side: Side, content: BattleContent): FightSettlement {
+  if (fight?.mode !== 'rounds' || !fight.outcome) return { progress, rewards: [], learned: [], befriended: null, fainted: !canBattle(progress) };
+  const grown = duelRewards(progress.team, fight, side, content);
+  const taught = learnTeamMoves(progress.team, grown.team, content);
+  const next: Progress = { ...progress, team: taught.team };
+  return { progress: next, rewards: grown.rewards, learned: newlyLearned(progress.team, grown.team, content), befriended: null, fainted: !canBattle(next) };
+}
+
+/** A best of 3's outcome as the player on `side` hears it: `won` and `lost` are side 0's, so side 1 hears them the other way round. */
+export function duelOutcomeFor(outcome: RoundsOutcome, side: Side): RoundsOutcome {
+  if (side === 0 || outcome.result === 'draw') return outcome;
+  return { ...outcome, result: outcome.result === 'won' ? 'lost' : 'won' };
 }
 
 /** Why `storage.swap` could not be done: `full` when there was no room on the side a creature was going to. */

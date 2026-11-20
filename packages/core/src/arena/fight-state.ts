@@ -103,11 +103,14 @@ export type WildFight = {
   readonly outcome: WildOutcome | null;
 };
 
-/** One island of a best of 3: the round (0 to 2), how it ended, and whether it is played again. */
+/**
+ * One island of a best of 3: the round (0 to 2), how it ended, and whether it is played again.
+ * `forfeit` is a round a side had no creature for, `gaveUp` one its player gave up (duels only).
+ */
 export type RoundResult = {
   readonly round: number;
   readonly winner: Side | null;
-  readonly how: ArenaOutcome['how'] | 'forfeit';
+  readonly how: ArenaOutcome['how'] | 'forfeit' | 'gaveUp';
   readonly tick: number;
   readonly replayed: boolean;
 };

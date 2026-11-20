@@ -14,7 +14,7 @@ import type { ShownPlayer } from './world-view.ts';
 
 export type DuelOverlay = 'duel';
 
-/** The duel card up, for the test hook: the menu, your ask waiting, or an ask to answer. */
+/** The duel card up, for the test hook: the menu, your ask waiting, an ask to answer, or a duel to watch. */
 export type TestDuel = { kind: Shown['kind']; with: string; even: boolean | null; creatures: DuelCreature[]; leftMs: number };
 
 export type DuelsOptions = {
@@ -35,7 +35,7 @@ export type Duels = {
   joined(room: WorldRoom): () => void;
   /** Whether the server has arena fights on, from `welcome`: duels are offered only then. */
   setArena(on: boolean): void;
-  /** A tap on `tile`: opens the duel menu and returns true when another courier near enough stands there. */
+  /** A tap on `tile`: opens the duel menu, or the watch card for a courier in a duel, and returns true when another courier near enough stands there. */
   tapped(tile: Point): boolean;
   /** Called every frame. */
   frame(now: number): void;
@@ -47,8 +47,11 @@ export type Duels = {
 
 type Shown =
   | { readonly kind: 'menu'; readonly with: string }
+  | { readonly kind: 'watch'; readonly with: string }
   | { readonly kind: 'asking'; readonly with: string; readonly even: boolean }
   | { readonly kind: 'asked'; readonly with: string; readonly even: boolean; readonly creatures: readonly DuelCreature[]; readonly until: number };
+
+const LABELS: Readonly<Record<Shown['kind'], StringId>> = { menu: 'duel.challenge', watch: 'duel.watchTitle', asking: 'duel.challenge', asked: 'duel.asked' };
 
 /** Whether the duel is an even match or at real levels, as a picture and words. */
 const evenPicture = (even: boolean, language: Language) =>
@@ -60,6 +63,8 @@ const evenPicture = (even: boolean, language: Language) =>
  * levels. The one asked gets a card with the asker's courier, their first three creatures and a
  * big tick and cross, gone after DUEL_ANSWER_MS as the server declines by itself; "Read to me"
  * reads its line. A yes starts the duel with `arena.join`, which the arena screen takes from there.
+ * A tap on a courier showing the duel mark, from any distance, offers to watch it: `duel.watch`
+ * answers with `arena.join` for a watcher seat.
  */
 export function createDuels(root: HTMLElement, options: DuelsOptions): Duels {
   let room: WorldRoom | null = null;
@@ -95,6 +100,20 @@ export function createDuels(root: HTMLElement, options: DuelsOptions): Duels {
   function cancel() {
     send(CLIENT_MESSAGES.duelCancel, {});
     set(null);
+  }
+
+  function watch(who: string) {
+    send(CLIENT_MESSAGES.duelWatch, { who });
+    set(null);
+  }
+
+  function watchCard(who: string, language: Language): Node[] {
+    return [
+      el('div', { className: 'duel-faces' }, [...portrait(who), pictureIcon('challenge', 48)]),
+      el('h2', { className: 'duel-title', text: text('duel.watchTitle', language) }),
+      pictureButton('primary duel-watch', pictureIcon('watch', 48), text('duel.watch', language), () => watch(who)),
+      pictureButton('secondary duel-close', pictureIcon('cross', 32), text('duel.close', language), () => set(null)),
+    ];
   }
 
   function menu(to: string, language: Language): Node[] {
@@ -151,10 +170,22 @@ export function createDuels(root: HTMLElement, options: DuelsOptions): Duels {
     key = next;
     if (!shown) return root.replaceChildren();
     root.dataset.kind = shown.kind;
-    root.setAttribute('aria-label', text(shown.kind === 'asked' ? 'duel.asked' : 'duel.challenge', language));
-    const card = shown.kind === 'menu' ? menu(shown.with, language) : shown.kind === 'asking' ? asking(shown.with, shown.even, language) : asked(shown, language);
-    root.replaceChildren(el('div', { className: 'duel-card' }, card));
+    root.setAttribute('aria-label', text(LABELS[shown.kind], language));
+    root.replaceChildren(el('div', { className: 'duel-card' }, cardOf(shown, language)));
     root.querySelector<HTMLElement>('.primary')?.focus();
+  }
+
+  function cardOf(card: Shown, language: Language): Node[] {
+    switch (card.kind) {
+      case 'menu':
+        return menu(card.with, language);
+      case 'watch':
+        return watchCard(card.with, language);
+      case 'asking':
+        return asking(card.with, card.even, language);
+      default:
+        return asked(card, language);
+    }
   }
 
   function onAsked(message: DuelAskedMessage) {
@@ -190,9 +221,9 @@ export function createDuels(root: HTMLElement, options: DuelsOptions): Duels {
     tapped: (tile) => {
       const from = options.standing();
       if (!arena || !from || shown) return false;
-      const other = options.couriers().find((player) => !player.self && player.connected && !player.inBattle && Math.round(player.at.x) === tile.x && Math.round(player.at.y) === tile.y);
-      if (!other || !inDuelReach(from, other.tile)) return false;
-      set({ kind: 'menu', with: other.id });
+      const other = options.couriers().find((player) => !player.self && player.connected && (!player.inBattle || player.duelling) && Math.round(player.at.x) === tile.x && Math.round(player.at.y) === tile.y);
+      if (!other || (!other.duelling && !inDuelReach(from, other.tile))) return false;
+      set({ kind: other.duelling ? 'watch' : 'menu', with: other.id });
       return true;
     },
     frame: (now) => {
@@ -207,7 +238,7 @@ export function createDuels(root: HTMLElement, options: DuelsOptions): Duels {
       duel: shown && {
         kind: shown.kind,
         with: shown.with,
-        even: shown.kind === 'menu' ? null : shown.even,
+        even: shown.kind === 'menu' || shown.kind === 'watch' ? null : shown.even,
         creatures: shown.kind === 'asked' ? [...shown.creatures] : [],
         leftMs: shown.kind === 'asked' ? Math.max(0, Math.round(shown.until - now)) : 0,
       },

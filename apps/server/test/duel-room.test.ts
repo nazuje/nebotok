@@ -1,12 +1,16 @@
 import type { Room } from '@colyseus/sdk';
 import {
+  ARENA_NONE,
   DUEL_ANSWER_MS,
   DUEL_PAUSE_MS,
+  DUEL_TROPHY_MS,
+  DUEL_WATCHERS,
   encounterZoneAt,
   evenLevel,
   isWalkable,
   newCreature,
   shrineAt,
+  xpForWin,
   type ArenaJoinMessage,
   type ArenaResultMessage,
   type ArenaStartedMessage,
@@ -18,10 +22,10 @@ import {
   type SettingsMessage,
 } from '@nebotok/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { DUEL_WAIT_MS } from '../src/arena-room.ts';
+import { DUEL_WAIT_MS, type ArenaRoom } from '../src/arena-room.ts';
 import type { ArenaRoomState } from '../src/arena-state.ts';
 import type { WorldRoom } from '../src/world-room.ts';
-import { until } from './helpers.ts';
+import { repeat, until } from './helpers.ts';
 import { send, sleep, storyServer, type Player } from './story-server.ts';
 
 let server: Awaited<ReturnType<typeof storyServer>>;
@@ -216,9 +220,12 @@ describe('an accepted duel', () => {
     expect(mine).toMatchObject({ mode: 'rounds', side: 0 });
     expect(theirs).toMatchObject({ mode: 'rounds', side: 1, fightId: mine.fightId });
     const level = evenLevel([threeStanding(), [creature('dawnshell', 12), creature('snowsnoot', 10), creature('glowbun', 8)]]);
-    expect(mine.sides.flat().map((each) => each.level)).toEqual(Array(6).fill(level));
+    // While picking, each side is told only its own defaults.
+    expect([...mine.sides[0], ...theirs.sides[1]].map((each) => each.level)).toEqual(Array(6).fill(level));
     expect(mine.sides[0].map((each) => each.species)).toEqual(['glowbun', 'puddlepip', 'pinwhirl']);
-    expect(mine.sides[1].map((each) => each.species)).toEqual(['dawnshell', 'snowsnoot', 'glowbun']);
+    expect(mine.sides[1]).toEqual([]);
+    expect(theirs.sides[1].map((each) => each.species)).toEqual(['dawnshell', 'snowsnoot', 'glowbun']);
+    await pickBoth(first, second);
     await until(() => first.room.state.tick > 10, 'the duel to run');
     expect(first.room.state.bodies.map((body) => body.turtle)).toEqual([true, false]);
     expect(shown(asker)?.inBattle).toBe(true);
@@ -255,5 +262,181 @@ describe('an accepted duel', () => {
       [true, 'away'],
       [true, 'away'],
     ]);
+  });
+});
+
+/** Both duellists send their picks, the first three of their teams, and round 1 starts. */
+async function pickBoth(first: Fighter, second: Fighter) {
+  await until(() => first.room.state.phase === 'picking' && second.room.state.phase === 'picking', 'picking to start');
+  first.room.send('arena.pick', { order: [0, 1, 2] });
+  second.room.send('arena.pick', { order: [0, 1, 2] });
+  await until(() => first.room.state.phase === 'fighting' && first.room.state.bodies.length === 2, 'round 1 to start');
+}
+
+/** An accepted duel with both duellists in its room. */
+async function duel(asker: Courier, answerer: Courier, even = false): Promise<[Fighter, Fighter]> {
+  await ask(asker, answerer, even);
+  await send(answerer, 'duel.answer', { yes: true });
+  await answered(asker, answerer);
+  return Promise.all([enter(asker), enter(answerer)]);
+}
+
+/** Streams one arena input from a seat, as a client does once per step. */
+function input(room: Room<unknown, ArenaRoomState>, fields: Partial<Record<'dir' | 'press', number> & Record<'dash' | 'treat' | 'swap' | 'leave', boolean>>) {
+  const handle = room.input();
+  Object.assign(handle.data, { dir: ARENA_NONE, press: ARENA_NONE, dash: false, treat: false, swap: false, leave: false }, fields);
+  handle.send();
+}
+
+/** Holds give up, as the duel island's corner button sends it once held. */
+async function giveUp(fighter: Fighter) {
+  await repeat(10, async () => {
+    input(fighter.room, { leave: true });
+    await sleep(33);
+  });
+}
+
+describe('the duel island', () => {
+  it('lets both duellists pick from every standing creature, the first three standing being the defaults', async () => {
+    const asker = await courier('Test Asker', spawn(), [creature('glowbun', 6), creature('puddlepip', 6, 0), creature('pinwhirl', 6), creature('snowsnoot', 7), creature('dawnshell', 8)]);
+    const answerer = await courier('Test Answerer', tileAway(1), [creature('dawnshell', 9), creature('glowbun', 9), creature('puddlepip', 9), creature('snowsnoot', 9)]);
+    const [first, second] = await duel(asker, answerer);
+    const [mine, theirs] = await Promise.all([first.started, second.started]);
+    expect(mine).toMatchObject({ watching: false, side: 0 });
+    expect(mine.sides[0].map((each) => each.place)).toEqual([0, 2, 3]);
+    expect(mine.sides[1]).toEqual([]);
+    expect(theirs.sides[1].map((each) => each.place)).toEqual([0, 1, 2]);
+    await until(() => first.room.state.duel && shown(asker)?.duelling === true && shown(asker)?.inBattle === true, 'the duel mark');
+
+    const again = new Promise<ArenaStartedMessage>((resolve) => first.room.onMessage('arena.started', resolve));
+    await until(() => first.room.state.phase === 'picking', 'picking to start');
+    first.room.send('arena.pick', { order: [4, 3, 0] });
+    second.room.send('arena.pick', { order: [3, 1, 0] });
+    const lined = await again;
+    expect(lined.sides[0].map((each) => each.place)).toEqual([4, 3, 0]);
+    expect(lined.sides[1].map((each) => each.species)).toEqual(['snowsnoot', 'glowbun', 'dawnshell']);
+    await until(() => first.room.state.bodies[0]?.species === 'dawnshell', 'round 1 with the picks');
+  });
+
+  it('seats up to six watchers, who see the same state and whose input is thrown away; a seventh is refused', async () => {
+    const [asker, answerer] = await pair();
+    const [first, second] = await duel(asker, answerer);
+    await pickBoth(first, second);
+    const fightRoom = server.colyseus.getRoomById<ArenaRoom>(first.room.roomId);
+
+    const watchers = await repeat(DUEL_WATCHERS, (at) => courier(`Test Watcher ${at + 1}`, tileAway(2)));
+    const seats = await repeat(DUEL_WATCHERS, async (at) => {
+      const watcher = watchers[at]!;
+      await send(watcher, 'duel.watch', { who: keyOf(asker) });
+      return enter(watcher);
+    });
+    const started = await seats[0]!.started;
+    expect(started).toMatchObject({ watching: true, side: 0, mode: 'rounds' });
+    expect(started.sides[0].length).toBe(3);
+    await until(() => first.room.state.watchers.length === DUEL_WATCHERS, 'the stands to fill');
+    expect([...first.room.state.watchers]).toEqual(Array(DUEL_WATCHERS).fill('green'));
+    expect(watchers.every((each) => shown(each)?.watching === true)).toBe(true);
+
+    const seventh = await courier('Test Seventh', tileAway(2));
+    await send(seventh, 'duel.watch', { who: keyOf(answerer) });
+    expect(await refusal(seventh, 'duel.watch')).toBe('full');
+    expect(shown(seventh)?.watching).toBe(false);
+
+    // A watcher's input, even give up, changes nothing.
+    const watching = seats[0]!.room;
+    await repeat(10, async () => {
+      input(watching, { leave: true, dir: 0, press: 0 });
+      await sleep(33);
+    });
+    await until(() => fightRoom.stats.watcherInputs >= 5, 'watcher input to be thrown away');
+    expect(fightRoom.stats.inputs).toBe(0);
+    expect(first.room.state.phase).toBe('fighting');
+    const tick = fightRoom.state.tick;
+    await until(() => watching.state.tick > tick && watching.state.bodies.length === 2, 'the watcher to see the fight');
+    expect(watching.state.bodies.map((body) => body.id)).toEqual([...first.room.state.bodies].map((body) => body.id));
+
+    // One tap leaves: the stands have a seat again, and the world no longer shows them watching.
+    await watching.leave();
+    await until(() => shown(watchers[0]!)?.watching === false && first.room.state.watchers.length === DUEL_WATCHERS - 1, 'the watcher to stop watching');
+    await send(seventh, 'duel.watch', { who: keyOf(answerer) });
+    await (await enter(seventh)).started;
+  });
+
+  it('refuses to watch anything but a duel, and stops watching on a walk', async () => {
+    const [asker, answerer] = await pair();
+    const watcher = await courier('Test Watcher', tileAway(2));
+    await send(watcher, 'duel.watch', { who: keyOf(asker) });
+    expect(await refusal(watcher, 'duel.watch')).toBe('notNow');
+    await send(watcher, 'duel.watch', { who: keyOf(watcher) });
+    expect(await refusal(watcher, 'duel.watch')).toBe('invalid');
+
+    await duel(asker, answerer);
+    await send(watcher, 'duel.watch', { who: keyOf(asker) });
+    const seat = await enter(watcher);
+    await seat.started;
+    await until(() => shown(watcher)?.watching === true, 'the watching mark');
+    // Neither duellist can watch, and a watcher cannot be asked.
+    await send(answerer, 'duel.watch', { who: keyOf(asker) });
+    expect(await refusal(answerer, 'duel.watch')).toBe('inBattle');
+    const fourth = await courier('Test Fourth', tileAway(2));
+    await send(fourth, 'duel.ask', { to: keyOf(watcher), even: true });
+    expect(await refusal(fourth, 'duel.ask')).toBe('notNow');
+
+    await send(watcher, 'walk.to', { x: spawn().x, y: spawn().y });
+    await until(() => shown(watcher)?.watching === false, 'walking to stop the watching');
+  });
+
+  it('gives each side 25% of a win for each creature that fought, win or lose, keeps health, and crowns the winner', async () => {
+    const [asker, answerer] = await pair();
+    const [first, second] = await duel(asker, answerer);
+    await pickBoth(first, second);
+    const watcher = await courier('Test Watcher', tileAway(2));
+    await send(watcher, 'duel.watch', { who: keyOf(asker) });
+    const seat = await enter(watcher);
+    await seat.started;
+    const before = server.stored(asker.id)!.team.map((each) => each.hp);
+
+    await giveUp(first);
+    const [lost, won, watched] = await Promise.all([asker.box.take<ArenaResultMessage>('arena.result'), answerer.box.take<ArenaResultMessage>('arena.result'), watcher.box.take<ArenaResultMessage>('arena.result')]);
+    // Each duellist hears the outcome from their own side; a watcher from side 0's.
+    expect(lost.outcome).toMatchObject({ result: 'lost', winner: 1 });
+    expect(won.outcome).toMatchObject({ result: 'won', winner: 1 });
+    expect(lost.rounds.map((round) => round.how)).toEqual(['gaveUp', 'gaveUp']);
+    // Both sides' creatures are level 6: a quarter of a win over one, truncated.
+    const xp = Math.trunc(xpForWin(6) / 4);
+    expect(lost.rewards.map((reward) => [reward.index, reward.xp])).toEqual([[0, xp]]);
+    expect(won.rewards.map((reward) => reward.index)).toEqual([0]);
+    expect(watched).toMatchObject({ outcome: { result: 'lost', winner: 1 }, rewards: [], learned: [] });
+
+    await until(() => shown(asker)?.inBattle === false && shown(watcher)?.watching === false, 'everyone back in the world');
+    expect(server.stored(asker.id)!.team.map((each) => each.hp)).toEqual(before);
+    expect(shown(answerer)?.trophy).toBe(true);
+    expect(shown(asker)?.trophy).toBe(false);
+    expect(server.logged.lines.find((line) => line['msg'] === 'fighter gave up')).toMatchObject({ side: 0 });
+    server.clock.offset = DUEL_TROPHY_MS;
+    await until(() => shown(answerer)?.trophy === false, 'the trophy to come off');
+  });
+
+  it('pauses while a duellist is away, and watchers see it waiting', async () => {
+    const [asker, answerer] = await pair();
+    const [first, second] = await duel(asker, answerer);
+    await pickBoth(first, second);
+    const watcher = await courier('Test Watcher', tileAway(2));
+    await send(watcher, 'duel.watch', { who: keyOf(answerer) });
+    const seat = await enter(watcher);
+    await seat.started;
+    const fightRoom = server.colyseus.getRoomById<ArenaRoom>(first.room.roomId);
+
+    const { reconnectionToken } = second.room;
+    await second.room.leave(false);
+    await until(() => seat.room.state.waiting, 'the watcher to see the duel waiting');
+    const tick = fightRoom.state.tick;
+    await sleep(300);
+    expect(fightRoom.state.tick).toBe(tick);
+
+    server.colyseus.sdk.auth.token = answerer.token;
+    const back = await server.colyseus.sdk.reconnect<ArenaRoomState>(reconnectionToken);
+    back.reconnection.enabled = false;
+    await until(() => !seat.room.state.waiting && fightRoom.state.tick > tick + 10, 'the duel to go on');
   });
 });

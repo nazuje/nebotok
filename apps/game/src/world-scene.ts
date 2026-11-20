@@ -74,7 +74,7 @@ const STORM_BAND_ROW_PX = 2;
 const STORM_BAND_DEPTH = 9_000;
 
 /** A name to show above a courier, at a spot on the page in CSS pixels. */
-export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly talking: boolean; readonly skill: string; readonly x: number; readonly y: number };
+export type NameLabel = { readonly id: string; readonly name: string; readonly away: boolean; readonly battling: boolean; readonly duelling: boolean; readonly watching: boolean; readonly trophy: boolean; readonly talking: boolean; readonly skill: string; readonly x: number; readonly y: number };
 
 /** How a character looks this frame: the way they face, and the mark over their head. */
 export type NpcLook = { readonly facing: Direction; readonly mark: HeadMark | null };
@@ -607,7 +607,7 @@ export class WorldScene extends Scene {
       const sprite = this.sprites.get(player.id);
       if (player.self || !sprite) return [];
       const at = this.toScreen(Math.round(sprite.x), Math.round(sprite.y) - TILE / 2);
-      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, talking: player.talking, skill: player.skill, x: at.x, y: at.y }];
+      return [{ id: player.id, name: player.name, away: !player.connected, battling: player.inBattle, duelling: player.duelling, watching: player.watching, trophy: player.trophy, talking: player.talking, skill: player.skill, x: at.x, y: at.y }];
     });
   }
 }

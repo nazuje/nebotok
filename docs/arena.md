@@ -114,7 +114,8 @@ The whole fight (#147), around the island:
   `outcome`) or a `RoundsFight` (`picks`, `round`, `replay`, `rounds` played, `score`,
   `outcome`). `fightHash` is its fingerprint.
 - `fight.ts`: `fightStart(setup, content)` and `fightStep(fight, inputs, content)`, which hand on to
-  `wildStart`/`wildStep` (`wild-fight.ts`) or `roundsStart`/`roundsStep` (`rounds.ts`). Their
+  `wildStart`/`wildStep` (`wild-fight.ts`) or `roundsStart`/`roundsStep` (`rounds.ts`, with
+  `roundsGiveUp` for a duel given up). Their
   `content` is a `FightContent`: the `ArenaContent` and the `items`, from `fightContentOf` or
   `loadFightContent`.
 - `treats.ts`: the window (`treatWindowPercent`, `treatWindowOpen`), `bestTreat`, and a thrown
@@ -127,7 +128,8 @@ The whole fight (#147), around the island:
 
 `ArenaInput` takes `treat`, `swap` and `leave` as optional, so the island's own inputs and goldens
 need none of them. `leave` is sent once the Leave button has been held for its second; the hold
-itself is the screen's. The island only reads side 0's; side 1 never treats, swaps or leaves.
+itself is the screen's. The island only reads side 0's; side 1 never treats, swaps or leaves. In a
+duel the arena room reads `leave` from either side as giving up, before the step (#158).
 
 An `outcome` is `{ winner, how, tick }` with `how` `knockout`, `ringOut` or `timeUp`; `winner` is
 null for a draw, which is also what two creatures down on the same tick give, and an equal share
@@ -354,10 +356,15 @@ Only in wild fights.
   creature left for a round loses that round (`forfeit`).
 - 3 s between rounds with the score as round pips (trophy, puff, empty) (#155, built): the room
   stops stepping, and the next two creatures already stand on the fresh island.
-- No Swap, no Treat, no Leave. A duel has a give-up button, held 2 s, which loses the rest.
-- **Outcomes:** `won`, `lost` or `draw`, with the list of rounds.
-- **Duel rewards** (`duelRewards`): 25% of `xpForWin` to every creature that fought, on both sides,
-  win or lose. Duel health is put back as it was before; nothing is lost.
+- No Swap, no Treat, no Leave. A duel has a give-up button, a flag held 2 s (`DUEL_GIVE_UP_MS`),
+  which loses the rest: the round under way and every round after it, until the other side has 2
+  round wins (`roundsGiveUp`, each such round `gaveUp`, #158, built). Giving up ends the duel as
+  a loss either way, and the rounds already played stay in the list.
+- **Outcomes:** `won`, `lost` or `draw`, with the list of rounds. Each duellist's
+  `arena.result` tells it from their own side; a watcher's from side 0.
+- **Duel rewards** (`duelRewards`, #158, built: `settleDuel` in `apps/server/src/battles.ts`): 25% of
+  `xpForWin` to every creature that fought, on both sides, win or lose. Duel health is put back as
+  it was before; nothing is lost. The winner's courier wears a trophy for 60 s (`DUEL_TROPHY_MS`).
 - **Trainer rewards:** from the trainer's entry in `content/trainers.json` (XP share, an item).
 
 **Even match** (duels, on by default): every creature fights at the higher of the two players'
@@ -565,8 +572,19 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   real levels); the answer card shows the asker's courier, their first three creatures and the
   even or real picture, with a big tick and cross, and "Read to me" reads a fixed line with no name
   in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline
-  (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`). Up to 6 watchers. The winner's courier wears
-  a small trophy for 60 s.
+  (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`).
+- **The duel island** (#158, built): both duellists get the pick screen above, from every standing
+  creature (all at the even level in an even match), opening on the first three, with its 30 s.
+  The island has flags around its rim and two cloud stands beside it, where the watchers' couriers
+  stand still (`arena-stands.ts`). No Treat and no Leave: the corner holds the give-up flag instead,
+  held 2 s. While a duellist's connection is down the fight pauses, and everyone on the island sees
+  a clock and "Waiting for the players…".
+- **Watching** (#158, built): a duellist's courier carries the duel mark (a gold edge and crossed
+  swords on the name tag). Tapping it, at any distance, opens a card with Watch; up to 6 watch one duel, the 7th is
+  refused. A watcher sees the island from side 0, with both cards and no stick, buttons or pick
+  screen (both sides' picks stay hidden until round 1), and their courier wears the watching mark
+  and stands still in the world. Stop watching, one tap at the bottom, leaves at once; walking away
+  in the world stops it too. At the end a watcher sees "The duel is over!" and Continue.
 
 ## Trainers
 
@@ -596,6 +614,9 @@ Planned names, so the tickets agree:
 - Rounds (#155, built): core `pickCount`, `defaultPickOrder`, `togglePick`, `isPickOrder` and
   `roundsTeam`; a fight plan's `pickers`; the world room's `startPractice`; the client's
   `arena-rounds.ts`.
+- Duels (#158, built): core `duelTeams`, `roundsGiveUp`, `DUEL_WATCHERS`, `DUEL_GIVE_UP_MS` and
+  `DUEL_TROPHY_MS`; the server's `settleDuel` and `duelOutcomeFor` (`battles.ts`); the client's
+  `arena-stands.ts`.
 - Client (#151, built): `apps/game/src/arena/`: `arena-link.ts` (joins the room, sends input,
   shows the result), `arena-scene.ts` (`ArenaScene`), `arena-controls.ts` (stick, buttons, keys,
   Leave), `arena-screen.ts`, `arena-buttons.ts`, `arena-input.ts` and `fight-book.ts`;
@@ -603,7 +624,8 @@ Planned names, so the tickets agree:
 - Test hook: `arena` (built in #151: fight id, mode, side, phase, tick, radius, both creatures
   with position and health, buttons with cooldown and lock, Leave, inputs and presses sent, what the
   scene drew, and the result), with `arena.picks`, `arena.round`, `arena.score` (yours first) and
-  `arena.countdown` for rounds (built in #155), next to `battle` until #160.
+  `arena.countdown` for rounds (built in #155), `arena.watching`, `arena.duel`, `arena.waiting` and
+  `arena.quit` (built in #158), next to `battle` until #160.
 
 ## Checks
 

@@ -21,8 +21,11 @@ import type { PlayerSettings } from './save.ts';
  * rules (`DUEL_REACH`, `DUEL_ANSWER_MS`, `DUEL_PAUSE_MS`, `DUEL_TEAM`), and `arena` in `welcome`.
  * 14: picking three for a best of 3: `arena.pick`, `refused` from the arena room, and its
  * `picking` and `between` phases with `countdown`, `picked` and `rounds` in its state.
+ * 15: the duel island: both duellists pick, `duel.watch` with watcher seats (`DUEL_WATCHERS`), `watching` in `arena.started`, `duel`, `waiting` and `watchers` in the arena
+ * state, giving up a duel with `leave` (`DUEL_GIVE_UP_MS`), and `duelling`, `watching` and `trophy`
+ * on each player.
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -38,6 +41,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   12: '0262812411765a',
   13: '0f0b76d24fb1b5',
   14: '1e9eadd51b162d',
+  15: '0beb26a352577f',
 };
 
 export type WorldInfo = {
@@ -103,6 +107,7 @@ export const CLIENT_MESSAGES = {
   duelAsk: 'duel.ask',
   duelAnswer: 'duel.answer',
   duelCancel: 'duel.cancel',
+  duelWatch: 'duel.watch',
 } as const;
 
 /** Messages the world room sends to a client, by type. Each goes only to the player it is about. */

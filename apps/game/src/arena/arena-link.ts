@@ -16,6 +16,7 @@ import {
   type ProgressMessage,
   type Refused,
   type Side,
+  type TeamCreature,
 } from '@nebotok/core';
 import type { Game } from 'phaser';
 import type { ArenaRoom, WorldConnection, WorldRoom } from '../connection.ts';
@@ -23,7 +24,7 @@ import { element } from '../dom.ts';
 import { moveArena } from '../move-arena.ts';
 import { buttonStates, treatUsable, type ButtonState } from './arena-buttons.ts';
 import { ARENA } from './arena-content.ts';
-import { createArenaControls } from './arena-controls.ts';
+import { createArenaControls, type Quit } from './arena-controls.ts';
 import { createFollower, type Follower } from './arena-follow.ts';
 import { INPUTS_PER_SECOND, leadLimit, wireInput } from './arena-input.ts';
 import { createNetPanel, netMetersAsked } from './arena-net.ts';
@@ -50,6 +51,8 @@ export type ArenaOptions = {
   started(): void;
   /** The moves a fight's end taught at once, for the new-move toast. */
   learned(moves: readonly LearnedMove[]): void;
+  /** Whether your courier watches a duel, as the world's state says. */
+  watcher(): boolean;
 };
 
 /** The fight on screen, for the test hook. */
@@ -66,6 +69,11 @@ export type TestArena = {
   theirs: (CardView & { x: number; y: number }) | null;
   buttons: { action: ButtonState['action']; move: string | null; shown: boolean; locked: boolean; ring: number }[];
   leave: boolean;
+  /** Whether this page watches someone's duel; a duel, the fight waiting for a player, and the corner button shown. */
+  watching: boolean;
+  duel: boolean;
+  waiting: boolean;
+  quit: Quit | null;
   /** Inputs sent, and how many asked for a move. */
   inputs: number;
   presses: number;
@@ -134,6 +142,13 @@ type Fight = {
 /** The team places of a side's line-up: your own creatures', for a best of 3's picks. */
 const placesOf = (started: ArenaStartedMessage): number[] => started.sides[started.side].flatMap(({ place }) => (place === null ? [] : [place]));
 
+/** Your team as the pick screen shows it: in a duel at an even level, every creature at the level of the line-up the server sent. */
+export function pickTeam(team: readonly TeamCreature[], started: ArenaStartedMessage | null): readonly TeamCreature[] {
+  const lineup = started?.sides[started.side] ?? [];
+  const even = lineup.find(({ place, level }) => place !== null && team[place] !== undefined && team[place].level !== level);
+  return even ? team.map((creature) => ({ ...creature, level: even.level })) : team;
+}
+
 /** Buzzes the device where it can (`navigator.vibrate`; Safari on iPhone and iPad has none). Returns whether it asked. */
 function buzz(pattern: readonly number[]): boolean {
   if (typeof navigator.vibrate !== 'function') return false;
@@ -149,7 +164,7 @@ function buzz(pattern: readonly number[]): boolean {
  */
 export function createArena(options: ArenaOptions): Arena {
   const root = element<HTMLElement>('#arena');
-  const screen = createArenaScreen(root, { continue: () => finish() });
+  const screen = createArenaScreen(root, { continue: () => finish(), unwatch: () => forget() });
   const netPanel = netMetersAsked(location.search) ? createNetPanel(root) : null;
   let fight: Fight | null = null;
   let sender: ReturnType<typeof setInterval> | undefined;
@@ -161,12 +176,13 @@ export function createArena(options: ArenaOptions): Arena {
     const { predictor, follower } = fight;
     return { state, side, place: (at, now) => (at === side ? (predictor?.at(now) ?? null) : follower.at(now)) };
   };
-  const fighting = (): boolean => fight !== null && fight.result === null && fight.room !== null && shown()?.state.phase === 'fighting';
+  const watching = (): boolean => fight?.started?.watching === true;
+  const fighting = (): boolean => fight !== null && !watching() && fight.result === null && fight.room !== null && shown()?.state.phase === 'fighting';
 
   const controls = createArenaControls(screen, { active: fighting });
   const rounds = createRoundsScreen(screen.rounds, {
     tapped: (place) => {
-      if (fight?.order && !fight.sent) fight.order = tappedOrder(fight.order, place, options.progress()?.team ?? []);
+      if (fight?.order && !fight.sent) fight.order = tappedOrder(fight.order, place, pickTeam(options.progress()?.team ?? [], fight.started));
     },
     go: () => {
       const room = fight?.room;
@@ -190,7 +206,7 @@ export function createArena(options: ArenaOptions): Arena {
   /** A hit to your creature, a ring-out or a befriending buzzes the device, unless motion is reduced. */
   function feel(target: Fight, events: readonly FightEvent[]) {
     const side = target.started?.side;
-    if (side === undefined) return;
+    if (side === undefined || target.started?.watching) return;
     const motion = !motionReduced();
     for (const event of events) {
       const pattern = buzzFor(event, side, motion);
@@ -290,10 +306,11 @@ export function createArena(options: ArenaOptions): Arena {
       room.onMessage(ARENA_MESSAGES.started, (message: ArenaStartedMessage) => {
         target.started = message;
         target.book = fightBook(message, options.progress());
-        if (message.mode === 'rounds' && target.order === null) target.order = placesOf(message);
-        // Also on a reconnection, whose input stream starts again from nothing.
-        target.predictor = createPredictor(message.side, ARENA, SEND_MS);
-        target.echo = createCastEcho(message.side);
+        if (message.mode === 'rounds' && target.order === null && !message.watching) target.order = placesOf(message);
+        // Also on a reconnection, whose input stream starts again from nothing. A watcher sends
+        // nothing, so both creatures are drawn from the room's state, side 0 as it comes.
+        target.predictor = message.watching ? null : createPredictor(message.side, ARENA, SEND_MS);
+        target.echo = message.watching ? null : createCastEcho(message.side);
       }),
       // A pick the server refused can be changed and sent again.
       room.onMessage(ARENA_MESSAGES.refused, (message: Refused) => {
@@ -309,6 +326,8 @@ export function createArena(options: ArenaOptions): Arena {
       if (target.room !== room) return;
       target.last = room.state;
       target.room = null;
+      // A watcher's seat is not held: one that is gone before the result watches no more.
+      if (target.started?.watching && target.result === null && fight === target) forget();
     });
     target.stop = () => {
       for (const stop of stops) stop();
@@ -331,7 +350,10 @@ export function createArena(options: ArenaOptions): Arena {
     // A seat that cannot be taken is lost to the server too, which sends a new arena.join.
     connection.joinFight(reservation).then(
       (room) => seated(target, room),
-      () => {},
+      () => {
+        // A watcher's seat that cannot be taken is not sent again.
+        if (fight === target && target.started === null && options.watcher()) forget();
+      },
     );
   }
 
@@ -356,18 +378,33 @@ export function createArena(options: ArenaOptions): Arena {
     return [card(now.side), card(now.side === 0 ? 1 : 0)];
   }
 
-  /** The pick screen while picking, and the score between rounds. */
+  /** The pick screen while picking, and the score between rounds; a watcher sees only the score. */
   function roundsView(): RoundsView {
     const now = shown();
-    if (!fight?.order || !now || fight.result) return { pick: null, between: null };
+    if (!fight || !now || fight.result || now.state.mode !== 'rounds') return { pick: null, between: null };
     const { state, side } = now;
     const other = side === 0 ? 1 : 0;
     if (state.phase === 'picking') {
-      return { pick: { team: options.progress()?.team ?? [], order: fight.order, sent: fight.sent || state.picked.at(side) === true, countdown: state.countdown }, between: null };
+      if (!fight.order) return { pick: null, between: null };
+      return { pick: { team: pickTeam(options.progress()?.team ?? [], fight.started), order: fight.order, sent: fight.sent || state.picked.at(side) === true, countdown: state.countdown }, between: null };
     }
     if (state.phase !== 'between') return { pick: null, between: null };
     const species = (of: Side) => state.bodies.at(of)?.species ?? null;
     return { pick: null, between: { pips: pipsOf([...state.rounds], side), score: [state.score.at(side) ?? 0, state.score.at(other) ?? 0], next: [species(side), species(other)] } };
+  }
+
+  /** Whether the fight waits for a player who is away, or a watcher for the players to pick. */
+  function waiting(): boolean {
+    const state = shown()?.state;
+    return state !== undefined && (state.waiting || (watching() && state.phase === 'picking'));
+  }
+
+  /** The corner button while fighting: Leave in a wild fight, Give up in a duel, none in a trainer's best of 3. */
+  function quit(): Quit | null {
+    const state = shown()?.state;
+    if (!fighting() || !state) return null;
+    if (state.mode === 'wild') return 'leave';
+    return state.duel ? 'giveUp' : null;
   }
 
   function buttons(): ButtonState[] {
@@ -393,11 +430,11 @@ export function createArena(options: ArenaOptions): Arena {
       const language = options.language();
       if (fight) track(fight);
       netPanel?.render(fight && fight.result === null ? meters(fight) : null, language);
-      const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [] };
+      const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [], watching: watching(), waiting: waiting() };
       screen.render(view, language);
       root.dataset.phase = shown()?.state.phase ?? '';
       rounds.render(roundsView(), language);
-      if (fight) controls.render(buttons(), language, now, fighting() && shown()?.state.mode === 'wild');
+      if (fight) controls.render(buttons(), language, now, quit());
       const game = options.game();
       const running = game.scene.isActive(ARENA_SCENE);
       if (fight && !running) game.scene.run(ARENA_SCENE);
@@ -431,6 +468,10 @@ export function createArena(options: ArenaOptions): Arena {
           theirs: side === null ? null : body(side === 0 ? 1 : 0, theirs),
           buttons: buttons().map(({ action, move, shown: visible, locked, ring }) => ({ action, move, shown: visible, locked, ring })),
           leave: controls.leaving(),
+          watching: watching(),
+          duel: now?.state.duel ?? false,
+          waiting: waiting(),
+          quit: quit(),
           inputs: fight.inputs,
           presses: fight.presses,
           buzzes: fight.buzzes,

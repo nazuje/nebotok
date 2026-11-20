@@ -4,7 +4,7 @@ import { ARENA_INPUT_FIELDS, ARENA_NONE, ROUND_DRAW, type ArenaFight, type Body,
 /**
  * What an arena room shows its players (docs/protocol.md, "Arena state"): the island of the fight,
  * copied from core's `ArenaFight` after every fixed step by `showFight`. Positions and velocities
- * in 1/256 arena units, timers in ticks left. Only the room's own players receive it.
+ * in 1/256 arena units, timers in ticks left. Only the room's own players and a duel's watchers receive it.
  */
 
 /** The flat input each player streams, built from core's `ARENA_INPUT_FIELDS`; none is `ARENA_NONE`. */
@@ -112,6 +112,12 @@ export const ArenaRoomState = schema(
     round: t.uint8(),
     /** Each round played, in order: the winner's side, or `ROUND_DRAW`. A level round played again is left out. */
     rounds: t.array('uint8'),
+    /** A duel between two players, drawn on the duel island. */
+    duel: t.boolean().default(false),
+    /** Whether the fight waits for a player who is away or not in yet; nothing moves meanwhile. */
+    waiting: t.boolean().default(false),
+    /** The courier avatar of each player watching a duel, in the order they came. No names. */
+    watchers: t.array('string'),
   },
   'ArenaRoomState',
 );
@@ -171,6 +177,11 @@ function showThing(shown: ArenaThing, thing: Thing) {
 function setAll<T>(list: ArraySchema<T>, values: readonly T[]) {
   while (list.length > values.length) list.pop();
   values.forEach((value, index) => setAt(list, index, value));
+}
+
+/** Shows who watches a duel: their courier avatars, changing only what moved. */
+export function showWatchers(state: ArenaRoomState, avatars: readonly string[]) {
+  setAll(state.watchers, avatars);
 }
 
 /**

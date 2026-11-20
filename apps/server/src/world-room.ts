@@ -12,6 +12,9 @@ import {
   DuelAnswerMessage,
   DuelAskMessage,
   DuelCancelMessage,
+  DuelWatchMessage,
+  DUEL_TROPHY_MS,
+  DUEL_WATCHERS,
   GatherStartMessage,
   IDLE,
   LanguageSchema,
@@ -47,6 +50,7 @@ import {
   defaultSettings,
   duelLineup,
   duelSetup,
+  duelTeams,
   emptyProgress,
   encounterZoneAt,
   freeTileNear,
@@ -100,6 +104,7 @@ import {
   type Rng,
   type RoundsFightSetup,
   type SaveFile,
+  type Side,
   type SettingsMessage,
   type StorageMessage,
   type StoryMessage,
@@ -113,7 +118,7 @@ import {
 } from '@nebotok/core';
 import { z } from 'zod';
 import type { FightBook, FightEnd, FightPlan, FightStop } from './fights.ts';
-import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, settleFight, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
+import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, duelOutcomeFor, settleDuel, settleFight, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
 import { createDuelDesk, type AskEnd, type DuelAsk } from './duels.ts';
 import type { Log } from './log.ts';
 import { sessionKey, type ProfileStore } from './profiles.ts';
@@ -202,6 +207,10 @@ type Seat = {
   battle: LiveBattle | null;
   /** The player's arena fight, played in its own room, or null. It keeps the seat busy as a battle does. */
   fight: LiveFight | null;
+  /** The duel the player watches, by fight id, or null. They stand where they were until they stop or walk. */
+  watching: string | null;
+  /** Until when, by the room's clock, the player's courier wears the trophy of a duel won; null for none. */
+  trophyUntil: number | null;
   /**
    * Moves levelling up offered, waiting for the one before to be answered, in order. Like a battle
    * they live only in memory: when the seat ends they are dropped, and the creature does not learn them.
@@ -229,8 +238,11 @@ type Seat = {
 
 type OutstandingOffer = PendingMove & { readonly id: number; readonly sentAt: number };
 
-/** `zone` is the encounter zone the fight began in, for quests; null for one started elsewhere. A `duel` counts for no quest. */
-type LiveFight = { readonly id: string; readonly zone: string | null; readonly duel: boolean };
+/**
+ * `zone` is the encounter zone the fight began in, for quests; null for one started elsewhere. A
+ * `duel` counts for no quest, and its rewards go to the player's `side`.
+ */
+type LiveFight = { readonly id: string; readonly zone: string | null; readonly duel: boolean; readonly side: Side };
 
 /** In a turn battle or an arena fight: walking, talks, shrines, storage, skills and loadouts wait. */
 const fighting = (seat: Seat): boolean => seat.battle !== null || seat.fight !== null;
@@ -330,6 +342,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       [CLIENT_MESSAGES.duelAsk]: validate(DuelAskMessage, (client: Client, { to, even }) => this.duelAsk(client, to, even)),
       [CLIENT_MESSAGES.duelAnswer]: validate(DuelAnswerMessage, (client: Client, { yes }) => this.duelAnswer(client, yes)),
       [CLIENT_MESSAGES.duelCancel]: validate(DuelCancelMessage, (client: Client) => this.duelCancel(client)),
+      [CLIENT_MESSAGES.duelWatch]: validate(DuelWatchMessage, (client: Client, { who }) => this.duelWatch(client, who)),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -379,6 +392,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         walker: start.walker,
         battle: null,
         fight: null,
+        watching: null,
+        trophyUntil: null,
         offers: [],
         offer: null,
         talk: null,
@@ -605,6 +620,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const intent = planCommand(map, seat.walker, command, from);
       if (!intent) return false;
       this.endSkill(client.sessionId, seat, 'walk');
+      this.stopWatching(client.sessionId, seat, 'walk');
       seat.walker = withIntent(seat.walker, intent);
       return true;
     }
@@ -624,6 +640,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           this.save(seat);
         }
         if (!seat.replaced && !seat.closing) tickSkills(this.skillRoom(sessionId, seat));
+        if (seat.trophyUntil !== null && at >= seat.trophyUntil) this.showTrophy(sessionId, seat, null);
         this.show(sessionId, seat.walker);
       });
       this.checkAsks(at);
@@ -805,7 +822,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const found = [...this.seats].find(([, seat]) => seat.playerId === playerId && !seat.replaced && !seat.closing);
       if (!found) return null;
       const [, seat] = found;
-      return fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress) ? null : found;
+      return fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.watching || seat.reconnection || !canBattle(seat.progress) ? null : found;
     }
 
     /**
@@ -846,7 +863,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     ): Promise<string | null> {
       const { playerId } = seat;
       const fightId = randomUUID();
-      const fight: LiveFight = { id: fightId, zone, duel: false };
+      const fight: LiveFight = { id: fightId, zone, duel: false, side: 0 };
       // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
       try {
         this.endTalk(sessionId, seat, 'battle');
@@ -900,13 +917,23 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       if (seat.fight) fights.stop(seat.fight.id, why);
     }
 
-    private showFighting(sessionId: string, on: boolean) {
+    private showFighting(sessionId: string, on: boolean, duel = false) {
       const player = this.state.players.get(sessionId);
-      if (player) player.inBattle = on;
+      if (!player) return;
+      player.inBattle = on;
+      player.duelling = on && duel;
     }
 
-    /** Applies an ended fight to each of its players' creatures, saves at once and sends `arena.result`. */
+    /** Puts the trophy on the seat's courier until `until`, or takes it off with null. */
+    private showTrophy(sessionId: string, seat: Seat, until: number | null) {
+      seat.trophyUntil = until;
+      const player = this.state.players.get(sessionId);
+      if (player) player.trophy = until !== null;
+    }
+
+    /** Applies an ended fight to each of its players' creatures, saves at once and sends `arena.result`; a duel's watchers get it too. */
     private finishFight(end: FightEnd) {
+      for (const [sessionId, seat] of [...this.seats].filter(([, each]) => each.watching === end.fightId)) this.watchedToEnd(sessionId, seat, end);
       for (const [sessionId, seat] of [...this.seats].filter(([, each]) => each.fight?.id === end.fightId)) {
         try {
           this.settleFight(sessionId, seat, end);
@@ -921,16 +948,19 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private settleFight(sessionId: string, seat: Seat, { fightId, fight, why }: FightEnd) {
       const zone = seat.fight?.zone ?? null;
       const duel = seat.fight?.duel ?? false;
-      const settled = settleFight(seat.progress, fight, world.battle);
+      const side = seat.fight?.side ?? 0;
+      const settled = duel ? settleDuel(seat.progress, fight, side, world.battle) : settleFight(seat.progress, fight, world.battle);
       seat.progress = settled.fainted ? wakeAfterFainting(settled.progress, world.shrines.teamFainted, world.battle) : settled.progress;
       seat.fight = null;
       const woke = settled.fainted ? this.wake(seat) : null;
       this.showFighting(sessionId, false);
       this.changed(seat);
       const outcome = fight?.outcome ?? null;
+      const theirs = fight?.mode === 'rounds' && fight.outcome ? duelOutcomeFor(fight.outcome, side) : outcome;
+      if (duel && fight?.mode === 'rounds' && fight.outcome?.winner === side) this.showTrophy(sessionId, seat, now() + DUEL_TROPHY_MS);
       this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaResult, {
         fightId,
-        outcome,
+        outcome: theirs,
         rewards: settled.rewards,
         befriended: settled.befriended,
         learned: settled.learned,
@@ -946,7 +976,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         zone,
         duel,
         why,
-        result: outcome?.result ?? null,
+        result: theirs?.result ?? null,
         rewards: settled.rewards.length,
         learned: settled.learned.length,
         befriended: settled.befriended?.placedIn ?? null,
@@ -1079,10 +1109,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       client.send(SERVER_MESSAGES.progress, progressMessage(next, world.battle));
     }
 
-    /** Why a seat could not start a duel now: in a fight, or talking, choosing a move, doing a skill or away; null when free. */
+    /** Why a seat could not start or watch a duel now: in a fight, or talking, choosing a move, doing a skill, watching or away; null when free. */
     private duelBusy(seat: Seat): RefusalReason | null {
       if (fighting(seat)) return 'inBattle';
-      return seat.talk || seat.offer || seat.skills.attempt || seat.reconnection || seat.replaced || seat.closing ? 'notNow' : null;
+      return seat.talk || seat.offer || seat.skills.attempt || seat.watching || seat.reconnection || seat.replaced || seat.closing ? 'notNow' : null;
     }
 
     /** Whether a seat is free and has the standing creatures a duel needs. */
@@ -1172,30 +1202,47 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
 
     /**
      * Starts the best of 3 an accepted ask agreed on, the asker on side 0 (core \`duelSetup\`), tells
-     * both players, and sends each \`arena.join\`. Resolves to the fight's id, or null when none started.
+     * both players, and sends each \`arena.join\`. Both pick three in the arena room from every
+     * standing creature (core \`duelTeams\`), the setup's first three standing being the defaults.
+     * Resolves to the fight's id, or null when none started.
      */
     private async openDuel(ask: DuelAsk, ...players: readonly [readonly [string, Seat], readonly [string, Seat]]): Promise<string | null> {
       const [[, asker], [, answerer]] = players;
       const fightId = randomUUID();
-      const fight: LiveFight = { id: fightId, zone: null, duel: true };
       try {
-        const setup = duelSetup({ seed: seed(), teams: [asker.progress.team, answerer.progress.team], even: ask.even, turtles: [asker.settings.turtle, answerer.settings.turtle], content: world.battle });
-        for (const [sessionId, seat] of players) {
+        const options = { teams: [asker.progress.team, answerer.progress.team], even: ask.even, turtles: [asker.settings.turtle, answerer.settings.turtle], content: world.battle } as const;
+        const setup = duelSetup({ seed: seed(), ...options });
+        const teams = duelTeams(options);
+        players.forEach(([sessionId, seat], side) => {
           this.endTalk(sessionId, seat, 'battle');
           this.endSkill(sessionId, seat, 'battle');
           seat.walker = withIntent(seat.walker, IDLE);
-          seat.fight = fight;
-          this.showFighting(sessionId, true);
-        }
+          seat.fight = { id: fightId, zone: null, duel: true, side: side === 0 ? 0 : 1 };
+          this.showFighting(sessionId, true, true);
+        });
         const seats = [
           { playerId: asker.playerId, side: 0 },
           { playerId: answerer.playerId, side: 1 },
         ] as const;
-        await fights.open({ fightId, setup, seats, minds: [], ended: (end) => this.finishFight(end), seatLost: (lost) => this.fightSeatLost(fightId, lost) });
+        const pickers = [
+          { side: 0, team: teams[0] },
+          { side: 1, team: teams[1] },
+        ] as const;
+        await fights.open({
+          fightId,
+          setup,
+          seats,
+          minds: [],
+          pickers,
+          duel: true,
+          ended: (end) => this.finishFight(end),
+          seatLost: (lost) => this.fightSeatLost(fightId, lost),
+          watcherLeft: (playerId) => this.watcherLeft(fightId, playerId),
+        });
       } catch (error) {
         log.warn('could not start a duel', { roomId: this.roomId, playerId: asker.playerId, to: answerer.playerId, fight: fightId, ...errorOf(error) });
         for (const [sessionId, seat] of players) {
-          if (seat.fight !== fight) continue;
+          if (seat.fight?.id !== fightId) continue;
           seat.fight = null;
           this.showFighting(sessionId, false);
         }
@@ -1207,6 +1254,91 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       await Promise.all(players.map(([sessionId, seat]) => this.sendFightJoin(sessionId, seat)));
       return fightId;
     }
+
+    /** Why the player may not watch the duel of the player at `who` now, or null. */
+    private watchRefusal(sessionId: string, seat: Seat, who: string): RefusalReason | null {
+      const duellist = this.seats.get(who);
+      if (!duellist || who === sessionId || duellist.replaced) return 'invalid';
+      const busy = this.duelBusy(seat);
+      if (busy !== null) return busy;
+      const fight = duellist.fight;
+      if (!fight?.duel || this.duels.of(sessionId)) return 'notNow';
+      return [...this.seats.values()].filter((each) => each.watching === fight.id).length >= DUEL_WATCHERS ? 'full' : null;
+    }
+
+    /**
+     * `duel.watch`: a watcher seat in the duel the player at `who` fights, sent in `arena.join`. The
+     * watcher stands still where they are and shows `watching` until they stop, walk or the duel ends.
+     */
+    private duelWatch(client: Client, who: string) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const refusal = this.watchRefusal(client.sessionId, seat, who);
+      const fightId = this.seats.get(who)?.fight?.id;
+      if (refusal !== null || fightId === undefined) {
+        this.refuse(client, CLIENT_MESSAGES.duelWatch, refusal ?? 'invalid');
+        return;
+      }
+      this.endSkill(client.sessionId, seat, 'battle');
+      seat.walker = withIntent(seat.walker, IDLE);
+      seat.watching = fightId;
+      const player = this.state.players.get(client.sessionId);
+      if (player) player.watching = true;
+      void this.sendWatchJoin(client.sessionId, seat, fightId);
+    }
+
+    /** Sends `arena.join` with a watcher seat in the duel's room; when none can be had, the watching ends, refused `notNow`. It never rejects. */
+    private async sendWatchJoin(sessionId: string, seat: Seat, fightId: string) {
+      let reservation: ArenaJoinMessage['reservation'] | null = null;
+      try {
+        reservation = await fights.reserve(fightId, seat.playerId, true);
+      } catch (error) {
+        log.warn('could not reserve a watcher seat', { roomId: this.roomId, playerId: seat.playerId, fight: fightId, ...errorOf(error) });
+      }
+      if (seat.watching !== fightId) return;
+      const client = this.clients.get(sessionId);
+      if (!reservation) {
+        this.stopWatching(sessionId, seat, 'gone');
+        if (client) this.refuse(client, CLIENT_MESSAGES.duelWatch, 'notNow');
+        return;
+      }
+      client?.send(SERVER_MESSAGES.arenaJoin, { fightId, reservation } satisfies ArenaJoinMessage);
+      log.info('duel watched', { roomId: this.roomId, playerId: seat.playerId, fight: fightId });
+    }
+
+    /**
+     * Ends a seat's watching, if it watches: it walked, left its seat in the duel's room (Stop
+     * watching is that one tap), or the duel ended.
+     */
+    private stopWatching(sessionId: string, seat: Seat, why: 'walk' | 'gone' | 'ended') {
+      const fightId = seat.watching;
+      if (fightId === null) return;
+      seat.watching = null;
+      const player = this.state.players.get(sessionId);
+      if (player) player.watching = false;
+      log.info('duel watching ended', { roomId: this.roomId, playerId: seat.playerId, fight: fightId, why });
+    }
+
+    /** A watcher's seat in the duel's room is gone: they watch no more. */
+    private watcherLeft(fightId: string, playerId: number) {
+      const found = [...this.seats].find(([, seat]) => seat.watching === fightId && seat.playerId === playerId);
+      if (found) this.stopWatching(found[0], found[1], 'gone');
+    }
+
+    /** The duel a seat watched is over: `arena.result` with its outcome and rounds, as side 0 saw them, and nothing won. */
+    private watchedToEnd(sessionId: string, seat: Seat, { fightId, fight }: FightEnd) {
+      this.stopWatching(sessionId, seat, 'ended');
+      this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaResult, {
+        fightId,
+        outcome: fight?.outcome ?? null,
+        rewards: [],
+        befriended: null,
+        learned: [],
+        rounds: fight?.mode === 'rounds' ? fight.rounds : [],
+        woke: null,
+      } satisfies ArenaResultMessage);
+    }
+
     private talkStart(client: Client, npc: string) {
       const seat = this.requestingSeat(client);
       if (!seat) return;

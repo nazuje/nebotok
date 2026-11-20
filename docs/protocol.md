@@ -4,14 +4,16 @@ How the browser talks to the server: an HTTP API for profiles and sessions, then
 `world`, for the shared island, and one `arena` room per real-time fight (see "Arena fights"). The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
 `src/skill-messages.ts` for skills and jobs, `src/duel-messages.ts` for duels), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **13**),
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **15**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
 protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board,
 protocol 9 judges the tiny games exactly as they are drawn, protocol 10 adds the player's
 settings ("Read to me"), protocol 11 adds arena loadouts and the turtle setting
 (`loadout.set`, `settings.turtle`; see "Arena fights"), protocol 12 the arena room, its input
-and its messages, protocol 13 duels (`duel.*` and `arena` in `welcome`), and protocol 14 picking
-three for a best of 3 (`arena.pick` and the arena room's `picking` and `between` phases).
+and its messages, protocol 13 duels (`duel.*` and `arena` in `welcome`), protocol 14 picking
+three for a best of 3 (`arena.pick` and the arena room's `picking` and `between` phases), and
+protocol 15 the duel island and watching (`duel.watch`, giving up, the duel marks on players and
+`watching` in `arena.started`).
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants, server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`,
 and the arena room's name, input fields, messages and limits, and fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -107,6 +109,9 @@ Player
   inBattle           boolean  true while the player is in a battle
   talking            boolean  true while the player is talking to a character
   skill              string   '' or the skill the player is doing: foraging, fishing or cooking
+  duelling           boolean  true while the player fights a duel (with inBattle); others may watch
+  watching           boolean  true while the player watches a duel, standing still
+  trophy             boolean  true for 60 s after the player won a duel
 ```
 
 The key of `players` is the Colyseus `sessionId`; your own is `room.sessionId`. Nothing else about a
@@ -303,8 +308,9 @@ request gives it up after 1.5 s without an answer, so the next tap asks again.
 **Planned** for the milestone "Phase 2: Arena battles" (#141 to #160). Built so far: loadouts and
 the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148), and the arena
 room with its input, limits, state and messages, the hand-off and `ARENA_BATTLES` (protocol 12,
-#149), wild fights from tall grass with the setting on (#150), duels (protocol 13, #157), and picking
-three and the pause between rounds of a best of 3 (protocol 14, #155). Tests can also start one with
+#149), wild fights from tall grass with the setting on (#150), duels (protocol 13, #157), picking
+three and the pause between rounds of a best of 3 (protocol 14, #155), and the duel island,
+watching and duel rewards (protocol 15, #158). Tests can also start one with
 the world room's `startWildFight(playerId, wild)`. Parts still to come are marked.
 The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md). Until the switch-over
@@ -323,7 +329,8 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   `consumeSeatReservation`. The reservation carries a one-time fight ticket that stays on the
   server; the room's `onAuth` spends it and checks that the session joining (`_authToken`, the
   same token as the world) is the profile it was made for. A refused attempt spends the seat and
-  the ticket. Watchers (duels only, up to 6, #158) will join the same way, with a watcher seat.
+  the ticket. Watchers (duels only, up to 6, `DUEL_WATCHERS`, #158, built) join the same way, with
+  a watcher's ticket; the room's `onAuth` refuses one past the 6th or for a fight that is not a duel.
 - **The world room stays connected** and stays the only writer of saves. While a fight runs, the
   seat's `seat.fight` is set (`seat.battle` for turn battles) and `inBattle` is true, so walking,
   talks, shrines, storage and skills are refused exactly as in a battle. A take-over or a leave of
@@ -348,10 +355,13 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   creature, and `arena.join` follows. The world room's `startWildFight` (#149) does the same
   outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
   An accepted duel (#157, built): rounds with two human sides, the asker on side 0, each with the
-  first three standing creatures of their team and their own turtle setting, all at core
-  `evenLevel` for an even match (`duelSetup`); nothing about it is saved. Duels do not pick yet:
-  the arena room's picking (#155) runs only for the sides a fight plan names in `pickers`. A duel
-  gives no rewards and counts no quest events (rewards come with #158); its health is put back.
+  standing creatures of their team (core `duelTeams`) and their own turtle setting, all at core
+  `evenLevel` for an even match (`duelSetup`); nothing about the level is saved. Both sides pick
+  in the arena room (#158: the plan names both in `pickers`). The world room settles a duel with
+  `settleDuel` (`src/battles.ts`): 25% of `xpForWin` to each creature of theirs that fought, win
+  or lose (core `duelRewards`), health put back as before, no quest events; the winner's
+  `trophy` shows for 60 s (`DUEL_TROPHY_MS`). Each duellist's `arena.result` `outcome` is told
+  from their own side (`duelOutcomeFor`), so side 1 sees `lost` when side 0 won.
   The `arena.practice` switch (#155, built), the world room's `startPractice(playerId, opponents)`,
   starts a best of 3 against `BOT` with up to three `{ species, level }` opponents. Like
   `startWildFight` it is called in the server's own process by the room tests and the browser
@@ -373,12 +383,16 @@ none is lost. The server declares it with
 | `dash` | boolean | Dash |
 | `treat` | boolean | Throw a treat |
 | `swap` | boolean | Swap to the next creature |
-| `leave` | boolean | Leave the fight (wild fights) |
+| `leave` | boolean | Leave the fight (wild fights); give up (duels, either side) |
 
 `sanitize` turns anything else (NaN, 9999, a string) into none (core `cleanArenaInput`; the uint8
 wire already wraps a big number, so out of range means 16 to 254 for `dir` and 3 to 254 for
 `press`). `idle`, used when a tick's input is missing, keeps `dir` and clears every press: a held
-stick survives a lost packet and a tap never repeats. A watcher's input will be refused (#158). The stream carries no tick: the room takes one buffered
+stick survives a lost packet and a tap never repeats. A watcher sends no input; anything a
+watcher's page sends anyway is thrown away unread each step and counted (`watcherInputs` in
+`fight ended`). In a duel the room reads `leave` before stepping: that side gives up (core
+`roundsGiveUp`), losing the round under way and the rounds after it until the other side has 2
+round wins, and the fight ends. The stream carries no tick: the room takes one buffered
 input each fixed step, in order, so an input lands as many ticks ahead of the server as inputs wait
 before it. The client's input lead is that count, the inputs sent and not yet acknowledged
 (`pendingCount`), which the net meters show. The client keeps it to the network's round trip (a
@@ -408,7 +422,7 @@ faster than the room's step, fills the room's buffer over a fight and makes ever
 ### Arena state
 
 The fight is the arena room's state, which only its players and watchers receive. The world room's
-state shows others only `inBattle` (and, for duels, the duelling and watching marks of #158).
+state shows others only `inBattle` (and, for duels, `duelling`, `watching` and `trophy`).
 
 ```text
 ArenaRoomState (apps/server/src/arena-state.ts)
@@ -429,6 +443,9 @@ ArenaRoomState (apps/server/src/arena-state.ts)
   round              uint8    the round now (rounds)
   rounds             uint8 each: the winner's side of every round played, 2 for a level one
                      (a replayed round is left out)
+  duel               boolean  a duel between two players, drawn on the duel island
+  waiting            boolean  the fight waits for a player who is away or not in yet
+  watchers           string each: the courier avatar of each watcher, in the order they came
 
 ArenaBody
   id                 string   the fighter: a<place + 1> for a team creature, b1 for the wild one
@@ -455,6 +472,7 @@ World room, client to server:
 | `duel.ask` (built) | `{ to, even }`: `to` the other player's key in `players` (1 to 32 characters), `even` the even-match switch | Both free (not in a battle, talk, skill attempt or another ask), within 4 tiles (`DUEL_REACH`, either way and diagonally), both with 3 standing creatures (`DUEL_TEAM`) | Sends `duel.asked` to the other player. Refused `invalid` for yourself or a key nobody has, `inBattle` while you fight, `tooFar`, and `notNow` for anything else: arena fights off, either busy or without 3 standing creatures, an ask of either waiting, or the same pair within 30 s (`DUEL_PAUSE_MS`) of a decline, either way round |
 | `duel.answer` (built) | `{ yes }` | A `duel.asked` waits for you | Yes starts the duel when both can still have it (else refused `notNow` and the ask ends); no declines. No answer in 20 s (`DUEL_ANSWER_MS`) declines by itself. Refused `notNow` when no ask waits for you |
 | `duel.cancel` (built) | `{}` | Your ask waits | Takes the ask back, with no 30 s wait. Refused `notNow` when you have none |
+| `duel.watch` (built, #158) | `{ who }`: a duellist's key in `players` | You are free (as for `duel.ask`), at any distance | Sets your `watching` and sends `arena.join` with a watcher seat in that duel's room. Refused `invalid` for yourself or a key nobody has, `inBattle` while you fight, `full` when 6 already watch, and `notNow` when they are not in a duel, you are busy or asking, or no seat can be had. Walking ends the watching; so does leaving the duel's room (Stop watching), which needs no message |
 
 World room, server to client:
 
@@ -473,7 +491,7 @@ Arena room:
 | --- | --- | --- | --- |
 | input (`arena.input`) | client to server | The input above | 30 times a second while fighting |
 | `arena.pick` (built) | client to server | `{ order }`: 1 to 3 team places 0 to 5 | Once, in the `picking` phase of rounds: three different standing creatures in round order, or all of them when fewer stand; refused `invalid` otherwise, and `notNow` outside picking, in a wild fight or after a pick. When every picking side has picked, or after 30 s (`ARENA_PICK_MS`) counted only while every player is in, round 1 starts with each side's picks or its first three standing, and `arena.started` goes again |
-| `arena.started` (built) | server to client | `{ fightId, mode, side, sides }`: `sides` both line-ups, `[{ id, species, level, place }]` (`place` null for a creature not of your team). While picking, your side's is the defaults and the other side's is empty | On joining and on reconnecting, and to everyone when round 1 starts |
+| `arena.started` (built) | server to client | `{ fightId, mode, side, sides, watching }`: `sides` both line-ups, `[{ id, species, level, place }]` (`place` null for a creature not of your team). While picking, your side's is the defaults and the other side's is empty. `watching` (#158) for a watcher, whose `side` is 0 and who gets both sides empty while picking | On joining and on reconnecting, and to everyone when round 1 starts |
 | `refused` (built) | server to client | `{ request, reason }`, as from the world room | A refused `arena.pick` |
 | `arena.events` (built) | server to client | `{ tick, events }`: core's fight events of one fixed step's core steps. A `refused` press repeats every tick it is held, so one already sent the step before is left out | Each fixed step with events |
 
@@ -512,8 +530,9 @@ lead, corrections a second, the mean error and snaps, also in the test hook (`ar
   ends as `ran`. A player back after the 20 s but within the 120 s gets a new `arena.join` from the
   world room for the same fight: at once while still in the world, else on reconnecting to it.
   A fight does not start moving until its players are in.
-- A **duel pauses** both sides, and both players and the watchers see "waiting". After 30 s it ends
-  with no result.
+- A **duel pauses** both sides (`waiting` in the state), and both players and the watchers see
+  "waiting". After 30 s it ends with no result. A watcher's seat is not held: a dropped watcher
+  is gone from the stands and can watch again from the world.
 - A server restart loses the fight, which lives only in memory: the world comes back, and the fight
   ends as `ran` (#160's restart check).
 
@@ -535,7 +554,9 @@ merge: #148 to 11 (`loadout.set`, `settings.turtle`, `loadout` and `learned` in 
 done), then #149 to 12 (the arena room, its input and `arena.join`, `arena.started`,
 `arena.events`, `arena.result`; done), #157 to 13 (`duel.*`, `arena` in `welcome`; done), #155 to
 14 (`arena.pick`, the arena room's `refused`, and `countdown`, `picked` and `rounds` in its state;
-done) and #160. So the switch-over's
+done), #158 to 15 (`duel.watch`, `duelling`, `watching` and `trophy` on players, `duel`, `waiting`
+and `watchers` in the arena state, `watching` in `arena.started`, `leave` as giving up in a
+duel; done) and #160. So the switch-over's
 number is whatever comes next then, not fixed here. Tickets merged at the same time conflict on the
 one line in `scripts/lib/protocol-contract.test.mjs`; the later one takes the next number.
 
