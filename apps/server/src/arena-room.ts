@@ -194,7 +194,11 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       // Nothing moves until everyone is in.
       if (plan.seats.length > 0) this.awaySince = now();
       this.state.waiting = this.awaySince !== null;
-      fights.attach(plan.fightId, { stop: (why) => this.stop(why), holds: (playerId) => [...this.fighters.values()].some((fighter) => fighter.playerId === playerId) });
+      fights.attach(plan.fightId, {
+        stop: (why) => this.stop(why),
+        holds: (playerId) => [...this.fighters.values()].some((fighter) => fighter.playerId === playerId),
+        unwatch: (playerId) => this.unwatch(playerId),
+      });
       this.setFixedTimestep(() => this.step(), ARENA_TICK_RATE, { subSteps: ARENA_SUB_STEPS });
       log.info('fight started', { roomId: this.roomId, fight: plan.fightId, mode: plan.setup.mode, players: plan.seats.map((seat) => seat.playerId), minds: plan.minds.map((mind) => mind.mind) });
     }
@@ -241,6 +245,11 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       this.showWatchers();
       this.sendStarted(client, 0, true);
       log.info('watcher joined', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, playerId, watchers: this.watchers.size });
+    }
+
+    /** Sends a watcher out; their onLeave then frees the stand. */
+    private unwatch(playerId: number) {
+      for (const [sessionId, watcher] of this.watchers) if (watcher === playerId) this.clients.getById(sessionId)?.leave();
     }
 
     private showWatchers() {

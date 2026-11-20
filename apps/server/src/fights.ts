@@ -53,6 +53,8 @@ export type FightControl = {
   stop(why: FightStop): void;
   /** Whether the player holds a seat in the room, connected or waiting to reconnect. */
   holds(playerId: number): boolean;
+  /** Sends the player's watcher seat, if they hold one, out of the room. */
+  unwatch(playerId: number): void;
 };
 
 type Entry = {
@@ -129,6 +131,11 @@ export function createFightBook() {
 
     watcherLeft(fightId: string, playerId: number) {
       entries.get(fightId)?.plan.watcherLeft?.(playerId);
+    },
+
+    /** Ends a watcher's seat from the world's side: they walked, left the world or were signed out. */
+    unwatch(fightId: string, playerId: number) {
+      entries.get(fightId)?.control?.unwatch(playerId);
     },
 
     /** Stops a fight before its end. One whose room is not playing yet ends at once with no result. */

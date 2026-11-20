@@ -475,6 +475,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         this.endSkill(client.sessionId, seat, 'left');
         this.save(seat);
       }
+      if (seat) this.stopWatching(client.sessionId, seat, 'left');
       this.seats.delete(client.sessionId);
       const held = seat && WorldRoom.seated.get(seat.playerId);
       if (seat && held?.room === this && held.sessionId === client.sessionId) WorldRoom.seated.delete(seat.playerId);
@@ -603,6 +604,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     /** Ends a seat from the server side, whether its client is connected or waiting to reconnect. */
     private close(sessionId: string, seat: Seat, code: number) {
       seat.closing = true;
+      this.stopWatching(sessionId, seat, 'closed');
       if (seat.reconnection) seat.reconnection.reject(new Error(`seat closed with ${code}`));
       else this.clients.get(sessionId)?.leave(code);
     }
@@ -1307,13 +1309,16 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     }
 
     /**
-     * Ends a seat's watching, if it watches: it walked, left its seat in the duel's room (Stop
-     * watching is that one tap), or the duel ended.
+     * Ends a seat's watching, if it watches: it walked, left the world, was closed by the server,
+     * left its seat in the duel's room (Stop watching is that one tap), or the duel ended. Unless
+     * that seat is already gone, the duel's room sends it out too, so a page that ignores the world
+     * cannot go on watching.
      */
-    private stopWatching(sessionId: string, seat: Seat, why: 'walk' | 'gone' | 'ended') {
+    private stopWatching(sessionId: string, seat: Seat, why: 'walk' | 'left' | 'closed' | 'gone' | 'ended') {
       const fightId = seat.watching;
       if (fightId === null) return;
       seat.watching = null;
+      if (why !== 'gone' && why !== 'ended') fights.unwatch(fightId, seat.playerId);
       const player = this.state.players.get(sessionId);
       if (player) player.watching = false;
       log.info('duel watching ended', { roomId: this.roomId, playerId: seat.playerId, fight: fightId, why });

@@ -362,7 +362,7 @@ describe('the duel island', () => {
     await (await enter(seventh)).started;
   });
 
-  it('refuses to watch anything but a duel, and stops watching on a walk', async () => {
+  it('refuses to watch anything but a duel, and stops watching on a walk or on leaving the world', async () => {
     const [asker, answerer] = await pair();
     const watcher = await courier('Test Watcher', tileAway(2));
     await send(watcher, 'duel.watch', { who: keyOf(asker) });
@@ -370,10 +370,11 @@ describe('the duel island', () => {
     await send(watcher, 'duel.watch', { who: keyOf(watcher) });
     expect(await refusal(watcher, 'duel.watch')).toBe('invalid');
 
-    await duel(asker, answerer);
+    const [first] = await duel(asker, answerer);
     await send(watcher, 'duel.watch', { who: keyOf(asker) });
     const seat = await enter(watcher);
     await seat.started;
+    const gone = new Promise<number>((resolve) => seat.room.onLeave(resolve));
     await until(() => shown(watcher)?.watching === true, 'the watching mark');
     // Neither duellist can watch, and a watcher cannot be asked.
     await send(answerer, 'duel.watch', { who: keyOf(asker) });
@@ -382,8 +383,22 @@ describe('the duel island', () => {
     await send(fourth, 'duel.ask', { to: keyOf(watcher), even: true });
     expect(await refusal(fourth, 'duel.ask')).toBe('notNow');
 
+    // Walking ends the watching in the world, and the duel's room sends the watcher's seat out too.
     await send(watcher, 'walk.to', { x: spawn().x, y: spawn().y });
     await until(() => shown(watcher)?.watching === false, 'walking to stop the watching');
+    await gone;
+    await until(() => first.room.state.watchers.length === 0, 'the stands to empty after the walk');
+
+    // A watcher who leaves the world loses their seat on the stands with it.
+    const second = await courier('Test Second Watcher', tileAway(2));
+    await send(second, 'duel.watch', { who: keyOf(answerer) });
+    const secondSeat = await enter(second);
+    await secondSeat.started;
+    await until(() => first.room.state.watchers.length === 1, 'the second watcher on the stands');
+    const secondGone = new Promise<number>((resolve) => secondSeat.room.onLeave(resolve));
+    await second.room.leave();
+    await secondGone;
+    await until(() => first.room.state.watchers.length === 0, 'the stands to empty after leaving the world');
   });
 
   it('gives each side 25% of a win for each creature that fought, win or lose, keeps health, and crowns the winner', async () => {
