@@ -152,7 +152,7 @@ describe('joining the world', () => {
     const { token } = await profile('Test Courier');
     colyseus.sdk.auth.token = token;
     const room = await colyseus.sdk.joinOrCreate<WorldState>('world', { protocol: PROTOCOL_VERSION });
-    expect(await room.waitForMessage('welcome')).toEqual({ protocol: PROTOCOL_VERSION, world: 'sky', playerCount: 1, messageKey: 'welcome.alone' } satisfies Welcome);
+    expect(await room.waitForMessage('welcome')).toEqual({ protocol: PROTOCOL_VERSION, world: 'sky', playerCount: 1, messageKey: 'welcome.alone', arena: false } satisfies Welcome);
     await room.leave();
   });
 });

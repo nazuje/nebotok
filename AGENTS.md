@@ -38,7 +38,7 @@ working in before you start.
 - `npm run content:validate` checks `content/`. `npm run golden:update` re-records golden replay
   hashes, only after `packages/core/AGENTS.md`'s golden policy.
 - Voice clips: `npm run voice` makes the computer-voice clips for every talk line, choice, quest
-  text and move name in both languages (`scripts/voice/README.md`), on a Mac only, after `npm run voice:setup`
+  text, move name and spoken interface line in both languages (`scripts/voice/README.md`), on a Mac only, after `npm run voice:setup`
   once per machine. Run it after changing any of those lines and commit the clips with
   `apps/game/src/voice-clips.json`; `content:validate` fails on a missing or stale clip.
 - Art is JSON pixel grids in `content/art/` (guide: `docs/art.md`). `npm run art:sheet` draws every

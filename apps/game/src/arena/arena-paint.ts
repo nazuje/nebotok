@@ -319,25 +319,65 @@ export function healthColour(share: number): number {
   return share >= 0.5 ? lerpColour(YELLOW, GREEN, (share - 0.5) * 2) : lerpColour(RED, YELLOW, share * 2);
 }
 
-/** A chunky health bar centred on `x`, `y`; `share` of it full. */
-export function drawHealthBar(pen: Pen, x: number, y: number, width: number, height: number, share: number): void {
-  const left = x - width / 2;
-  const top = y - height / 2;
+/** A health bar: `share` of it full, `trail` (at least `share`) white behind it for what was just lost, a white rim while `flash`. */
+export type HealthBar = { readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly share: number; readonly trail: number; readonly flash: boolean };
+
+/** A chunky health bar centred on `x`, `y`, with quarter marks. */
+export function drawHealthBar(pen: Pen, bar: HealthBar): void {
+  const { width, height } = bar;
+  const left = bar.x - width / 2;
+  const top = bar.y - height / 2;
   const radius = Math.min(8, height / 2);
   const border = Math.max(2, Math.round(height * 0.2));
-  pen.fillStyle(INK, 1);
+  pen.fillStyle(bar.flash ? 0xffffff : INK, 1);
   pen.fillRoundedRect(left - border, top - border, width + border * 2, height + border * 2, radius + border);
   pen.fillStyle(0x334e68, 1);
   pen.fillRoundedRect(left, top, width, height, radius);
-  const shown = Math.max(0, Math.min(1, share));
-  if (shown <= 0) return;
-  const fill = Math.max(height * 0.6, width * shown);
-  pen.fillStyle(healthColour(shown), 1);
-  pen.fillRoundedRect(left, top, fill, height, radius);
-  pen.fillStyle(0xffffff, 0.35);
-  pen.fillRoundedRect(left + 2, top + 1, Math.max(0, fill - 4), Math.max(2, height * 0.28), Math.min(3, radius));
+  const shown = Math.max(0, Math.min(1, bar.share));
+  const trail = Math.max(shown, Math.min(1, bar.trail));
+  if (trail > shown) {
+    pen.fillStyle(0xffffff, 1);
+    pen.fillRoundedRect(left, top, Math.max(height * 0.6, width * trail), height, radius);
+  }
+  if (shown > 0) {
+    const fill = Math.max(height * 0.6, width * shown);
+    pen.fillStyle(healthColour(shown), 1);
+    pen.fillRoundedRect(left, top, fill, height, radius);
+    pen.fillStyle(0xffffff, 0.35);
+    pen.fillRoundedRect(left + 2, top + 1, Math.max(0, fill - 4), Math.max(2, height * 0.28), Math.min(3, radius));
+  }
+  pen.fillStyle(INK, 0.45);
+  for (let at = 1; at < 4; at += 1) pen.fillRect(left + (width * at) / 4 - 1, top, 2, height);
 }
 
+/**
+ * Where a winding-up move will land, in arena units: a lane ahead for a charge or a wave
+ * (`across` wide for a wave), a circle `reach` ahead for something thrown, or a ring around the
+ * caster.
+ */
+export type Telegraph = { readonly kind: 'lane'; readonly length: number; readonly across: number } | { readonly kind: 'spot'; readonly reach: number; readonly radius: number } | { readonly kind: 'ring'; readonly radius: number };
+
+/** A red warning of a wind-up, from the caster at `from` (arena units) along `angle`; `flash` 0 to 1. */
+export function drawTelegraph(pen: Pen, fit: Fit, from: Point, angle: number, telegraph: Telegraph, body: number, flash: number): void {
+  const ax = Math.cos(angle);
+  const ay = Math.sin(angle);
+  const ahead = (distance: number): Point => toScreen(fit, from.x + ax * distance, from.y + ay * distance);
+  const at = toScreen(fit, from.x, from.y);
+  if (telegraph.kind === 'lane') {
+    const end = ahead(telegraph.length);
+    pen.lineStyle(Math.max(6, body * 0.5 * fit.s), WARN, flash * 0.6);
+    pen.lineBetween(at.x, at.y, end.x, end.y);
+    if (telegraph.across > 0) {
+      const half = telegraph.across * fit.s;
+      const mid = ahead(body * 1.5);
+      pen.lineBetween(mid.x - ay * half, mid.y + ax * half, mid.x + ay * half, mid.y - ax * half);
+    }
+    return;
+  }
+  if (telegraph.kind === 'spot') return drawMark(pen, ahead(telegraph.reach), telegraph.radius * fit.s, flash);
+  pen.lineStyle(4, WARN, flash);
+  pen.strokeCircle(at.x, at.y, telegraph.radius * fit.s);
+}
 /** What a thing on the island is, in arena units, for `drawThing`. */
 export type ThingLook = {
   readonly shape: ArenaShape;

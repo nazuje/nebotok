@@ -258,6 +258,9 @@ export const REQUIRED_STRING_IDS = [
   'arena.button',
   'arena.emptyButton',
   'arena.timeUp',
+  'arena.damage',
+  'arena.damageStrong',
+  'arena.healed',
   'arena.pickTitle',
   'arena.go',
   'arena.roundSlot',
@@ -277,6 +280,11 @@ export const REQUIRED_STRING_IDS = [
   'duel.watch',
   'duel.evenMatch',
   'duel.realLevels',
+  'duel.asked',
+  'duel.waiting',
+  'duel.cancel',
+  'duel.close',
+  'duel.no',
 ] as const;
 export type StringId = (typeof REQUIRED_STRING_IDS)[number];
 

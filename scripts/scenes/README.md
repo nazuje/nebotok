@@ -23,7 +23,9 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 `"reducedMotion": true` makes the player's device ask for reduced motion. `"prepared": { "quest":
 "the-grey-letter", "step": "lookout", "at": { "x": 33, "y": 14 } }` starts the player part way
 through the story: before they join, their save is replaced by one the story bot played until that
-quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs this worktree's
+quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. A `"team": [{ "species":
+"glowbun", "level": 8 }]` there gives them that team instead, at the quest's step or, without
+`quest` and `step`, as a new player who already has it. It needs this worktree's
 `npm run dev`, not `--url`, because the save is written into the dev server's database.
 
 **Steps** run in order, each finished before the next starts. A player's first step is their `join`.
@@ -42,6 +44,8 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs th
 | `{ "do": "fight", "player": "lan", "slot": 3 }` | In a battle, taps the move in `slot` (0 to 3, the first when left out) and waits until the turn has played, tapping the field to move its lines on. Slot 3 is each starter's weather call, which does no damage, so the battle goes on. |
 | `{ "do": "run", "player": "lan" }` | Runs from the battle (or plays on when running is not allowed), continues past the result and waits until the player is back in the world. |
 | `{ "do": "play", "player": "lan" }` | Plays the tiny game open on the player's card the way a quick player wins it: pulls just after the float dips, taps each sparkle, stops the marker in the middle of the zone. With `"miss": true` it taps nothing and waits for the miss. Waits until the server has judged it, and fails when the outcome is not the one asked for. Open a game first with a `tap` on a spot or pot (the page walks up to it). |
+| `{ "do": "ask", "player": "lan", "to": "zarja", "even": true }` | Taps the other player's courier, which must be on screen and within 4 tiles, and in the duel menu taps even match (`"even": false`: real levels). Needs a server with `ARENA_BATTLES=on` (`ARENA_BATTLES=on npm run dev`). |
+| `{ "do": "answer", "player": "zarja", "yes": false }` | Waits for the duel card asking the player, then taps the tick (`true`) or the cross. |
 | `{ "do": "talk", "player": "lan", "npc": "bavko" }` | Taps the character (an id from `content/npcs.json`; the page walks up to them, walking closer by taps first when they are off screen) and plays the talk to its end: each line is waited for until it is typed out, then a tap goes on, taking the first choice. With `"open": true` it stops once the first line is typed out and leaves the talk open; a later `talk` to the same character goes on from there. |
 
 `until` takes any of these:
@@ -56,7 +60,12 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. It needs th
 - `"welcome": ["together", "hidden"]`: the welcome line at the bottom says one of these (`"alone"`,
   `"together"`) or is `"hidden"`.
 - `"refused": true`: the red cross flashes on a tapped tile that cannot be reached.
-- `"toast": "hidden"`: no short message shows at the bottom.
+- `"toast": "hidden"`: no short message shows at the bottom, or `"toast": "duel.no"`: that one
+  does (a string id from `content/strings.json`).
+- `"duel": "asked"`: the duel card up on the player's page is the menu (`"menu"`), their own ask
+  waiting (`"asking"`), an ask to answer (`"asked"`), or none (`"none"`).
+- `"arena": "rounds"`: the player is in a best-of-3 arena fight, such as a duel, or in none
+  (`"none"`).
 - `"hint": "tap"` / `"joystick"`: the first-visit walking hint shows for those controls, or
   `"hidden"`: it does not. Each scene browser starts with fresh storage, so a player sees it until
   their first walk.

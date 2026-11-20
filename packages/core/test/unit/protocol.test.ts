@@ -35,7 +35,11 @@ describe('welcome', () => {
   const world = { name: 'sky' };
 
   it('greets the first player as alone', () => {
-    expect(welcome(world, 1)).toEqual({ protocol: PROTOCOL_VERSION, world: 'sky', playerCount: 1, messageKey: 'welcome.alone' });
+    expect(welcome(world, 1)).toEqual({ protocol: PROTOCOL_VERSION, world: 'sky', playerCount: 1, messageKey: 'welcome.alone', arena: false });
+  });
+
+  it('says whether arena fights, and so duels, are on', () => {
+    expect(welcome(world, 1, true).arena).toBe(true);
   });
 
   it('tells a later player that others are here', () => {

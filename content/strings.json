@@ -241,6 +241,9 @@
   "arena.button": { "en": "{move}, button {button}", "sl": "{move}, gumb {button}" },
   "arena.emptyButton": { "en": "Button {button}: no move yet", "sl": "Gumb {button}: še brez poteze" },
   "arena.timeUp": { "en": "Time is up!", "sl": "Časa je zmanjkalo!" },
+  "arena.damage": { "en": "{damage}", "sl": "{damage}" },
+  "arena.damageStrong": { "en": "{damage}!", "sl": "{damage}!" },
+  "arena.healed": { "en": "+{amount}", "sl": "+{amount}" },
   "arena.pickTitle": { "en": "Pick three creatures", "sl": "Izberi tri bitja" },
   "arena.go": { "en": "Go!", "sl": "Gremo!" },
   "arena.roundSlot": { "en": "Round {round}", "sl": "{round}. krog" },
@@ -259,5 +262,10 @@
   "duel.decline": { "en": "No, thanks", "sl": "Ne, hvala" },
   "duel.watch": { "en": "Watch", "sl": "Glej" },
   "duel.evenMatch": { "en": "Even match: same levels", "sl": "Pošten boj: enake ravni" },
-  "duel.realLevels": { "en": "Real levels", "sl": "Prave ravni" }
+  "duel.realLevels": { "en": "Real levels", "sl": "Prave ravni" },
+  "duel.asked": { "en": "Someone wants a friendly duel!", "sl": "Nekdo te vabi na prijateljski dvoboj!" },
+  "duel.waiting": { "en": "Waiting for an answer…", "sl": "Čakaš na odgovor …" },
+  "duel.cancel": { "en": "Take it back", "sl": "Prekliči" },
+  "duel.close": { "en": "Close", "sl": "Zapri" },
+  "duel.no": { "en": "No duel this time.", "sl": "Tokrat ne bo dvoboja." }
 }

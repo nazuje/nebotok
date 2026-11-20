@@ -1,16 +1,19 @@
 // Level 4 arena check: a real fight in the real client (apps/game/src/arena/) against the real
 // server, in headless, muted Chromium or WebKit. The server runs in this process, from the built
 // game, with ARENA_BATTLES on. The check starts each fight through the world room, so every run meets
-// the same weak wild creature rather than whatever the grass sends (the bot run's arena bot,
-// scripts/lib/arena-bot.mjs, covers the grass). Each run signs in
-// as a player whose save it prepared, sees the island, the cards and the buttons (each at least
-// 64px, with its picture, a lock on one its level has not reached), steers with the stick, the
-// mouse or the keys and fires button 1 by tap or key until the wild creature is beaten, reads the
-// result and continues back to the world. The 360px run holds Leave instead. Best of 3 runs start
-// a practice fight against BOT the same way (the world room's `arena.practice` switch), pick three
-// on the pick screen, fight each round, check the score between rounds and finish. An iPhone, an
-// iPad and 360px wide, in both languages across the two browsers. Fails on any console error, failed or
-// outside request, small touch target or sideways scrolling.
+// the same wild creature, one the first starter's moves hit hard, rather than whatever the grass
+// sends (the bot run's arena bot, scripts/lib/arena-bot.mjs, covers the grass). Each run signs in
+// as a player whose save it prepared, sees the island, the cards (level badges coloured by the
+// gap) and the buttons (each at least 64px, with its picture, a lock on one its level has not
+// reached), steers with the stick, the mouse or the keys and fires button 1 by tap or key, takes a
+// picture of a strong hit's number, reads the result and continues back to the world. One run on
+// a phone or tablet waits for the storm's warning with the weather called; the other weakens the
+// wild creature and befriends it with a treat. The 360px run asks for reduced motion, checks a hit
+// gives no shake, no hit-stop and no sparks, and holds Leave. Best of 3 runs start a practice
+// fight against BOT the same way (the world room's `arena.practice` switch), pick three on the
+// pick screen, fight each round, check the score between rounds and finish. An iPhone, an iPad
+// and 360px wide, in both languages across the two browsers. Fails on any console error, failed or outside
+// request, small touch target or sideways scrolling.
 //   node scripts/arena-check.mjs --browser chromium|webkit [--out <dir>]
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -45,34 +48,44 @@ mkdirSync(join(out, 'logs'), { recursive: true });
 const STRINGS = JSON.parse(readFileSync(join(ROOT, 'content/strings.json'), 'utf8'));
 const STARTERS = JSON.parse(readFileSync(join(ROOT, 'content/starters.json'), 'utf8')).species;
 const ARENA = JSON.parse(readFileSync(join(ROOT, 'content/creatures/arena.json'), 'utf8'));
+const SPECIES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/species.json'), 'utf8')).species;
+const TYPES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/weather.json'), 'utf8')).types;
+const MOVES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/moves.json'), 'utf8')).moves;
 const NARROW = { width: 360, height: 740 };
 const MIN_TARGET_PX = 48;
 const ARENA_BUTTON_PX = 64;
 const FIGHT_MS = 40_000;
+/** The storm's first warning comes 2 s before its first shrink, at 18 s. */
+const STORM_WAIT_MS = 30_000;
 const ROUNDS_MS = 120_000;
 const STEER_MS = 350;
 const WINS = new Set(['won', 'wonByRingOut']);
+/** The wild creature's level, and a stronger one to befriend, which a few hits weaken without beating. */
+const WILD_LEVEL = 3;
+const BEFRIEND_LEVEL = 8;
 const TAG = runTag();
 
 /**
  * The runs of each browser: a phone, a tablet and 360px, the languages crossed so each is seen in
  * both, and each way to steer: touches on the stick (a mouse in WebKit, which has no touch
- * drag), and the keys. The 360px player's creature is too young for button 3 and holds Leave.
+ * drag), and the keys. Each browser waits for the storm on one of phone and tablet and befriends
+ * on the other, so both are seen on both. The 360px player's creature is too young for button 3,
+ * asks for reduced motion and holds Leave.
  * The best of 3 runs (`rounds`) take the other language of their place, so each player's name is new.
  */
 const RUNS = {
   chromium: [
-    { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, leave: false },
-    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, leave: false },
-    { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], leave: true },
-    { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, rounds: true },
-    { where: '360px', language: 'en', steer: 'keys', level: 20, rounds: true },
+    { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, plan: 'storm' },
+    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, plan: 'befriend' },
+    { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], plan: 'leave' },
+    { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'rounds' },
+    { where: '360px', language: 'en', steer: 'keys', level: 20, plan: 'rounds' },
   ],
   webkit: [
-    { where: 'iphone-portrait', language: 'sl', steer: 'keys', level: 20, leave: false },
-    { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, leave: false },
-    { where: '360px', language: 'en', steer: 'keys', level: ARENA.buttons[1], leave: true },
-    { where: 'ipad-landscape', language: 'sl', steer: 'mouse', level: 20, rounds: true },
+    { where: 'iphone-portrait', language: 'sl', steer: 'keys', level: 20, plan: 'befriend' },
+    { where: 'ipad-landscape', language: 'en', steer: 'mouse', level: 20, plan: 'storm' },
+    { where: '360px', language: 'en', steer: 'keys', level: ARENA.buttons[1], plan: 'leave' },
+    { where: 'ipad-landscape', language: 'sl', steer: 'mouse', level: 20, plan: 'rounds' },
   ],
 }[chosen.name];
 
@@ -93,23 +106,32 @@ await gameServer.listen(port, '127.0.0.1');
 const base = `http://127.0.0.1:${port}`;
 const allowedHost = new URL(base).host;
 const world = services.world;
-const [zone] = world.encounters.values();
-const wild = { species: zone.creatures[0].species, level: zone.creatures[0].minLevel };
+/** The first species, by id, of a type the first starter's type is strong against, so its hits show "!". */
+const starterType = SPECIES.find((species) => species.id === STARTERS[0]).type;
+const strongAgainst = TYPES.find((type) => type.id === starterType).strongAgainst;
+const wildSpecies = SPECIES.filter((species) => strongAgainst.includes(species.type))
+  .map((species) => species.id)
+  .toSorted()[0];
+if (!wildSpecies) throw new Error(`arena-check: no species is weak to ${starterType}`);
 const results = [];
 
-/** A player standing at the spawn with `team` (two creatures of `level`) and a treat, saved in this server's database. */
+/** The wild creature a run meets. */
+const wildOf = (run) => ({ species: wildSpecies, level: run.plan === 'befriend' ? BEFRIEND_LEVEL : WILD_LEVEL });
+
+/** A player standing at the spawn with `team` (two creatures of `level`) and treats (the wild creature's favourite, to befriend it), saved in this server's database. */
 async function preparePlayer(run, team = [newCreature(STARTERS[0], run.level, world.battle), newCreature(STARTERS[1], run.level, world.battle)]) {
   const name = arenaName(chosen.name, run.where, run.language, TAG);
   const made = await services.profiles.create({ name, avatar: 'green' });
   if (!made.ok) throw new Error(`arena-check: making ${name}: ${made.error}`);
   const position = { map: world.map.id, ...world.map.spawns[PLAYER_SPAWN], facing: 'down' };
-  const progress = { ...emptyProgress(), team, inventory: [{ item: 'plain-treat', count: 3 }] };
+  const treat = run.plan === 'befriend' ? SPECIES.find((species) => species.id === wildSpecies).favouriteTreat : 'plain-treat';
+  const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: 3 }] };
   services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name, language: run.language, createdAt: new Date().toISOString(), position, ...progress }));
   return { id: made.value.id, name };
 }
 
 /** Starts the wild fight in the world room the player is in: only that room knows them. */
-async function startFight(playerId) {
+async function startFight(playerId, wild) {
   const rooms = await matchMaker.query({ name: 'world' });
   const started = await inTurn(rooms, (listed) => matchMaker.getLocalRoomById(listed.roomId)?.startWildFight(playerId, wild));
   const fightId = started.find(Boolean);
@@ -180,41 +202,83 @@ function keysToward(push) {
   return held;
 }
 
-/** Steers at the wild creature and fires button 1 until the fight ends, the way `run.steer` says. */
-async function fightOn(page, run, { endsBy, stopWhen }) {
+/** The way back to the island's middle, once your creature has strayed from it. */
+function towardMiddle(state) {
+  const mine = state.arena?.mine;
+  const length = mine ? Math.hypot(mine.x, mine.y) : 0;
+  return length > 80 * 256 ? { x: -mine.x / length, y: -mine.y / length } : null;
+}
+
+/** Each button a step may press: its selector to tap and its key. */
+const PRESSES = { one: { tap: '.arena-button.ability-1', key: '1' }, three: { tap: '.arena-button.ability-3', key: '3' }, treat: { tap: '.arena-button.treat', key: 'e' } };
+const buttonOf = (state, action) => state.arena?.buttons.find((each) => String(each.action) === String(action));
+const treatShown = (state) => buttonOf(state, 'treat')?.shown === true;
+const ended = (state) => state.arena?.result != null;
+const toneOf = (level, other) => (level > other ? 'higher' : level < other ? 'lower' : 'even');
+
+/** Plans of a step: where to push and which button to press. */
+const attack = (state) => ({ push: towardWild(state), press: towardWild(state) ? 'one' : null });
+/** Keeps to the middle without hitting, and calls the weather with button 3. */
+const holdOff = (state) => ({ push: towardMiddle(state), press: buttonOf(state, 2)?.locked === false ? 'three' : null });
+/** Weakens the wild creature until a treat can be thrown, then throws treats at it. */
+const befriend = (state) => (treatShown(state) ? { push: towardWild(state), press: 'treat' } : attack(state));
+
+/** Steers and presses until `stopWhen`, the way `run.steer` says: `plan` picks each step's push and button, and `seen` looks at each state first. */
+async function fightOn(page, run, { endsBy, stopWhen, plan = attack, seen = async () => {} }) {
   const { width, height } = page.viewportSize();
   const origin = { x: Math.round(width * 0.22), y: Math.round(height * 0.72) };
   const thumb = run.steer === 'keys' ? null : await makeThumb(page);
   const keys = { held: [] };
 
-  /** One push toward the wild creature and one press of button 1, by thumb or by keys. */
-  async function step(push) {
+  /** One push and one press, by thumb or by keys. */
+  async function step({ push, press }) {
     if (thumb) {
-      await thumb.down(origin);
-      await thumb.move({ x: origin.x + push.x * 50, y: origin.y + push.y * 50 });
-      await sleep(STEER_MS);
-      await thumb.up();
-      if (!stopWhen(await readState(page))) await page.locator('#arena .arena-button.ability-1').tap({ timeout: 2_000 }).catch(() => {});
+      if (push) {
+        await thumb.down(origin);
+        await thumb.move({ x: origin.x + push.x * 50, y: origin.y + push.y * 50 });
+        await sleep(STEER_MS);
+        await thumb.up();
+      } else await sleep(STEER_MS);
+      if (press && !stopWhen(await readState(page))) await page.locator(`#arena ${PRESSES[press].tap}`).tap({ timeout: 2_000 }).catch(() => {});
       return;
     }
-    const next = keysToward(push);
+    const next = push ? keysToward(push) : [];
     await inTurn(keys.held.filter((key) => !next.includes(key)), (key) => page.keyboard.up(key));
     await inTurn(next.filter((key) => !keys.held.includes(key)), (key) => page.keyboard.down(key));
     keys.held = next;
-    await page.keyboard.press('1');
+    if (press) await page.keyboard.press(PRESSES[press].key);
     await sleep(STEER_MS / 2);
   }
 
   async function onward(state) {
     if (stopWhen(state) || Date.now() >= endsBy) return state;
-    const push = towardWild(state);
-    await (push ? step(push) : sleep(100));
+    await seen(state);
+    await step(plan(state));
     return onward(await readState(page));
   }
 
   const state = await onward(await readState(page));
   await inTurn(keys.held, (key) => page.keyboard.up(key));
   return state;
+}
+
+/**
+ * Runs in the page: holds the first strong hit's number at its biggest until the check has taken
+ * its picture, since a number fades out within a second, quicker than a step of the check.
+ */
+function holdStrongNumber() {
+  const layer = document.querySelector('#arena .arena-popups');
+  const watcher = new MutationObserver((changes) => {
+    const pop = changes.flatMap((change) => [...change.addedNodes]).find((node) => node.dataset?.tone === 'strong');
+    if (!pop) return;
+    watcher.disconnect();
+    for (const each of pop.getAnimations()) {
+      each.pause();
+      each.currentTime = 150;
+    }
+    window.strongNumberHeld = true;
+  });
+  watcher.observe(layer, { childList: true });
 }
 
 /** Holds Leave for longer than its second, by touch in Chromium and by mouse in WebKit. */
@@ -231,9 +295,13 @@ async function holdLeave(page) {
 async function fightProblems(page, state, run) {
   const problems = [];
   const { arena } = state;
+  const wild = wildOf(run);
   const badge = await page.locator('#arena .arena-card.mine .arena-level').textContent();
   const wantedBadge = STRINGS['battle.level'][run.language].replace('{level}', String(run.level));
   if (badge !== wantedBadge) problems.push(`your card's level badge says "${badge}", not "${wantedBadge}"`);
+  const tones = await page.locator('#arena .arena-card .arena-level').evaluateAll((badges) => badges.map((each) => each.dataset.tone));
+  const wantedTones = [toneOf(run.level, wild.level), toneOf(wild.level, run.level)];
+  if (tones.join() !== wantedTones.join()) problems.push(`the level badges are ${tones.join(' and ')}, not ${wantedTones.join(' and ')}`);
   if (arena.drawn?.creatures[0] !== arena.mine?.species || arena.drawn?.creatures[1] !== arena.theirs?.species) problems.push(`the scene drew ${JSON.stringify(arena.drawn)}, not ${arena.mine?.species} and ${arena.theirs?.species}`);
   if (arena.mine?.species !== STARTERS[0] || arena.theirs?.species !== wild.species) problems.push(`the island holds ${arena.mine?.species} and ${arena.theirs?.species}`);
   const buttons = await arenaButtons(page);
@@ -255,7 +323,7 @@ async function fightProblems(page, state, run) {
  * what it found wrong, its notes and screenshots, and `signIn` to the world as that player.
  */
 async function openRun(browser, run, team) {
-  const label = `${chosen.name}-${run.where}-${run.language}${run.rounds ? '-rounds' : ''}`;
+  const label = `${chosen.name}-${run.where}-${run.language}${run.plan === 'rounds' ? '-rounds' : ''}`;
   const problems = [];
   const notes = [];
   const screenshots = [];
@@ -264,7 +332,8 @@ async function openRun(browser, run, team) {
   };
   const player = await preparePlayer(run, team);
   const device = DEVICES.find((each) => each.name === run.where);
-  const contextOptions = device ? { ...device.descriptor } : { viewport: NARROW, hasTouch: true, isMobile: chosen.name === 'chromium' };
+  const reducedMotion = run.plan === 'leave' ? 'reduce' : 'no-preference';
+  const contextOptions = device ? { ...device.descriptor, reducedMotion } : { viewport: NARROW, hasTouch: true, isMobile: chosen.name === 'chromium', reducedMotion };
   const context = await browser.newContext(contextOptions);
   await context.addInitScript(presetLanguage, run.language);
   await context.addInitScript(reportCspViolations);
@@ -294,7 +363,7 @@ async function checkRun(browser, run) {
   const { label, player, tab: page, problems, notes, screenshots, expect, shot, fits } = opened;
   try {
     await opened.signIn();
-    const fightId = await startFight(player.id);
+    const fightId = await startFight(player.id, wildOf(run));
     let state = await until(page, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'fighting' && s.arena.drawn !== null && s.arena.mine !== null, 'the arena fight on screen', 15_000);
     expect(state.arena.fightId === fightId && state.arena.mode === 'wild' && state.arena.side === 0, `the page shows fight ${JSON.stringify(state.arena)}, not ${fightId}`);
     expect(state.players.find((each) => each.self)?.inBattle === true, 'your courier is not shown fighting');
@@ -302,33 +371,68 @@ async function checkRun(browser, run) {
     for (const problem of await fightProblems(page, state, run)) problems.push(problem);
     await fits('the arena fight');
     const startedAt = state.arena.mine;
-    if (run.leave) {
-      state = await fightOn(page, { ...run, steer: 'keys' }, { endsBy: Date.now() + 1_500, stopWhen: (s) => s.arena?.result != null });
+    /** Takes one picture of the first strong hit's number, which `holdStrongNumber` holds still for it. */
+    const strong = { shot: false };
+    await page.evaluate(holdStrongNumber);
+    const seen = async () => {
+      if (strong.shot || !(await page.evaluate(() => window.strongNumberHeld === true))) return;
+      strong.shot = true;
+      await shot('2-strong-hit');
+      await page.evaluate(() => document.querySelectorAll('#arena .arena-pop').forEach((pop) => pop.getAnimations().forEach((each) => each.play())));
+    };
+    if (run.plan === 'leave') {
+      const hit = (s) => ended(s) || (s.arena?.drawn?.juice.popups ?? 0) > 0;
+      const most = { shake: 0 };
+      state = await fightOn(page, { ...run, steer: 'keys' }, { endsBy: Date.now() + 8_000, stopWhen: hit, seen: async (s) => void (most.shake = Math.max(most.shake, s.arena?.drawn?.juice.shake ?? 0)) });
       await shot('1-fight');
+      const juice = state.arena?.drawn?.juice;
+      notes.push(`reduced motion: ${JSON.stringify(juice)}`);
+      expect(juice?.popups > 0, `no hit landed in 8 s to check reduced motion: ${JSON.stringify(juice)}`);
+      expect(most.shake === 0 && juice?.shake === 0 && juice?.shaken === 0 && juice?.stops === 0 && juice?.sparks === 0, `under reduced motion a hit shook the island ${juice?.shaken}px, held ${juice?.stops} hit-stops and threw ${juice?.sparks} sparks`);
       await holdLeave(page);
     } else {
-      state = await fightOn(page, run, { endsBy: Date.now() + 2_500, stopWhen: (s) => s.arena?.result != null });
+      state = await fightOn(page, run, { endsBy: Date.now() + 2_500, stopWhen: (s) => ended(s) || (run.plan === 'storm' && strong.shot), seen });
       await shot('1-fight');
-      state = await fightOn(page, run, { endsBy: Date.now() + FIGHT_MS, stopWhen: (s) => s.arena?.result != null });
+      if (run.plan === 'storm') {
+        state = await fightOn(page, run, { endsBy: Date.now() + STORM_WAIT_MS, stopWhen: (s) => ended(s) || s.arena?.drawn?.warning === true, plan: holdOff });
+        expect(state.arena?.drawn?.warning === true, `the storm's warning never showed: ${JSON.stringify(state.arena?.drawn)}`);
+        await nextFrames(page);
+        await shot('3-storm-warning');
+        const called = MOVES.find((move) => move.id === buttonOf(state, 2)?.move)?.setsWeather ?? null;
+        const weather = await page.locator('#arena .arena-weather:visible').getAttribute('data-weather', { timeout: 2_000 }).catch(() => null);
+        expect(called !== null && weather === called, `the weather corner shows ${weather} after button 3 called ${called}`);
+      }
+      state = await fightOn(page, run, { endsBy: Date.now() + FIGHT_MS, stopWhen: ended, plan: run.plan === 'befriend' ? befriend : attack, seen });
+      if (run.plan === 'befriend' && ended(state)) {
+        // The hearts rise one after another for half a second, while the result waits.
+        await sleep(500);
+        await shot('3-befriend');
+      }
+      expect(strong.shot, 'no strong hit showed its number');
+      const juice = state.arena?.drawn?.juice;
+      notes.push(`juice: ${JSON.stringify(juice)}`);
+      expect(juice?.shaken > 0 && juice?.stops > 0 && juice?.sparks > 0, `the hits shook the island ${juice?.shaken}px, held ${juice?.stops} hit-stops and threw ${juice?.sparks} sparks`);
     }
     const moved = state.arena?.mine && (state.arena.mine.x !== startedAt.x || state.arena.mine.y !== startedAt.y);
     expect(state.arena?.result != null || moved, `your creature never moved from ${JSON.stringify(startedAt)}`);
-    expect((state.arena?.inputs ?? 0) > 20 && (run.leave || (state.arena?.presses ?? 0) > 0), `the page sent ${state.arena?.inputs} inputs with ${state.arena?.presses} presses`);
-    state = await until(page, (s) => s.arena?.result != null, 'the fight result', 10_000);
+    expect((state.arena?.inputs ?? 0) > 20 && (run.plan === 'leave' || (state.arena?.presses ?? 0) > 0), `the page sent ${state.arena?.inputs} inputs with ${state.arena?.presses} presses`);
+    state = await until(page, ended, 'the fight result', 10_000);
     const outcome = state.arena.result.outcome?.result ?? null;
-    notes.push(`${outcome} after ${state.arena.inputs} inputs and ${state.arena.presses} presses`);
-    if (run.leave) expect(outcome === 'ran', `holding Leave ended the fight with ${outcome}`);
-    else expect(WINS.has(outcome), `the fight ended with ${outcome}, not a win`);
+    notes.push(`${outcome} after ${state.arena.inputs} inputs and ${state.arena.presses} presses, ${state.arena.buzzes} buzzes`);
+    const wantedOutcome = { leave: ['ran'], befriend: ['befriended'], storm: [...WINS] }[run.plan];
+    expect(wantedOutcome.includes(outcome), `the fight ended with ${outcome}, not ${wantedOutcome.join(' or ')}`);
     if (WINS.has(outcome)) expect(state.arena.result.rewards.length > 0, 'a won fight gave no experience');
     await page.locator('#arena .arena-continue').waitFor({ state: 'visible', timeout: 5_000 });
     await nextFrames(page);
     const line = (await page.locator('#arena .arena-result-line').textContent())?.trim();
-    const wantedLine = STRINGS[run.leave ? 'battle.ranAway' : 'battle.won'][run.language];
+    const wildName = SPECIES.find((species) => species.id === wildSpecies).name[run.language];
+    const wantedLine = { leave: STRINGS['battle.ranAway'][run.language], befriend: STRINGS['battle.befriended'][run.language].replace('{creature}', wildName), storm: STRINGS['battle.won'][run.language] }[run.plan];
     expect(line === wantedLine, `the result says "${line}", not "${wantedLine}"`);
     const picture = await page.locator('#arena .arena-result-picture').getAttribute('data-picture');
-    expect(picture === `pictures/${run.leave ? 'leave' : outcome === 'wonByRingOut' ? 'ring-out' : 'trophy'}`, `the result shows the picture ${picture}`);
+    const wantedPicture = { leave: 'leave', befriend: 'heart', storm: outcome === 'wonByRingOut' ? 'ring-out' : 'trophy' }[run.plan];
+    expect(picture === `pictures/${wantedPicture}`, `the result shows the picture ${picture}`);
     await fits('the arena result');
-    await shot('2-result');
+    await shot('4-result');
     await page.locator('#arena .arena-continue').tap();
     state = await until(page, (s) => s.screen === 'world' && s.arena === null && s.players.find((each) => each.self)?.inBattle === false, 'the world after the fight', 10_000);
     await nextFrames(page);
@@ -336,7 +440,7 @@ async function checkRun(browser, run) {
     const saved = services.progress.load(player.id)?.data;
     const reward = state.arena === null && WINS.has(outcome) ? (await readState(page)).progress?.team[0] : null;
     if (reward) expect(saved?.team[0]?.xp === reward.xp && saved?.team[0]?.level === reward.level, `the page shows ${JSON.stringify(reward)} after the fight, not the saved ${JSON.stringify(saved?.team[0])}`);
-    await shot('3-world');
+    await shot('5-world');
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
@@ -459,7 +563,7 @@ try {
   try {
     await inTurn(RUNS, async (run) => {
       const started = performance.now();
-      await (run.rounds ? checkRoundsRun(browser, run) : checkRun(browser, run));
+      await (run.plan === 'rounds' ? checkRoundsRun(browser, run) : checkRun(browser, run));
       results.at(-1).durationMs = Math.round(performance.now() - started);
     });
   } finally {

@@ -644,6 +644,26 @@ export {
   inventoryAfterFight,
   type WildSetupOptions,
 } from './arena/results.ts';
+export {
+  DUEL_TEAM,
+  DUEL_REACH,
+  DUEL_ANSWER_MS,
+  DUEL_PAUSE_MS,
+  duelLineup,
+  canDuel,
+  inDuelReach,
+  evenLevel,
+  duelSetup,
+  type DuelSetupOptions,
+} from './arena/duels.ts';
+export {
+  DuelAskMessage,
+  DuelAnswerMessage,
+  DuelCancelMessage,
+  type DuelCreature,
+  type DuelAskedMessage,
+  type DuelAnsweredMessage,
+} from './duel-messages.ts';
 export { FightGoldenFile, fightReplay, fightReplayHash, type FightReplay } from './arena/fight-golden.ts';
 export {
   ARENA_INPUT_FIELDS,
