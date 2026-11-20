@@ -33,6 +33,16 @@ describe('config', () => {
     expect(() => readConfig({ ARENA_BATTLES: 'yes' })).toThrow(/ARENA_BATTLES/);
   });
 
+  it('adds arena lag only outside production', () => {
+    expect(readConfig({}).arenaFakeLagMs).toBe(0);
+    expect(readConfig({ ARENA_FAKE_LAG_MS: '150' }).arenaFakeLagMs).toBe(150);
+    expect(readConfig({ NODE_ENV: 'test', ARENA_FAKE_LAG_MS: '50' }).arenaFakeLagMs).toBe(50);
+    expect(readConfig({ NODE_ENV: 'production', ARENA_FAKE_LAG_MS: '0' }).arenaFakeLagMs).toBe(0);
+    expect(() => readConfig({ NODE_ENV: 'production', ARENA_FAKE_LAG_MS: '150' })).toThrow(/ARENA_FAKE_LAG_MS/);
+    expect(() => readConfig({ ARENA_FAKE_LAG_MS: '-5' })).toThrow(/ARENA_FAKE_LAG_MS/);
+    expect(() => readConfig({ ARENA_FAKE_LAG_MS: '5000' })).toThrow(/ARENA_FAKE_LAG_MS/);
+  });
+
   it.each(['true', '*', 'false', '1', '', 'loopback,', 'uniquelocal', '0.0.0.0/0', '::/0', '10.0.0.0/33', '10.0.0.0/8/1', 'proxy.example', '10.0.0.0/255.0.0.0'])(
     'refuses TRUST_PROXY=%j, which would believe anyone or cannot be read',
     (value) => {

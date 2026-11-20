@@ -34,6 +34,7 @@ const Env = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   TRUST_PROXY: TrustProxy,
   ARENA_BATTLES: z.enum(['on', 'off']).default('off'),
+  ARENA_FAKE_LAG_MS: z.coerce.number().int().min(0).max(1_000).default(0),
 });
 
 export type Config = {
@@ -49,6 +50,8 @@ export type Config = {
   readonly trustProxy: readonly string[];
   /** Whether wild fights are arena fights (docs/protocol.md, "Arena fights"). Off until the switch-over. */
   readonly arenaBattles: boolean;
+  /** Dev only: extra round trip, in ms, for every arena player, to try prediction under lag. Refused in production. */
+  readonly arenaFakeLagMs: number;
 };
 
 /** All configuration comes from the environment; nothing secret lives in the code. */
@@ -58,7 +61,8 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): C
     const problems = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
     throw new Error(`bad environment: ${problems}`);
   }
-  const { PORT, HOST, DATA_DIR, GAME_DIST, NODE_ENV, LOG_LEVEL, TRUST_PROXY, ARENA_BATTLES } = parsed.data;
+  const { PORT, HOST, DATA_DIR, GAME_DIST, NODE_ENV, LOG_LEVEL, TRUST_PROXY, ARENA_BATTLES, ARENA_FAKE_LAG_MS } = parsed.data;
+  if (NODE_ENV === 'production' && ARENA_FAKE_LAG_MS > 0) throw new Error('bad environment: ARENA_FAKE_LAG_MS: dev only, refused in production');
   return {
     port: PORT,
     host: HOST,
@@ -68,5 +72,6 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): C
     logLevel: LOG_LEVEL,
     trustProxy: TRUST_PROXY,
     arenaBattles: ARENA_BATTLES === 'on',
+    arenaFakeLagMs: ARENA_FAKE_LAG_MS,
   };
 }

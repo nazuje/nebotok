@@ -35,6 +35,7 @@ import {
 import { z } from 'zod';
 import { ArenaInputSchema, ArenaRoomState, showFight, type ArenaPhase } from './arena-state.ts';
 import { BATTLE_IDLE_MS } from './battles.ts';
+import { addFakeLag } from './fake-lag.ts';
 import type { FightBook, FightPicker, FightPlan, FightStop } from './fights.ts';
 import type { Log } from './log.ts';
 import type { ProfileStore } from './profiles.ts';
@@ -65,6 +66,8 @@ export type ArenaServices = {
   readonly now: () => number;
   /** Keeps every core step's inputs on the room (`recorded`), for the replay test. Off in play. */
   readonly record?: boolean;
+  /** Dev and test only: the extra round trip, in ms, given to each player as they join (`ARENA_FAKE_LAG_MS`). */
+  readonly fakeLagMs?: () => number;
 };
 
 const CreateOptions = z.object({ fightId: z.string().min(1).max(64) });
@@ -109,7 +112,7 @@ function freshRefusals(events: readonly FightEvent[], before: ReadonlySet<string
  * and played here at a fixed step. Private: joined only with a seat reservation the world room
  * made for that player, never by matchmaking.
  */
-export function arenaRoom({ log, world, profiles, fights, now, record = false }: ArenaServices) {
+export function arenaRoom({ log, world, profiles, fights, now, record = false, fakeLagMs = () => 0 }: ArenaServices) {
   const content = fightContentOf(world.battle);
 
   return class ArenaRoom extends Room {
@@ -204,6 +207,7 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false }:
       const seat = this.plan.seats.find((each) => each.playerId === playerId);
       if (!seat || this.over) throw new ServerError(ErrorCode.AUTH_FAILED, 'not in this fight');
       this.fighters.set(client.sessionId, { playerId, side: seat.side, connected: true });
+      this.lag(client);
       this.sendStarted(client, seat.side);
       this.resumeIfEveryoneIsHere();
       log.info('fighter joined', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, playerId, side: seat.side });
@@ -228,6 +232,7 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false }:
         return;
       }
       fighter.connected = true;
+      this.lag(client);
       this.sendStarted(client, fighter.side);
       this.resumeIfEveryoneIsHere();
       log.info('fighter reconnected', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId });
@@ -256,6 +261,13 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false }:
       }
       log.error('arena room error', { roomId: this.roomId, fight: this.plan?.fightId, method, error: cause instanceof Error ? cause.name : typeof cause, message: cause instanceof Error ? cause.message : '' });
       if (method === 'setFixedTimestep' && !this.over) this.stop('failed');
+    }
+
+    private lag(client: Client) {
+      const lagMs = fakeLagMs();
+      if (lagMs <= 0) return;
+      addFakeLag(client, lagMs);
+      log.info('fake lag', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, lagMs });
     }
 
     /** While picking, a side is told only its own line-up, the defaults, and the other side's is empty. */
