@@ -1,12 +1,12 @@
 import { DUEL_ANSWER_MS, DUEL_PAUSE_MS } from '@nebotok/core';
 
 /**
- * The duel asks waiting for an answer in a world room, and the pause after a decline
+ * The duel asks waiting for an answer in a world room, and the pause after a no or a take-back
  * (docs/protocol.md, "Arena fights"). Asks live only in memory: an ask is over when either player
  * leaves, and a restart forgets them all.
  */
 
-/** `from` asked `to`, both by session id, at `at`; the players' profile ids key the pause after a decline. */
+/** `from` asked `to`, both by session id, at `at`; the players' profile ids key the pair's pause. */
 export type DuelAsk = {
   readonly from: string;
   readonly to: string;
@@ -25,8 +25,8 @@ export type DuelDesk = ReturnType<typeof createDuelDesk>;
 
 export function createDuelDesk() {
   const asks = new Set<DuelAsk>();
-  /** When each pair of players declined last, while its pause lasts. */
-  const declinedAt = new Map<string, number>();
+  /** When each pair's last ask ended without a duel (a no, no answer or taken back), while its pause lasts. */
+  const pausedSince = new Map<string, number>();
 
   return {
     open(ask: DuelAsk) {
@@ -38,15 +38,18 @@ export function createDuelDesk() {
     waitingFor: (sessionId: string): DuelAsk | undefined => [...asks].find((ask) => ask.to === sessionId),
     /** The ask this session made, if any. */
     madeBy: (sessionId: string): DuelAsk | undefined => [...asks].find((ask) => ask.from === sessionId),
-    /** Ends an ask; a no or no answer starts the pair's pause. */
+    /**
+     * Ends an ask. A no, no answer or taking it back starts the pair's pause; the take-back too, so
+     * asking and taking back cannot pop the answer card up again and again.
+     */
     close(ask: DuelAsk, end: AskEnd, at: number) {
       asks.delete(ask);
-      if (end === 'declined' || end === 'timedOut') declinedAt.set(pairOf(ask.fromPlayer, ask.toPlayer), at);
+      if (end === 'declined' || end === 'timedOut' || end === 'cancelled') pausedSince.set(pairOf(ask.fromPlayer, ask.toPlayer), at);
     },
-    /** Whether two players still wait after a decline between them. */
+    /** Whether two players still wait after an ask between them ended without a duel. */
     paused(a: number, b: number, at: number): boolean {
-      for (const [pair, when] of declinedAt) if (at - when >= DUEL_PAUSE_MS) declinedAt.delete(pair);
-      return declinedAt.has(pairOf(a, b));
+      for (const [pair, when] of pausedSince) if (at - when >= DUEL_PAUSE_MS) pausedSince.delete(pair);
+      return pausedSince.has(pairOf(a, b));
     },
     /** The asks left without an answer for `DUEL_ANSWER_MS` at `at`. */
     expired: (at: number): DuelAsk[] => [...asks].filter((ask) => at - ask.at >= DUEL_ANSWER_MS),
