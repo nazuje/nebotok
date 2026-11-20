@@ -40,9 +40,6 @@ const DIRECTION_SCALE = 4096;
 const DEPTH = { sky: 0, island: 1, under: 2, creatures: 3, over: 6, sparks: 6.5, bars: 7 } as const;
 /** How tall a creature's picture is, in body radii: the sprites leave room around the creature in their frame. */
 const CREATURE_BODIES = 3.4;
-/** How long the drawn position takes to catch up with the server's, in ms, and the jump past which it does not try. */
-const FOLLOW_MS = 45;
-const SNAP_BODIES = 4;
 const FALL_MS = 1_000;
 const FLASH_MS = 220;
 /** How long a hit turns its creature white, and how quickly the health bar's white trail of what was lost runs down, in ms for a whole bar. */
@@ -52,8 +49,12 @@ const SHOWN_MS = 70;
 const SPRING = { stiffness: 900, damping: 17 } as const;
 const NO_TINT: Tint = { light: 0xe6eef6, main: 0x8fa9c4, dark: 0x334e68 };
 
-/** The fight to draw: the arena room's state and which side is yours. */
-export type ShownFight = { readonly state: ArenaRoomState; readonly side: Side };
+/**
+ * The fight to draw: the arena room's state, which side is yours, and where to draw each creature
+ * now in arena units (yours predicted, the other smoothed: src/arena/arena-predict.ts), or null
+ * for where the state has it.
+ */
+export type ShownFight = { readonly state: ArenaRoomState; readonly side: Side; place(side: Side, now: number): Point | null };
 
 export type ArenaSceneOptions = {
   fight(): ShownFight | null;
@@ -149,8 +150,8 @@ const facingAngle = (facing: number): number => {
 /**
  * The arena fight, drawn from the arena room's state (docs/arena.md, "Screens and controls"): the
  * sky, the floating island and its storm, the things moves leave on it, and both creatures with
- * a bob, a squash and a flip as they walk, falling off the edge on a ring-out. Positions follow
- * the server's with a short ease; prediction (#152) builds on this. The events start the juice
+ * a bob, a squash and a flip as they walk, falling off the edge on a ring-out. Your creature is
+ * drawn where it is predicted and the other 100 ms behind (`ShownFight.place`). The events start the juice
  * (`arena-effects.ts`): sparks, a shake, a hit-stop that holds the drawing still while the fight
  * goes on, a white flash, the health bar's trail and the damage numbers, which are HTML like
  * everything else with words (src/arena/arena-screen.ts).
@@ -220,7 +221,7 @@ export class ArenaScene extends Scene {
     const things = this.drawThings(state, now, still, moved === 0);
     this.drawFlashes(state, now);
     const creatures: [string | null, string | null] = [null, null];
-    for (const side of [0, 1] as const) creatures[side] = this.drawBody(state, side, fight.side, radius, moved, now, still);
+    for (const side of [0, 1] as const) creatures[side] = this.drawBody(state, side, fight.side, this.placeOf(fight, side, now), radius, moved, now, still);
     this.effects.draw(layers.sparks, moved);
     this.lastDrawn = { creatures, radius: Math.round(radius), things, warning, juice: this.effects.count() };
   }
@@ -346,8 +347,15 @@ export class ArenaScene extends Scene {
     return look.image;
   }
 
-  /** Draws a side's creature and its marks; returns its species, or null when none shows. `delta` is 0 during a hit-stop. */
-  private drawBody(state: ArenaRoomState, side: Side, yours: Side, radius: number, delta: number, now: number, still: boolean): string | null {
+  /** Where a side's creature goes this frame: where it was during a hit-stop, which holds the drawing only, never input or prediction; else where the fight places it. */
+  private placeOf(fight: ShownFight, side: Side, now: number): Point | null {
+    const look = this.looks[side];
+    const held = this.effects.stopped(now) && look.id !== '' && look.id === fight.state.bodies.at(side)?.id;
+    return held ? { x: look.x, y: look.y } : fight.place(side, now);
+  }
+
+  /** Draws a side's creature at `place`, else where the state has it, and its marks; returns its species, or null when none shows. `delta` is 0 during a hit-stop. */
+  private drawBody(state: ArenaRoomState, side: Side, yours: Side, place: Point | null, radius: number, delta: number, now: number, still: boolean): string | null {
     const shown = state.bodies.at(side);
     const look = this.looks[side];
     const layers = this.layers;
@@ -357,11 +365,9 @@ export class ArenaScene extends Scene {
     }
     const image = this.imageFor(look, shown.species);
     const { body } = ARENA.arena.island;
-    const target = { x: shown.x / SUB, y: shown.y / SUB };
-    const fresh = look.id !== shown.id || Math.hypot(target.x - look.x, target.y - look.y) > body * SNAP_BODIES;
-    const follow = fresh ? 1 : 1 - Math.exp(-delta / FOLLOW_MS);
-    look.x += (target.x - look.x) * follow;
-    look.y += (target.y - look.y) * follow;
+    const target = place ?? { x: shown.x / SUB, y: shown.y / SUB };
+    look.x = target.x;
+    look.y = target.y;
     if (look.id !== shown.id) {
       if (look.fall?.id !== shown.id) look.fall = null;
       look.shownHp = shown.health;

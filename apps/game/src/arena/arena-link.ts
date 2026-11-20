@@ -1,10 +1,15 @@
-import { ARENA_MESSAGES, SERVER_MESSAGES, type ArenaJoinMessage, type ArenaResultMessage, type ArenaStartedMessage, type ArenaEventsMessage, type FightEvent, type Language, type LearnedMove, type ProgressMessage, type Side } from '@nebotok/core';
+import { ARENA_MESSAGES, SERVER_MESSAGES, SUBUNITS, arenaInputOf, otherSide, type ArenaJoinMessage, type ArenaResultMessage, type ArenaStartedMessage, type ArenaEventsMessage, type FightEvent, type Language, type LearnedMove, type ProgressMessage, type Side } from '@nebotok/core';
 import type { Game } from 'phaser';
 import type { ArenaRoom, WorldConnection, WorldRoom } from '../connection.ts';
 import { element } from '../dom.ts';
+import { moveArena } from '../move-arena.ts';
 import { buttonStates, treatUsable, type ButtonState } from './arena-buttons.ts';
+import { ARENA } from './arena-content.ts';
 import { createArenaControls } from './arena-controls.ts';
-import { INPUTS_PER_SECOND, wireInput } from './arena-input.ts';
+import { createFollower, type Follower } from './arena-follow.ts';
+import { INPUTS_PER_SECOND, leadLimit, wireInput } from './arena-input.ts';
+import { createNetPanel, netMetersAsked } from './arena-net.ts';
+import { createCastEcho, createPredictor, type CastEcho, type NetMeters, type Predictor } from './arena-predict.ts';
 import { badgeTone, buzzFor, motionReduced } from './arena-juice.ts';
 import { ARENA_SCENE, ArenaScene, type ArenaDrawn, type ShownFight } from './arena-scene.ts';
 import { createArenaScreen, type CardView } from './arena-screen.ts';
@@ -49,6 +54,8 @@ export type TestArena = {
   buzzes: number;
   drawn: ArenaDrawn | null;
   result: ArenaResultMessage | null;
+  /** The netcode meters (docs/protocol.md, "Prediction"), once the fight has started. */
+  net: NetMeters | null;
 };
 
 export type Arena = {
@@ -64,6 +71,8 @@ export type Arena = {
 };
 
 const SEND_MS = 1_000 / INPUTS_PER_SECOND;
+/** How much of each new ping the round trip takes in. */
+const PING_EASE = 0.25;
 /** How long the island stays in view after the fight ends, in ms, so a fall or a befriending's hearts play out before the result covers it. */
 export const RESULT_HOLD_MS = 1_500;
 
@@ -82,6 +91,14 @@ type Fight = {
   presses: number;
   buzzes: number;
   stop: () => void;
+  /** Your creature, predicted, and the other one, smoothed; made when the room says which side is yours. */
+  predictor: Predictor | null;
+  echo: CastEcho | null;
+  follower: Follower;
+  /** The network's round trip, from a ping each second; the input stream's own counts the inputs waiting in the room too. */
+  pingMs: number | null;
+  /** Whether the last send was skipped to drain the room's buffer: never two in a row. */
+  skipped: boolean;
 };
 
 /** Buzzes the device where it can (`navigator.vibrate`; Safari on iPhone and iPad has none). Returns whether it asked. */
@@ -98,14 +115,18 @@ function buzz(pattern: readonly number[]): boolean {
  * the world room puts up how it ended, until Continue.
  */
 export function createArena(options: ArenaOptions): Arena {
-  const screen = createArenaScreen(element<HTMLElement>('#arena'), { continue: () => finish() });
+  const root = element<HTMLElement>('#arena');
+  const screen = createArenaScreen(root, { continue: () => finish() });
+  const netPanel = netMetersAsked(location.search) ? createNetPanel(root) : null;
   let fight: Fight | null = null;
   let sender: ReturnType<typeof setInterval> | undefined;
 
   const shown = (): ShownFight | null => {
     const state = fight?.room?.state ?? fight?.last;
     const side = fight?.started?.side;
-    return state?.bodies && side !== undefined ? { state, side } : null;
+    if (!fight || !state?.bodies || side === undefined) return null;
+    const { predictor, follower } = fight;
+    return { state, side, place: (at, now) => (at === side ? (predictor?.at(now) ?? null) : follower.at(now)) };
   };
   const fighting = (): boolean => fight !== null && fight.result === null && fight.room !== null && shown()?.state.phase === 'fighting';
 
@@ -137,12 +158,59 @@ export function createArena(options: ArenaOptions): Arena {
     const room = fight?.room;
     // A room the server just closed is gone only once its socket has finished closing.
     if (!fight || !room || !room.connection.isOpen || !fighting()) return;
-    const pressed = controls.take();
+    if (fight.inputs % INPUTS_PER_SECOND === 0) ping(fight, room);
     const input = room.input();
-    Object.assign(input.data, wireInput(controls.direction(), pressed, controls.leaving()));
-    input.send();
+    // A skipped send takes nothing from the controls, so its presses go with the next.
+    if (!fight.skipped && fight.pingMs !== null && input.pendingCount > leadLimit(fight.pingMs, room.clock.patchInterval?.() ?? SEND_MS)) {
+      fight.skipped = true;
+      return;
+    }
+    fight.skipped = false;
+    const pressed = controls.take();
+    const wire = wireInput(controls.direction(), pressed, controls.leaving());
+    Object.assign(input.data, wire);
+    const seq = input.send();
+    const now = performance.now();
+    fight.predictor?.sent(seq, arenaInputOf(wire), now);
     fight.inputs += 1;
-    if (pressed.press !== null) fight.presses += 1;
+    if (pressed.press !== null) {
+      fight.presses += 1;
+      echoCast(fight, pressed.press, now);
+    }
+  }
+
+  function ping(target: Fight, room: ArenaRoom) {
+    room.ping((ms) => {
+      target.pingMs = target.pingMs === null ? ms : target.pingMs + (ms - target.pingMs) * PING_EASE;
+    });
+  }
+
+  /** Starts the animation of a cast you pressed at once, when its button looks ready; the server's own cast then plays nothing more. */
+  function echoCast(target: Fight, button: 0 | 1 | 2, now: number) {
+    const side = target.started?.side;
+    if (!target.echo || side === undefined || target.echo.waiting(button, now)) return;
+    const ready = buttons().find((each) => each.action === button);
+    const shape = ready?.move ? moveArena(ready.move)?.shape : undefined;
+    if (!ready?.move || !shape || ready.locked || ready.cooldown > 0) return;
+    target.echo.cast(button, now);
+    target.events.push({ kind: 'cast', side, button, move: ready.move, shape });
+  }
+
+  /** Hands the room's newest state to the prediction and the other creature's smoothing. */
+  function track(target: Fight) {
+    const now = performance.now();
+    const room = target.room;
+    const state = room?.state;
+    const side = target.started?.side;
+    if (!room || !state?.bodies || side === undefined) return;
+    target.predictor?.heard(state, room.input().lastProcessed, now);
+    const other = state.bodies.at(otherSide(side));
+    if (other) target.follower.heard(other.id, state.tick, { x: other.x / SUBUNITS, y: other.y / SUBUNITS }, now);
+  }
+
+  function meters(target: Fight): NetMeters | null {
+    const room = target.room;
+    return room && target.predictor ? target.predictor.meters(target.pingMs ?? room.clock.smoothedRtt(), room.input().pendingCount, performance.now()) : null;
   }
 
   function leaveRoom(ending: Fight) {
@@ -178,9 +246,12 @@ export function createArena(options: ArenaOptions): Arena {
       room.onMessage(ARENA_MESSAGES.started, (message: ArenaStartedMessage) => {
         target.started = message;
         target.book = fightBook(message, options.progress());
+        // Also on a reconnection, whose input stream starts again from nothing.
+        target.predictor = createPredictor(message.side, ARENA, SEND_MS);
+        target.echo = createCastEcho(message.side);
       }),
       room.onMessage(ARENA_MESSAGES.events, (message: ArenaEventsMessage) => {
-        target.events.push(...message.events);
+        target.events.push(...(target.echo ? target.echo.settle(message.events, performance.now()) : message.events));
         target.book.saw(message.events);
         feel(target, message.events);
       }),
@@ -202,7 +273,7 @@ export function createArena(options: ArenaOptions): Arena {
     if (!connection) return;
     if (fight?.id !== fightId) {
       if (fight) leaveRoom(fight);
-      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, stop: () => {} };
+      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
       controls.reset();
       options.started();
       options.changed();
@@ -257,6 +328,8 @@ export function createArena(options: ArenaOptions): Arena {
     },
     frame: (now) => {
       const language = options.language();
+      if (fight) track(fight);
+      netPanel?.render(fight && fight.result === null ? meters(fight) : null, language);
       const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [] };
       screen.render(view, language);
       if (fight) controls.render(buttons(), language, now, fighting() && shown()?.state.mode === 'wild');
@@ -296,6 +369,7 @@ export function createArena(options: ArenaOptions): Arena {
           buzzes: fight.buzzes,
           drawn: scene.drawn(),
           result: fight.result,
+          net: meters(fight),
         },
       };
     },

@@ -13,6 +13,19 @@ export const PAD_RADIUS = 60;
 export const DEAD_ZONE = 0.3;
 /** Inputs a second, the arena room's fixed step. */
 export const INPUTS_PER_SECOND = 30;
+/** Inputs left waiting in the room beyond the round trip, so a late one on Wi-Fi does not leave a step without input. */
+export const SPARE_INPUTS = 2;
+
+/**
+ * The most inputs to have sent and not yet acknowledged, the input lead (docs/protocol.md,
+ * "Input"): the inputs the network's round trip and the wait for the next patch, which carries the
+ * acknowledgement, hold, plus `SPARE_INPUTS`. Any more only wait in the room's buffer and make
+ * every input later, as a page's timer a little faster than the room's step builds up over a
+ * fight; the page skips a send to let one drain.
+ */
+export function leadLimit(rttMs: number, patchMs: number): number {
+  return Math.ceil(((rttMs + patchMs) * INPUTS_PER_SECOND) / 1_000) + SPARE_INPUTS;
+}
 
 /** A button of the fight: an ability button 0 to 2, dash, treat or swap. */
 export type ArenaAction = 0 | 1 | 2 | 'dash' | 'treat' | 'swap';

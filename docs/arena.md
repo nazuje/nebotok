@@ -515,9 +515,9 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
 - **Arena screen** (#151, built): the island fills the screen, drawn by Phaser
   (`apps/game/src/arena/arena-scene.ts`), with HTML over it: a card for each side at the top
   (portrait, level badge, health bar, the turtle on yours when it is on), the stick's half, the
-  button cluster and Leave (`arena-controls.ts`, `arena-screen.ts`). Creatures follow the server's
-  positions with a short ease, snap when they jump far, squash on a hit, bob as they walk and fall
-  off the edge after a ring-out. The result is a card with one picture for the ending (trophy,
+  button cluster and Leave (`arena-controls.ts`, `arena-screen.ts`). Your creature is predicted
+  and the other drawn 100 ms behind (#152, "Prediction" in protocol.md); both squash on a hit, bob
+  as they walk and fall off the edge after a ring-out. The result is a card with one picture for the ending (trophy,
   ring-out, heart, puff, leave, clock or cloud) and one line, each creature's XP bar, and Continue,
   which goes back to the world. Swap shows while a team-mate could still come in, as far as the
   fight's events tell (`fight-book.ts`); Treat while you hold a treat, none is out, and the wild

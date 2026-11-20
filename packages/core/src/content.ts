@@ -258,6 +258,7 @@ export const REQUIRED_STRING_IDS = [
   'arena.button',
   'arena.emptyButton',
   'arena.timeUp',
+  'arena.net',
   'arena.damage',
   'arena.damageStrong',
   'arena.healed',
