@@ -4,7 +4,7 @@
 // the same wild creature, one the first starter's moves hit hard, rather than whatever the grass
 // sends (the bot run's arena bot, scripts/lib/arena-bot.mjs, covers the grass). Each run signs in
 // as a player whose save it prepared, sees the island, the cards (level badges coloured by the
-// gap, and an arrow to the shrine on yours when it came in hurt, as the storm runs' lead does) and
+// gap, and an arrow to the shrine on yours when it came in hurt, as the 360px runs' lead does) and
 // the buttons (each at least 64px, with its picture, a big lock and the level in big digits on one
 // its level has not reached), steers with the stick, the mouse or the keys and fires button 1 by tap or key, takes a
 // picture of a strong hit's number, reads the result and continues back to the world. One run on
@@ -75,7 +75,7 @@ const NET_SNAPS = 2;
 /** The wild creature's level, and a stronger one to befriend, which a few hits weaken without beating. */
 const WILD_LEVEL = 3;
 const BEFRIEND_LEVEL = 8;
-/** The share of its health the storm runs' lead starts with: hurt enough for the shrine's arrow. */
+/** The share of its health the 360px runs' lead starts with: hurt enough for the shrine's arrow. */
 const HURT_SHARE = 0.5;
 const TAG = runTag();
 
@@ -377,7 +377,7 @@ async function fightProblems(page, state, run) {
   if (third && locked !== (third.pictures.includes('pictures/lock') && third.disabled)) problems.push(`button 3 at level ${run.level} shows ${JSON.stringify(third)}`);
   if (third && locked) problems.push(...lockProblems(third, ARENA.buttons[2]));
   // Only your creature that came in hurt (wildTeam) gets the arrow to the shrine, never the wild one.
-  const hurt = run.plan === 'storm';
+  const hurt = run.plan === 'leave';
   if (arena.mine?.rest !== hurt || arena.theirs?.rest !== false) problems.push(`the cards point to the shrine as ${JSON.stringify([arena.mine?.rest, arena.theirs?.rest])}, with your creature ${hurt ? '' : 'not '}hurt`);
   const shrine = await page.locator('#arena .arena-card.mine .arena-rest:visible [data-picture="tiles/shrine"]').count();
   if (shrine !== (hurt ? 1 : 0)) problems.push(`your card shows ${shrine} shrine pictures, with your creature ${hurt ? '' : 'not '}hurt`);
@@ -429,12 +429,13 @@ async function openRun(browser, run, team) {
 }
 
 /**
- * A wild run's team: the storm runs' lead comes in at half health, as after an earlier fight, so its
- * card points to the shrine; the wild creature is far too weak for that to cost the win.
+ * A wild run's team: the 360px runs' lead comes in at half health, as after an earlier fight, so
+ * its card points to the shrine. Those runs only leave; a lead that lost health is knocked further,
+ * so a hurt lead in a run that must win or befriend can be knocked off the island and swapped out.
  */
 function wildTeam(run) {
   const lead = newCreature(STARTERS[0], run.level, world.battle);
-  const hurt = run.plan === 'storm' ? { hp: Math.floor(maxHpOf(lead, world.battle) * HURT_SHARE) } : {};
+  const hurt = run.plan === 'leave' ? { hp: Math.floor(maxHpOf(lead, world.battle) * HURT_SHARE) } : {};
   return [{ ...lead, ...hurt }, newCreature(STARTERS[1], run.level, world.battle)];
 }
 
