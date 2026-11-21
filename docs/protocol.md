@@ -338,7 +338,7 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
 - **The end.** The arena room hands `{ fightId, fight, why }`, the fight as it ended, to the
   world room through the fight book (same process), and closes 2 s later. The world room settles it
   against the seat's progress (`settleFight` in `src/battles.ts`): team health
-  (`teamAfterFight`), then XP and level ups to the creatures still standing (`arenaRewards`), every
+  (`teamAfterFight`, and full health for the whole team after a lost fight, `teamRested`), then XP and level ups to the creatures still standing (`arenaRewards`), every
   move a level up teaches in `learned` (an arena creature keeps every move it learns, so nothing
   is offered with `move.offer`; a turn battle's four moves take the new ones while there is room),
   the treats left, the befriended creature to the team or storage with `befriended`, and waking
@@ -360,7 +360,7 @@ Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
   `evenLevel` for an even match (`duelSetup`); nothing about the level is saved. Both sides pick
   in the arena room (#158: the plan names both in `pickers`). The world room settles a duel with
   `settleDuel` (`src/battles.ts`): 25% of `xpForWin` to each creature of theirs that fought, win
-  or lose (core `duelRewards`), health put back as before, no quest events; the winner's
+  or lose, and nothing to a side that gave up during round 1 (core `duelRewards`), health put back as before, no quest events; the winner's
   `trophy` shows for 60 s (`DUEL_TROPHY_MS`). Each duellist's `arena.result` `outcome` is told
   from their own side (`duelOutcomeFor`), so side 1 sees `lost` when side 0 won.
   The `arena.practice` switch (#155, built), the world room's `startPractice(playerId, opponents)`,
@@ -632,7 +632,7 @@ while `ARENA_BATTLES` is off, since the server then loads the story without its 
 fight still not start (the trainer's character asked after a team fainted, say), the talk ends.
 
 When the fight is settled the server sends `arena.result` (with the trainer's experience share in
-`rewards`), then the fight's quest events as for any fight, then the trainer's: a win counts for
+`rewards`, half of it after a loss or a draw), then the fight's quest events as for any fight, then the trainer's: a win counts for
 `beatTrainer` steps and, the first time, gives the trainer's item and sets their flag (core
 `endTrainerFight`), with any `quest.changed`, `progress` and `story`. Then, for a player still in
 the world with no `move.offer` waiting, the talk opens again at the fight node's `won` node (a

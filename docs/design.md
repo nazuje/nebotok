@@ -36,7 +36,10 @@ battles stay in the game until the arena replaces them (the switch-over, see
 - You carry up to 6 creatures. In a wild fight your lead creature fights one wild creature. Swap
   brings in the next one (every 5 s at most), and a fainted creature is replaced by the next.
 - Creatures walk, dash and get knocked about. You win by knocking the other creature out, or off
-  the island (a ring-out). A knock pushes further the more health is lost.
+  the island (a ring-out). A knock pushes further the more health is lost, and only a creature
+  below half its health can be knocked off; the storm can still drop anyone.
+- Losing a wild fight sends your team home rested: every creature is back to full health. A won
+  fight keeps the health it left.
 - From 20 s a storm eats the island's edge: a 2 s warning, then a step every 10 s, down to a
   quarter of the island.
 - There are 6 weather types: Sun, Gale, Rain, Frost, Storm and Bloom. Each is strong against some
@@ -97,9 +100,9 @@ cooking turns them into treats for befriending, and building will shape your hom
   everyone takes part in.
 - Trading.
 - Friendly duels: tap another player to ask, and they accept or decline with one tap. Both go to a
-  duel island, and others can watch. No treats, nothing lost, and a little XP for both. An
-  even-match setting (on by default) sets every creature to the same level, so a younger and an
-  older player can have a fair fight.
+  duel island, and others can watch. No treats, nothing lost, and a little XP for both, except
+  for a player who gives up in the first round. An even-match setting (on by default) sets every
+  creature to the same level, so a younger and an older player can have a fair fight.
 - Talking with preset phrases and emotes in both languages. Free chat may come later.
 - Each player owns a home island that others can visit when invited.
 

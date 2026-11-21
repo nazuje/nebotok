@@ -674,7 +674,52 @@
           "press": null
         }
       ]
+    },
+    {
+      "ticks": 90,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 11,
+      "sides": [
+        {
+          "dir": 5,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 13,
+          "dash": false,
+          "press": null
+        }
+      ]
+    },
+    {
+      "ticks": 1,
+      "sides": [
+        {
+          "dir": 4,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": 12,
+          "dash": false,
+          "press": null
+        }
+      ]
     }
   ],
-  "expectedHash": "1ac1871c1c9e2b"
+  "expectedHash": "12cddcca4661c3"
 }

@@ -182,12 +182,24 @@ function collide(work: Working): void {
   if (bDashing) bump(work, b, 0, -nx, -ny);
 }
 
-/** The lip holds walkers, dashers and lungers back, so only a knock carries a body over; one more than a body past the edge falls. */
+/** At or above half its health a body is steady: the lip holds it even while it tumbles, so no knock carries it off. */
+const isSteady = (body: Body): boolean => 2 * body.health >= body.maxHealth;
+
+/**
+ * The lip holds walkers, dashers and lungers back, and steady bodies even while they tumble, so
+ * only a knock carries a body below half its health over; one more than a body past the edge
+ * falls. A steady body gets that far only when the storm's edge passes it, not by its own motion
+ * outwards, so the storm still drops a body at any health.
+ */
 function edge(body: MovingBody, side: Side, radius: number, island: ArenaIslandRules, events: ArenaEvent[]): void {
   if (body.out) return;
   const distance = lengthOf(body.x, body.y);
   const size = toSubunits(island.body);
-  if (distance > radius + size) {
+  const steady = isSteady(body);
+  const ox = distance > 0 ? div(body.x * ONE, distance) : 0;
+  const oy = distance > 0 ? div(body.y * ONE, distance) : 0;
+  const outward = div(body.vx * ox + body.vy * oy, ONE);
+  if (distance > radius + size && !(steady && outward > 0)) {
     body.out = true;
     events.push({ kind: 'ringOut', side });
     return;
@@ -196,11 +208,7 @@ function edge(body: MovingBody, side: Side, radius: number, island: ArenaIslandR
   const teetering = distance > lip && distance > 0;
   if (teetering && !body.teetering) events.push({ kind: 'teeter', side });
   body.teetering = teetering;
-  if (!teetering || body.knockedTicks > 0) return;
-  const ox = div(body.x * ONE, distance);
-  const oy = div(body.y * ONE, distance);
-  const outward = div(body.vx * ox + body.vy * oy, ONE);
-  if (outward <= 0) return;
+  if (!teetering || (body.knockedTicks > 0 && !steady) || outward <= 0) return;
   body.vx -= div(ox * outward, ONE);
   body.vy -= div(oy * outward, ONE);
   // Back onto the lip as well, or a held stick would creep a little further out every tick.

@@ -224,7 +224,22 @@
           "press": null
         }
       ]
+    },
+    {
+      "ticks": 106,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": 0
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
     }
   ],
-  "expectedHash": "16ba3c16462ceb"
+  "expectedHash": "12163777714fa8"
 }
