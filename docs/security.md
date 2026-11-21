@@ -297,22 +297,25 @@ What these measures do not stop, in rough order of importance:
 
 ## Known advisories
 
-`npm audit` reports nothing in production dependencies. It reports 10 advisories (2 low, 8 moderate)
-in development dependencies, all pulled in by `vite-plugin-pwa` through `workbox-build`, which
+`npm audit` reports nothing in production dependencies. It reports 3 moderate advisories in
+development dependencies, all pulled in by `vite-plugin-pwa` through `workbox-build`, which
 generates the service worker at build time:
 
 | Package (version) | Advisory | Why it stays for now |
 | --- | --- | --- |
 | `glob` 11.1.0 | GHSA-3g3m-2fjr-6pw4, moderate: AbortSignal cancellation bypass | Fixed only in 14.0.2+. `workbox-build` 7.4.1 (latest) asks for `^11`. |
-| `minimatch` 10.2.6, 5.1.9 | GHSA-g3hv-75wg-m249, moderate: slow matching on crafted patterns | Fixed only in 11.0.1+; `glob` 11 and `filelist` 1 ask for older majors. |
-| `deepmerge` 4.3.1 | GHSA-gcqx-w48m-w2h4, low: prototype poisoning | No fixed version exists. |
-| `ejs` 3.1.10, `jake` 10.9.4, `filelist` 1.0.6 | moderate, through `minimatch` | Fixed releases are new majors that `@trickfilm400/rollup-plugin-off-main-thread` 3.0.0-pre1 does not accept. |
-| `@rollup/plugin-node-resolve` 16.0.3, `@trickfilm400/rollup-plugin-off-main-thread` 3.0.0-pre1, `workbox-build` 7.4.1, `vite-plugin-pwa` 2.0.0 | low/moderate, only because they depend on the above | Already the latest releases. |
+| `workbox-build` 7.4.1, `vite-plugin-pwa` 2.0.0 | moderate, only because they depend on `glob` | Already the latest releases. |
 
 npm's only offered fix (`npm audit fix --force`) downgrades to `workbox-build` 7.3.0 and
-`vite-plugin-pwa` 1.1.0, a breaking change that brings back older code. Forcing newer majors with
-`overrides` would run these libraries against versions they were not written for. Neither is worth
+`vite-plugin-pwa` 1.1.0, a breaking change that brings back older code. Forcing `glob` 14 with
+`overrides` would run `workbox-build` against a major it was not written for. Neither is worth
 it: these tools only run during `npm run build`, on our own files, and none of them is in the image.
+
+One override is in place: `package.json` `overrides` gives `glob` 11 `minimatch` 11.0.8 instead
+of 10.2.6, which fixes GHSA-g3hv-75wg-m249 (slow matching on crafted patterns, fixed in 11.0.1).
+`glob` 11.1.0 asks for `minimatch` `^10` and no newer `glob` 11 exists, but it uses only
+`Minimatch`, `GLOBSTAR`, `escape` and `unescape`, which 11 keeps, and the build proves it. Drop
+the override when `workbox-build` moves to a `glob` that asks for `minimatch` 11 itself.
 Recheck when `workbox-build` or `vite-plugin-pwa` releases a new version; Dependabot will propose it.
 
 ## Checklist: adding a dependency
