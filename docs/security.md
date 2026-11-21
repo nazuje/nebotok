@@ -347,8 +347,8 @@ Before `npm install <package>`:
 - `scripts/update.sh` resolves the digest with `docker buildx imagetools inspect`, which reads the
   registry without downloading the image, and verifies before `docker compose pull`.
 - The database is SQLite through Node's built-in `node:sqlite` (`DatabaseSync`), so no native
-  add-on with an install script is needed. On Node 26.13.0 it prints no experimental warning; it
-  bundles SQLite 3.54.0, and `VACUUM INTO` (used for snapshots) works. It opens with WAL,
+  add-on with an install script is needed. On Node 26.13.1 it prints no experimental warning; it
+  bundles SQLite 3.54.1, and `VACUUM INTO` (used for snapshots) works. It opens with WAL,
   `foreign_keys` on and a 5 second `busy_timeout`; numbered migrations in
   `apps/server/src/migrations/` run in one transaction and set `user_version`
   (`apps/server/src/db.ts`). Outside the container `DATA_DIR` defaults to `.local-data/`, which

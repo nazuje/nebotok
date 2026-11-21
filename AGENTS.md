@@ -135,7 +135,7 @@ sessions.
 
 ## Gotchas
 
-- Use Volta's pinned Node (26.13.0); `.nvmrc` matches it for CI. `engine-strict` refuses other
+- Use Volta's pinned Node (26.13.1); `.nvmrc` matches it for CI. `engine-strict` refuses other
   majors.
 - `ignore-scripts=true` also skips npm lifecycle scripts such as `prepare`, which is why git hooks
   need `npm run setup:hooks`. Verify warns while they are off.
