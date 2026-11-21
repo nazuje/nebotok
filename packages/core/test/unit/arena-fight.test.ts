@@ -3,6 +3,7 @@ import {
   ARENA_IDLE,
   DUEL_XP_PERCENT,
   ENTRY_GRACE_TICKS,
+  TRAINER_LOSS_XP_PERCENT,
   TREAT_WINDOW_CAP_PERCENT,
   arenaRewards,
   arenaWildSetup,
@@ -10,8 +11,13 @@ import {
   duelRewards,
   fightStart,
   fightStep,
+  gaveUpInFirstRound,
+  maxHpOf,
   newCreature,
+  roundsGiveUp,
   teamAfterFight,
+  teamRested,
+  trainerRewards,
   treatRadius,
   treatWindowOpen,
   treatWindowPercent,
@@ -204,6 +210,17 @@ describe('wild fights', () => {
     const team = [newCreature('puddlepip', 12, battleContent), { ...newCreature('pinwhirl', 12, battleContent), hp: 5 }];
     expect(teamAfterFight(team, hurt, content).map((creature) => creature.hp)).toEqual([3, 5]);
   });
+
+  it('rests the whole team to full health after a lost fight, and leaves it as it is after any other', () => {
+    const fight = wildOf(fightStart(wildSetup(), content));
+    const team = [{ ...newCreature('puddlepip', 12, battleContent), hp: 0 }, { ...newCreature('pinwhirl', 12, battleContent), hp: 5 }, { ...newCreature('glowbun', 6, battleContent), hp: 0 }];
+    const lost: WildFight = { ...fight, outcome: { result: 'lost', tick: 90 } };
+    expect(teamRested(team, lost, content).map((creature) => creature.hp)).toEqual(team.map((creature) => maxHpOf(creature, battleContent)));
+    for (const result of ['won', 'wonByRingOut', 'befriended', 'ran', 'timeUp'] as const) {
+      expect(teamRested(team, { ...fight, outcome: { result, tick: 90 } }, content)).toEqual(team);
+    }
+    expect(teamRested(team, fight, content)).toEqual(team);
+  });
 });
 
 describe('setting up a wild fight', () => {
@@ -273,5 +290,37 @@ describe('best of 3', () => {
       [2, share],
     ]);
     expect(duelRewards(team, ended, 1, battleContent).rewards).toEqual([]);
+  });
+
+  it('gives no duel experience to a side that gave up in the first round, and the other side its share', () => {
+    const picks = [[pick('glowbun', 0), pick('puddlepip', 1)], [pick('baskit', 0), pick('snowsnoot', 1)]] as const;
+    const team = [newCreature('glowbun', 12, battleContent), newCreature('puddlepip', 12, battleContent)];
+    const share = Math.trunc((xpForWin(12) * DUEL_XP_PERCENT) / 100);
+    const early = roundsOf(roundsGiveUp(roundsOf(hold(fightStart({ mode: 'rounds', seed: 6, picks: [[...picks[0]], [...picks[1]]] }, content), [ARENA_IDLE, ARENA_IDLE], 30).fight), 0).fight);
+    expect(gaveUpInFirstRound(early, 0)).toBe(true);
+    expect(gaveUpInFirstRound(early, 1)).toBe(false);
+    expect(duelRewards(team, early, 0, battleContent).rewards).toEqual([]);
+    expect(duelRewards(team, early, 1, battleContent).rewards.map(({ index, xp }) => [index, xp])).toEqual([[0, share]]);
+    // Giving up after the first round keeps the share for every creature that fought.
+    const played = roundsOf(hold(fightStart({ mode: 'rounds', seed: 6, picks: [[...picks[0]], [...picks[1]]] }, quick), [ARENA_IDLE, ARENA_IDLE], 70, quick).fight);
+    expect(played.round).toBe(1);
+    const late = roundsOf(roundsGiveUp(played, 0).fight);
+    expect(gaveUpInFirstRound(late, 0)).toBe(false);
+    expect(duelRewards(team, late, 0, battleContent).rewards.map(({ index, xp }) => [index, xp])).toEqual([
+      [0, share],
+      [1, share],
+    ]);
+  });
+
+  it('gives a trainer fight’s full share after a win and half of it after a loss or a draw', () => {
+    const team = [newCreature('glowbun', 12, battleContent)];
+    const full = Math.trunc((xpForWin(12) * 50) / 100);
+    const half = Math.trunc((full * TRAINER_LOSS_XP_PERCENT) / 100);
+    const fight = roundsOf(hold(fightStart({ mode: 'rounds', seed: 7, picks: [[pick('glowbun', 0)], [pick('glowbun')]] }, quick), [ARENA_IDLE, ARENA_IDLE], 200, quick).fight);
+    const xpAfter = (winner: 0 | 1 | null) => trainerRewards(team, { ...fight, outcome: { result: winner === 0 ? 'won' : winner === 1 ? 'lost' : 'draw', winner, tick: 60 } }, 0, 50, battleContent).rewards.map(({ xp }) => xp);
+    expect(half).toBeGreaterThan(0);
+    expect(xpAfter(0)).toEqual([full]);
+    expect(xpAfter(1)).toEqual([half]);
+    expect(xpAfter(null)).toEqual([half]);
   });
 });

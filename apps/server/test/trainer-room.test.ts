@@ -76,7 +76,8 @@ describe('trainer fights from a talk', () => {
     expect(plan.pickers).toEqual([{ side: 0, team: plan.setup.picks[0] }]);
 
     endAs(join, 'won', 0);
-    expect((await who.box.take<ArenaResultMessage>('arena.result')).outcome).toMatchObject({ result: 'won' });
+    const winning = await who.box.take<ArenaResultMessage>('arena.result');
+    expect(winning.outcome).toMatchObject({ result: 'won' });
     expect(await who.box.take<QuestChanged>('quest.changed')).toMatchObject({ quest: 'test-trainer', change: 'done', step: 1 });
     const won = await who.box.take<TalkNode>('talk.node');
     expect(won).toMatchObject({ npc: 'mehurka', node: 'won', choices: [] });
@@ -88,7 +89,11 @@ describe('trainer fights from a talk', () => {
     // A rematch, lost: the talk goes on at lost, and the first win's treats are not given again.
     const rematch = await acceptChallenge(who, await talkTo(who));
     endAs(rematch, 'lost', 1);
-    await who.box.take<ArenaResultMessage>('arena.result');
+    // A loss gives half of what the win gave for the same creature it faced.
+    const losing = await who.box.take<ArenaResultMessage>('arena.result');
+    const winXp = winning.rewards.find((reward) => reward.index === 0)?.xp ?? 0;
+    expect(winXp).toBeGreaterThan(1);
+    expect(losing.rewards.map((reward) => [reward.index, reward.xp])).toEqual([[0, Math.trunc(winXp / 2)]]);
     expect(await who.box.take<TalkNode>('talk.node')).toMatchObject({ node: 'lost' });
     expect(server.stored(who.id)?.inventory).toEqual([{ item: 'plain-treat', count: 3 }]);
     expect(server.logged.lines.filter((line) => line['msg'] === 'fight planned')).toEqual([expect.objectContaining({ trainer: 'test-trainer' }), expect.objectContaining({ trainer: 'test-trainer' })]);

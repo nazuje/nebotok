@@ -142,6 +142,24 @@ describe('arena step', () => {
     expect(state.bodies.every((body) => body.teetering && !body.out)).toBe(true);
   });
 
+  it('holds a body at or above half its health at the lip even while a knock tumbles it, and lets one below half fall', () => {
+    const fresh = start();
+    const size = rules.island.body * 256;
+    const lip = rules.island.radius * 256 - Math.trunc((size * 35) / 100);
+    const knocked = (health: number): ArenaState => {
+      const body = fresh.bodies[1];
+      return { ...fresh, bodies: [fresh.bodies[0], { ...body, x: lip, y: 0, vx: Math.trunc((1500 * 256) / 60), vy: 0, knockedTicks: rules.island.knockedTicks, health }] };
+    };
+    const max = fresh.bodies[1].maxHealth;
+    const steady = hold(knocked(Math.ceil(max / 2)), [ARENA_IDLE, ARENA_IDLE], 30);
+    expect(steady.events.filter((event) => event.kind === 'ringOut')).toEqual([]);
+    expect(steady.state.bodies[1].out).toBe(false);
+    expect(Math.hypot(steady.state.bodies[1].x, steady.state.bodies[1].y)).toBeLessThanOrEqual(lip);
+    const worn = hold(knocked(Math.ceil(max / 2) - 1), [ARENA_IDLE, ARENA_IDLE], 30);
+    expect(worn.events).toContainEqual({ kind: 'ringOut', side: 1 });
+    expect(worn.state.outcome).toMatchObject({ winner: 0, how: 'ringOut' });
+  });
+
   it('lets the storm push a standing body off, and two at once is a draw', () => {
     const { state, events } = hold(start(['baskit', 'baskit']), [ARENA_IDLE, ARENA_IDLE], 10_000);
     expect(events.filter((event) => event.kind === 'ringOut')).toEqual([

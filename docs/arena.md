@@ -56,7 +56,8 @@ prototype's `stepArena` (`arena-rules.ts`):
 5. **collide**: bodies push apart, dash bumps, lunges land;
 6. **shots**: bolts, sprays, snares and thrown treats fly and hit;
 7. **zones**: puddles, walls, freezes, strikes and zones arm, pulse and end;
-8. **edge**: the lip holds walkers back; a body past the edge falls (ring-out);
+8. **edge**: the lip holds walkers back, and a body at or above half health even while it tumbles; a
+   body past the edge falls (ring-out);
 9. **treat**: a treat on the ground is picked up or eaten;
 10. **ending**: knockout, ring-out or the time limit.
 
@@ -149,8 +150,11 @@ of health at the time limit.
   are within two bodies plus 14 units.
 - **The lip:** walking and dashing stop 0.35 body inside the edge, so only a knock carries a
   creature over: a body past the lip that moves outwards loses that motion and goes back onto the
-  lip. A tumbling creature is not held. A body more than one body past the edge falls: a
-  `ringOut` event, and it is out. The storm can push a standing creature off too.
+  lip. A body more than one body past the edge falls: a `ringOut` event, and it is out.
+- **Ring-out only below half health** (#195): a creature at or above half its health is steady,
+  and the lip holds it even while a knock tumbles it, so a hit or a bump never rings it out. Below
+  half a tumbling creature is not held. The storm still drops a creature at any health: when the
+  edge shrinks past it, it falls without moving outwards.
 
 ## Health, damage and knock
 
@@ -165,7 +169,7 @@ of health at the time limit.
   and 0.5 times from `battle-rules.json`).
 - **Knock:** `shape knock × (45% + 175% × share of health lost)`: 0.45× at full health, up to
   2.2× nearly out, so a worn-down creature flies further.
-- **Tumble:** 22 ticks after a knock: weak steering, and the lip does not hold it.
+- **Tumble:** 22 ticks after a knock: weak steering, and the lip does not hold it below half health.
 
 ## The storm
 
@@ -329,7 +333,9 @@ Only in wild fights.
   from its first tick. A swap is refused while the creature on the island is winding up, lunging,
   rooted or dashing, or when no other creature can fight.
 - **Health back** (`teamAfterFight`): every creature that fought keeps its arena health divided by
-  `hpScale`, rounded up, so only a knockout leaves 0.
+  `hpScale`, rounded up, so only a knockout leaves 0. After a **lost** fight the whole team rests
+  to full health (`teamRested`, #195), so a loss never leaves it weaker for the next fight; a won
+  fight keeps the health it left. A team knocked out to the last creature still wakes at the shrine.
 - **Your creature rung out** is out of this fight, with its health kept as it was.
 - **Leave** (held 1 s) ends the fight as `ran`: no XP, as today's run.
 - **Outcomes:** `won`, `wonByRingOut`, `befriended`, `lost`, `ran`, `timeUp`. When the wild
@@ -363,10 +369,13 @@ Only in wild fights.
 - **Outcomes:** `won`, `lost` or `draw`, with the list of rounds. Each duellist's
   `arena.result` tells it from their own side; a watcher's from side 0.
 - **Duel rewards** (`duelRewards`, #158, built: `settleDuel` in `apps/server/src/battles.ts`): 25% of
-  `xpForWin` to every creature that fought, on both sides, win or lose. Duel health is put back as
+  `xpForWin` to every creature that fought, on both sides, win or lose. A side that gives up during
+  round 1 (its replay included) gets no XP (`gaveUpInFirstRound`, #195); the other side still gets
+  its share, and a give-up in a later round changes nothing. Duel health is put back as
   it was before; nothing is lost. The winner's courier wears a trophy for 60 s (`DUEL_TROPHY_MS`).
 - **Trainer rewards** (`trainerRewards`, #156): the trainer's `reward.xpPercent` of `xpForWin` to every
-  creature of the player's that fought, win or lose, as a duel's share is given; health is put back.
+  creature of the player's that fought, as a duel's share is given; after a loss or a draw half of
+  that (`TRAINER_LOSS_XP_PERCENT`, #195). Health is put back.
   The first win also gives the reward's item and sets the trainer's flag.
 
 **Even match** (duels, on by default): every creature fights at the higher of the two players'
@@ -433,13 +442,17 @@ targets:
 - no shape deals more than 1.5 times the average of its kind;
 - ring-outs end 20 to 45% of fights.
 
-Measured with 3 seeds, with the softer type chart (#178): fights last 50.0 s on average and 97%
-reach the storm; `BOT` beats `WILD` 84.3% with neither type ahead (79.3% over all pairs, 73 to 86%
-by level) and `WILD_EASIER` 90 to 99%; the most damaging shape deals 1.46 times its kind's average
-(cone); ring-outs end 41%. The type swing still misses: a type advantage moves the win rate by about
-29 points each way (99% and 40%). With turn battles' chart, where a strong hit does four times a weak
-one, it was 43 points (#146: 100% and 14%). With `WILD` four levels up, `BOT` wins 32% of even
-match-ups.
+Measured with 3 seeds, with ring-outs only below half health (#195): fights last 52.0 s on average
+and 99.5% reach the storm; `BOT` beats `WILD` 89.7% with neither type ahead (82.3% over all pairs,
+79 to 87% by level) and `WILD_EASIER` 96 to 100%; the most damaging shape deals 1.46 times its
+kind's average (cone); ring-outs end 35%. The type swing still misses: a type advantage moves the
+win rate by about 32 points each way (100% and 35%). With `WILD` four levels up, `BOT` wins 30% of
+even match-ups, and ring-outs end 42%. Before #195 (softer type chart, #178) it was 50.0 s, 97%,
+84.3% (79.3%, 73 to 86% by level), `WILD_EASIER` 90 to 99%, ring-outs 41%, a swing of 29 points (99%
+and 40%), and 32% with `WILD` four levels up. A steady creature can no longer be rung out early, so
+the player's side wins a little more and fights run a little longer; even match-ups sit near the
+top of the 75 to 90% target. With turn battles' chart, where a strong hit does four times a weak
+one, the swing was 43 points (#146: 100% and 14%).
 
 Load-time checks (`npm run content:validate`): `ArenaRules` in core `content.ts` checks
 `arena.json` on its own, and `arenaLinkProblems` (`arena-links.ts`) checks it against
@@ -672,8 +685,8 @@ Planned names, so the tickets agree:
 - **arena:** a real-time fight on an island, and the Colyseus room that runs one.
 - **island:** the round floating ground a fight happens on. Its radius shrinks in the storm.
 - **storm:** the edge of the island eaten away, step by step, from 20 s into a fight.
-- **ring-out:** a creature knocked off the island. It is out of that fight; a wild one cannot be
-  befriended.
+- **ring-out:** a creature knocked off the island, which only happens below half its health (or in
+  the storm). It is out of that fight; a wild one cannot be befriended.
 - **knock:** the push a hit or a bump gives, bigger the more health is lost.
 - **kind:** which button a move sits on: quick (button 1), special (2) or ultimate (3).
 - **shape:** what a move does on the island: one of the 13 above.

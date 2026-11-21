@@ -88,12 +88,16 @@ describe('arena golden replays', () => {
     expect(state.outcome).toEqual({ winner: null, how: 'timeUp', tick: goldenArenaContent.arena.island.limitTicks });
   });
 
-  it('ring-out by dash: the lip holds the walker until the dash knocks it off', () => {
+  it('ring-out by dash: the lip holds the glaciyak against a dash at full health, and a dash knocks it off once it is below half', () => {
     const { events, state } = replayOf('ring-out-by-dash.json');
-    expect(events.map((event) => event.kind)).toEqual(['teeter', 'dashed', 'bumped', 'ringOut']);
+    const dashes = events.filter((event) => ['dashed', 'bumped', 'ringOut'].includes(event.kind)).map((event) => event.kind);
+    expect(dashes).toEqual(['dashed', 'bumped', 'dashed', 'bumped', 'ringOut']);
+    expect(events.at(-1)).toEqual({ kind: 'ringOut', side: 1 });
+    expect(events.some((event) => event.kind === 'hit' && event.side === 1 && event.move === 'gale-tap')).toBe(true);
     expect(state.outcome?.how).toBe('ringOut');
     expect(state.outcome?.winner).toBe(0);
     expect(state.bodies[1].out).toBe(true);
+    expect(2 * state.bodies[1].health).toBeLessThan(state.bodies[1].maxHealth);
   });
 
   it.each(shapeGoldens)('%s: %s (%s) is cast and hits, and the fight ends in a knockout or a ring-out', (name, move, shape) => {
