@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RoundsFightSetup, canDuel, duelLineup, duelSetup, evenLevel, fightStart, inDuelReach, newCreature, type CreatureInstance } from '../../src/index.ts';
+import { RoundsFightSetup, canDuel, duelLineup, duelSetup, duelTeams, evenLevel, fightStart, inDuelReach, newCreature, roundsGiveUp, type CreatureInstance, type RoundsFight } from '../../src/index.ts';
 import { fightContent } from '../support/arena-content.ts';
 import { battleContent } from '../support/battle-content.ts';
 
@@ -70,5 +70,71 @@ describe('the duel a yes starts', () => {
 
   it('needs a standing creature on each side', () => {
     expect(() => duelSetup({ seed: 1, teams: [asker, []], even: false, turtles: [false, false], content: battleContent })).toThrow(RangeError);
+  });
+});
+
+describe('both sides picking', () => {
+  const asker = [at('glowbun', 6), at('puddlepip', 6, 0), at('pinwhirl', 6), at('snowsnoot', 9), at('dawnshell', 4)];
+  const answerer = [at('dawnshell', 12), at('glowbun', 12)];
+
+  it('offers every standing creature, by team place, the setup’s first three standing being the defaults', () => {
+    const options = { teams: [asker, answerer], even: false, turtles: [false, true], content: battleContent } as const;
+    const [mine, theirs] = duelTeams(options);
+    expect(mine.map(({ place, fighter }) => [place, fighter.id, fighter.level])).toEqual([
+      [0, 'a1', 6],
+      [2, 'a3', 6],
+      [3, 'a4', 9],
+      [4, 'a5', 4],
+    ]);
+    expect(theirs.map(({ place, fighter }) => [place, fighter.id, fighter.turtle])).toEqual([
+      [0, 'b1', true],
+      [1, 'b2', true],
+    ]);
+    const setup = duelSetup({ seed: 'duel', ...options });
+    expect(setup.picks[0]).toEqual(mine.slice(0, 3));
+    expect(setup.picks[1]).toEqual(theirs);
+  });
+
+  it('puts every choice at the even level in an even match', () => {
+    const level = evenLevel([asker, answerer]);
+    const [mine, theirs] = duelTeams({ teams: [asker, answerer], even: true, turtles: [false, false], content: battleContent });
+    expect([...mine, ...theirs].every(({ fighter }) => fighter.level === level)).toBe(true);
+  });
+});
+
+describe('giving up a duel', () => {
+  const teams = [
+    [at('glowbun', 6), at('puddlepip', 6), at('pinwhirl', 6)],
+    [at('dawnshell', 6), at('glowbun', 6), at('puddlepip', 6)],
+  ] as const;
+  const start = (): RoundsFight => {
+    const fight = fightStart(duelSetup({ seed: 'give-up', teams, even: false, turtles: [false, false], content: battleContent }), fightContent);
+    if (fight.mode !== 'rounds') throw new Error('a duel is a best of 3');
+    return fight;
+  };
+
+  it('loses the round under way and every round after until the other side has 2 wins', () => {
+    const given = roundsGiveUp(start(), 0);
+    if (given.fight.mode !== 'rounds') throw new Error('giving up keeps a best of 3');
+    expect(given.fight.outcome).toMatchObject({ result: 'lost', winner: 1 });
+    expect(given.fight.rounds.map(({ round, winner, how }) => [round, winner, how])).toEqual([
+      [0, 1, 'gaveUp'],
+      [1, 1, 'gaveUp'],
+    ]);
+    expect(given.fight.score).toEqual([0, 2]);
+    expect(given.events.at(-1)).toEqual({ kind: 'fightEnded', result: 'lost' });
+  });
+
+  it('needs only the rounds still missing, and leaves a fight already over alone', () => {
+    const fight = start();
+    const ahead = { ...fight, round: 1, score: [1, 0] as [number, number], rounds: [{ round: 0, winner: 0 as const, how: 'ringOut' as const, tick: 90, replayed: false }] };
+    const given = roundsGiveUp(ahead, 1);
+    if (given.fight.mode !== 'rounds') throw new Error('giving up keeps a best of 3');
+    expect(given.fight.rounds.map(({ round, how }) => [round, how])).toEqual([
+      [0, 'ringOut'],
+      [1, 'gaveUp'],
+    ]);
+    expect(given.fight.outcome).toMatchObject({ result: 'won', winner: 0 });
+    expect(roundsGiveUp(given.fight, 0)).toEqual({ fight: given.fight, events: [] });
   });
 });

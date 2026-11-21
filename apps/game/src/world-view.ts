@@ -12,6 +12,12 @@ export type PlayerFacts = {
   readonly moving: boolean;
   readonly connected: boolean;
   readonly inBattle: boolean;
+  /** Fighting a duel, which others may watch. */
+  readonly duelling: boolean;
+  /** Watching someone's duel. */
+  readonly watching: boolean;
+  /** Won a duel a short while ago. */
+  readonly trophy: boolean;
   readonly talking: boolean;
   /** The skill they are doing (`fishing`, `foraging`, `cooking`), or `''`. */
   readonly skill: string;
@@ -25,6 +31,9 @@ export type ShownPlayer = {
   readonly self: boolean;
   readonly connected: boolean;
   readonly inBattle: boolean;
+  readonly duelling: boolean;
+  readonly watching: boolean;
+  readonly trophy: boolean;
   readonly talking: boolean;
   readonly skill: string;
   /** The tile the server last gave, and whether it said the player is moving. */
@@ -159,7 +168,7 @@ export function createWorldView(): WorldView {
         const self = id === selfId;
         const motion = self && prediction ? predictedMotion(prediction, now) : trackedMotion(track, facts, now);
         const { at, facing, walking } = motion;
-        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, inBattle: facts.inBattle, talking: facts.talking, skill: facts.skill, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
+        return { id, name: facts.name, avatar: facts.avatar, self, connected: facts.connected, inBattle: facts.inBattle, duelling: facts.duelling, watching: facts.watching, trophy: facts.trophy, talking: facts.talking, skill: facts.skill, tile: { x: facts.x, y: facts.y }, moving: facts.moving, at, facing, walking };
       }),
   };
   return view;

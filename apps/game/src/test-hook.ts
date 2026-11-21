@@ -65,6 +65,12 @@ export type TestPlayer = {
   connected: boolean;
   /** In a battle, so the world marks them. */
   inBattle: boolean;
+  /** Fighting a duel: the world shows the duel mark, which others tap to watch. */
+  duelling: boolean;
+  /** Watching a duel, standing still. */
+  watching: boolean;
+  /** Wearing the trophy of a duel won a short while ago. */
+  trophy: boolean;
   /** Talking to a character, so the world shows a speech mark on their name. */
   talking: boolean;
   /** The skill they are doing, or `''`: the world draws its action beside them. */

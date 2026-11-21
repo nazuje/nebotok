@@ -34,11 +34,18 @@ export type FightPlan = {
    * defaults, which the room takes when the time runs out. None for a wild fight.
    */
   readonly pickers?: readonly FightPicker[];
+  /** A duel: each side may give up, and up to `DUEL_WATCHERS` other players may watch. */
+  readonly duel?: boolean;
   /** Called once, in this process, when the fight is over. */
   readonly ended: (end: FightEnd) => void;
   /** Called when a player's seat in the fight's room is gone while the fight goes on, so a new one can be offered. */
   readonly seatLost?: (playerId: number) => void;
+  /** Called when a watcher's seat in the fight's room is gone: they stopped watching. */
+  readonly watcherLeft?: (playerId: number) => void;
 };
+
+/** Who a spent ticket was made for, and whether as a watcher. */
+export type FightTicket = { readonly playerId: number; readonly watcher: boolean };
 
 /** What the arena room playing a fight lets the book do. */
 export type FightControl = {
@@ -46,6 +53,8 @@ export type FightControl = {
   stop(why: FightStop): void;
   /** Whether the player holds a seat in the room, connected or waiting to reconnect. */
   holds(playerId: number): boolean;
+  /** Sends the player's watcher seat, if they hold one, out of the room. */
+  unwatch(playerId: number): void;
 };
 
 type Entry = {
@@ -53,7 +62,7 @@ type Entry = {
   room: IRoomCache | null;
   control: FightControl | null;
   /** One-time tickets, each for one player's seat reservation. */
-  readonly tickets: Map<string, number>;
+  readonly tickets: Map<string, FightTicket>;
 };
 
 export type FightBook = ReturnType<typeof createFightBook>;
@@ -90,28 +99,43 @@ export function createFightBook() {
       if (entry) entry.control = control;
     },
 
-    /** A seat for the player in the fight's room, with a fresh one-time ticket; null when the fight or its room is gone. */
-    async reserve(fightId: string, playerId: number): Promise<ArenaSeatReservation | null> {
+    /**
+     * A seat in the fight's room with a fresh one-time ticket: for one of its players, or with
+     * `watcher` for anyone else watching a duel. Null when the fight or its room is gone, or the
+     * player may not have that seat. The arena room counts its watchers itself.
+     */
+    async reserve(fightId: string, playerId: number, watcher = false): Promise<ArenaSeatReservation | null> {
       const entry = entries.get(fightId);
-      if (!entry?.room || !entry.plan.seats.some((seat) => seat.playerId === playerId)) return null;
+      const fighter = entry?.plan.seats.some((seat) => seat.playerId === playerId) ?? false;
+      const allowed = watcher ? entry?.plan.duel === true && !fighter : fighter;
+      if (!entry?.room || !allowed) return null;
       const ticket = randomUUID();
-      entry.tickets.set(ticket, playerId);
+      entry.tickets.set(ticket, { playerId, watcher });
       return matchMaker.reserveSeatFor(entry.room, { ticket });
     },
 
-    /** Spends a ticket: the player it was made for, or null for an unknown or spent one. */
-    useTicket(fightId: string, ticket: string): number | null {
+    /** Spends a ticket: who it was made for, or null for an unknown or spent one. */
+    useTicket(fightId: string, ticket: string): FightTicket | null {
       const tickets = entries.get(fightId)?.tickets;
-      const playerId = tickets?.get(ticket);
-      if (tickets === undefined || playerId === undefined) return null;
+      const made = tickets?.get(ticket);
+      if (tickets === undefined || made === undefined) return null;
       tickets.delete(ticket);
-      return playerId;
+      return made;
     },
 
     holds: (fightId: string, playerId: number): boolean => entries.get(fightId)?.control?.holds(playerId) ?? false,
 
     seatLost(fightId: string, playerId: number) {
       entries.get(fightId)?.plan.seatLost?.(playerId);
+    },
+
+    watcherLeft(fightId: string, playerId: number) {
+      entries.get(fightId)?.plan.watcherLeft?.(playerId);
+    },
+
+    /** Ends a watcher's seat from the world's side: they walked, left the world or were signed out. */
+    unwatch(fightId: string, playerId: number) {
+      entries.get(fightId)?.control?.unwatch(playerId);
     },
 
     /** Stops a fight before its end. One whose room is not playing yet ends at once with no result. */

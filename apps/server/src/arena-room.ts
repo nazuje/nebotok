@@ -6,8 +6,10 @@ import {
   ARENA_MESSAGES,
   ARENA_NONE,
   ARENA_PICK_MS,
+  ARENA_SIDES,
   ArenaPickMessage,
   CLOSE_CODES,
+  DUEL_WATCHERS,
   arenaInputOf,
   cleanArenaInput,
   defaultPickOrder,
@@ -17,6 +19,7 @@ import {
   fightContentOf,
   fightStart,
   fightStep,
+  roundsGiveUp,
   wildInput,
   type ArenaEventsMessage,
   type ArenaFight,
@@ -33,7 +36,7 @@ import {
   type Side,
 } from '@nebotok/core';
 import { z } from 'zod';
-import { ArenaInputSchema, ArenaRoomState, showFight, type ArenaPhase } from './arena-state.ts';
+import { ArenaInputSchema, ArenaRoomState, showFight, showWatchers, type ArenaPhase } from './arena-state.ts';
 import { BATTLE_IDLE_MS } from './battles.ts';
 import { addFakeLag } from './fake-lag.ts';
 import type { FightBook, FightPicker, FightPlan, FightStop } from './fights.ts';
@@ -73,8 +76,8 @@ export type ArenaServices = {
 const CreateOptions = z.object({ fightId: z.string().min(1).max(64) });
 const SeatOptions = z.object({ ticket: z.string().min(1).max(64) });
 
-/** What onAuth hands to onJoin as `client.auth`. */
-type ArenaAuth = { readonly playerId: number };
+/** What onAuth hands to onJoin as `client.auth`: the player, and whether they come to watch a duel. */
+type ArenaAuth = { readonly playerId: number; readonly watcher: boolean };
 type Fighter = { readonly playerId: number; readonly side: Side; connected: boolean };
 type Mind = { readonly brain: Brain; readonly rng: Rng };
 
@@ -133,6 +136,8 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
     private fight!: ArenaFight;
     private readonly minds = new Map<Side, Mind>();
     private readonly fighters = new Map<string, Fighter>();
+    /** A duel's watchers by session: they get the state and the events, and their input is never read. */
+    private readonly watchers = new Map<string, number>();
     /** When the fight started waiting for an away player, or null while it runs. */
     private awaySince: number | null = null;
     private over = false;
@@ -149,7 +154,7 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
     private steppedAt = 0;
     /** The order each picking side sent, once it has. */
     private readonly chosen: [number[] | null, number[] | null] = [null, null];
-    readonly stats = { steps: 0, totalMs: 0, worstMs: 0, inputs: 0, droppedInputs: 0, droppedPresses: 0, refusedPresses: 0 };
+    readonly stats = { steps: 0, totalMs: 0, worstMs: 0, inputs: 0, droppedInputs: 0, droppedPresses: 0, refusedPresses: 0, watcherInputs: 0 };
     /** Each core step's inputs, oldest first, when `record` is on. */
     readonly recorded: ArenaInputs[] = [];
 
@@ -185,25 +190,45 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
         this.state.picked.push(false, false);
       }
       showFight(this.state, this.fight, content, this.phase);
+      this.state.duel = plan.duel === true;
       // Nothing moves until everyone is in.
       if (plan.seats.length > 0) this.awaySince = now();
-      fights.attach(plan.fightId, { stop: (why) => this.stop(why), holds: (playerId) => [...this.fighters.values()].some((fighter) => fighter.playerId === playerId) });
+      this.state.waiting = this.awaySince !== null;
+      fights.attach(plan.fightId, {
+        stop: (why) => this.stop(why),
+        holds: (playerId) => [...this.fighters.values()].some((fighter) => fighter.playerId === playerId),
+        unwatch: (playerId) => this.unwatch(playerId),
+      });
       this.setFixedTimestep(() => this.step(), ARENA_TICK_RATE, { subSteps: ARENA_SUB_STEPS });
       log.info('fight started', { roomId: this.roomId, fight: plan.fightId, mode: plan.setup.mode, players: plan.seats.map((seat) => seat.playerId), minds: plan.minds.map((mind) => mind.mind) });
     }
 
-    /** Checks the one-time ticket the reservation carries, and that the session joining is the player it was made for. */
+    /**
+     * Checks the one-time ticket the reservation carries, and that the session joining is the player
+     * it was made for; a watcher also needs a duel with a free watcher seat.
+     */
     override onAuth(_client: Client, options: unknown, context: AuthContext): ArenaAuth {
       const seat = SeatOptions.safeParse(options);
-      const playerId = seat.success ? fights.useTicket(this.plan.fightId, seat.data.ticket) : null;
-      if (playerId === null) throw new ServerError(ErrorCode.AUTH_FAILED, 'no fight ticket');
+      const ticket = seat.success ? fights.useTicket(this.plan.fightId, seat.data.ticket) : null;
+      if (ticket === null) throw new ServerError(ErrorCode.AUTH_FAILED, 'no fight ticket');
+      const { playerId, watcher } = ticket;
       if (profiles.authenticate(context.token) !== playerId) throw new ServerError(ErrorCode.AUTH_FAILED, 'this fight ticket is for another player');
-      if ([...this.fighters.values()].some((fighter) => fighter.playerId === playerId)) throw new ServerError(ErrorCode.AUTH_FAILED, 'already in this fight');
-      return { playerId };
+      if (this.has(playerId)) throw new ServerError(ErrorCode.AUTH_FAILED, 'already in this fight');
+      if (watcher && (this.plan.duel !== true || this.watchers.size >= DUEL_WATCHERS)) throw new ServerError(ErrorCode.AUTH_FAILED, 'no watcher seat');
+      return { playerId, watcher };
+    }
+
+    /** Whether the player holds a seat in this room, as a fighter or a watcher. */
+    private has(playerId: number): boolean {
+      return [...this.fighters.values()].some((fighter) => fighter.playerId === playerId) || [...this.watchers.values()].includes(playerId);
     }
 
     override onJoin(client: Client) {
-      const { playerId } = client.auth as ArenaAuth;
+      const { playerId, watcher } = client.auth as ArenaAuth;
+      if (watcher) {
+        this.watch(client, playerId);
+        return;
+      }
       const seat = this.plan.seats.find((each) => each.playerId === playerId);
       if (!seat || this.over) throw new ServerError(ErrorCode.AUTH_FAILED, 'not in this fight');
       this.fighters.set(client.sessionId, { playerId, side: seat.side, connected: true });
@@ -213,6 +238,28 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       log.info('fighter joined', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, playerId, side: seat.side });
     }
 
+    /** Seats a watcher: they see the duel from side 0 and are shown on the stands. */
+    private watch(client: Client, playerId: number) {
+      if (this.over || this.plan.duel !== true || this.watchers.size >= DUEL_WATCHERS) throw new ServerError(ErrorCode.AUTH_FAILED, 'no watcher seat');
+      this.watchers.set(client.sessionId, playerId);
+      this.showWatchers();
+      this.sendStarted(client, 0, true);
+      log.info('watcher joined', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, playerId, watchers: this.watchers.size });
+    }
+
+    /** Sends a watcher out; their onLeave then frees the stand. */
+    private unwatch(playerId: number) {
+      for (const [sessionId, watcher] of this.watchers) if (watcher === playerId) this.clients.getById(sessionId)?.leave();
+    }
+
+    private showWatchers() {
+      showWatchers(
+        this.state,
+        [...this.watchers.values()].map((playerId) => profiles.get(playerId)?.avatar ?? ''),
+      );
+    }
+
+    // A watcher's seat is not held: a dropped watcher goes straight on to onLeave, and can watch again from the world.
     override onDrop(client: Client, code: number) {
       const fighter = this.fighters.get(client.sessionId);
       if (!fighter || this.over) return;
@@ -239,6 +286,14 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
     }
 
     override onLeave(client: Client, code: number) {
+      const watcher = this.watchers.get(client.sessionId);
+      if (watcher !== undefined) {
+        this.watchers.delete(client.sessionId);
+        this.showWatchers();
+        log.info('watcher left', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, code, watchers: this.watchers.size });
+        if (!this.over) fights.watcherLeft(this.plan.fightId, watcher);
+        return;
+      }
       const fighter = this.fighters.get(client.sessionId);
       if (!fighter) return;
       this.fighters.delete(client.sessionId);
@@ -270,11 +325,11 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       log.info('fake lag', { roomId: this.roomId, fight: this.plan.fightId, sessionId: client.sessionId, lagMs });
     }
 
-    /** While picking, a side is told only its own line-up, the defaults, and the other side's is empty. */
-    private sendStarted(client: Client, side: Side) {
+    /** While picking, a side is told only its own line-up, the defaults, and the other side's is empty; a watcher neither. */
+    private sendStarted(client: Client, side: Side, watching = false) {
       const { fight } = this;
-      const shown = (of: Side) => (this.phase === 'picking' && of !== side ? [] : lineup(fight, of));
-      client.send(ARENA_MESSAGES.started, { fightId: this.plan.fightId, mode: fight.mode, side, sides: [shown(0), shown(1)] } satisfies ArenaStartedMessage);
+      const shown = (of: Side) => (this.phase === 'picking' && (watching || of !== side) ? [] : lineup(fight, of));
+      client.send(ARENA_MESSAGES.started, { fightId: this.plan.fightId, mode: fight.mode, side, watching, sides: [shown(0), shown(1)] } satisfies ArenaStartedMessage);
     }
 
     /** The sides that pick in this fight: a best of 3's, from its plan. */
@@ -333,6 +388,10 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
         const client = this.clients.getById(sessionId);
         if (client) this.sendStarted(client, fighter.side);
       }
+      for (const sessionId of this.watchers.keys()) {
+        const client = this.clients.getById(sessionId);
+        if (client) this.sendStarted(client, 0, true);
+      }
     }
 
     /** Back to fighting after picking or a pause, with what was sent meanwhile thrown away. */
@@ -348,6 +407,7 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       const here = this.plan.seats.every((seat) => [...this.fighters.values()].some((fighter) => fighter.playerId === seat.playerId && fighter.connected));
       if (!here || this.awaySince === null) return;
       this.awaySince = null;
+      this.state.waiting = false;
       this.steppedAt = now();
       // What was sent while the fight waited is stale.
       for (const sessionId of this.fighters.keys()) this.inputs.get(sessionId).clear();
@@ -362,6 +422,8 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       const at = now();
       const elapsed = at - this.steppedAt;
       this.steppedAt = at;
+      this.ignoreWatchers();
+      this.state.waiting = this.awaySince !== null;
       if (this.awaySince !== null) {
         const wait = this.fight.mode === 'wild' ? BATTLE_IDLE_MS : DUEL_WAIT_MS;
         if (at - this.awaySince >= wait) this.stop('away');
@@ -373,6 +435,11 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       }
       const started = performance.now();
       const people = this.peopleInputs();
+      const quitter = this.plan.duel === true ? ARENA_SIDES.find((side) => people[side]?.leave === true) : undefined;
+      if (quitter !== undefined) {
+        this.giveUp(quitter);
+        return;
+      }
       const events: FightEvent[] = [];
       for (let sub = 0; sub < ARENA_SUB_STEPS && !this.fight.outcome; sub += 1) {
         const inputs: ArenaInputs = [this.inputOf(0, people[0], sub), this.inputOf(1, people[1], sub)];
@@ -390,6 +457,26 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       this.stats.totalMs += took;
       this.stats.worstMs = Math.max(this.stats.worstMs, took);
       if (this.fight.outcome) this.end('done');
+    }
+
+    /** A watcher's input is never used: thrown away unread every step, and counted. */
+    private ignoreWatchers() {
+      for (const sessionId of this.watchers.keys()) {
+        const sent = this.inputs.get(sessionId).drain({ idle: false });
+        this.stats.watcherInputs += sent.length;
+      }
+    }
+
+    /** A duel's side held give up: it loses the rest (core `roundsGiveUp`), and the fight ends. */
+    private giveUp(side: Side) {
+      if (this.fight.mode !== 'rounds') return;
+      const { round } = this.fight;
+      const given = roundsGiveUp(this.fight, side);
+      this.fight = given.fight;
+      log.info('fighter gave up', { roomId: this.roomId, fight: this.plan.fightId, side, round });
+      showFight(this.state, this.fight, content, this.phase);
+      this.sendEvents(given.events);
+      this.end('done');
     }
 
     /** Each side's input from its player this step, or null for a computer's side. */
@@ -462,6 +549,7 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
       this.over = true;
       showFight(this.state, this.fight, content, this.phase);
       this.state.phase = 'ended';
+      this.state.waiting = false;
       this.state.countdown = 0;
       const { stats } = this;
       log.info('fight ended', {
@@ -478,6 +566,8 @@ export function arenaRoom({ log, world, profiles, fights, now, record = false, f
         droppedInputs: stats.droppedInputs,
         droppedPresses: stats.droppedPresses,
         refusedPresses: stats.refusedPresses,
+        watchers: this.watchers.size,
+        watcherInputs: stats.watcherInputs,
       });
       try {
         fights.finish({ fightId: this.plan.fightId, fight: this.fight, why });

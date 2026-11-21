@@ -631,7 +631,7 @@ export {
 } from './arena/fight-state.ts';
 export { fightStart, fightStep } from './arena/fight.ts';
 export { ENTRY_GRACE_TICKS } from './arena/wild-fight.ts';
-export { ROUNDS, ROUND_WINS } from './arena/rounds.ts';
+export { ROUNDS, ROUND_WINS, roundsGiveUp } from './arena/rounds.ts';
 export { defaultPickOrder, isPickOrder, pickCount, togglePick } from './arena/picks.ts';
 export {
   TREAT_WINDOW_CAP_PERCENT,
@@ -659,10 +659,14 @@ export {
   DUEL_REACH,
   DUEL_ANSWER_MS,
   DUEL_PAUSE_MS,
+  DUEL_WATCHERS,
+  DUEL_GIVE_UP_MS,
+  DUEL_TROPHY_MS,
   duelLineup,
   canDuel,
   inDuelReach,
   evenLevel,
+  duelTeams,
   duelSetup,
   type DuelSetupOptions,
 } from './arena/duels.ts';
@@ -670,6 +674,7 @@ export {
   DuelAskMessage,
   DuelAnswerMessage,
   DuelCancelMessage,
+  DuelWatchMessage,
   type DuelCreature,
   type DuelAskedMessage,
   type DuelAnsweredMessage,

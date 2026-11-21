@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadWorld } from '../apps/server/src/world.ts';
-import { PROTOCOL_VERSION, emptyProgress, inBounds, isWalkable, newCreature } from '../packages/core/src/index.ts';
+import { DUEL_GIVE_UP_MS, PROTOCOL_VERSION, emptyProgress, inBounds, isWalkable, newCreature } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
@@ -22,6 +22,7 @@ import {
   enterWorld,
   inWorld,
   leaveBattle,
+  makeThumb,
   meetWildCreature,
   nextFrames,
   openTalk,
@@ -225,9 +226,24 @@ function shows(state, wanted, self) {
     (wanted.skilling ?? []).every((id) => (other(id)?.skill ?? '') !== '') &&
     (wanted.idle ?? []).every((id) => other(id) !== undefined && other(id).skill === '') &&
     (!wanted.talk || (wanted.talk === 'open') === (state.talk !== null)) &&
+    shownOfDuels(state, wanted, other) &&
     shownOfSkills(state, wanted) &&
     shownOfStory(state.storm, wanted) &&
     shownInWorld(state, wanted, other)
+  );
+}
+
+const ARENA_SHOWN = { rounds: (arena) => arena?.mode === 'rounds' && !arena.watching, watching: (arena) => arena?.watching === true, none: (arena) => arena === null };
+
+/** Duel and watch marks on others, the arena fight this player is in or watches, and its phase. */
+function shownOfDuels(state, wanted, other) {
+  return (
+    (wanted.duelling ?? []).every((id) => other(id)?.duelling === true) &&
+    (wanted.watching ?? []).every((id) => other(id)?.watching === true) &&
+    (wanted.trophy ?? []).every((id) => other(id)?.trophy === true) &&
+    (!wanted.arena || ARENA_SHOWN[wanted.arena](state.arena)) &&
+    (!wanted.arenaPhase || state.arena?.phase === wanted.arenaPhase) &&
+    (wanted.paused === undefined || state.arena?.waiting === wanted.paused)
   );
 }
 
@@ -264,7 +280,6 @@ function shownInWorld(state, wanted, other) {
     (!wanted.refused || state.refusedMarker !== null) &&
     (!wanted.toast || state.toast === (wanted.toast === 'hidden' ? null : wanted.toast)) &&
     (!wanted.duel || (state.duel?.kind ?? 'none') === wanted.duel) &&
-    (!wanted.arena || (wanted.arena === 'rounds' ? state.arena?.mode === 'rounds' : state.arena === null)) &&
     (!wanted.hint || wanted.hint === (state.hint ?? 'hidden'))
   );
 }
@@ -292,6 +307,9 @@ async function waitFor(entry) {
     ...(entry.until.battling ?? []).map(marked('battling', 'battle mark')),
     ...(entry.until.talking ?? []).map(marked('talking', 'speech mark')),
     ...(entry.until.skilling ?? []).map(marked('skilling', 'skill mark')),
+    ...(entry.until.duelling ?? []).map(marked('duelling', 'duel mark')),
+    ...(entry.until.watching ?? []).map(marked('watching', 'watching mark')),
+    ...(entry.until.trophy ?? []).map(marked('trophy', 'trophy')),
   ]);
 }
 
@@ -375,6 +393,40 @@ const STEPS = {
     await until(page, (s) => s.duel?.kind === 'asked', `${entry.player}'s duel card to ask them`, 15_000, { ready: false });
     await page.locator(entry.yes ? '#duel .duel-accept' : '#duel .duel-decline').tap();
     await nextFrames(page);
+  },
+  watch: async (entry) => {
+    const { page } = players.get(entry.player);
+    const shown = await readState(page);
+    const other = shown.players.find((each) => !each.self && each.name === nameOf(entry.who));
+    if (!other?.duelling) throw new Error(`${entry.player}'s page does not show ${entry.who} in a duel`);
+    const [spot] = await tilesToScreen(page, [{ x: Math.round(other.drawn.x), y: Math.round(other.drawn.y) }]);
+    if (!tappable(page, spot)) throw new Error(`${entry.who} is not on ${entry.player}'s screen`);
+    await page.touchscreen.tap(spot.x, spot.y);
+    await until(page, (s) => s.duel?.kind === 'watch', `${entry.player}'s watch card to open over ${entry.who}`, 5_000, { ready: false });
+    await page.locator('#duel .duel-watch').tap();
+    await until(page, (s) => s.arena?.watching === true && s.arena.joined, `${entry.player} to watch ${entry.who}'s duel`, 15_000, { ready: false });
+  },
+  pick: async (entry) => {
+    const { page } = players.get(entry.player);
+    await until(page, (s) => s.arena?.phase === 'picking' && !s.arena.watching, `${entry.player}'s pick screen`, 15_000, { ready: false });
+    await page.locator('#arena .arena-go').tap();
+    await nextFrames(page);
+  },
+  giveUp: async (entry) => {
+    const player = players.get(entry.player);
+    await until(player.page, (s) => s.arena?.quit === 'giveUp', `${entry.player}'s give-up button`, 15_000, { ready: false });
+    const box = await player.page.locator('#arena .arena-leave').boundingBox();
+    if (!box) throw new Error(`${entry.player}'s give-up button is not on the screen`);
+    const thumb = await makeThumb(player.page, player.browser);
+    await thumb.down({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    await sleep(DUEL_GIVE_UP_MS + 400);
+    await thumb.up();
+  },
+  continue: async (entry) => {
+    const { page } = players.get(entry.player);
+    await page.locator('#arena .arena-continue').waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('#arena .arena-continue').tap();
+    await until(page, (s) => s.arena === null, `${entry.player} back in the world`, 5_000, { ready: false });
   },
   play: async (entry) => {
     const page = pageOf(entry.player);

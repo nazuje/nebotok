@@ -371,6 +371,54 @@
   display: none;
 }
 
+/* Give up in a duel, held 2 s: the same ring as Leave, round a flag. */
+.arena-leave[data-quit='giveUp'] {
+  background: conic-gradient(rgb(214 69 69 / 0.75) calc(var(--hold, 0) * 360deg), white 0);
+}
+
+/* A duel's watcher has no controls: only Stop watching, at the bottom. */
+.arena[data-watching='true'] :is(.arena-zone, .arena-cluster, .arena-leave) {
+  display: none;
+}
+
+.arena-unwatch {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  translate: -50% 0;
+}
+
+.arena-stop-watching {
+  min-width: 96px;
+  min-height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* The fight waits for a player who is away, or for the players to pick. */
+.arena-waiting {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 6px 0 rgb(16 42 67 / 0.2);
+  font-weight: 700;
+}
+
+.arena-waiting[hidden],
+.arena-unwatch[hidden] {
+  display: none;
+}
+
 /* The result, over the island once the server has settled the fight. */
 .arena-result {
   position: absolute;
