@@ -4,8 +4,9 @@
 // the same wild creature, one the first starter's moves hit hard, rather than whatever the grass
 // sends (the bot run's arena bot, scripts/lib/arena-bot.mjs, covers the grass). Each run signs in
 // as a player whose save it prepared, sees the island, the cards (level badges coloured by the
-// gap) and the buttons (each at least 64px, with its picture, a lock on one its level has not
-// reached), steers with the stick, the mouse or the keys and fires button 1 by tap or key, takes a
+// gap, and an arrow to the shrine on yours when it came in hurt, as the storm runs' lead does) and
+// the buttons (each at least 64px, with its picture, a big lock and the level in big digits on one
+// its level has not reached), steers with the stick, the mouse or the keys and fires button 1 by tap or key, takes a
 // picture of a strong hit's number, reads the result and continues back to the world. One run on
 // a phone or tablet waits for the storm's warning with the weather called; the other weakens the
 // wild creature and befriends it with a treat. The 360px run asks for reduced motion, checks a hit
@@ -17,7 +18,8 @@
 // chapter done, take her challenge in a talk, pick three, win the best of 3 against her trainer
 // made easy for the check, and see the talk come back at her won line once the result is put
 // away, with her first win's treats and flag saved. An iPhone, an iPad and 360px wide, in both
-// languages across the two browsers. Fails on any console error, failed or outside request, small touch target or
+// languages across the two browsers. Back in the world, the team button shows the shrine while a
+// creature's bar is no longer green. Fails on any console error, failed or outside request, small touch target or
 // sideways scrolling.
 //   node scripts/arena-check.mjs --browser chromium|webkit [--out <dir>]
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -29,7 +31,7 @@ import { createGameServer } from '../apps/server/src/app.ts';
 import { readConfig } from '../apps/server/src/config.ts';
 import { createLog } from '../apps/server/src/log.ts';
 import { createServices } from '../apps/server/src/services.ts';
-import { PLAYER_SPAWN, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, newCreature, wildLoadout } from '../packages/core/src/index.ts';
+import { PLAYER_SPAWN, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, maxHpOf, newCreature, wildLoadout } from '../packages/core/src/index.ts';
 import { BROWSERS, DEVICES, animationsSettled, makeThumb, nextFrames, openTalk, presetLanguage, readState, reportCspViolations, screenshot, servedMap, talkThrough, until, watch } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, freePort } from './lib/server-process.mjs';
@@ -73,6 +75,8 @@ const NET_SNAPS = 2;
 /** The wild creature's level, and a stronger one to befriend, which a few hits weaken without beating. */
 const WILD_LEVEL = 3;
 const BEFRIEND_LEVEL = 8;
+/** The share of its health the storm runs' lead starts with: hurt enough for the shrine's arrow. */
+const HURT_SHARE = 0.5;
 const TAG = runTag();
 
 /**
@@ -192,15 +196,30 @@ const smallTargets = (page) =>
   );
 const sideways = (page) => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth);
 
-/** Each arena button on screen: its action, size and the pictures it holds. */
+/** Each arena button on screen: its action, size, the pictures it holds and the width of each, in CSS pixels. */
 const arenaButtons = (page) =>
   page.locator('#arena .arena-button:visible, #arena .arena-leave:visible').evaluateAll((items) =>
     items.map((item) => {
       const box = item.getBoundingClientRect();
-      const pictures = [...item.querySelectorAll('[data-picture]')].map((picture) => picture.dataset.picture);
-      return { action: item.dataset.action ?? 'leave', width: Math.round(box.width), height: Math.round(box.height), pictures, shape: item.querySelector('[data-shape]')?.dataset.shape ?? null, disabled: item.disabled };
+      const shown = [...item.querySelectorAll('[data-picture]')];
+      const pictures = shown.map((picture) => picture.dataset.picture);
+      const widths = shown.map((picture) => Math.round(picture.getBoundingClientRect().width));
+      return { action: item.dataset.action ?? 'leave', width: Math.round(box.width), height: Math.round(box.height), pictures, widths, shape: item.querySelector('[data-shape]')?.dataset.shape ?? null, disabled: item.disabled };
     }),
   );
+
+/** The big lock and the large digits of its level that a locked button shows (docs/arena.md, "Screens and controls"). */
+const LOCK_PX = 48;
+const LOCK_DIGIT_PX = 32;
+
+/** What is wrong with a locked button's pictures: the lock under `LOCK_PX`, or its level not in digits of `LOCK_DIGIT_PX`. */
+function lockProblems(button, level) {
+  const sized = (id) => button.widths.filter((_, at) => button.pictures[at] === id);
+  const lock = sized('pictures/lock');
+  const digits = sized('pictures/digits');
+  const readable = lock.length === 1 && lock[0] >= LOCK_PX && digits.length === String(level).length && digits.every((width) => width >= LOCK_DIGIT_PX);
+  return readable ? [] : [`locked button ${Number(button.action) + 1} shows its lock and level ${level} as ${JSON.stringify({ pictures: button.pictures, widths: button.widths })}`];
+}
 
 const centre = async (page, selector) => {
   const box = await page.locator(selector).boundingBox();
@@ -356,6 +375,12 @@ async function fightProblems(page, state, run) {
   const third = buttons.find((button) => button.action === '2');
   const locked = run.level < ARENA.buttons[2];
   if (third && locked !== (third.pictures.includes('pictures/lock') && third.disabled)) problems.push(`button 3 at level ${run.level} shows ${JSON.stringify(third)}`);
+  if (third && locked) problems.push(...lockProblems(third, ARENA.buttons[2]));
+  // Only your creature that came in hurt (wildTeam) gets the arrow to the shrine, never the wild one.
+  const hurt = run.plan === 'storm';
+  if (arena.mine?.rest !== hurt || arena.theirs?.rest !== false) problems.push(`the cards point to the shrine as ${JSON.stringify([arena.mine?.rest, arena.theirs?.rest])}, with your creature ${hurt ? '' : 'not '}hurt`);
+  const shrine = await page.locator('#arena .arena-card.mine .arena-rest:visible [data-picture="tiles/shrine"]').count();
+  if (shrine !== (hurt ? 1 : 0)) problems.push(`your card shows ${shrine} shrine pictures, with your creature ${hurt ? '' : 'not '}hurt`);
   const first = buttons.find((button) => button.action === '0');
   if (first && first.shape === null) problems.push(`button 1 shows ${JSON.stringify(first.pictures)}, not its move's shape`);
   return problems;
@@ -403,8 +428,18 @@ async function openRun(browser, run, team) {
   return { label, player, tab, problems, notes, screenshots, expect, shot, fits, signIn, close: () => context.close() };
 }
 
+/**
+ * A wild run's team: the storm runs' lead comes in at half health, as after an earlier fight, so its
+ * card points to the shrine; the wild creature is far too weak for that to cost the win.
+ */
+function wildTeam(run) {
+  const lead = newCreature(STARTERS[0], run.level, world.battle);
+  const hurt = run.plan === 'storm' ? { hp: Math.floor(maxHpOf(lead, world.battle) * HURT_SHARE) } : {};
+  return [{ ...lead, ...hurt }, newCreature(STARTERS[1], run.level, world.battle)];
+}
+
 async function checkRun(browser, run) {
-  const opened = await openRun(browser, run);
+  const opened = await openRun(browser, run, wildTeam(run));
   const { label, player, tab: page, problems, notes, screenshots, expect, shot, fits } = opened;
   try {
     await opened.signIn();
@@ -501,6 +536,11 @@ async function checkRun(browser, run) {
     const saved = services.progress.load(player.id)?.data;
     const reward = state.arena === null && WINS.has(outcome) ? (await readState(page)).progress?.team[0] : null;
     if (reward) expect(saved?.team[0]?.xp === reward.xp && saved?.team[0]?.level === reward.level, `the page shows ${JSON.stringify(reward)} after the fight, not the saved ${JSON.stringify(saved?.team[0])}`);
+    // A fight keeps the health it left; once a bar is no longer green, the team button shows the shrine.
+    const team = (await readState(page)).progress?.team ?? [];
+    const hurt = team.some((creature) => Math.round((100 * creature.hp) / maxHpOf(creature, world.battle)) <= 50);
+    const marked = await page.locator('.team-button').getAttribute('data-hurt');
+    expect(marked === String(hurt), `the team button's shrine says hurt ${marked} for the team ${JSON.stringify(team.map(({ species, hp }) => [species, hp]))}`);
     await shot('5-world');
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
@@ -523,12 +563,20 @@ async function startPractice(playerId) {
 async function pickProblems(page) {
   const problems = [];
   const choices = await page.locator('#arena .arena-choice:visible').evaluateAll((items) =>
-    items.map((item) => ({ place: Number(item.dataset.place), disabled: item.disabled, portrait: Math.round(item.querySelector('canvas')?.getBoundingClientRect().width ?? 0), weather: item.querySelector('[data-picture^="weather"]') !== null, level: item.querySelector('.arena-level')?.textContent ?? '' })),
+    items.map((item) => ({
+      place: Number(item.dataset.place),
+      disabled: item.disabled,
+      portrait: Math.round(item.querySelector('canvas')?.getBoundingClientRect().width ?? 0),
+      weather: item.querySelector('[data-picture^="weather"]') !== null,
+      level: item.querySelector('.arena-level')?.textContent ?? '',
+      shrine: item.querySelector('.rest-hint [data-picture="tiles/shrine"]') !== null,
+    })),
   );
   if (choices.length !== ROUNDS_TEAM.length) problems.push(`the pick screen shows ${choices.length} creatures, not ${ROUNDS_TEAM.length}`);
   for (const choice of choices) {
     if (choice.portrait < 64) problems.push(`the creature at place ${choice.place} has a ${choice.portrait}px portrait, under 64px`);
     if (choice.disabled !== (choice.place === FAINTED_PLACE)) problems.push(`the creature at place ${choice.place} is ${choice.disabled ? '' : 'not '}greyed out`);
+    if (choice.shrine !== (choice.place === FAINTED_PLACE)) problems.push(`the creature at place ${choice.place} ${choice.shrine ? 'points' : 'does not point'} to the shrine`);
     if (!choice.weather || choice.level === '') problems.push(`the creature at place ${choice.place} shows no weather type or level: ${JSON.stringify(choice)}`);
   }
   const slots = await page.locator('#arena .arena-slot:visible').count();

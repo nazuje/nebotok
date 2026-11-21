@@ -1,8 +1,9 @@
 import { ARENA_PICK_MS, ROUNDS, maxHpOf, togglePick, type Language, type PictureId, type Side, type TeamCreature } from '@nebotok/core';
 import { CONTENT, speciesName, speciesType } from '../battle-content.ts';
-import { healthBar } from '../creature-card.ts';
+import { healthBar, restHint } from '../creature-card.ts';
 import { creaturePortrait } from '../creature-art.ts';
 import { el, pictureButton } from '../dom.ts';
+import { needsRest } from '../health-level.ts';
 import { digits } from '../loadout-picker.ts';
 import { pictureIcon, weatherIcon } from '../pictures.ts';
 import { format, text } from '../strings.ts';
@@ -65,13 +66,15 @@ function slotOf(place: number | undefined, at: number, team: readonly TeamCreatu
 function pickChoice(creature: TeamCreature, place: number, slot: number, language: Language, tapped: (place: number) => void): HTMLElement {
   const type = speciesType(creature.species);
   const standing = creature.hp > 0;
+  const maxHp = maxHpOf(creature, CONTENT);
   const made = el('button', { className: 'arena-choice', attrs: { type: 'button', 'aria-pressed': String(slot >= 0), 'aria-label': speciesName(creature.species, language), 'data-place': String(place) } }, [
     creaturePortrait(creature.species),
     el('span', { className: 'arena-choice-words' }, [
       el('span', { className: 'arena-level', text: levelBadge(creature.level, language) }),
       ...(type ? [weatherIcon(type, 24)] : []),
     ]),
-    healthBar(creature.hp, maxHpOf(creature, CONTENT), language, false),
+    healthBar(creature.hp, maxHp, language, false),
+    ...(needsRest(creature.hp, maxHp) ? [restHint(16)] : []),
     ...(slot >= 0 ? [digits(slot + 1, 24)] : []),
   ]);
   made.disabled = !standing;

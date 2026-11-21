@@ -2,7 +2,8 @@ import type { Language } from '@nebotok/core';
 import { moveName, moveType, speciesName, speciesType, weatherName } from './battle-content.ts';
 import { creaturePortrait } from './creature-art.ts';
 import { el } from './dom.ts';
-import { weatherIcon } from './pictures.ts';
+import { healthLevel } from './health-level.ts';
+import { pictureIcon, shrineIcon, weatherIcon } from './pictures.ts';
 import { format } from './strings.ts';
 
 /** What every creature card shows, from a battle view or a saved creature. */
@@ -14,9 +15,14 @@ export function healthBar(hp: number, maxHp: number, language: Language, labelle
   const percent = maxHp > 0 ? Math.round((100 * Math.max(0, hp)) / maxHp) : 0;
   const fill = el('div', { className: 'health-fill' });
   fill.style.width = `${percent}%`;
-  fill.dataset.level = percent > 50 ? 'high' : percent > 20 ? 'mid' : 'low';
+  fill.dataset.level = healthLevel(hp, maxHp);
   const bar = el('div', { className: 'health-bar', attrs: { role: 'meter', 'aria-label': label, 'aria-valuemin': '0', 'aria-valuemax': String(maxHp), 'aria-valuenow': String(Math.max(0, hp)) } }, [fill]);
   return labelled ? el('div', { className: 'health' }, [bar, el('span', { className: 'health-text', text: label, attrs: { 'aria-hidden': 'true' } })]) : bar;
+}
+
+/** On a hurt creature's card: an arrow to the shrine, where resting heals the team (`needsRest`). */
+export function restHint(sizePx: number): HTMLElement {
+  return el('span', { className: 'rest-hint', attrs: { 'aria-hidden': 'true' } }, [pictureIcon('arrow', sizePx), shrineIcon(sizePx)]);
 }
 
 /** A weather type's chip in its colour: its icon, with its name small underneath and as the chip's accessible name. */

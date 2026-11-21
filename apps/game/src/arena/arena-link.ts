@@ -21,6 +21,7 @@ import {
 import type { Game } from 'phaser';
 import type { ArenaRoom, WorldConnection, WorldRoom } from '../connection.ts';
 import { element } from '../dom.ts';
+import { cameInHurt } from '../health-level.ts';
 import { moveArena } from '../move-arena.ts';
 import { buttonStates, treatUsable, type ButtonState } from './arena-buttons.ts';
 import { ARENA } from './arena-content.ts';
@@ -128,6 +129,8 @@ type Fight = {
   order: number[] | null;
   /** Whether `order` has gone to the server. */
   sent: boolean;
+  /** Whether each of your fighters came onto the island hurt, by fighter id, for its card's arrow to the shrine. */
+  entered: Map<string, boolean>;
   stop: () => void;
   /** Your creature, predicted, and the other one, smoothed; made when the room says which side is yours. */
   predictor: Predictor | null;
@@ -341,7 +344,7 @@ export function createArena(options: ArenaOptions): Arena {
     if (!connection) return;
     if (fight?.id !== fightId) {
       if (fight) leaveRoom(fight);
-      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, order: null, sent: false, stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
+      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, order: null, sent: false, entered: new Map(), stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
       controls.reset();
       options.started();
       options.changed();
@@ -373,7 +376,9 @@ export function createArena(options: ArenaOptions): Arena {
     const card = (side: Side): CardView | null => {
       const body = now.state.bodies.at(side);
       const other = now.state.bodies.at(side === 0 ? 1 : 0);
-      return body ? { species: body.species, level: body.level, tone: badgeTone(body.level, other?.level ?? null), health: body.health, max: body.max, turtle: body.turtle } : null;
+      if (!body) return null;
+      const rest = side === now.side && fight !== null && !watching() && cameInHurt(fight.entered, body.id, body.health, body.max);
+      return { species: body.species, level: body.level, tone: badgeTone(body.level, other?.level ?? null), health: body.health, max: body.max, turtle: body.turtle, rest };
     };
     return [card(now.side), card(now.side === 0 ? 1 : 0)];
   }
