@@ -28,6 +28,7 @@ import {
   startBattle,
   teamAfterBattle,
   teamAfterFight,
+  teamRested,
   trainerRewards,
   useItem,
   wildBattleSetup,
@@ -244,7 +245,9 @@ function newlyLearned(before: readonly CreatureInstance[], after: readonly Creat
  * A wild fight's results, as settleBattle gives a battle's: health first, then experience to the
  * creatures still standing, the moves of new levels, the treats left and a befriended creature.
  * Every move a level up teaches is `learned`; the four a turn battle uses take the new ones while
- * there is room, and the rest are not offered. A best of 3 against a trainer gives the trainer's
+ * there is room, and the rest are not offered. After a lost fight the team rests to full health
+ * (`teamRested`); `fainted` still says whether every creature was knocked out, so the player
+ * wakes at their shrine as before. A best of 3 against a trainer gives the trainer's
  * `xpPercent` (`trainerRewards`); any other best of 3, or a fight that never started, changes nothing.
  */
 export function settleFight(progress: Progress, fight: ArenaFight | null, content: BattleContent, xpPercent = 0): FightSettlement {
@@ -258,7 +261,7 @@ export function settleFight(progress: Progress, fight: ArenaFight | null, conten
   const added = creature ? addCreature(after, creature) : null;
   const next = creature && added ? markBefriended(added.progress, creature.species) : after;
   return {
-    progress: next,
+    progress: { ...next, team: teamRested(next.team, fight, arenaContentOf(content)) },
     rewards: grown.rewards,
     learned: newlyLearned(ended, grown.team, content),
     befriended: creature && added ? { species: creature.species, level: creature.level, placedIn: added.placedIn } : null,
@@ -276,7 +279,7 @@ export function settleDuel(progress: Progress, fight: ArenaFight | null, side: S
   return grownBy(progress, duelRewards(progress.team, fight, side, content), content);
 }
 
-/** A trainer's best of 3: no health is lost, and each of the player's creatures that fought gets `xpPercent` of a win's experience. */
+/** A trainer's best of 3: no health is lost, and each of the player's creatures that fought gets `xpPercent` of a win's experience, half that after a loss or a draw. */
 function settleTrainerFight(progress: Progress, fight: RoundsFight, xpPercent: number, content: BattleContent): FightSettlement {
   return grownBy(progress, trainerRewards(progress.team, fight, PLAYER_SIDE, xpPercent, content), content);
 }

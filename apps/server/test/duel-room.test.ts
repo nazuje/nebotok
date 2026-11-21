@@ -411,7 +411,7 @@ describe('the duel island', () => {
     await until(() => first.room.state.watchers.length === 0, 'the stands to empty after leaving the world');
   });
 
-  it('gives each side 25% of a win for each creature that fought, win or lose, keeps health, and crowns the winner', async () => {
+  it('gives the side that stays 25% of a win for each creature that fought, nothing to a side that gives up in round 1, keeps health, and crowns the winner', async () => {
     const [asker, answerer] = await pair();
     const [first, second] = await duel(asker, answerer);
     await pickBoth(first, second);
@@ -427,10 +427,9 @@ describe('the duel island', () => {
     expect(lost.outcome).toMatchObject({ result: 'lost', winner: 1 });
     expect(won.outcome).toMatchObject({ result: 'won', winner: 1 });
     expect(lost.rounds.map((round) => round.how)).toEqual(['gaveUp', 'gaveUp']);
-    // Both sides' creatures are level 6: a quarter of a win over one, truncated.
-    const xp = Math.trunc(xpForWin(6) / 4);
-    expect(lost.rewards.map((reward) => [reward.index, reward.xp])).toEqual([[0, xp]]);
-    expect(won.rewards.map((reward) => reward.index)).toEqual([0]);
+    // Giving up in the first round earns nothing; the other side's creature, level 6 like the one it faced, gets a quarter of a win over it, truncated.
+    expect(lost.rewards).toEqual([]);
+    expect(won.rewards.map((reward) => [reward.index, reward.xp])).toEqual([[0, Math.trunc(xpForWin(6) / 4)]]);
     expect(watched).toMatchObject({ outcome: { result: 'lost', winner: 1 }, rewards: [], learned: [] });
 
     await until(() => shown(asker)?.inBattle === false && shown(watcher)?.watching === false, 'everyone back in the world');

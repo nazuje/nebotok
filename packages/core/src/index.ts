@@ -644,11 +644,14 @@ export {
 } from './arena/treats.ts';
 export {
   DUEL_XP_PERCENT,
+  TRAINER_LOSS_XP_PERCENT,
   arenaWildSetup,
   roundsTeam,
   teamAfterFight,
+  teamRested,
   befriendedFromFight,
   arenaRewards,
+  gaveUpInFirstRound,
   duelRewards,
   trainerRewards,
   inventoryAfterFight,

@@ -1,6 +1,22 @@
-import { MAX_TEAM, PLAYER_SIDE, STORAGE_LIMIT, emptyProgress, newCreature, type BattleAction, type Progress } from '@nebotok/core';
+import {
+  MAX_TEAM,
+  PLAYER_SIDE,
+  STORAGE_LIMIT,
+  arenaWildSetup,
+  emptyProgress,
+  fightContentOf,
+  fightStart,
+  maxHpOf,
+  newCreature,
+  wildLoadout,
+  type BattleAction,
+  type FightCreature,
+  type Progress,
+  type WildFight,
+  type WildResult,
+} from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
-import { abandonBattle, beginBattle, commitStep, nextStep, planRequest, playStep, settleBattle, storageRefusal, wildSlipPercent, type LiveBattle } from '../src/battles.ts';
+import { abandonBattle, beginBattle, commitStep, nextStep, planRequest, playStep, settleBattle, settleFight, storageRefusal, wildSlipPercent, type LiveBattle } from '../src/battles.ts';
 import { loadWorld } from '../src/world.ts';
 
 const world = loadWorld();
@@ -106,6 +122,35 @@ describe('ending a battle', () => {
     const battle = begin(progress);
     playStep(battle, { kind: 'run' }, content);
     expect(settleBattle(progress, battle, content)).toEqual({ progress, rewards: [], learned: [], offers: [], befriended: null, fainted: false });
+  });
+});
+
+describe('settling a wild arena fight', () => {
+  const fightContent = fightContentOf(content);
+  const progress = progressWith({ team: [newCreature('glowbun', 6, content), { ...newCreature('puddlepip', 6, content), hp: 3 }, { ...newCreature('pinwhirl', 6, content), hp: 0 }] });
+  const started = fightStart(
+    arenaWildSetup({ seed: 1, team: progress.team, wild: WILD, wildLoadout: wildLoadout(WILD.species, WILD.level, fightContent), turtle: false, inventory: [], content }),
+    fightContent,
+  ) as WildFight;
+  const ended = (result: WildResult, team: (creature: FightCreature) => Partial<FightCreature>): WildFight => {
+    const fight = structuredClone(started);
+    for (const creature of fight.team) Object.assign(creature, { fought: true }, team(creature));
+    return { ...fight, outcome: { result, tick: 90 } };
+  };
+  const full = progress.team.map((creature) => maxHpOf(creature, content));
+
+  it('rests the whole team to full health after a loss, and still wakes the player at the shrine when every creature was knocked out', () => {
+    const knockedOut = settleFight(progress, ended('lost', () => ({ health: 0 })), content);
+    expect(knockedOut.progress.team.map((creature) => creature.hp)).toEqual(full);
+    expect(knockedOut).toMatchObject({ rewards: [], fainted: true });
+    const rungOut = settleFight(progress, ended('lost', (creature) => (creature.place === 0 ? { health: 0 } : { health: 7, out: true })), content);
+    expect(rungOut.progress.team.map((creature) => creature.hp)).toEqual(full);
+    expect(rungOut).toMatchObject({ rewards: [], fainted: false });
+  });
+
+  it('keeps the health a won fight left', () => {
+    const won = settleFight(progress, ended('won', () => ({ health: 7 })), content);
+    expect(won.progress.team.map((creature) => creature.hp)).toEqual([1, 1, 0]);
   });
 });
 

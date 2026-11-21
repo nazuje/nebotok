@@ -239,7 +239,22 @@
           "press": null
         }
       ]
+    },
+    {
+      "ticks": 525,
+      "sides": [
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        },
+        {
+          "dir": null,
+          "dash": false,
+          "press": null
+        }
+      ]
     }
   ],
-  "expectedHash": "0f79620f6303f9"
+  "expectedHash": "0f9afc29d94afb"
 }

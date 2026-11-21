@@ -1,4 +1,5 @@
 import type { BattleContent } from '../battle/content.ts';
+import { maxHpAt } from '../battle/damage.ts';
 import { newCreature } from '../creatures.ts';
 import type { WildEncounter } from '../encounter.ts';
 import { gainXp, xpForWin } from '../growth.ts';
@@ -21,6 +22,8 @@ type Inventory = SaveData['inventory'];
 const XP_RESULTS: ReadonlySet<WildResult> = new Set(['won', 'wonByRingOut', 'befriended', 'timeUp']);
 /** A friendly duel gives this share of a win's experience to every creature that fought. */
 export const DUEL_XP_PERCENT = 25;
+/** A best of 3 a trainer did not lose gives this share of the experience a win over them gives. */
+export const TRAINER_LOSS_XP_PERCENT = 50;
 
 export type WildSetupOptions = {
   readonly seed: number | string;
@@ -83,6 +86,19 @@ export function teamAfterFight(team: readonly CreatureInstance[], fight: ArenaFi
   });
 }
 
+/**
+ * After a lost wild fight every team creature is back to full health, as if it had rested at a
+ * shrine, so a loss never leaves the team weaker for the next fight. Any other fight leaves the
+ * team as `teamAfterFight` gave it.
+ */
+export function teamRested(team: readonly CreatureInstance[], fight: ArenaFight, content: ArenaContent): CreatureInstance[] {
+  if (fight.mode !== 'wild' || fight.outcome?.result !== 'lost') return [...team];
+  return team.map((creature) => {
+    const species = content.species.get(creature.species);
+    return species ? { ...creature, hp: maxHpAt(species, creature.level) } : creature;
+  });
+}
+
 /** The wild creature of a fight that ended `befriended`, as a new team creature at full health; else null. */
 export function befriendedFromFight(fight: ArenaFight, content: BattleContent): CreatureInstance | null {
   if (fight.mode !== 'wild' || fight.outcome?.result !== 'befriended') return null;
@@ -119,31 +135,39 @@ export function arenaRewards(team: readonly CreatureInstance[], fight: WildFight
   return rewarded(team, (place, creature) => (fought.has(place) && creature.hp > 0 ? xp : 0), content);
 }
 
+/** Whether `side` gave the duel up during its first round, replays of that round included. */
+export const gaveUpInFirstRound = (fight: RoundsFight, side: Side): boolean =>
+  fight.rounds.some((round) => round.how === 'gaveUp' && round.round === 0 && round.winner === otherSide(side));
+
 /**
  * Experience after a friendly duel, win or lose: each of `side`'s creatures that fought gets
- * `DUEL_XP_PERCENT` of `xpForWin` of the level of the creature it faced. Nothing is lost.
+ * `DUEL_XP_PERCENT` of `xpForWin` of the level of the creature it faced. A side that gave up in
+ * the first round gets nothing; the other side still gets its share. Nothing is lost.
  */
 export function duelRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, content: BattleContent): Rewarded {
-  return roundsRewards(team, fight, side, DUEL_XP_PERCENT, content);
+  if (gaveUpInFirstRound(fight, side)) return { team: [...team], rewards: [] };
+  return roundsRewards(team, fight, side, DUEL_XP_PERCENT, 100, content);
 }
 
 /**
- * Experience after a trainer's best of 3, win or lose: each of `side`'s creatures that fought gets
- * the trainer's `xpPercent` of `xpForWin` of the level of the creature it faced.
+ * Experience after a trainer's best of 3: each of `side`'s creatures that fought gets the
+ * trainer's `xpPercent` of `xpForWin` of the level of the creature it faced, after a win; after a
+ * loss or a draw, `TRAINER_LOSS_XP_PERCENT` of that.
  */
 export function trainerRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, xpPercent: number, content: BattleContent): Rewarded {
-  return roundsRewards(team, fight, side, xpPercent, content);
+  const won = fight.outcome?.winner === side;
+  return roundsRewards(team, fight, side, xpPercent, won ? 100 : TRAINER_LOSS_XP_PERCENT, content);
 }
 
-/** `percent` of `xpForWin` of the level of the creature each of `side`'s creatures that fought faced. */
-function roundsRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, percent: number, content: BattleContent): Rewarded {
+/** `share` percent of `percent` of `xpForWin` of the level of the creature each of `side`'s creatures that fought faced. */
+function roundsRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, percent: number, share: number, content: BattleContent): Rewarded {
   const mine = fight.picks[side];
   const theirs = fight.picks[otherSide(side)];
   const xpByPlace = new Map<number, number>();
   mine.forEach((creature, round) => {
     const faced = theirs[round];
     if (!creature.fought || creature.place === null || !faced) return;
-    xpByPlace.set(creature.place, percentOf(xpForWin(faced.fighter.level), percent));
+    xpByPlace.set(creature.place, percentOf(percentOf(xpForWin(faced.fighter.level), percent), share));
   });
   return rewarded(team, (place) => xpByPlace.get(place) ?? 0, content);
 }
