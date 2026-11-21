@@ -2,6 +2,7 @@ import {
   PLAYER_SIDE,
   SERVER_MESSAGES,
   advanceConversation,
+  canFightTrainer,
   conversationView,
   jobsView,
   learnTeamMoves,
@@ -11,6 +12,7 @@ import {
   openConversation,
   questEvent,
   skillsView,
+  trainerFightAt,
   type BattleContent,
   type BattleOutcome,
   type Conversation,
@@ -27,6 +29,7 @@ import {
   type SpotRest,
   type StoryContent,
   type TalkStep,
+  type Trainer,
   type WildOutcome,
   type WorldMap,
 } from '@nebotok/core';
@@ -77,14 +80,15 @@ export function starterRefusal(progress: Progress, talk: Conversation | null, co
 /**
  * Where a talk request leads: `refused` when the answer does not fit the node (or the character
  * has no dialogue), `failed` when the node it leads to has an effect that cannot happen (a content
- * bug: nothing is done and the talk ends), `stays` at a node, or `ended` by the player continuing
- * from a last node.
+ * bug: nothing is done and the talk ends), `stays` at a node, `ended` by the player continuing
+ * from a last node, or `fight` against `trainer` by continuing from a node with a fight.
  */
 export type TalkOutcome =
   | { readonly kind: 'refused' }
   | { readonly kind: 'failed' }
   | { readonly kind: 'stays'; readonly conversation: Conversation; readonly step: TalkStep }
-  | { readonly kind: 'ended'; readonly step: TalkStep };
+  | { readonly kind: 'ended'; readonly step: TalkStep }
+  | { readonly kind: 'fight'; readonly trainer: Trainer };
 
 /** Opens a talk with `npc` at its first entry that holds, doing that node's effects. */
 export function openTalk(npc: string, progress: Progress, content: StoryContent): TalkOutcome {
@@ -93,8 +97,16 @@ export function openTalk(npc: string, progress: Progress, content: StoryContent)
   return step.conversation ? { kind: 'stays', conversation: step.conversation, step } : { kind: 'failed' };
 }
 
-/** Goes on from the node the player is at, with one of its shown choices or null. */
+/**
+ * Goes on from the node the player is at, with one of its shown choices or null. At a node with a
+ * fight, null starts it while the trainer would fight now (`canFightTrainer`); else the talk fails.
+ */
 export function continueTalk(conversation: Conversation, choice: number | null, progress: Progress, content: StoryContent): TalkOutcome {
+  const fight = trainerFightAt(conversation, content);
+  if (fight) {
+    if (choice !== null) return { kind: 'refused' };
+    return canFightTrainer(progress, fight.trainer.id, content) ? { kind: 'fight', trainer: fight.trainer } : { kind: 'failed' };
+  }
   const view = conversationView(conversation, progress, content);
   const step = advanceConversation(conversation, choice, progress, content);
   if (!view || !step) return { kind: 'refused' };

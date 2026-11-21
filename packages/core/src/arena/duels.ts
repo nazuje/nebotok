@@ -3,7 +3,7 @@ import { grownLoadout, repairLoadout, type LoadoutContent } from '../loadout.ts'
 import type { CreatureInstance } from '../save.ts';
 import { abs, div } from './fixed.ts';
 import type { RoundPick, RoundsFightSetup } from './fight-state.ts';
-import { ARENA_SIDES, type ArenaLoadout, type Side } from './state.ts';
+import type { ArenaLoadout, Side } from './state.ts';
 
 /**
  * Friendly duels between two players (docs/arena.md, "Rounds" and "Even match"): who may ask whom,
@@ -18,6 +18,12 @@ export const DUEL_REACH = 4;
 export const DUEL_ANSWER_MS = 20_000;
 /** After a no, no answer or a take-back the same two players wait this long before either asks the other again. */
 export const DUEL_PAUSE_MS = 30_000;
+/** At most this many players watch one duel. */
+export const DUEL_WATCHERS = 6;
+/** Give up is held this long before it counts. */
+export const DUEL_GIVE_UP_MS = 2_000;
+/** The winner's courier wears a trophy in the world this long. */
+export const DUEL_TROPHY_MS = 60_000;
 
 type Owned = Pick<CreatureInstance, 'species' | 'level' | 'hp' | 'loadout'>;
 
@@ -63,19 +69,27 @@ export type DuelSetupOptions = {
 const FIGHTER_PREFIX: Readonly<Record<Side, string>> = { 0: 'a', 1: 'b' };
 
 /**
- * The best of 3 an accepted duel starts: each side's first three standing creatures in team
- * order, with their loadouts and their player's turtle setting, at real levels or all at
- * `evenLevel`. Nothing here changes a save.
+ * Every standing creature of each side in team order, as it fights in this duel: with its loadout
+ * and its player's turtle setting, at its real level or at `evenLevel`. Each player picks three
+ * from their side's.
  */
-export function duelSetup({ seed, teams, even, turtles, content }: DuelSetupOptions): RoundsFightSetup {
+export function duelTeams({ teams, even, turtles, content }: Omit<DuelSetupOptions, 'seed'>): readonly [RoundPick[], RoundPick[]] {
   const level = evenLevel(teams);
-  const picks = ARENA_SIDES.map((side): RoundPick[] =>
-    duelLineup(teams[side]).map(({ place, creature }) => {
+  const sideOf = (side: Side): RoundPick[] =>
+    teams[side].flatMap((creature, place) => {
+      if (creature.hp <= 0) return [];
       const at = even ? level : creature.level;
-      return { place, fighter: { id: `${FIGHTER_PREFIX[side]}${place + 1}`, species: creature.species, level: at, loadout: loadoutAt(creature, at, content), turtle: turtles[side], computer: false } };
-    }),
-  );
-  const [first, second] = picks;
-  if (!first?.length || !second?.length) throw new RangeError('a duel needs a standing creature on each side');
-  return { mode: 'rounds', seed, picks: [first, second] };
+      return [{ place, fighter: { id: `${FIGHTER_PREFIX[side]}${place + 1}`, species: creature.species, level: at, loadout: loadoutAt(creature, at, content), turtle: turtles[side], computer: false } }];
+    });
+  return [sideOf(0), sideOf(1)];
+}
+
+/**
+ * The best of 3 an accepted duel starts, before its players pick: each side's first three
+ * standing creatures (`duelLineup`) from `duelTeams`. Nothing here changes a save.
+ */
+export function duelSetup({ seed, ...options }: DuelSetupOptions): RoundsFightSetup {
+  const [first, second] = duelTeams(options);
+  if (first.length === 0 || second.length === 0) throw new RangeError('a duel needs a standing creature on each side');
+  return { mode: 'rounds', seed, picks: [first.slice(0, DUEL_TEAM), second.slice(0, DUEL_TEAM)] };
 }

@@ -114,7 +114,8 @@ The whole fight (#147), around the island:
   `outcome`) or a `RoundsFight` (`picks`, `round`, `replay`, `rounds` played, `score`,
   `outcome`). `fightHash` is its fingerprint.
 - `fight.ts`: `fightStart(setup, content)` and `fightStep(fight, inputs, content)`, which hand on to
-  `wildStart`/`wildStep` (`wild-fight.ts`) or `roundsStart`/`roundsStep` (`rounds.ts`). Their
+  `wildStart`/`wildStep` (`wild-fight.ts`) or `roundsStart`/`roundsStep` (`rounds.ts`, with
+  `roundsGiveUp` for a duel given up). Their
   `content` is a `FightContent`: the `ArenaContent` and the `items`, from `fightContentOf` or
   `loadFightContent`.
 - `treats.ts`: the window (`treatWindowPercent`, `treatWindowOpen`), `bestTreat`, and a thrown
@@ -127,7 +128,8 @@ The whole fight (#147), around the island:
 
 `ArenaInput` takes `treat`, `swap` and `leave` as optional, so the island's own inputs and goldens
 need none of them. `leave` is sent once the Leave button has been held for its second; the hold
-itself is the screen's. The island only reads side 0's; side 1 never treats, swaps or leaves.
+itself is the screen's. The island only reads side 0's; side 1 never treats, swaps or leaves. In a
+duel the arena room reads `leave` from either side as giving up, before the step (#158).
 
 An `outcome` is `{ winner, how, tick }` with `how` `knockout`, `ringOut` or `timeUp`; `winner` is
 null for a draw, which is also what two creatures down on the same tick give, and an equal share
@@ -354,11 +356,18 @@ Only in wild fights.
   creature left for a round loses that round (`forfeit`).
 - 3 s between rounds with the score as round pips (trophy, puff, empty) (#155, built): the room
   stops stepping, and the next two creatures already stand on the fresh island.
-- No Swap, no Treat, no Leave. A duel has a give-up button, held 2 s, which loses the rest.
-- **Outcomes:** `won`, `lost` or `draw`, with the list of rounds.
-- **Duel rewards** (`duelRewards`): 25% of `xpForWin` to every creature that fought, on both sides,
-  win or lose. Duel health is put back as it was before; nothing is lost.
-- **Trainer rewards:** from the trainer's entry in `content/trainers.json` (XP share, an item).
+- No Swap, no Treat, no Leave. A duel has a give-up button, a flag held 2 s (`DUEL_GIVE_UP_MS`),
+  which loses the rest: the round under way and every round after it, until the other side has 2
+  round wins (`roundsGiveUp`, each such round `gaveUp`, #158, built). Giving up ends the duel as
+  a loss either way, and the rounds already played stay in the list.
+- **Outcomes:** `won`, `lost` or `draw`, with the list of rounds. Each duellist's
+  `arena.result` tells it from their own side; a watcher's from side 0.
+- **Duel rewards** (`duelRewards`, #158, built: `settleDuel` in `apps/server/src/battles.ts`): 25% of
+  `xpForWin` to every creature that fought, on both sides, win or lose. Duel health is put back as
+  it was before; nothing is lost. The winner's courier wears a trophy for 60 s (`DUEL_TROPHY_MS`).
+- **Trainer rewards** (`trainerRewards`, #156): the trainer's `reward.xpPercent` of `xpForWin` to every
+  creature of the player's that fought, win or lose, as a duel's share is given; health is put back.
+  The first win also gives the reward's item and sets the trainer's flag.
 
 **Even match** (duels, on by default): every creature fights at the higher of the two players'
 average team levels, for that duel only. Nothing about it is saved. With it off, real levels.
@@ -565,18 +574,42 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   real levels); the answer card shows the asker's courier, their first three creatures and the
   even or real picture, with a big tick and cross, and "Read to me" reads a fixed line with no name
   in it. It waits 20 s, then declines by itself; the same pair waits 30 s after a decline or a take-back
-  (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`). Up to 6 watchers. The winner's courier wears
-  a small trophy for 60 s.
+  (`apps/game/src/duels.ts`, `apps/server/src/duels.ts`).
+- **The duel island** (#158, built): both duellists get the pick screen above, from every standing
+  creature (all at the even level in an even match), opening on the first three, with its 30 s.
+  The island has flags around its rim and two cloud stands beside it, where the watchers' couriers
+  stand still (`arena-stands.ts`). No Treat and no Leave: the corner holds the give-up flag instead,
+  held 2 s. While a duellist's connection is down the fight pauses, and everyone on the island sees
+  a clock and "Waiting for the players…".
+- **Watching** (#158, built): a duellist's courier carries the duel mark (a gold edge and crossed
+  swords on the name tag). Tapping it, at any distance, opens a card with Watch; up to 6 watch one duel, the 7th is
+  refused. A watcher sees the island from side 0, with both cards and no stick, buttons or pick
+  screen (both sides' picks stay hidden until round 1), and their courier wears the watching mark
+  and stands still in the world. Stop watching, one tap at the bottom, leaves at once; walking away
+  in the world stops it too. At the end a watcher sees "The duel is over!" and Continue.
 
 ## Trainers
 
-A trainer (#156) is content: `content/trainers.json` gives each one an id, the character (`npc`),
-three creatures (species, level and a loadout of learned moves), a mind skill (`WILD` or `BOT`), a
-reward (an XP share and an item) and a rematch rule. A dialogue node's action `fight: <trainerId>`
-starts a best of 3, and leads on to its `won` or `lost` node; the quest step `beatTrainer` counts a
-win, next to `winBattles`. The one placeholder trainer is Vetrinka, the weather-watcher at the
-lookout, with three creatures at levels 6 to 8 in the side chapter, until the kids' trainers
-replace her.
+A trainer (#156, built) is content: `content/trainers.json` gives each one an id, the character
+(`npc`), three creatures (species, level and a loadout of moves learned by that level, each on an
+unlocked button of its kind), a mind skill (`WILD`, which becomes `WILD_EASIER` against a turtle,
+or `BOT`), a reward (`xpPercent`, 0 to 100, and an optional item), the story `flag` their first
+win sets and a `rematch` rule: `again` fights after a win too, `once` never again.
+
+A dialogue node with `fight: <trainerId>` and its `won` and `lost` nodes starts the best of 3 when
+the player goes on from it, and takes the talk on to `won` or (a loss or a draw) `lost` once the
+fight's result is put away (`docs/protocol.md`, "A trainer's fight"). Every choice or entry that
+leads there checks `{ "canFight": trainerId }`, so the challenge only shows while the fight can
+start; such a choice shows the `challenge` picture. The quest step `beatTrainer` (`{ trainer }`)
+counts a win, next to `winBattles`, which a trainer's win counts too. `content:validate` checks the
+character has a node with the fight, the flag is declared, the species, item and loadouts exist
+and fit. With `ARENA_BATTLES` off the server loads the story without its trainers, so no challenge
+shows. The story bot wins a fight by a scripted outcome (null at the fight node).
+
+The one placeholder trainer is Vetrinka, the weather-watcher at the lookout, with a pinwhirl,
+drizzlesnail and gustowl at levels 6 to 8, the `WILD` mind, half a win's experience and two gale
+treats the first time. She challenges the player once the first chapter is done, until the kids'
+trainers replace her. The browser check makes her creatures level 2, so its rounds end soon.
 
 ## Names in code
 
@@ -593,9 +626,15 @@ Planned names, so the tickets agree:
 - Loadouts (#148): `learnedMoves(species, level, content)`, `setLoadout`, `setTurtle`, and the save's
   `SettingsV7 { readToMe, turtle }`.
 - Server (#149, #150): `apps/server/src/arena-room.ts`, `seat.fight`, `settleFight`.
+- Trainers (#156, built): `content/trainers.json` (`TrainersFile`), core `trainers.ts`
+  (`canFightTrainer`, `trainerPicks`, `trainerMind`, `trainerWon`), `endTrainerFight` and
+  `trainerRewards`; the world room's `startTrainerFight` and `backToTalk`.
 - Rounds (#155, built): core `pickCount`, `defaultPickOrder`, `togglePick`, `isPickOrder` and
   `roundsTeam`; a fight plan's `pickers`; the world room's `startPractice`; the client's
   `arena-rounds.ts`.
+- Duels (#158, built): core `duelTeams`, `roundsGiveUp`, `DUEL_WATCHERS`, `DUEL_GIVE_UP_MS` and
+  `DUEL_TROPHY_MS`; the server's `settleDuel` and `duelOutcomeFor` (`battles.ts`); the client's
+  `arena-stands.ts`.
 - Client (#151, built): `apps/game/src/arena/`: `arena-link.ts` (joins the room, sends input,
   shows the result), `arena-scene.ts` (`ArenaScene`), `arena-controls.ts` (stick, buttons, keys,
   Leave), `arena-screen.ts`, `arena-buttons.ts`, `arena-input.ts` and `fight-book.ts`;
@@ -603,7 +642,8 @@ Planned names, so the tickets agree:
 - Test hook: `arena` (built in #151: fight id, mode, side, phase, tick, radius, both creatures
   with position and health, buttons with cooldown and lock, Leave, inputs and presses sent, what the
   scene drew, and the result), with `arena.picks`, `arena.round`, `arena.score` (yours first) and
-  `arena.countdown` for rounds (built in #155), next to `battle` until #160.
+  `arena.countdown` for rounds (built in #155), `arena.watching`, `arena.duel`, `arena.waiting` and
+  `arena.quit` (built in #158), next to `battle` until #160.
 
 ## Checks
 

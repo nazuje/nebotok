@@ -113,6 +113,7 @@ describe('the fight book', () => {
     fightId: 'f',
     mode: 'wild',
     side: 0,
+    watching: false,
     sides: [
       [
         { id: 'a1', species: 's', level: 5, place: 0 },

@@ -1,7 +1,7 @@
 import { maxHpAt } from '../battle/damage.ts';
 import type { FightCreature, FightEvent, FightStepResult, RoundPick, RoundResult, RoundsFight, RoundsFightSetup, RoundsResult } from './fight-state.ts';
 import type { ArenaContent } from './rules.ts';
-import { ARENA_SIDES, arenaStart, type ArenaInputs, type ArenaState, type Side } from './state.ts';
+import { ARENA_SIDES, arenaStart, otherSide, type ArenaInputs, type ArenaState, type Side } from './state.ts';
 import { arenaStep } from './step.ts';
 
 /**
@@ -92,6 +92,24 @@ function withBodiesBack(fight: RoundsFight): RoundsFight['picks'] {
       return at === fight.round ? { ...creature, health: body.health, out: body.out } : creature;
     });
   return [back(0), back(1)];
+}
+
+/**
+ * A duel's side giving up (docs/arena.md, "Rounds"): the other side wins the round under way and
+ * each round after it until it has `ROUND_WINS`, all `gaveUp`, and the fight, even where a drawn
+ * round would leave the score level. A fight already over stays as it is.
+ */
+export function roundsGiveUp(fight: RoundsFight, side: Side): FightStepResult {
+  if (fight.outcome) return { fight, events: [] };
+  const winner = otherSide(side);
+  const events: FightEvent[] = [];
+  let next: RoundsFight = { ...fight, picks: withBodiesBack(fight) };
+  for (let round = fight.round; round < ROUNDS && next.score[winner] < ROUND_WINS; round += 1) {
+    next = counted(next, { round, winner, how: 'gaveUp', tick: round === fight.round ? fight.island.tick : 0, replayed: false }, events);
+  }
+  const result: RoundsResult = winner === 0 ? 'won' : 'lost';
+  events.push({ kind: 'fightEnded', result });
+  return { fight: { ...next, outcome: { result, winner, tick: fight.tick } }, events };
 }
 
 /** One tick of a best of 3: the island's step, then, when its round ended, the score and the next island. */

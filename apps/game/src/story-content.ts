@@ -8,13 +8,14 @@ import skills from '../../../content/skills.json';
 import spots from '../../../content/spots.json';
 import stations from '../../../content/stations.json';
 import story from '../../../content/story.json';
+import trainers from '../../../content/trainers.json';
 import { CONTENT } from './battle-content.ts';
 
 const dialogueFiles = import.meta.glob<unknown>('../../../content/dialogue/*.json', { eager: true, import: 'default' });
 const dialogue = Object.fromEntries(Object.entries(dialogueFiles).map(([path, raw]) => [path.slice(path.lastIndexOf('/') + 1, -'.json'.length), raw]));
 
 /** The characters, dialogue, quests, chapters, bag rules and skill content, by id, for naming and laying out what the server sends. */
-export const STORY: StoryContent = loadStoryContent({ npcs, dialogue, quests, story, inventory, skills: { skills, spots, recipes, stations, jobs } }, CONTENT);
+export const STORY: StoryContent = loadStoryContent({ npcs, dialogue, quests, story, inventory, trainers, skills: { skills, spots, recipes, stations, jobs } }, CONTENT);
 
 export const questName = (id: string, language: Language): string => STORY.quests.get(id)?.name[language] ?? id;
 

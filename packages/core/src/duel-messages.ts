@@ -20,6 +20,10 @@ export type DuelAnswerMessage = z.infer<typeof DuelAnswerMessage>;
 export const DuelCancelMessage = z.strictObject({});
 export type DuelCancelMessage = z.infer<typeof DuelCancelMessage>;
 
+/** `duel.watch`: watches the duel the player with key `who` is in. */
+export const DuelWatchMessage = z.strictObject({ who: PlayerKey });
+export type DuelWatchMessage = z.infer<typeof DuelWatchMessage>;
+
 /** One of the asker's creatures as the answer card shows it, at its real level. */
 export type DuelCreature = { readonly species: string; readonly level: number };
 

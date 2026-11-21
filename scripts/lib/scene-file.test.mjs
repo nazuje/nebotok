@@ -76,8 +76,10 @@ describe('parseScene', () => {
     expect(prepared({ at: { x: 14, y: 16 }, team: [{ species: 'nobody', level: 8 }] }).ok).toBe(false);
   });
 
-  it('refuses a duel ask of a player who is not in the scene', () => {
+  it('refuses a duel ask, a watch or a duel mark of a player who is not in the scene', () => {
     expect(read({ ...base, steps: [...base.steps, { do: 'ask', player: 'lan', to: 'mira' }] }).problems).toContain('no player "mira"');
+    expect(read({ ...base, steps: [...base.steps, { do: 'watch', player: 'lan', who: 'mira' }] }).problems).toContain('no player "mira"');
+    expect(read({ ...base, steps: [...base.steps, { do: 'waitFor', player: 'lan', until: { duelling: ['mira'] } }] }).problems).toContain('no player "mira"');
   });
 
   it('says when the file is not JSON', () => {

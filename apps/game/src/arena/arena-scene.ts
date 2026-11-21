@@ -2,6 +2,7 @@ import { DIRECTION_VECTORS, abilityOf, stormRadius, type ArenaShape, type FightE
 import { Scene, Scenes, TintModes, type GameObjects } from 'phaser';
 import type { ArenaBody, ArenaRoomState, STATUS_BITS as SERVER_STATUS_BITS } from '../../../server/src/arena-state.ts';
 import { CONTENT, moveType } from '../battle-content.ts';
+import { courierTexture, frameName } from '../couriers.ts';
 import { creatureTexture } from '../creature-art.ts';
 import { ARENA } from './arena-content.ts';
 import { ArenaEffects, type JuiceCount, type Spot } from './arena-effects.ts';
@@ -29,6 +30,7 @@ import {
   type Telegraph,
   type Tint,
 } from './arena-paint.ts';
+import { drawFlags, drawStands, seatAt } from './arena-stands.ts';
 
 export const ARENA_SCENE = 'arena';
 
@@ -48,6 +50,10 @@ const TRAIL_MS = 900;
 const SHOWN_MS = 70;
 const SPRING = { stiffness: 900, damping: 17 } as const;
 const NO_TINT: Tint = { light: 0xe6eef6, main: 0x8fa9c4, dark: 0x334e68 };
+/** A watcher's courier stands still, so its walk pace does not matter. */
+const WATCHER_STEP_MS = 250;
+/** How tall a watcher's courier is drawn, in creature body radii. */
+const WATCHER_BODIES = 1.5;
 
 /**
  * The fight to draw: the arena room's state, which side is yours, and where to draw each creature
@@ -70,7 +76,16 @@ export type ArenaSceneOptions = {
  * What the scene drew last frame, for the test hook: the species on each side, the island's radius
  * in arena units, the things on it, whether the storm's warning ring shows, and the juice so far.
  */
-export type ArenaDrawn = { readonly creatures: readonly [string | null, string | null]; readonly radius: number; readonly things: number; readonly warning: boolean; readonly juice: JuiceCount };
+export type ArenaDrawn = {
+  readonly creatures: readonly [string | null, string | null];
+  readonly radius: number;
+  readonly things: number;
+  readonly warning: boolean;
+  readonly juice: JuiceCount;
+  /** Whether the duel island's flags and stands show, and the watchers' couriers on them. */
+  readonly duel: boolean;
+  readonly watchers: number;
+};
 
 type Spring = { value: number; velocity: number };
 type Fall = { readonly id: string; readonly at: number; readonly x: number; readonly y: number; readonly vx: number; readonly vy: number };
@@ -169,6 +184,7 @@ export class ArenaScene extends Scene {
   private css = { left: 0, top: 0, px: 1 };
   private readonly effects = new ArenaEffects();
   private lastDrawn: ArenaDrawn | null = null;
+  private watchers: GameObjects.Image[] = [];
 
   constructor(options: ArenaSceneOptions) {
     super({ key: ARENA_SCENE, active: false });
@@ -184,10 +200,12 @@ export class ArenaScene extends Scene {
     this.framed = ARENA.arena.island.radius;
     this.effects.reset();
     this.lastDrawn = null;
+    this.watchers = [];
     this.events.once(Scenes.Events.SHUTDOWN, () => {
       this.layers = null;
       this.looks = [newLook(), newLook()];
       this.lastDrawn = null;
+      this.watchers = [];
     });
   }
 
@@ -212,7 +230,10 @@ export class ArenaScene extends Scene {
     const shake = this.effects.offset(now);
     this.fit = { cx: base.cx + shake.x, cy: base.cy + shake.y, s: base.s };
     drawSky(layers.sky, this.scale.width, this.scale.height);
+    if (state.duel) drawStands(layers.sky, this.fit, radius, body);
     drawIsland(layers.island, this.fit, radius, start, body);
+    if (state.duel) drawFlags(layers.island, this.fit, radius, body, now, still);
+    const watchers = this.drawWatchers(state, radius);
     const warning = state.storm.phase === 'warning';
     const next = warning ? stormRadius(state.storm.step + 1, ARENA.arena) / SUB : null;
     drawStorm(layers.island, this.fit, { radius, start, body, warning, next }, now, still);
@@ -223,7 +244,26 @@ export class ArenaScene extends Scene {
     const creatures: [string | null, string | null] = [null, null];
     for (const side of [0, 1] as const) creatures[side] = this.drawBody(state, side, fight.side, this.placeOf(fight, side, now), radius, moved, now, still);
     this.effects.draw(layers.sparks, moved);
-    this.lastDrawn = { creatures, radius: Math.round(radius), things, warning, juice: this.effects.count() };
+    this.lastDrawn = { creatures, radius: Math.round(radius), things, warning, juice: this.effects.count(), duel: state.duel, watchers };
+  }
+
+  /** Puts each watcher's courier on its seat on the stands, facing the island; returns how many show. */
+  private drawWatchers(state: ArenaRoomState, radius: number): number {
+    const avatars = state.duel ? [...state.watchers] : [];
+    const { body } = ARENA.arena.island;
+    avatars.forEach((avatar, seat) => {
+      const texture = courierTexture(this, avatar, WATCHER_STEP_MS);
+      let image = this.watchers[seat];
+      if (!image || image.texture.key !== texture) {
+        image?.destroy();
+        image = this.add.image(0, 0, texture, frameName('down', 'stand')).setOrigin(0.5, 0.95).setDepth(DEPTH.island);
+        this.watchers[seat] = image;
+      }
+      const at = seatAt(this.fit, radius, body, seat);
+      image.setVisible(true).setPosition(at.x, at.y).setScale((body * WATCHER_BODIES * this.fit.s) / Math.max(1, image.frame.height));
+    });
+    for (const extra of this.watchers.slice(avatars.length)) extra.setVisible(false);
+    return avatars.length;
   }
 
   /** Where the island goes: the biggest circle the field leaves room for, closer as the storm shrinks it (at once under reduced motion). */

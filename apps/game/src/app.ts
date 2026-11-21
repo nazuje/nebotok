@@ -106,6 +106,7 @@ const arena = createArena({
   },
   started: () => startClean(),
   learned: (moves) => battles.learned(moves),
+  watcher: () => view.shown(performance.now()).some((player) => player.self && player.watching),
 });
 const battles = createBattles({
   game: () => game,
@@ -169,6 +170,7 @@ const talks = createTalks({
   speech,
   cue: (cue, key) => storyCues.fromTalk(cue, key),
   requests,
+  held: () => creaturesUp(),
 });
 const story = createStory({
   language: () => language,
@@ -560,6 +562,9 @@ const players = (): TestPlayer[] =>
     self: player.self,
     connected: player.connected,
     inBattle: player.inBattle,
+    duelling: player.duelling,
+    watching: player.watching,
+    trophy: player.trophy,
     talking: player.talking,
     skill: player.skill,
     x: player.tile.x,

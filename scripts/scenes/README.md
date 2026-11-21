@@ -46,6 +46,10 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. A `"team": 
 | `{ "do": "play", "player": "lan" }` | Plays the tiny game open on the player's card the way a quick player wins it: pulls just after the float dips, taps each sparkle, stops the marker in the middle of the zone. With `"miss": true` it taps nothing and waits for the miss. Waits until the server has judged it, and fails when the outcome is not the one asked for. Open a game first with a `tap` on a spot or pot (the page walks up to it). |
 | `{ "do": "ask", "player": "lan", "to": "zarja", "even": true }` | Taps the other player's courier, which must be on screen and within 4 tiles, and in the duel menu taps even match (`"even": false`: real levels). Needs a server with `ARENA_BATTLES=on` (`ARENA_BATTLES=on npm run dev`). |
 | `{ "do": "answer", "player": "zarja", "yes": false }` | Waits for the duel card asking the player, then taps the tick (`true`) or the cross. |
+| `{ "do": "pick", "player": "lan" }` | Waits for the player's duel pick screen and taps the tick, keeping the three creatures it offers first. |
+| `{ "do": "watch", "player": "mira", "who": "lan" }` | Taps a courier carrying the duel mark, which must be on screen (any distance away), taps Watch on the card, and waits until the player watches that duel from the stands. |
+| `{ "do": "giveUp", "player": "zarja" }` | Waits for the duel's give-up flag and holds it a little longer than the 2 seconds it needs. Giving up loses the duel. |
+| `{ "do": "continue", "player": "lan" }` | Waits for the arena's result, taps the tick and waits until the player is back in the world. A watcher's result is the same tick. |
 | `{ "do": "talk", "player": "lan", "npc": "bavko" }` | Taps the character (an id from `content/npcs.json`; the page walks up to them, walking closer by taps first when they are off screen) and plays the talk to its end: each line is waited for until it is typed out, then a tap goes on, taking the first choice. With `"open": true` it stops once the first line is typed out and leaves the talk open; a later `talk` to the same character goes on from there. |
 
 `until` takes any of these:
@@ -62,10 +66,16 @@ quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. A `"team": 
 - `"refused": true`: the red cross flashes on a tapped tile that cannot be reached.
 - `"toast": "hidden"`: no short message shows at the bottom, or `"toast": "duel.no"`: that one
   does (a string id from `content/strings.json`).
-- `"duel": "asked"`: the duel card up on the player's page is the menu (`"menu"`), their own ask
-  waiting (`"asking"`), an ask to answer (`"asked"`), or none (`"none"`).
-- `"arena": "rounds"`: the player is in a best-of-3 arena fight, such as a duel, or in none
-  (`"none"`).
+- `"duel": "asked"`: the duel card up on the player's page is the menu (`"menu"`), the card to
+  watch a duelling courier (`"watch"`), their own ask waiting (`"asking"`), an ask to answer
+  (`"asked"`), or none (`"none"`).
+- `"arena": "rounds"`: the player is in a best-of-3 arena fight, such as a duel, watches a duel
+  from the stands (`"watching"`), or is in none (`"none"`).
+- `"arenaPhase": "picking"`: the arena fight shown is at that phase (`"picking"`, `"fighting"`,
+  `"between"` rounds or `"ended"`).
+- `"paused": true`: the arena fight shown waits for a player who dropped, or `false`: it does not.
+- `"duelling": ["zarja"]` / `"watching": ["zarja"]` / `"trophy": ["zarja"]`: those players'
+  name tags carry the duel mark / the watching mark / the trophy of a duel won in the last minute.
 - `"hint": "tap"` / `"joystick"`: the first-visit walking hint shows for those controls, or
   `"hidden"`: it does not. Each scene browser starts with fresh storage, so a player sees it until
   their first walk.

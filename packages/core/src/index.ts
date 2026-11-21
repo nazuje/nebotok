@@ -363,6 +363,11 @@ export {
   StoryFlag,
   StoryFile,
   InventoryFile,
+  TRAINER_CREATURES,
+  TRAINER_REMATCHES,
+  Trainer,
+  TrainerCreature,
+  TrainersFile,
   nodeTargets,
   reachableNodes,
   CHOICE_PICTURES,
@@ -414,6 +419,9 @@ export {
   conversationView,
   openConversation,
   advanceConversation,
+  trainerFightAt,
+  endTrainerFight,
+  type TrainerFightAt,
   type Conversation,
   type TalkCue,
   type TalkView,
@@ -440,6 +448,7 @@ export {
   type StoryRecord,
   type StoryWorldRules,
 } from './story-bot.ts';
+export { beatenBefore, canFightTrainer, trainerMind, trainerPicks, trainerWon, type TrainerWin } from './trainers.ts';
 export { StoryGoldenFile, storyReplay, storyReplayHash, type StoryReplay } from './story-golden.ts';
 export {
   GAMES,
@@ -622,7 +631,7 @@ export {
 } from './arena/fight-state.ts';
 export { fightStart, fightStep } from './arena/fight.ts';
 export { ENTRY_GRACE_TICKS } from './arena/wild-fight.ts';
-export { ROUNDS, ROUND_WINS } from './arena/rounds.ts';
+export { ROUNDS, ROUND_WINS, roundsGiveUp } from './arena/rounds.ts';
 export { defaultPickOrder, isPickOrder, pickCount, togglePick } from './arena/picks.ts';
 export {
   TREAT_WINDOW_CAP_PERCENT,
@@ -641,6 +650,7 @@ export {
   befriendedFromFight,
   arenaRewards,
   duelRewards,
+  trainerRewards,
   inventoryAfterFight,
   type WildSetupOptions,
 } from './arena/results.ts';
@@ -649,10 +659,14 @@ export {
   DUEL_REACH,
   DUEL_ANSWER_MS,
   DUEL_PAUSE_MS,
+  DUEL_WATCHERS,
+  DUEL_GIVE_UP_MS,
+  DUEL_TROPHY_MS,
   duelLineup,
   canDuel,
   inDuelReach,
   evenLevel,
+  duelTeams,
   duelSetup,
   type DuelSetupOptions,
 } from './arena/duels.ts';
@@ -660,6 +674,7 @@ export {
   DuelAskMessage,
   DuelAnswerMessage,
   DuelCancelMessage,
+  DuelWatchMessage,
   type DuelCreature,
   type DuelAskedMessage,
   type DuelAnsweredMessage,

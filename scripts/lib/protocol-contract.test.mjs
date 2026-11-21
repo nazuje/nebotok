@@ -35,6 +35,7 @@ const CLIENT_SCHEMAS = {
   DuelAskMessage: core.DuelAskMessage,
   DuelAnswerMessage: core.DuelAnswerMessage,
   DuelCancelMessage: core.DuelCancelMessage,
+  DuelWatchMessage: core.DuelWatchMessage,
 };
 
 // Who may ask whom for a duel, and how long an ask and a decline last: a client that offers asks
@@ -44,6 +45,9 @@ const DUEL_RULES = {
   DUEL_REACH: core.DUEL_REACH,
   DUEL_ANSWER_MS: core.DUEL_ANSWER_MS,
   DUEL_PAUSE_MS: core.DUEL_PAUSE_MS,
+  DUEL_WATCHERS: core.DUEL_WATCHERS,
+  DUEL_GIVE_UP_MS: core.DUEL_GIVE_UP_MS,
+  DUEL_TROPHY_MS: core.DUEL_TROPHY_MS,
 };
 
 // The timing rules a skill attempt is judged by: a client that times its taps differently is judged wrong.

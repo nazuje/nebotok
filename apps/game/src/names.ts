@@ -53,9 +53,12 @@ export function createNameTags(root: HTMLElement): NameTags {
         }
         if (tag.textContent !== label.name) tag.textContent = label.name;
         tag.classList.toggle('away', label.away);
-        tag.classList.toggle('battling', label.battling);
+        tag.classList.toggle('battling', label.battling && !label.duelling);
+        tag.classList.toggle('duelling', label.duelling);
+        tag.classList.toggle('watching', label.watching && !label.battling);
+        tag.classList.toggle('trophy', label.trophy);
         tag.classList.toggle('talking', label.talking && !label.battling);
-        const skill = label.battling || label.talking ? '' : label.skill;
+        const skill = label.battling || label.talking || label.watching ? '' : label.skill;
         tag.classList.toggle('skilling', skill !== '');
         if ((tag.dataset.skill ?? '') !== skill) tag.dataset.skill = skill;
       }

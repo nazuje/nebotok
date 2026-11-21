@@ -73,8 +73,13 @@ const Until = z
     band: z.enum(['shown', 'hidden']).optional(),
     flags: z.array(z.string().min(1)).min(1).optional(),
     lacksFlags: z.array(z.string().min(1)).min(1).optional(),
-    duel: z.enum(['menu', 'asking', 'asked', 'none']).optional(),
-    arena: z.enum(['rounds', 'none']).optional(),
+    duel: z.enum(['menu', 'watch', 'asking', 'asked', 'none']).optional(),
+    arena: z.enum(['rounds', 'watching', 'none']).optional(),
+    arenaPhase: z.enum(['picking', 'fighting', 'between', 'ended']).optional(),
+    paused: z.boolean().optional(),
+    duelling: z.array(Id).min(1).optional(),
+    watching: z.array(Id).min(1).optional(),
+    trophy: z.array(Id).min(1).optional(),
   })
   .refine((until) => Object.keys(until).length > 0, 'say what to wait for');
 
@@ -95,11 +100,15 @@ const Step = z.discriminatedUnion('do', [
   step('play', { player: Id, miss: z.literal(true).optional() }),
   step('ask', { player: Id, to: Id, even: z.boolean().default(true) }),
   step('answer', { player: Id, yes: z.boolean() }),
+  step('watch', { player: Id, who: Id }),
+  step('pick', { player: Id }),
+  step('giveUp', { player: Id }),
+  step('continue', { player: Id }),
 ]);
 
 /** Every player a step names, so a typo is caught before any browser starts. */
 const named = (entry) =>
-  [entry.player, ...(entry.do === 'ask' ? [entry.to] : []), ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? []), ...(entry.until?.talking ?? []), ...(entry.until?.quiet ?? []), ...(entry.until?.skilling ?? []), ...(entry.until?.idle ?? [])].filter(Boolean);
+  [entry.player, ...(entry.do === 'ask' ? [entry.to] : []), ...(entry.do === 'watch' ? [entry.who] : []), ...(entry.until?.duelling ?? []), ...(entry.until?.watching ?? []), ...(entry.until?.trophy ?? []), ...(entry.until?.sees ?? []), ...(entry.until?.away ?? []), ...Object.keys(entry.until?.seesAt ?? {}), ...(entry.until?.battling ?? []), ...(entry.until?.calm ?? []), ...(entry.until?.talking ?? []), ...(entry.until?.quiet ?? []), ...(entry.until?.skilling ?? []), ...(entry.until?.idle ?? [])].filter(Boolean);
 
 export const Scene = z
   .strictObject({ name: Label, about: z.string().min(1), players: z.array(Player).min(1).max(6), steps: z.array(Step).min(1) })
