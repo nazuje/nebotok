@@ -24,13 +24,15 @@ describe('story golden replays', () => {
     expect(storyReplay(golden(name), goldenStory).stuck).toBe(false);
   });
 
-  it('plays the whole frozen story, every step kind, its cue and its closing flag', () => {
+  it('plays the whole frozen story, every step kind, its cue, its closing flag and its trainer', () => {
     const { progress, records } = storyReplay(golden('bot-plays-everything.json'), goldenStory);
     expect(nextGoal(progress, goldenStory.content)).toBeNull();
-    expect(progress.story.done).toEqual(['first-round', 'restless-grass', 'bell', 'new-friend', 'wind-readings', 'grey-letter']);
-    expect(progress.story.flags).toEqual(['met-bavko', 'grey-letter-read', 'storm-seen', 'chapter-1-done']);
+    expect(progress.story.done).toEqual(['first-round', 'restless-grass', 'bell', 'new-friend', 'wind-readings', 'grey-letter', 'vetrinka-test']);
+    expect(progress.story.flags).toEqual(['met-bavko', 'grey-letter-read', 'storm-seen', 'chapter-1-done', 'vetrinka-beaten']);
     const changes = records.flatMap((record) => record.changes);
-    expect(changes.filter((change) => change.change === 'done')).toHaveLength(6);
+    expect(changes.filter((change) => change.change === 'done')).toHaveLength(7);
+    // The bot wins the trainer's fight by a scripted outcome, and the talk goes on at its won node.
+    expect(records.flatMap((record) => record.views.map((view) => view.node)).slice(-3)).toEqual(['test-ask', 'test-go', 'test-won']);
     expect(changes.flatMap((change) => (change.cue ? [change.cue] : []))).toEqual(['storm-glimpse']);
     expect(records.flatMap((record) => record.extra)).toEqual([{ item: 'plain-treat', count: 8 }]);
     expect(progress.team[0]).toMatchObject({ species: 'sun-blob' });

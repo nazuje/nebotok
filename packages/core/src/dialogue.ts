@@ -1,7 +1,8 @@
 /**
  * Talking to a character, as pure functions on a Progress: which talk opens (`openConversation`),
- * what the player sees at a node (`conversationView`) and going on (`advanceConversation`).
- * Entering a node does its effects, all of them or none. docs/protocol.md has the messages.
+ * what the player sees at a node (`conversationView`), going on (`advanceConversation`) and the
+ * end of a trainer's fight (`endTrainerFight`). Entering a node does its effects, all of them or
+ * none. docs/protocol.md has the messages.
  */
 import { needsStarter, itemCount, type Progress } from './creatures.ts';
 import { jobReady, jobWaiting } from './deliveries.ts';
@@ -11,7 +12,8 @@ import { completeStep, currentStep, questState, startQuest, type QuestChange } f
 import { MAX_STORY_IDS } from './save.ts';
 import { skillLevel } from './skills.ts';
 import type { StoryContent } from './story.ts';
-import type { Condition, DialogueNode, Effect, StoryCue } from './story-content.ts';
+import type { Condition, DialogueNode, Effect, StoryCue, Trainer } from './story-content.ts';
+import { canFightTrainer, trainerWon } from './trainers.ts';
 
 /** A talk in progress: the character's file and the node the player is at. */
 export type Conversation = { readonly npc: string; readonly node: string };
@@ -36,6 +38,7 @@ export function conditionHolds(condition: Condition, npc: string, progress: Prog
   if ('jobReady' in condition) return jobReady(progress, npc);
   if ('jobWaiting' in condition) return jobWaiting(progress, npc);
   if ('skill' in condition) return skillLevel(progress, condition.skill).level >= condition.level;
+  if ('canFight' in condition) return canFightTrainer(progress, condition.canFight, content);
   return needsStarter(progress) === condition.needsStarter;
 }
 
@@ -66,7 +69,7 @@ export function offersStarter(conversation: Conversation, content: StoryContent)
 /**
  * What the player sees at a node: who speaks, the places in the node's `choices` of those whose
  * `if` holds (the client shows those, and answers with one of these numbers), and the cue to play.
- * `ends` means continuing ends the talk: the node has neither `next` nor a choice to show.
+ * `ends` means continuing ends the talk: the node has neither `next` nor a choice to show, nor a fight.
  */
 export type TalkView = { readonly npc: string; readonly node: string; readonly speaker: string; readonly choices: readonly number[]; readonly cue: TalkCue | null; readonly ends: boolean };
 
@@ -74,7 +77,16 @@ export function conversationView(conversation: Conversation, progress: Progress,
   const node = nodeOf(conversation, content);
   if (!node) return null;
   const choices = (node.choices ?? []).flatMap((choice, at) => (conditionsHold(choice.if, conversation.npc, progress, content) ? [at] : []));
-  return { ...conversation, speaker: node.speaker ?? conversation.npc, choices, cue: cueOfNode(node), ends: node.next === undefined && choices.length === 0 };
+  return { ...conversation, speaker: node.speaker ?? conversation.npc, choices, cue: cueOfNode(node), ends: node.next === undefined && choices.length === 0 && node.fight === undefined };
+}
+
+/** The trainer fight of the node the player is at, with the nodes its end leads to; null for a node with no fight, or a trainer the content lacks. */
+export type TrainerFightAt = { readonly trainer: Trainer; readonly won: string; readonly lost: string };
+
+export function trainerFightAt(conversation: Conversation, content: StoryContent): TrainerFightAt | null {
+  const node = nodeOf(conversation, content);
+  const trainer = node?.fight === undefined ? undefined : content.trainers.get(node.fight);
+  return trainer && node?.won !== undefined && node.lost !== undefined ? { trainer, won: node.won, lost: node.lost } : null;
 }
 
 /**
@@ -157,12 +169,13 @@ export function openConversation(npc: string, progress: Progress, content: Story
 /**
  * Goes on from the node the player is at: to the choice they picked (one of the view's `choices`),
  * to `next` (with `choice` null), or out of the talk (with `choice` null, when the view `ends`).
- * Null when the answer does not fit the node, so the server can refuse it.
+ * Null when the answer does not fit the node, so the server can refuse it, and at a node with a
+ * fight, which only the fight's end goes on from (`endTrainerFight`).
  */
 export function advanceConversation(conversation: Conversation, choice: number | null, progress: Progress, content: StoryContent): TalkStep | null {
   const node = nodeOf(conversation, content);
   const view = conversationView(conversation, progress, content);
-  if (!node || !view) return null;
+  if (!node || !view || node.fight !== undefined) return null;
   if (choice !== null) {
     const picked = view.choices.includes(choice) ? node.choices?.[choice] : undefined;
     return picked ? enter({ npc: conversation.npc, node: picked.next }, progress, content) : null;
@@ -170,4 +183,18 @@ export function advanceConversation(conversation: Conversation, choice: number |
   if (view.choices.length > 0) return null;
   if (node.next !== undefined) return enter({ npc: conversation.npc, node: node.next }, progress, content);
   return { conversation: null, progress, changes: [], jobs: [], extra: [] };
+}
+
+/**
+ * The end of the trainer fight a talk is at, as the talk goes on: a win (`trainerWon`) gives the
+ * first win's reward and counts for `beatTrainer` steps, then the talk enters the node's `won`
+ * node; a loss or a draw enters `lost`. Null when the talk is at no fight. The win's story stays
+ * even when the node it leads to cannot happen, which ends the talk there.
+ */
+export function endTrainerFight(conversation: Conversation, won: boolean, progress: Progress, content: StoryContent): TalkStep | null {
+  const fight = trainerFightAt(conversation, content);
+  if (!fight) return null;
+  const after = won ? trainerWon(progress, fight.trainer, content) : { progress, changes: [], extra: [] };
+  const step = enter({ npc: conversation.npc, node: won ? fight.won : fight.lost }, after.progress, content);
+  return { ...step, changes: [...after.changes, ...step.changes], extra: [...after.extra, ...step.extra] };
 }

@@ -133,7 +133,8 @@ export type QuestEvent =
   | { readonly kind: 'rested'; readonly shrine: string }
   | { readonly kind: 'reached'; readonly mark: string }
   | { readonly kind: 'gathered' | 'cooked'; readonly item: string; readonly count: number }
-  | { readonly kind: 'jobDone' };
+  | { readonly kind: 'jobDone' }
+  | { readonly kind: 'trainerBeaten'; readonly trainer: string };
 
 /** How many events a step needs: its count for battles, befriending, gathering, cooking and jobs, else 1 (talk and deliver steps are done by dialogue). */
 export function stepTarget(step: QuestStep): number {
@@ -152,6 +153,7 @@ function counts(step: QuestStep, event: QuestEvent, content: StoryContent): numb
   if (step.kind === 'gather') return event.kind === 'gathered' && event.item === step.item ? event.count : 0;
   if (step.kind === 'cook') return event.kind === 'cooked' && event.item === step.treat ? event.count : 0;
   if (step.kind === 'finishJobs') return Number(event.kind === 'jobDone');
+  if (step.kind === 'beatTrainer') return Number(event.kind === 'trainerBeaten' && event.trainer === step.trainer);
   return 0;
 }
 

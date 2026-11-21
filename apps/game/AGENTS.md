@@ -35,6 +35,11 @@ changing Phaser code, and use Phaser 4 APIs only.
   `creaturePortrait` in
   `src/creature-art.ts`; the field's background comes from `src/battle-backdrop.ts`. Every battle
   is the server's: the browser check plays them against the real server (`scripts/lib/battle-check.mjs`).
+- **Arena fights** (`src/arena/`, rules in `docs/arena.md`): `arena-link.ts` joins the fight's own
+  room and sends the player's input 30 times a second; `arena-scene.ts` draws the room's state
+  every frame and uses its events only for flashes. The stick, buttons, keys and Leave are HTML
+  (`arena-controls.ts`), each button at least 64px. `scripts/arena-check.mjs` plays a real fight
+  in both browsers at verify level 4.
 - **World drawing.** `src/world-feed.ts` copies the room's state into the view model
   (`src/world-view.ts`), which `src/world-scene.ts` reads every frame. Others are drawn
   `OTHERS_DELAY_MS` in the past along their `src/track.ts` so each step is smooth; prediction of

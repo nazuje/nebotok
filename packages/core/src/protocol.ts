@@ -15,8 +15,17 @@ import type { PlayerSettings } from './save.ts';
  * 10: the player's settings: `settings.set` and `settings` ("Read to me").
  * 11: arena loadouts and the turtle setting: `loadout.set`, `settings.turtle`, `turtle` in
  * `settings`, and `loadout` and `learned` on each team creature in `progress`.
+ * 12: the arena room: its input stream (`ARENA_INPUT_FIELDS`), `arena.join` and `arena.result` from
+ * the world room, and `arena.started` and `arena.events` from the arena room.
+ * 13: duels: `duel.ask`, `duel.answer` and `duel.cancel`, `duel.asked` and `duel.answered`, their
+ * rules (`DUEL_REACH`, `DUEL_ANSWER_MS`, `DUEL_PAUSE_MS`, `DUEL_TEAM`), and `arena` in `welcome`.
+ * 14: picking three for a best of 3: `arena.pick`, `refused` from the arena room, and its
+ * `picking` and `between` phases with `countdown`, `picked` and `rounds` in its state.
+ * 15: the duel island: both duellists pick, `duel.watch` with watcher seats (`DUEL_WATCHERS`), `watching` in `arena.started`, `duel`, `waiting` and `watchers` in the arena
+ * state, giving up a duel with `leave` (`DUEL_GIVE_UP_MS`), and `duelling`, `watching` and `trophy`
+ * on each player.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 15;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -29,6 +38,10 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   9: '134099ff291a6b',
   10: '085c82893f62a3',
   11: '09d3bce56b47cb',
+  12: '0262812411765a',
+  13: '0f0b76d24fb1b5',
+  14: '1e9eadd51b162d',
+  15: '0beb26a352577f',
 };
 
 export type WorldInfo = {
@@ -42,12 +55,14 @@ export type Welcome = {
   readonly world: string;
   readonly playerCount: number;
   readonly messageKey: WelcomeMessageKey;
+  /** Whether arena fights are on (`ARENA_BATTLES`), so the page offers duels. */
+  readonly arena: boolean;
 };
 
 export const WELCOME_MESSAGE_KEYS: readonly WelcomeMessageKey[] = ['welcome.alone', 'welcome.together'];
 
 /** What the server tells a player who has just arrived. `playerCount` includes them. */
-export function welcome(world: WorldInfo, playerCount: number): Welcome {
+export function welcome(world: WorldInfo, playerCount: number, arena = false): Welcome {
   if (!Number.isInteger(playerCount) || playerCount < 1) {
     throw new RangeError(`welcome() needs at least one player, got ${playerCount}`);
   }
@@ -56,6 +71,7 @@ export function welcome(world: WorldInfo, playerCount: number): Welcome {
     world: world.name,
     playerCount,
     messageKey: playerCount === 1 ? 'welcome.alone' : 'welcome.together',
+    arena,
   };
 }
 
@@ -63,7 +79,7 @@ export function isCompatibleProtocol(clientProtocol: number): boolean {
   return clientProtocol === PROTOCOL_VERSION;
 }
 
-/** Messages a client sends to the world room, by type. See docs/protocol.md; the payload schemas are in messages.ts (battle and team), story-messages.ts (talking) and skill-messages.ts (skills and jobs). */
+/** Messages a client sends to the world room, by type. See docs/protocol.md; the payload schemas are in messages.ts (battle and team), story-messages.ts (talking), skill-messages.ts (skills and jobs) and duel-messages.ts (duels). */
 export const CLIENT_MESSAGES = {
   ping: 'ping',
   walkTo: 'walk.to',
@@ -88,6 +104,10 @@ export const CLIENT_MESSAGES = {
   settingsSet: 'settings.set',
   settingsTurtle: 'settings.turtle',
   loadoutSet: 'loadout.set',
+  duelAsk: 'duel.ask',
+  duelAnswer: 'duel.answer',
+  duelCancel: 'duel.cancel',
+  duelWatch: 'duel.watch',
 } as const;
 
 /** Messages the world room sends to a client, by type. Each goes only to the player it is about. */
@@ -114,6 +134,17 @@ export const SERVER_MESSAGES = {
   jobChanged: 'job.changed',
   refused: 'refused',
   settings: 'settings',
+  arenaJoin: 'arena.join',
+  arenaResult: 'arena.result',
+  duelAsked: 'duel.asked',
+  duelAnswered: 'duel.answered',
+} as const;
+
+/** Messages the arena room sends to its players. Its input stream is `ARENA_INPUT_FIELDS` and `arena.pick` is in `ARENA_CLIENT_MESSAGES` (arena-messages.ts). */
+export const ARENA_MESSAGES = {
+  started: 'arena.started',
+  events: 'arena.events',
+  refused: 'refused',
 } as const;
 
 const Coordinate = z.number().int().min(0).max(1_023);

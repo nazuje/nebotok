@@ -173,8 +173,8 @@ body:not([data-screen='world']) #names {
   line-height: 36px;
 }
 
-body:is([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .title,
-body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .badge,
+body:is([data-screen='world'], [data-screen='duel'], [data-screen='arena'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .title,
+body:not([data-screen='world'], [data-screen='duel'], [data-screen='arena'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .badge,
 body:not([data-screen='world']) .welcome,
 body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .toast,
 body:not([data-screen='world'], [data-screen='battle'], [data-screen='team'], [data-screen='starter'], [data-screen='learn'], [data-screen='bag'], [data-screen='journal'], [data-screen='recipeBook'], [data-screen='skillGame'], [data-screen='jobBoard']) .quest-toast,
@@ -302,14 +302,16 @@ body:not([data-screen='world']) .walk-hint {
 
 .settings-language,
 .settings-controls,
-.settings-read {
+.settings-read,
+.settings-turtle {
   margin: 0;
   font-weight: 700;
 }
 
 .language,
 .controls,
-.read-to-me {
+.read-to-me,
+.turtle {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;
@@ -336,7 +338,8 @@ body:not([data-screen='world']) .walk-hint {
   color: white;
 }
 
-.read-to-me {
+.read-to-me,
+.turtle {
   align-items: center;
   gap: 4px;
 }
@@ -1128,6 +1131,52 @@ body:not([data-screen='world']) .team-button {
   background:
     linear-gradient(45deg, transparent 40%, white 40% 60%, transparent 60%),
     linear-gradient(-45deg, transparent 40%, white 40% 60%, transparent 60%);
+}
+
+/* A duel: two crossed creatures in gold, the mark others tap to watch. */
+.name-tag.duelling {
+  border: 2px solid #ffd43b;
+}
+
+.name-tag.duelling::after {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 14px;
+  margin-left: 6px;
+  vertical-align: -2px;
+  background:
+    radial-gradient(circle at 25% 30%, #ffd43b 3px, transparent 3.5px),
+    radial-gradient(circle at 75% 30%, #ffd43b 3px, transparent 3.5px),
+    linear-gradient(45deg, transparent 42%, #ffd43b 42% 58%, transparent 58%),
+    linear-gradient(-45deg, transparent 42%, #ffd43b 42% 58%, transparent 58%);
+}
+
+/* Watching a duel: a small open eye. */
+.name-tag.watching::after {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 10px;
+  margin-left: 6px;
+  vertical-align: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--ink) 2.5px, white 3px);
+}
+
+/* A duel won a short while ago: a small gold cup before the name. */
+.name-tag.trophy::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 12px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  border-radius: 0 0 5px 5px;
+  background:
+    linear-gradient(#ffd43b, #ffd43b) center bottom / 8px 2px no-repeat,
+    linear-gradient(#ffd43b, #ffd43b) center 7px / 2px 4px no-repeat,
+    radial-gradient(ellipse at 50% 0%, #ffd43b 60%, transparent 62%) center top / 10px 8px no-repeat;
 }
 
 /* Battle: the Phaser field shows through the top; the words and buttons sit below it. */

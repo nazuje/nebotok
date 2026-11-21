@@ -9,6 +9,12 @@ import {
   CLIENT_MESSAGES,
   CLOSE_CODES,
   CookStartMessage,
+  DuelAnswerMessage,
+  DuelAskMessage,
+  DuelCancelMessage,
+  DuelWatchMessage,
+  DUEL_TROPHY_MS,
+  DUEL_WATCHERS,
   GatherStartMessage,
   IDLE,
   LanguageSchema,
@@ -30,19 +36,28 @@ import {
   WalkHoldMessage,
   WalkStopMessage,
   WalkToMessage,
+  ROUNDS,
   answerMove,
+  arenaContentOf,
+  arenaWildSetup,
   battleView,
   canBattle,
+  canDuel,
   chooseStarter,
   createRng,
   createSave,
   createWalker,
   defaultSettings,
+  duelLineup,
+  duelSetup,
+  duelTeams,
   emptyProgress,
   encounterZoneAt,
+  endTrainerFight,
   freeTileNear,
   healTeam,
   inBounds,
+  inDuelReach,
   isCompatibleProtocol,
   isWalkable,
   markSeen,
@@ -53,22 +68,32 @@ import {
   questEvent,
   reorderTeam,
   rollEncounter,
+  roundsTeam,
   setLoadout,
   setTurtle,
   shrineAt,
   stepWalker,
   swapStorage,
   talkNodeMessage,
+  trainerMind,
+  trainerPicks,
   wakeAfterFainting,
   wakePoint,
   welcome,
+  wildLoadout,
+  wildMindFor,
   withIntent,
+  type ArenaJoinMessage,
+  type ArenaResultMessage,
   type BattleEvent,
   type BattleResult,
   type BattleUpdate,
   type BattleViewMessage,
   type BefriendResult,
+  type Conversation,
   type Direction,
+  type DuelAnsweredMessage,
+  type DuelAskedMessage,
   type EncounterZone,
   type Language,
   type Loadout,
@@ -81,12 +106,15 @@ import {
   type RefusalReason,
   type Refused,
   type Rng,
+  type RoundsFightSetup,
   type SaveFile,
+  type Side,
   type SettingsMessage,
   type StorageMessage,
   type StoryMessage,
   type TalkEnded,
   type TalkStep,
+  type Trainer,
   type WakePoint,
   type WalkCommand,
   type Walker,
@@ -94,7 +122,9 @@ import {
   type WorldInfo,
 } from '@nebotok/core';
 import { z } from 'zod';
-import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
+import type { FightBook, FightEnd, FightPlan, FightStop } from './fights.ts';
+import { BATTLE_IDLE_MS, abandonBattle, beginBattle, commitStep, nextStep, planRequest, settleBattle, duelOutcomeFor, settleDuel, settleFight, storageRefusal, type BattleRequest, type LiveBattle } from './battles.ts';
+import { createDuelDesk, type AskEnd, type DuelAsk } from './duels.ts';
 import type { Log } from './log.ts';
 import { sessionKey, type ProfileStore } from './profiles.ts';
 import type { ProgressStore } from './progress.ts';
@@ -108,6 +138,7 @@ import {
   continueTalk,
   countEvents,
   deliveredJobs,
+  fightEvents,
   openTalk,
   starterRefusal,
   storyChange,
@@ -155,6 +186,10 @@ export type WorldServices = {
   readonly now: () => number;
   /** A fresh 32-bit seed from the server's randomness, for the encounter RNG and each battle. */
   readonly seed?: () => number;
+  /** The fights played in arena rooms, which this room plans and settles. */
+  readonly fights: FightBook;
+  /** `ARENA_BATTLES`: whether arena fights may start. */
+  readonly arenaBattles: boolean;
 };
 
 const cryptoSeed = (): number => randomInt(0, 2 ** 32);
@@ -175,6 +210,12 @@ type Seat = {
   walker: Walker;
   /** The player's one battle, or null. While it lasts the player cannot walk. */
   battle: LiveBattle | null;
+  /** The player's arena fight, played in its own room, or null. It keeps the seat busy as a battle does. */
+  fight: LiveFight | null;
+  /** The duel the player watches, by fight id, or null. They stand where they were until they stop or walk. */
+  watching: string | null;
+  /** Until when, by the room's clock, the player's courier wears the trophy of a duel won; null for none. */
+  trophyUntil: number | null;
   /**
    * Moves levelling up offered, waiting for the one before to be answered, in order. Like a battle
    * they live only in memory: when the seat ends they are dropped, and the creature does not learn them.
@@ -201,6 +242,17 @@ type Seat = {
 };
 
 type OutstandingOffer = PendingMove & { readonly id: number; readonly sentAt: number };
+
+/**
+ * `zone` is the encounter zone the fight began in, for quests; null for one started elsewhere. A
+ * `duel` counts for no quest, and its rewards go to the player's `side`. A `trainer` fight came
+ * from a talk at `conversation`, which its end opens again.
+ */
+type LiveFight = { readonly id: string; readonly zone: string | null; readonly duel: boolean; readonly side: Side; readonly trainer: TrainerTalk | null };
+type TrainerTalk = { readonly trainer: Trainer; readonly conversation: Conversation };
+
+/** In a turn battle or an arena fight: walking, talks, shrines, storage, skills and loadouts wait. */
+const fighting = (seat: Seat): boolean => seat.battle !== null || seat.fight !== null;
 
 /** Checks a join before a seat is reserved: the protocol first, then the session token. */
 export function authorizeJoin(profiles: ProfileStore, token: unknown, options: unknown): SeatAuth {
@@ -230,9 +282,12 @@ function arrivedAt(before: Walker, after: Walker): Point | null {
  * The one shared family world, wired to its services. Colyseus builds rooms itself, so the
  * services ride on the class.
  */
-export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed }: WorldServices) {
-  const { map, stepMs, story } = world;
+export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSeed, fights, arenaBattles }: WorldServices) {
+  const { map, stepMs } = world;
+  // Without arena fights no trainer is in the story, so no `canFight` holds and no talk offers one.
+  const story = arenaBattles ? world.story : { ...world.story, trainers: new Map() };
   const spawn = spawnOf(world);
+  const arenaContent = arenaBattles ? arenaContentOf(world.battle) : null;
 
   return class WorldRoom extends Room {
     /** The one world room of this server while it is open. */
@@ -262,6 +317,8 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private attemptRng: Rng | null = null;
     /** Each profile's gather or cook and resting spots, kept across its seats while the room is open. */
     private readonly skillSeatOf = skillSeats();
+    /** The duel asks waiting for an answer, and the pauses after a no or a take-back. */
+    private readonly duels = createDuelDesk();
 
     override messages = {
       [CLIENT_MESSAGES.ping]: validate(z.strictObject({ sentAt: z.number().finite() }), (client: Client, { sentAt }) => {
@@ -291,6 +348,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       [CLIENT_MESSAGES.settingsSet]: validate(SettingsSetMessage, (client: Client, { readToMe }) => this.setSettings(client, CLIENT_MESSAGES.settingsSet, (settings) => ({ ...settings, readToMe }))),
       [CLIENT_MESSAGES.settingsTurtle]: validate(SettingsTurtleMessage, (client: Client, { on }) => this.setSettings(client, CLIENT_MESSAGES.settingsTurtle, (settings) => setTurtle(settings, on))),
       [CLIENT_MESSAGES.loadoutSet]: validate(LoadoutSetMessage, (client: Client, { index, loadout }) => this.setLoadout(client, index, loadout)),
+      [CLIENT_MESSAGES.duelAsk]: validate(DuelAskMessage, (client: Client, { to, even }) => this.duelAsk(client, to, even)),
+      [CLIENT_MESSAGES.duelAnswer]: validate(DuelAnswerMessage, (client: Client, { yes }) => this.duelAnswer(client, yes)),
+      [CLIENT_MESSAGES.duelCancel]: validate(DuelCancelMessage, (client: Client) => this.duelCancel(client)),
+      [CLIENT_MESSAGES.duelWatch]: validate(DuelWatchMessage, (client: Client, { who }) => this.duelWatch(client, who)),
     };
 
     static override async onAuth(token: string, options: unknown): Promise<SeatAuth> {
@@ -318,6 +379,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       // Nor does a talk: the new device starts it again.
       if (earlier) {
         earlier.room.endBattle(earlier.sessionId, earlier.seat, 'replaced');
+        earlier.room.endFight(earlier.seat, 'replaced');
         earlier.room.endTalk(earlier.sessionId, earlier.seat, 'replaced');
         earlier.room.endSkill(earlier.sessionId, earlier.seat, 'replaced');
       }
@@ -338,6 +400,9 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         progress: start.progress,
         walker: start.walker,
         battle: null,
+        fight: null,
+        watching: null,
+        trophyUntil: null,
         offers: [],
         offer: null,
         talk: null,
@@ -358,7 +423,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       this.state.players.set(client.sessionId, player);
       this.show(client.sessionId, seat.walker);
       this.state.playerCount = this.state.players.size;
-      client.send(SERVER_MESSAGES.welcome, welcome(WORLD, this.state.playerCount));
+      client.send(SERVER_MESSAGES.welcome, welcome(WORLD, this.state.playerCount, arenaContent !== null));
       client.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
       client.send(SERVER_MESSAGES.story, seat.progress.story satisfies StoryMessage);
       this.sendSkills(client.sessionId, seat);
@@ -405,18 +470,21 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         const offer = seat.offer && this.offerMessage(seat, seat.offer);
         if (offer) client.send(SERVER_MESSAGES.moveOffer, offer);
         this.sendTalkNode(client.sessionId, seat);
+        void this.rejoinFight(client.sessionId, seat);
       }
-      log.info('player reconnected', { roomId: this.roomId, sessionId: client.sessionId, inBattle: Boolean(seat?.battle), talking: Boolean(seat?.talk) });
+      log.info('player reconnected', { roomId: this.roomId, sessionId: client.sessionId, inBattle: Boolean(seat && fighting(seat)), talking: Boolean(seat?.talk) });
     }
 
     override onLeave(client: Client, code: number) {
       const seat = this.seats.get(client.sessionId);
       if (seat && !seat.replaced) {
         this.endBattle(client.sessionId, seat, 'left');
+        this.endFight(seat, 'left');
         this.endTalk(client.sessionId, seat, 'left');
         this.endSkill(client.sessionId, seat, 'left');
         this.save(seat);
       }
+      if (seat) this.stopWatching(client.sessionId, seat, 'left');
       this.seats.delete(client.sessionId);
       const held = seat && WorldRoom.seated.get(seat.playerId);
       if (seat && held?.room === this && held.sessionId === client.sessionId) WorldRoom.seated.delete(seat.playerId);
@@ -432,6 +500,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       this.forEachSeat('onDispose', (sessionId, seat) => {
         if (seat.replaced) return;
         this.endBattle(sessionId, seat, 'shutdown');
+        this.endFight(seat, 'shutdown');
         this.endTalk(sessionId, seat, 'shutdown');
         this.endSkill(sessionId, seat, 'shutdown');
         this.save(seat);
@@ -471,7 +540,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
         return;
       }
       // Its battle is left unsettled: the team keeps the health it had before it. The seat is saved
-      // as it leaves, and its client joins again.
+      // as it leaves, and its client joins again. Its fight ends as a run as the seat leaves.
       seat.battle = null;
       this.close(sessionId, seat, CLOSE_CODES.failed);
     }
@@ -544,23 +613,25 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     /** Ends a seat from the server side, whether its client is connected or waiting to reconnect. */
     private close(sessionId: string, seat: Seat, code: number) {
       seat.closing = true;
+      this.stopWatching(sessionId, seat, 'closed');
       if (seat.reconnection) seat.reconnection.reject(new Error(`seat closed with ${code}`));
       else this.clients.get(sessionId)?.leave(code);
     }
 
     private walkTo(client: Client, target: Point, from: Point | undefined) {
       const seat = this.seats.get(client.sessionId);
-      if (!seat || seat.battle || seat.talk || !inBounds(map, target) || !this.walkLimit.take(client.sessionId, now())) return;
+      if (!seat || fighting(seat) || seat.talk || !inBounds(map, target) || !this.walkLimit.take(client.sessionId, now())) return;
       if (!this.command(client, { kind: 'to', target }, from)) client.send(SERVER_MESSAGES.walkRefused, { x: target.x, y: target.y });
     }
 
     /** `from` is only a hint: planCommand never lets it move the walker anywhere its own intent or the map would not. Ignored in a battle or a talk. */
     private command(client: Client, command: WalkCommand, from: Point | undefined): boolean {
       const seat = this.seats.get(client.sessionId);
-      if (!seat || seat.battle || seat.talk) return false;
+      if (!seat || fighting(seat) || seat.talk) return false;
       const intent = planCommand(map, seat.walker, command, from);
       if (!intent) return false;
       this.endSkill(client.sessionId, seat, 'walk');
+      this.stopWatching(client.sessionId, seat, 'walk');
       seat.walker = withIntent(seat.walker, intent);
       return true;
     }
@@ -580,8 +651,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           this.save(seat);
         }
         if (!seat.replaced && !seat.closing) tickSkills(this.skillRoom(sessionId, seat));
+        if (seat.trophyUntil !== null && at >= seat.trophyUntil) this.showTrophy(sessionId, seat, null);
         this.show(sessionId, seat.walker);
       });
+      this.checkAsks(at);
     }
 
     /** A step ended on `tile`: rest at a shrine in reach, reach the marks in reach, then maybe meet a wild creature in tall grass. */
@@ -592,11 +665,14 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       for (const mark of marksAt(map, tile)) this.applyStory(sessionId, seat, questEvent(seat.progress, { kind: 'reached', mark }, story));
       // Nobody is ambushed while away: a dropped player's last step can still end in the grass. A
       // talk or a gather stops the walk, but the step under way still ends.
-      if (seat.battle || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return;
+      if (fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.reconnection || !canBattle(seat.progress)) return;
       const zoneId = encounterZoneAt(map, tile);
       const zone = zoneId === null ? undefined : world.encounters.get(zoneId);
       const wild = zone ? rollEncounter(zone, this.encounterRng) : null;
-      if (zone && wild) this.startBattle(sessionId, seat, { tile, facing, zone, wild });
+      if (!zone || !wild) return;
+      // The step onto the grass has ended, and the walker may already have started the next one: it stays here.
+      if (arenaContent) void this.openWildFight(sessionId, seat, wild, zone, createWalker(tile, facing));
+      else this.startBattle(sessionId, seat, { tile, facing, zone, wild });
     }
 
     private rest(sessionId: string, seat: Seat, shrine: string) {
@@ -720,6 +796,253 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       });
     }
 
+    /**
+     * Starts an arena fight with a wild creature for a player in this room, when arena battles are on
+     * and the player could meet one in the grass, as tall grass does but outside any zone. The fight
+     * is played in its own arena room, where `arena.join` seats the player. Resolves to the fight's
+     * id, or null when none started.
+     */
+    async startWildFight(playerId: number, wild: WildEncounter): Promise<string | null> {
+      const found = this.freeToFight(playerId);
+      return found ? this.openWildFight(found[0], found[1], wild, null, withIntent(found[1].walker, IDLE)) : null;
+    }
+
+    /**
+     * The `arena.practice` switch, for tests and the browser check only, never a client's: a best of 3
+     * against the computer's `BOT` with `opponents` (the first three), when arena battles are on.
+     * The player picks three in the arena room. Like every best of 3 it changes nothing on the team.
+     * Resolves to the fight's id, or null when none started.
+     */
+    async startPractice(playerId: number, opponents: readonly WildEncounter[]): Promise<string | null> {
+      const found = this.freeToFight(playerId);
+      if (!found || !arenaContent || opponents.length === 0) return null;
+      const [sessionId, seat] = found;
+      const computer = opponents.slice(0, ROUNDS).map(({ species, level }, at) => ({
+        place: null,
+        fighter: { id: `b${at + 1}`, species, level, loadout: wildLoadout(species, level, arenaContent), turtle: false, computer: true },
+      }));
+      return this.openFight(sessionId, seat, null, withIntent(seat.walker, IDLE), { practice: true }, () => {
+        const team = roundsTeam(seat.progress.team, seat.settings.turtle);
+        const setup: RoundsFightSetup = { mode: 'rounds', seed: seed(), picks: [team.slice(0, ROUNDS), computer] };
+        return { setup, minds: [{ side: 1, mind: 'BOT' }], pickers: [{ side: 0, team }] };
+      });
+    }
+
+    /** The player's seat in this room when it could start a fight now, with its session id. */
+    private freeToFight(playerId: number): [string, Seat] | null {
+      const found = [...this.seats].find(([, seat]) => seat.playerId === playerId && !seat.replaced && !seat.closing);
+      if (!found) return null;
+      const [, seat] = found;
+      return fighting(seat) || seat.offer || seat.talk || seat.skills.attempt || seat.watching || seat.reconnection || !canBattle(seat.progress) ? null : found;
+    }
+
+    /**
+     * Plans a wild fight in `zone` (null for none), under its weather, with the player standing as
+     * `walker`, and sends `arena.join`. Resolves to the fight's id, or null when none started.
+     */
+    private async openWildFight(sessionId: string, seat: Seat, wild: WildEncounter, zone: EncounterZone | null, walker: Walker): Promise<string | null> {
+      if (!arenaContent) return null;
+      const { turtle } = seat.settings;
+      return this.openFight(sessionId, seat, zone?.id ?? null, walker, { species: wild.species, level: wild.level, turtle }, () => {
+        const setup = arenaWildSetup({
+          seed: seed(),
+          team: seat.progress.team,
+          wild,
+          wildLoadout: wildLoadout(wild.species, wild.level, arenaContent),
+          turtle,
+          inventory: seat.progress.inventory,
+          content: world.battle,
+          weather: zone?.weather ?? null,
+        });
+        seat.progress = markSeen(seat.progress, wild.species);
+        return { setup, minds: [{ side: 1, mind: wildMindFor(turtle) }] };
+      });
+    }
+
+    /**
+     * Plans a fight for the seat's player on side 0, standing as `walker`, and sends `arena.join`.
+     * `plan` makes its setup once talks and skills have ended; when anything throws, no fight
+     * starts. `logged` goes on the `fight planned` line. Resolves to the fight's id, or null.
+     */
+    private async openFight(
+      sessionId: string,
+      seat: Seat,
+      zone: string | null,
+      walker: Walker,
+      logged: Readonly<Record<string, unknown>>,
+      plan: () => Pick<FightPlan, 'setup' | 'minds' | 'pickers'>,
+      trainer: TrainerTalk | null = null,
+    ): Promise<string | null> {
+      const { playerId } = seat;
+      const fightId = randomUUID();
+      const fight: LiveFight = { id: fightId, zone, duel: false, side: 0, trainer };
+      // It never rejects, so a caller that does not wait cannot leave a rejection to stop the server.
+      try {
+        this.endTalk(sessionId, seat, 'battle');
+        this.endSkill(sessionId, seat, 'battle');
+        const planned = plan();
+        seat.walker = walker;
+        seat.fight = fight;
+        this.changed(seat);
+        this.showFighting(sessionId, true);
+        await fights.open({ fightId, ...planned, seats: [{ playerId, side: 0 }], ended: (end) => this.finishFight(end), seatLost: (lost) => this.fightSeatLost(fightId, lost) });
+      } catch (error) {
+        log.warn('could not start a fight', { roomId: this.roomId, playerId, fight: fightId, ...errorOf(error) });
+        if (seat.fight === fight) {
+          seat.fight = null;
+          this.showFighting(sessionId, false);
+          this.clients.get(sessionId)?.send(SERVER_MESSAGES.progress, progressMessage(seat.progress, world.battle));
+        }
+        return null;
+      }
+      log.info('fight planned', { roomId: this.roomId, playerId, fight: fightId, zone, ...logged });
+      await this.sendFightJoin(sessionId, seat);
+      return fightId;
+    }
+
+    /** Sends `arena.join` with a fresh seat in the seat's fight room. */
+    private async sendFightJoin(sessionId: string, seat: Seat) {
+      const { fight } = seat;
+      if (!fight) return;
+      try {
+        const reservation = await fights.reserve(fight.id, seat.playerId);
+        if (reservation && seat.fight === fight) this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaJoin, { fightId: fight.id, reservation } satisfies ArenaJoinMessage);
+      } catch (error) {
+        // The fight's room closed meanwhile: its end settles the fight.
+        log.warn('could not reserve a fight seat', { roomId: this.roomId, playerId: seat.playerId, fight: fight.id, ...errorOf(error) });
+      }
+    }
+
+    /** A player still in the world whose seat in its fight room is gone gets a new one; one away gets it on coming back. */
+    private fightSeatLost(fightId: string, playerId: number) {
+      const found = [...this.seats].find(([, seat]) => seat.fight?.id === fightId && seat.playerId === playerId);
+      if (found && !found[1].reconnection && !found[1].closing) void this.sendFightJoin(...found);
+    }
+
+    /** A player back in the world whose seat in its fight room is gone gets a new one; one still held reconnects there by itself. */
+    private async rejoinFight(sessionId: string, seat: Seat) {
+      if (seat.fight && !fights.holds(seat.fight.id, seat.playerId)) await this.sendFightJoin(sessionId, seat);
+    }
+
+    /** Stops a seat's fight, if it has one: its arena room ends it as a run, and `finishFight` settles it at once. */
+    private endFight(seat: Seat, why: FightStop) {
+      if (seat.fight) fights.stop(seat.fight.id, why);
+    }
+
+    private showFighting(sessionId: string, on: boolean, duel = false) {
+      const player = this.state.players.get(sessionId);
+      if (!player) return;
+      player.inBattle = on;
+      player.duelling = on && duel;
+    }
+
+    /** Puts the trophy on the seat's courier until `until`, or takes it off with null. */
+    private showTrophy(sessionId: string, seat: Seat, until: number | null) {
+      seat.trophyUntil = until;
+      const player = this.state.players.get(sessionId);
+      if (player) player.trophy = until !== null;
+    }
+
+    /** Applies an ended fight to each of its players' creatures, saves at once and sends `arena.result`; a duel's watchers get it too. */
+    private finishFight(end: FightEnd) {
+      for (const [sessionId, seat] of [...this.seats].filter(([, each]) => each.watching === end.fightId)) this.watchedToEnd(sessionId, seat, end);
+      for (const [sessionId, seat] of [...this.seats].filter(([, each]) => each.fight?.id === end.fightId)) {
+        try {
+          this.settleFight(sessionId, seat, end);
+        } catch (error) {
+          seat.fight = null;
+          this.showFighting(sessionId, false);
+          this.seatFailed('fight', sessionId, seat, error, false);
+        }
+      }
+    }
+
+    private settleFight(sessionId: string, seat: Seat, { fightId, fight, why }: FightEnd) {
+      const zone = seat.fight?.zone ?? null;
+      const duel = seat.fight?.duel ?? false;
+      const side = seat.fight?.side ?? 0;
+      const trainer = seat.fight?.trainer ?? null;
+      const settled = duel ? settleDuel(seat.progress, fight, side, world.battle) : settleFight(seat.progress, fight, world.battle, trainer?.trainer.reward.xpPercent ?? 0);
+      seat.progress = settled.fainted ? wakeAfterFainting(settled.progress, world.shrines.teamFainted, world.battle) : settled.progress;
+      seat.fight = null;
+      const woke = settled.fainted ? this.wake(seat) : null;
+      this.showFighting(sessionId, false);
+      this.changed(seat);
+      const outcome = fight?.outcome ?? null;
+      const theirs = fight?.mode === 'rounds' && fight.outcome ? duelOutcomeFor(fight.outcome, side) : outcome;
+      if (duel && fight?.mode === 'rounds' && fight.outcome?.winner === side) this.showTrophy(sessionId, seat, now() + DUEL_TROPHY_MS);
+      this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaResult, {
+        fightId,
+        outcome: theirs,
+        rewards: settled.rewards,
+        befriended: settled.befriended,
+        learned: settled.learned,
+        rounds: fight?.mode === 'rounds' ? fight.rounds : [],
+        woke,
+      } satisfies ArenaResultMessage);
+      const counted = countEvents(seat.progress, duel ? [] : fightEvents(outcome, zone, settled.befriended?.species ?? null), story);
+      if (!this.applyStory(sessionId, seat, counted)) this.offerNext(sessionId, seat);
+      if (trainer) this.backToTalk(sessionId, seat, trainer, outcome?.result === 'won');
+      log.info('fight settled', {
+        roomId: this.roomId,
+        playerId: seat.playerId,
+        fight: fightId,
+        zone,
+        duel,
+        why,
+        result: theirs?.result ?? null,
+        rewards: settled.rewards.length,
+        learned: settled.learned.length,
+        befriended: settled.befriended?.placedIn ?? null,
+        woke: woke !== null,
+      });
+    }
+
+    /**
+     * Starts a best of 3 against `trainer` from the talk at `conversation`, the node with its fight:
+     * the talk ends, the player picks three in the arena room, and the fight's end opens the talk
+     * again (`backToTalk`). Resolves to the fight's id, or null when none started.
+     */
+    private async startTrainerFight(sessionId: string, seat: Seat, conversation: Conversation, trainer: Trainer): Promise<string | null> {
+      if (!arenaContent || fighting(seat) || seat.offer || seat.skills.attempt || !canBattle(seat.progress)) {
+        this.endTalk(sessionId, seat, 'failed');
+        return null;
+      }
+      const { turtle } = seat.settings;
+      const opened = { trainer, conversation };
+      return this.openFight(
+        sessionId,
+        seat,
+        null,
+        withIntent(seat.walker, IDLE),
+        { trainer: trainer.id },
+        () => {
+          const team = roundsTeam(seat.progress.team, turtle);
+          const setup: RoundsFightSetup = { mode: 'rounds', seed: seed(), picks: [team.slice(0, ROUNDS), trainerPicks(trainer)] };
+          return { setup, minds: [{ side: 1, mind: trainerMind(trainer, turtle) }], pickers: [{ side: 0, team }] };
+        },
+        opened,
+      );
+    }
+
+    /**
+     * After a trainer's fight: the talk goes on to the fight node's `won` or `lost` node
+     * (`endTrainerFight`), whose story is applied, and opens again there for a player still here
+     * and free to talk (no move offer waiting). The page shows it once the fight's result is put away.
+     */
+    private backToTalk(sessionId: string, seat: Seat, { conversation }: TrainerTalk, won: boolean) {
+      const step = endTrainerFight(conversation, won, seat.progress, story);
+      if (!step) return;
+      this.applyStory(sessionId, seat, step, this.deliveries(seat, step));
+      const player = this.state.players.get(sessionId);
+      if (!step.conversation || !player || !this.clients.get(sessionId) || seat.reconnection || seat.closing || seat.replaced || fighting(seat) || seat.talk || seat.offer) return;
+      this.talkCount += 1;
+      seat.talk = { id: this.talkCount, conversation: step.conversation, lastInputAt: now() };
+      player.talking = true;
+      log.info('talk started', { roomId: this.roomId, playerId: seat.playerId, conversation: seat.talk.id, npc: conversation.npc, node: step.conversation.node, won });
+      this.sendTalkNode(sessionId, seat);
+    }
+
     /** After the whole team fainted: back at the last shrine on this map, or the spawn, on a free tile near it. */
     private wake(seat: Seat): WakePoint {
       const last = seat.progress.lastShrine;
@@ -783,7 +1106,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       const seat = this.requestingSeat(client);
       if (!seat) return false;
       // Team places name the creature an offer is for, so they stay put until it is answered.
-      const next = seat.battle ? 'inBattle' : seat.offer ? 'notNow' : change(seat);
+      const next = fighting(seat) ? 'inBattle' : seat.offer ? 'notNow' : change(seat);
       if (typeof next === 'string') {
         this.refuse(client, request, next);
         return false;
@@ -821,7 +1144,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private setSettings(client: Client, request: string, change: (settings: PlayerSettings) => PlayerSettings) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
-      if (request === CLIENT_MESSAGES.settingsTurtle && seat.battle) {
+      if (request === CLIENT_MESSAGES.settingsTurtle && fighting(seat)) {
         this.refuse(client, request, 'inBattle');
         return;
       }
@@ -835,7 +1158,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
     private setLoadout(client: Client, index: number, loadout: Loadout) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
-      const next = seat.battle ? 'inBattle' : (setLoadout(seat.progress, index, loadout, world.battle) ?? 'invalid');
+      const next = fighting(seat) ? 'inBattle' : (setLoadout(seat.progress, index, loadout, world.battle) ?? 'invalid');
       if (typeof next === 'string') {
         this.refuse(client, CLIENT_MESSAGES.loadoutSet, next);
         return;
@@ -845,11 +1168,244 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       client.send(SERVER_MESSAGES.progress, progressMessage(next, world.battle));
     }
 
+    /** Why a seat could not start or watch a duel now: in a fight, or talking, choosing a move, doing a skill, watching or away; null when free. */
+    private duelBusy(seat: Seat): RefusalReason | null {
+      if (fighting(seat)) return 'inBattle';
+      return seat.talk || seat.offer || seat.skills.attempt || seat.watching || seat.reconnection || seat.replaced || seat.closing ? 'notNow' : null;
+    }
+
+    /** Whether a seat is free and has the standing creatures a duel needs. */
+    private canStartDuel(seat: Seat): boolean {
+      return this.duelBusy(seat) === null && canDuel(seat.progress.team);
+    }
+
+    /** Why the player at \`sessionId\` may not ask the one at \`to\` for a duel now, or null. */
+    private askRefusal(sessionId: string, seat: Seat, to: string, other: Seat | undefined): RefusalReason | null {
+      if (!other || to === sessionId || other.replaced) return 'invalid';
+      const busy = this.duelBusy(seat);
+      if (busy !== null) return busy;
+      const asking = this.duels.of(sessionId) ?? this.duels.of(to);
+      if (!arenaContent || asking || !canDuel(seat.progress.team) || !this.canStartDuel(other) || this.duels.paused(seat.playerId, other.playerId, now())) return 'notNow';
+      return inDuelReach(seat.walker, other.walker) ? null : 'tooFar';
+    }
+
+    /** \`duel.ask\`: asks the player at \`to\`, who gets \`duel.asked\` with the asker's duel creatures. */
+    private duelAsk(client: Client, to: string, even: boolean) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const other = this.seats.get(to);
+      const refusal = this.askRefusal(client.sessionId, seat, to, other);
+      if (refusal !== null || !other) {
+        this.refuse(client, CLIENT_MESSAGES.duelAsk, refusal ?? 'invalid');
+        return;
+      }
+      this.duels.open({ from: client.sessionId, to, fromPlayer: seat.playerId, toPlayer: other.playerId, even, at: now() });
+      const creatures = duelLineup(seat.progress.team).map(({ creature }) => ({ species: creature.species, level: creature.level }));
+      this.clients.get(to)?.send(SERVER_MESSAGES.duelAsked, { from: client.sessionId, creatures, even } satisfies DuelAskedMessage);
+      log.info('duel asked', { roomId: this.roomId, playerId: seat.playerId, to: other.playerId, even });
+    }
+
+    /** \`duel.answer\`: no declines the ask waiting for this player; yes starts the duel when both can still have it. */
+    private duelAnswer(client: Client, yes: boolean) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const ask = this.duels.waitingFor(client.sessionId);
+      if (!ask) {
+        this.refuse(client, CLIENT_MESSAGES.duelAnswer, 'notNow');
+        return;
+      }
+      if (!yes) {
+        this.closeAsk(ask, 'declined');
+        return;
+      }
+      const asker = this.seats.get(ask.from);
+      if (!asker || !this.canStartDuel(asker) || !this.canStartDuel(seat)) {
+        this.refuse(client, CLIENT_MESSAGES.duelAnswer, 'notNow');
+        this.closeAsk(ask, 'gone');
+        return;
+      }
+      // Closed at once, so a second yes on the way finds no ask while the duel's room is made.
+      this.duels.close(ask, 'accepted', now());
+      void this.openDuel(ask, [ask.from, asker], [client.sessionId, seat]);
+    }
+
+    /** \`duel.cancel\`: takes back this player's ask, which pauses the pair like a no. */
+    private duelCancel(client: Client) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const ask = this.duels.madeBy(client.sessionId);
+      if (ask) this.closeAsk(ask, 'cancelled');
+      else this.refuse(client, CLIENT_MESSAGES.duelCancel, 'notNow');
+    }
+
+    /** Ends an ask that did not start a duel and tells both players. */
+    private closeAsk(ask: DuelAsk, end: Exclude<AskEnd, 'accepted'>) {
+      this.duels.close(ask, end, now());
+      this.tellAnswered(ask, false, end);
+    }
+
+    private tellAnswered(ask: DuelAsk, yes: boolean, end: AskEnd) {
+      for (const sessionId of [ask.from, ask.to]) this.clients.get(sessionId)?.send(SERVER_MESSAGES.duelAnswered, { yes } satisfies DuelAnsweredMessage);
+      log.info('duel answered', { roomId: this.roomId, playerId: ask.fromPlayer, to: ask.toPlayer, end });
+    }
+
+    /** Each tick: an ask left unanswered for \`DUEL_ANSWER_MS\` declines by itself; one whose players can no longer duel ends. */
+    private checkAsks(at: number) {
+      for (const ask of this.duels.expired(at)) this.closeAsk(ask, 'timedOut');
+      for (const ask of this.duels.all()) {
+        const from = this.seats.get(ask.from);
+        const to = this.seats.get(ask.to);
+        if (!from || !to || this.duelBusy(from) !== null || this.duelBusy(to) !== null) this.closeAsk(ask, 'gone');
+      }
+    }
+
+    /**
+     * Starts the best of 3 an accepted ask agreed on, the asker on side 0 (core \`duelSetup\`), tells
+     * both players, and sends each \`arena.join\`. Both pick three in the arena room from every
+     * standing creature (core \`duelTeams\`), the setup's first three standing being the defaults.
+     * Resolves to the fight's id, or null when none started.
+     */
+    private async openDuel(ask: DuelAsk, ...players: readonly [readonly [string, Seat], readonly [string, Seat]]): Promise<string | null> {
+      const [[, asker], [, answerer]] = players;
+      const fightId = randomUUID();
+      try {
+        const options = { teams: [asker.progress.team, answerer.progress.team], even: ask.even, turtles: [asker.settings.turtle, answerer.settings.turtle], content: world.battle } as const;
+        const setup = duelSetup({ seed: seed(), ...options });
+        const teams = duelTeams(options);
+        players.forEach(([sessionId, seat], side) => {
+          this.endTalk(sessionId, seat, 'battle');
+          this.endSkill(sessionId, seat, 'battle');
+          seat.walker = withIntent(seat.walker, IDLE);
+          seat.fight = { id: fightId, zone: null, duel: true, side: side === 0 ? 0 : 1, trainer: null };
+          this.showFighting(sessionId, true, true);
+        });
+        const seats = [
+          { playerId: asker.playerId, side: 0 },
+          { playerId: answerer.playerId, side: 1 },
+        ] as const;
+        const pickers = [
+          { side: 0, team: teams[0] },
+          { side: 1, team: teams[1] },
+        ] as const;
+        await fights.open({
+          fightId,
+          setup,
+          seats,
+          minds: [],
+          pickers,
+          duel: true,
+          ended: (end) => this.finishFight(end),
+          seatLost: (lost) => this.fightSeatLost(fightId, lost),
+          watcherLeft: (playerId) => this.watcherLeft(fightId, playerId),
+        });
+      } catch (error) {
+        log.warn('could not start a duel', { roomId: this.roomId, playerId: asker.playerId, to: answerer.playerId, fight: fightId, ...errorOf(error) });
+        for (const [sessionId, seat] of players) {
+          if (seat.fight?.id !== fightId) continue;
+          seat.fight = null;
+          this.showFighting(sessionId, false);
+        }
+        this.tellAnswered(ask, false, 'gone');
+        return null;
+      }
+      this.tellAnswered(ask, true, 'accepted');
+      log.info('duel planned', { roomId: this.roomId, playerId: asker.playerId, to: answerer.playerId, fight: fightId, even: ask.even, turtles: [asker.settings.turtle, answerer.settings.turtle] });
+      await Promise.all(players.map(([sessionId, seat]) => this.sendFightJoin(sessionId, seat)));
+      return fightId;
+    }
+
+    /** Why the player may not watch the duel of the player at `who` now, or null. */
+    private watchRefusal(sessionId: string, seat: Seat, who: string): RefusalReason | null {
+      const duellist = this.seats.get(who);
+      if (!duellist || who === sessionId || duellist.replaced) return 'invalid';
+      const busy = this.duelBusy(seat);
+      if (busy !== null) return busy;
+      const fight = duellist.fight;
+      if (!fight?.duel || this.duels.of(sessionId)) return 'notNow';
+      return [...this.seats.values()].filter((each) => each.watching === fight.id).length >= DUEL_WATCHERS ? 'full' : null;
+    }
+
+    /**
+     * `duel.watch`: a watcher seat in the duel the player at `who` fights, sent in `arena.join`. The
+     * watcher stands still where they are and shows `watching` until they stop, walk or the duel ends.
+     */
+    private duelWatch(client: Client, who: string) {
+      const seat = this.requestingSeat(client);
+      if (!seat) return;
+      const refusal = this.watchRefusal(client.sessionId, seat, who);
+      const fightId = this.seats.get(who)?.fight?.id;
+      if (refusal !== null || fightId === undefined) {
+        this.refuse(client, CLIENT_MESSAGES.duelWatch, refusal ?? 'invalid');
+        return;
+      }
+      this.endSkill(client.sessionId, seat, 'battle');
+      seat.walker = withIntent(seat.walker, IDLE);
+      seat.watching = fightId;
+      const player = this.state.players.get(client.sessionId);
+      if (player) player.watching = true;
+      void this.sendWatchJoin(client.sessionId, seat, fightId);
+    }
+
+    /** Sends `arena.join` with a watcher seat in the duel's room; when none can be had, the watching ends, refused `notNow`. It never rejects. */
+    private async sendWatchJoin(sessionId: string, seat: Seat, fightId: string) {
+      let reservation: ArenaJoinMessage['reservation'] | null = null;
+      try {
+        reservation = await fights.reserve(fightId, seat.playerId, true);
+      } catch (error) {
+        log.warn('could not reserve a watcher seat', { roomId: this.roomId, playerId: seat.playerId, fight: fightId, ...errorOf(error) });
+      }
+      if (seat.watching !== fightId) return;
+      const client = this.clients.get(sessionId);
+      if (!reservation) {
+        this.stopWatching(sessionId, seat, 'gone');
+        if (client) this.refuse(client, CLIENT_MESSAGES.duelWatch, 'notNow');
+        return;
+      }
+      client?.send(SERVER_MESSAGES.arenaJoin, { fightId, reservation } satisfies ArenaJoinMessage);
+      log.info('duel watched', { roomId: this.roomId, playerId: seat.playerId, fight: fightId });
+    }
+
+    /**
+     * Ends a seat's watching, if it watches: it walked, left the world, was closed by the server,
+     * left its seat in the duel's room (Stop watching is that one tap), or the duel ended. Unless
+     * that seat is already gone, the duel's room sends it out too, so a page that ignores the world
+     * cannot go on watching.
+     */
+    private stopWatching(sessionId: string, seat: Seat, why: 'walk' | 'left' | 'closed' | 'gone' | 'ended') {
+      const fightId = seat.watching;
+      if (fightId === null) return;
+      seat.watching = null;
+      if (why !== 'gone' && why !== 'ended') fights.unwatch(fightId, seat.playerId);
+      const player = this.state.players.get(sessionId);
+      if (player) player.watching = false;
+      log.info('duel watching ended', { roomId: this.roomId, playerId: seat.playerId, fight: fightId, why });
+    }
+
+    /** A watcher's seat in the duel's room is gone: they watch no more. */
+    private watcherLeft(fightId: string, playerId: number) {
+      const found = [...this.seats].find(([, seat]) => seat.watching === fightId && seat.playerId === playerId);
+      if (found) this.stopWatching(found[0], found[1], 'gone');
+    }
+
+    /** The duel a seat watched is over: `arena.result` with its outcome and rounds, as side 0 saw them, and nothing won. */
+    private watchedToEnd(sessionId: string, seat: Seat, { fightId, fight }: FightEnd) {
+      this.stopWatching(sessionId, seat, 'ended');
+      this.clients.get(sessionId)?.send(SERVER_MESSAGES.arenaResult, {
+        fightId,
+        outcome: fight?.outcome ?? null,
+        rewards: [],
+        befriended: null,
+        learned: [],
+        rounds: fight?.mode === 'rounds' ? fight.rounds : [],
+        woke: null,
+      } satisfies ArenaResultMessage);
+    }
+
     private talkStart(client: Client, npc: string) {
       const seat = this.requestingSeat(client);
       if (!seat) return;
       // A gather or cook under way keeps the player busy as a talk does.
-      const refusal = talkStartRefusal(npc, seat.walker, { battle: seat.battle !== null, offer: seat.offer !== null, talking: seat.talk !== null || seat.skills.attempt !== null }, map, story);
+      const refusal = talkStartRefusal(npc, seat.walker, { battle: fighting(seat), offer: seat.offer !== null, talking: seat.talk !== null || seat.skills.attempt !== null }, map, story);
       if (refusal) {
         this.refuse(client, CLIENT_MESSAGES.talkStart, refusal);
         return;
@@ -881,6 +1437,10 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       }
       talk.lastInputAt = now();
       const next = continueTalk(talk.conversation, choice, seat.progress, story);
+      if (next.kind === 'fight') {
+        void this.startTrainerFight(client.sessionId, seat, talk.conversation, next.trainer);
+        return;
+      }
       if (next.kind === 'refused' || next.kind === 'failed') {
         this.refuse(client, CLIENT_MESSAGES.talkNext, 'invalid');
         if (next.kind === 'failed') {
@@ -970,7 +1530,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
           return seat.walker;
         },
         get busy() {
-          if (seat.battle) return 'inBattle';
+          if (fighting(seat)) return 'inBattle';
           return seat.talk || seat.offer || seat.skills.attempt ? 'notNow' : null;
         },
         get now() {

@@ -1,19 +1,22 @@
 # Protocol
 
 How the browser talks to the server: an HTTP API for profiles and sessions, then one Colyseus room,
-`world`, for the shared island, and (planned, see "Arena fights") one `arena` room per real-time
-fight. The shapes live in `packages/core` (`src/protocol.ts`,
+`world`, for the shared island, and one `arena` room per real-time fight (see "Arena fights"). The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
-`src/skill-messages.ts` for skills and jobs), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **11**),
+`src/skill-messages.ts` for skills and jobs, `src/duel-messages.ts` for duels), so client and server import the
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **15**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
 protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board,
 protocol 9 judges the tiny games exactly as they are drawn, protocol 10 adds the player's
-settings ("Read to me"), and protocol 11 adds arena loadouts and the turtle setting
-(`loadout.set`, `settings.turtle`; see "Arena fights").
+settings ("Read to me"), protocol 11 adds arena loadouts and the turtle setting
+(`loadout.set`, `settings.turtle`; see "Arena fights"), protocol 12 the arena room, its input
+and its messages, protocol 13 duels (`duel.*` and `arena` in `welcome`), protocol 14 picking
+three for a best of 3 (`arena.pick` and the arena room's `picking` and `between` phases), and
+protocol 15 the duel island and watching (`duel.watch`, giving up, the duel marks on players and
+`watching` in `arena.started`).
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
-attempt timing constants and server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`, and
-fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
+attempt timing constants, server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`,
+and the arena room's name, input fields, messages and limits, and fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
 
 Everything is same-origin: the page, the API, the maps and the WebSocket all come from the server
 that served the page. In development Vite proxies `/colyseus/*` to the server and strips the prefix,
@@ -106,6 +109,9 @@ Player
   inBattle           boolean  true while the player is in a battle
   talking            boolean  true while the player is talking to a character
   skill              string   '' or the skill the player is doing: foraging, fishing or cooking
+  duelling           boolean  true while the player fights a duel (with inBattle); others may watch
+  watching           boolean  true while the player watches a duel, standing still
+  trophy             boolean  true for 60 s after the player won a duel
 ```
 
 The key of `players` is the Colyseus `sessionId`; your own is `room.sessionId`. Nothing else about a
@@ -146,7 +152,7 @@ Server to client:
 
 | Type | Payload | When |
 | --- | --- | --- |
-| `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey }` | Right after joining |
+| `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey, arena }`: `arena` whether arena fights are on (`ARENA_BATTLES`), so the page offers duels (protocol 13) | Right after joining |
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
 | `settings` | `{ readToMe, turtle }` | On joining, after `skills`, and after each `settings.set` and `settings.turtle`. Only this seat changes them, so a reconnection keeps what the page has. |
@@ -300,7 +306,12 @@ request gives it up after 1.5 s without an answer, so the next tap asks again.
 ## Arena fights
 
 **Planned** for the milestone "Phase 2: Arena battles" (#141 to #160). Built so far: loadouts and
-the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148); the rest is not.
+the turtle setting (`loadout.set`, `settings.turtle`, protocol 11, save v7, #148), and the arena
+room with its input, limits, state and messages, the hand-off and `ARENA_BATTLES` (protocol 12,
+#149), wild fights from tall grass with the setting on (#150), duels (protocol 13, #157), picking
+three and the pause between rounds of a best of 3 (protocol 14, #155), and the duel island,
+watching and duel rewards (protocol 15, #158). Tests can also start one with
+the world room's `startWildFight(playerId, wild)`. Parts still to come are marked.
 The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 [decisions/0001-real-time-arena.md](decisions/0001-real-time-arena.md). Until the switch-over
 (#160) both kinds of battle exist: the server setting `ARENA_BATTLES` (default `off`, in
@@ -310,25 +321,53 @@ The rules are in [arena.md](arena.md), and why the fight runs in its own room in
 
 Each fight runs in its own Colyseus room, `arena`, next to the one `world` room.
 
-- **Private.** The world room creates it with `matchMaker.createRoom('arena', { fightId })`; it is
-  `setPrivate`, never listed, and refuses `joinOrCreate`. A player joins only with a seat
-  reservation (`matchMaker.reserveSeatFor`), sent to that player alone in `arena.join`; the client
-  joins with `consumeSeatReservation`. `onAuth` checks the one-time fight ticket and the profile
-  id. Watchers (duels only, up to 6) join the same way, with a watcher seat.
+- **Private.** The world room plans the fight in the server's fight book (`src/fights.ts`) and
+  creates its room with `matchMaker.createRoom('arena', { fightId })`; it is `setPrivate`, never
+  listed, and its static `onAuth` refuses every matchmaking join (`joinOrCreate`, `create`,
+  `join`, `joinById`). A player joins only with a seat reservation (`matchMaker.reserveSeatFor`,
+  which skips that check), sent to that player alone in `arena.join`; the client joins with
+  `consumeSeatReservation`. The reservation carries a one-time fight ticket that stays on the
+  server; the room's `onAuth` spends it and checks that the session joining (`_authToken`, the
+  same token as the world) is the profile it was made for. A refused attempt spends the seat and
+  the ticket. Watchers (duels only, up to 6, `DUEL_WATCHERS`, #158, built) join the same way, with
+  a watcher's ticket; the room's `onAuth` refuses one past the 6th or for a fight that is not a duel.
 - **The world room stays connected** and stays the only writer of saves. While a fight runs, the
   seat's `seat.fight` is set (`seat.battle` for turn battles) and `inBattle` is true, so walking,
   talks, shrines, storage and skills are refused exactly as in a battle. A take-over or a leave of
   the world seat ends the fight as `ran`.
-- **The end.** The arena room hands `{ fightId, outcome, team health, rewards, befriended }` to the
-  world room (same process) and closes. The world room settles it (`settleFight`, #150): team
-  health, XP and level ups, the befriended creature to the team or storage, `seen` and
-  `befriended`, and the `battleWon` quest event on `won` and `wonByRingOut`. Then it sends
-  `arena.result` and `progress`, and `inBattle` turns false.
-- **Starting points.** Tall grass with `ARENA_BATTLES` on (#150): a wild fight, set up by
-  `arenaWildSetup` with the zone's weather, the player's loadouts and turtle setting, and the wild
-  loadout. A trainer's talk node `fight: <trainerId>` (#156): rounds against the trainer's mind.
-  An accepted duel (#157): rounds with two human sides. A dev-only `arena.practice` switch starts
-  rounds against `BOT` for the browser check (#155).
+- **The end.** The arena room hands `{ fightId, fight, why }`, the fight as it ended, to the
+  world room through the fight book (same process), and closes 2 s later. The world room settles it
+  against the seat's progress (`settleFight` in `src/battles.ts`): team health
+  (`teamAfterFight`), then XP and level ups to the creatures still standing (`arenaRewards`), every
+  move a level up teaches in `learned` (an arena creature keeps every move it learns, so nothing
+  is offered with `move.offer`; a turn battle's four moves take the new ones while there is room),
+  the treats left, the befriended creature to the team or storage with `befriended`, and waking
+  at a shrine when the whole team fainted. It saves at once and sends `arena.result`, then counts
+  the quest events: `battleWon` in the fight's zone on `won`, `wonByRingOut` and `befriended`
+  (a befriending is a won battle, as in a turn battle), and `befriended` too on `befriended`, with any
+  `quest.changed`, then `progress` and, when quests moved, `story`; `inBattle` turns false. `seen` is
+  saved as the fight starts.
+- **Starting points.** Tall grass with `ARENA_BATTLES` on (#150, built): a step that meets a
+  wild creature (`rollEncounter`, as for turn battles) starts a wild fight instead of
+  `battle.started`, set up by `arenaWildSetup` with the zone's weather (on the island from the
+  start and for the whole fight, until a move's weather replaces it), the player's loadouts and
+  turtle setting, and the wild loadout. The courier stays on the grass tile where it met the
+  creature, and `arena.join` follows. The world room's `startWildFight` (#149) does the same
+  outside any zone, for tests. A trainer's talk node `fight: <trainerId>` (#156, built, "A trainer's
+  fight" below): rounds against the trainer's three creatures and mind, the player picking three.
+  An accepted duel (#157, built): rounds with two human sides, the asker on side 0, each with the
+  standing creatures of their team (core `duelTeams`) and their own turtle setting, all at core
+  `evenLevel` for an even match (`duelSetup`); nothing about the level is saved. Both sides pick
+  in the arena room (#158: the plan names both in `pickers`). The world room settles a duel with
+  `settleDuel` (`src/battles.ts`): 25% of `xpForWin` to each creature of theirs that fought, win
+  or lose (core `duelRewards`), health put back as before, no quest events; the winner's
+  `trophy` shows for 60 s (`DUEL_TROPHY_MS`). Each duellist's `arena.result` `outcome` is told
+  from their own side (`duelOutcomeFor`), so side 1 sees `lost` when side 0 won.
+  The `arena.practice` switch (#155, built), the world room's `startPractice(playerId, opponents)`,
+  starts a best of 3 against `BOT` with up to three `{ species, level }` opponents. Like
+  `startWildFight` it is called in the server's own process by the room tests and the browser
+  check, never by a client, so it needs no setting and no message. The player picks from their
+  standing team in the arena room, and the fight changes nothing on the team.
 
 ### Input
 
@@ -345,48 +384,77 @@ none is lost. The server declares it with
 | `dash` | boolean | Dash |
 | `treat` | boolean | Throw a treat |
 | `swap` | boolean | Swap to the next creature |
-| `leave` | boolean | Leave the fight (wild fights) |
+| `leave` | boolean | Leave the fight (wild fights); give up (duels, either side) |
 
-`sanitize` turns anything else (NaN, 9999, a string) into none. `idle`, used when a tick's input is
-missing, keeps `dir` and clears every press: a held stick survives a lost packet and a tap never
-repeats. A watcher's input is refused. The client stamps each input ahead of the server by the
-round trip times the tick rate, clamped to 2 to 10 ticks.
+`sanitize` turns anything else (NaN, 9999, a string) into none (core `cleanArenaInput`; the uint8
+wire already wraps a big number, so out of range means 16 to 254 for `dir` and 3 to 254 for
+`press`). `idle`, used when a tick's input is missing, keeps `dir` and clears every press: a held
+stick survives a lost packet and a tap never repeats. A watcher sends no input; anything a
+watcher's page sends anyway is thrown away unread each step and counted (`watcherInputs` in
+`fight ended`). In a duel the room reads `leave` before stepping: that side gives up (core
+`roundsGiveUp`), losing the round under way and the rounds after it until the other side has 2
+round wins, and the fight ends. The stream carries no tick: the room takes one buffered
+input each fixed step, in order, so an input lands as many ticks ahead of the server as inputs wait
+before it. The client's input lead is that count, the inputs sent and not yet acknowledged
+(`pendingCount`), which the net meters show. The client keeps it to the network's round trip (a
+`room.ping` each second) plus the wait for the next patch, which carries the acknowledgement, in
+inputs, plus 2 spare (`leadLimit` in `arena-input.ts`): past that it skips one send, never two in a
+row, and the skipped send's presses go with the next. Without it, a page's 33 ms timer, a little
+faster than the room's step, fills the room's buffer over a fight and makes every input later.
 
 ### The step and the limits
 
 - `setFixedTimestep(step, 30, { subSteps: 2 })`: 30 inputs a second, each running two 60 Hz core
-  `fightStep`s; the input applies on the first sub-step only.
-- This room alone allows 45 messages a second (`maxMessagesPerSecond`); more disconnects. Presses
-  beyond 10 a second are dropped and counted. The world room's limits do not change.
+  `fightStep`s; the input applies on the first sub-step only, and the second keeps the stick with
+  every button let go. A computer's side (a wild creature, a `BOT`) gets `wildInput` from its
+  own brain and `mind:<side>:<seed>` RNG on every core step.
+- This room alone allows 45 messages a second (`maxMessagesPerSecond`); more disconnects (the
+  input stream counts). New presses beyond 10 in the last 30 inputs are dropped (the buttons let go,
+  the stick kept) and counted; a button held down is one press. The world room's limits do not
+  change.
 - **Load budget** (#149): 6 arena rooms of `BOT` against `BOT` plus 4 bots walking the world, in
-  the container's 1 CPU and 512 MB: a mean step under 1 ms and no world tick later than 10 ms. A
-  core step on its own stays under 0.05 ms in Node (#144).
-- **Logs:** fight start and end with ids, outcome, ticks, mean and worst step time, dropped inputs
-  and refused presses. No names.
+  the container's 1 CPU and 512 MB: a mean step under 1 ms and no world tick later than 10 ms.
+  `npm run arena:load` measures it (its header has the container command). A core step on its own
+  stays under 0.05 ms in Node (#144).
+- **Logs:** `fight started` and `fight ended` with ids, mode, why it ended, outcome, ticks, mean
+  and worst step time, inputs, dropped inputs, dropped presses and refused presses, and `fight
+  settled` in the world room. No names.
 
 ### Arena state
 
 The fight is the arena room's state, which only its players and watchers receive. The world room's
-state shows others only `inBattle` (and, for duels, the duelling and watching marks of #158).
+state shows others only `inBattle` (and, for duels, `duelling`, `watching` and `trophy`).
 
 ```text
-ArenaState
-  tick, limit        uint32   the step, and the time limit's tick
-  phase              'picking' | 'fighting' | 'between' | 'ended'
+ArenaRoomState (apps/server/src/arena-state.ts)
+  mode               'wild' | 'rounds'
+  tick, limit        uint32   the step, and the tick the island's time limit falls on
+  phase              'picking' | 'fighting' | 'between' | 'ended': 'picking' before round 1 of
+                     rounds with a picking side, 'between' for the 3 s after each round but the last
+  countdown          uint16   ms left of picking or of the pause, in steps of 100; 0 otherwise
+  picked             2 × boolean: each side has sent its picks (while picking)
   radius             int32    the island's radius now, in 1/256 units
-  storm              the storm's step and the tick of the next shrink
+  storm              { step, phase, next }: the tick the next shrink starts, -1 at the floor
   weather            string   the weather on the island, or ''
-  bodies             2 × Body
+  bodies             2 × ArenaBody, side 0 first
   things             ArraySchema of shots, zones and strikes, at most 24
-  treat              a treat on the ground, or none
-  score              round wins of each side (rounds)
+                     { id, side, move, shape, x, y, radius, armTicks, ticks }
+  treat              { item, x, y, landed }: a treat in the air or on the ground; item '' for none
+  score              round wins of each side (rounds; 0 and 0 in a wild fight)
+  round              uint8    the round now (rounds)
+  rounds             uint8 each: the winner's side of every round played, 2 for a level one
+                     (a replayed round is left out)
+  duel               boolean  a duel between two players, drawn on the duel island
+  waiting            boolean  the fight waits for a player who is away or not in yet
+  watchers           string each: the courier avatar of each watcher, in the order they came
 
-Body
+ArenaBody
+  id                 string   the fighter: a<place + 1> for a team creature, b1 for the wild one
   x, y, vx, vy       int32    in 1/256 units
   facing             uint8    0 to 15
   health, max, level, species
-  status             bits: slowed, rooted, shielded, tumbling, winding up
-  cooldowns          ticks left for buttons 1 to 3, dash and swap
+  status             bits: 1 slowed, 2 rooted, 4 shielded, 8 tumbling, 16 winding up
+  cooldowns          ticks left for buttons 1 to 3, dash and swap (swap: side 0 of a wild fight)
   turtle             boolean  shows the turtle badge
 ```
 
@@ -402,18 +470,19 @@ World room, client to server:
 | --- | --- | --- | --- |
 | `loadout.set` (built) | `{ index, loadout }`: `index` a team place 0 to 5, `loadout` three move ids or null | Not in a fight | Sets that creature's buttons (core `setLoadout`), saved at once and sent back in `progress`; refused `invalid` for an unlearned move, a wrong kind, a locked button or an empty team place, `inBattle` during a fight (today a turn battle) |
 | `settings.turtle` (built) | `{ on }` | Not in a fight | Turns the turtle setting on or off; saved at once and sent back in `settings`; refused `inBattle` during a fight |
-| `duel.ask` | `{ to, even }`: `to` the other player's key in `players`, `even` the even-match switch | Both free, within 4 tiles, both with 3 standing creatures | Sends `duel.asked` to the other player. One ask at a time; the same pair waits 30 s after a decline |
-| `duel.answer` | `{ yes }` | A `duel.asked` waits for you | Yes starts the duel; no, or no answer in 20 s, declines |
-| `duel.cancel` | `{}` | Your ask waits | Takes the ask back |
+| `duel.ask` (built) | `{ to, even }`: `to` the other player's key in `players` (1 to 32 characters), `even` the even-match switch | Both free (not in a battle, talk, skill attempt or another ask), within 4 tiles (`DUEL_REACH`, either way and diagonally), both with 3 standing creatures (`DUEL_TEAM`) | Sends `duel.asked` to the other player. Refused `invalid` for yourself or a key nobody has, `inBattle` while you fight, `tooFar`, and `notNow` for anything else: arena fights off, either busy or without 3 standing creatures, an ask of either waiting, or the same pair within 30 s (`DUEL_PAUSE_MS`) of a no, no answer or take-back, either way round |
+| `duel.answer` (built) | `{ yes }` | A `duel.asked` waits for you | Yes starts the duel when both can still have it (else refused `notNow` and the ask ends); no declines. No answer in 20 s (`DUEL_ANSWER_MS`) declines by itself. Refused `notNow` when no ask waits for you |
+| `duel.cancel` (built) | `{}` | Your ask waits | Takes the ask back, and the same pair then waits 30 s (`DUEL_PAUSE_MS`), as after a no. Refused `notNow` when you have none |
+| `duel.watch` (built, #158) | `{ who }`: a duellist's key in `players` | You are free (as for `duel.ask`), at any distance | Sets your `watching` and sends `arena.join` with a watcher seat in that duel's room. Refused `invalid` for yourself or a key nobody has, `inBattle` while you fight, `full` when 6 already watch, and `notNow` when they are not in a duel, you are busy or asking, or no seat can be had. Walking, leaving the world or a closed world seat ends the watching, and the duel's room sends the watcher's seat out; leaving the duel's room (Stop watching) ends it too, with no message |
 
 World room, server to client:
 
 | Type | Payload | When |
 | --- | --- | --- |
-| `arena.join` | The seat reservation and the fight ticket | A fight you are in or watch is ready to join |
-| `arena.result` | `{ fightId, outcome, rewards, befriended, learned, rounds }`; `learned` is `[{ index, move }]` | The fight is settled; leave the arena room, show the result, and a new-move toast for each `learned` |
-| `duel.asked` | Who asks (their key in `players`), their first three creatures and `even` | Someone asks you |
-| `duel.answered` | `{ yes }` | Your ask was answered, or declined by itself |
+| `arena.join` (built) | `{ fightId, reservation }`: the seat reservation, for `consumeSeatReservation` | A fight you are in or watch is ready to join, again when your seat in its room is gone while the fight goes on |
+| `arena.result` (built) | `{ fightId, outcome, rewards, befriended, learned, rounds, woke }`: `outcome` core's, null for no result; `befriended` `{ species, level, placedIn }` or null; `learned` `[{ index, move }]`; `woke` as in `battle.result` | The fight is settled; leave the arena room, show the result, and a new-move toast for each `learned` |
+| `duel.asked` (built) | `{ from, creatures, even }`: `from` the asker's key in `players`, `creatures` their first three standing `[{ species, level }]` at real levels | Someone asks you |
+| `duel.answered` (built) | `{ yes }` | To both, once the ask is over: answered, declined by itself, taken back, or ended because one of you left, started something else or could no longer duel. `arena.join` follows a yes |
 | `settings` (built) | `{ readToMe, turtle }` | As today, with `turtle` |
 | `progress` (built) | As today; each team creature also has `loadout` and `learned` (its learned move ids) | As today |
 
@@ -422,9 +491,10 @@ Arena room:
 | Type | Direction | Payload | When |
 | --- | --- | --- | --- |
 | input (`arena.input`) | client to server | The input above | 30 times a second while fighting |
-| `arena.pick` | client to server | `{ order }`: 3 team places, different, each standing | In the `picking` phase of rounds; refused `invalid` otherwise. A 30 s timer picks the first three standing |
-| `arena.started` | server to client | The mode, both sides' creatures and which side you are | On joining |
-| `arena.events` | server to client | The events of one fixed step | Each fixed step with events |
+| `arena.pick` (built) | client to server | `{ order }`: 1 to 3 team places 0 to 5 | Once, in the `picking` phase of rounds: three different standing creatures in round order, or all of them when fewer stand; refused `invalid` otherwise, and `notNow` outside picking, in a wild fight or after a pick. When every picking side has picked, or after 30 s (`ARENA_PICK_MS`) counted only while every player is in, round 1 starts with each side's picks or its first three standing, and `arena.started` goes again |
+| `arena.started` (built) | server to client | `{ fightId, mode, side, sides, watching }`: `sides` both line-ups, `[{ id, species, level, place }]` (`place` null for a creature not of your team). While picking, your side's is the defaults and the other side's is empty. `watching` (#158) for a watcher, whose `side` is 0 and who gets both sides empty while picking | On joining and on reconnecting, and to everyone when round 1 starts |
+| `refused` (built) | server to client | `{ request, reason }`, as from the world room | A refused `arena.pick` |
+| `arena.events` (built) | server to client | `{ tick, events }`: core's fight events of one fixed step's core steps. A `refused` press repeats every tick it is held, so one already sent the step before is left out | Each fixed step with events |
 
 A request that matches its schema but is not allowed now is answered with `refused` and the reasons
 the world already uses (`invalid`, `notNow`, `inBattle`, `tooFar`); a payload that does not match
@@ -432,28 +502,38 @@ closes the connection (4002), as everywhere.
 
 ### Prediction
 
-The client predicts its own creature by running core's `fightStep` from the last server state plus
-its unacknowledged inputs (Colyseus `Predict`; `self-walker.ts` is the house pattern). A correction
-is blended away over 120 ms, or snapped when the error is beyond 1.5 bodies (69 units). Knocks and
-ring-outs come only from the server; a cast is predicted only as the start of its animation. The
-other creature is drawn 100 ms in the past (as `OTHERS_DELAY_MS` in the world), between snapshots.
-Hit-stop pauses only the drawing, never input or prediction. The browser check (#152) keeps the
-mean prediction error under 8 units with fewer than 2 snaps over 5 s of movement, at 0, 50 and
-150 ms of lag.
+The client predicts its own creature (`apps/game/src/arena/arena-predict.ts`): each input it sends
+is stepped at once with core's `arenaStep`, two core steps as the room runs them, and each new
+state is rebuilt as core's island and the inputs past the room's acknowledgement (`lastProcessed`)
+replayed on it. What the state leaves out (a dash still going, a knock's ticks) comes from the
+prediction's own creature at the acknowledged input. A correction is blended away over 120 ms, or
+snapped when the error is beyond 1.5 bodies (69 units). Only movement and dashes are predicted:
+knocks and ring-outs come only from the server, and a cast you press is shown only as the start of
+its animation, the server's own cast then left out. The other creature is drawn 100 ms in the past
+(as `OTHERS_DELAY_MS` in the world), between snapshots placed by their tick (`arena-follow.ts`).
+Hit-stop (#153, `arena-effects.ts`) pauses only the drawing, never input or prediction. The
+browser check (#152) keeps the mean prediction error under 8 units with fewer than 2 snaps over
+5 s of movement, at 0, 50 and 150 ms of lag; corrections while the state shows your creature
+tumbling are counted apart, since knocks are never predicted.
 
-Dev and test only: `ARENA_FAKE_LAG_MS` adds lag on the dev server and is refused in production
-config; `?test=1&net=1` shows the round trip, the input lead, corrections a second, the mean error
-and snaps, also in the test hook.
+Dev and test only: `ARENA_FAKE_LAG_MS` (0 to 1000) holds back each arena player's messages by half
+of it each way on the dev server, and the server refuses to start with it in production; scripts
+pass `fakeLagMs` to `createGameServer` instead. `?test=1&net=1` shows the round trip, the input
+lead, corrections a second, the mean error and snaps, also in the test hook (`arena.net`).
 
 ### Dropping and coming back
 
 - The arena room holds a dropped player's seat for 20 s (`allowReconnection`), and the SDK
-  reconnects by itself.
+  reconnects by itself. Inputs sent while the fight waited are thrown away when it resumes. A
+  reconnection looks the session up again, as the world room's does, and closes with `signedOut`
+  when it has ended.
 - A **wild fight pauses** while its player is away (no steps), up to 120 s (`BATTLE_IDLE_MS`), then
   ends as `ran`. A player back after the 20 s but within the 120 s gets a new `arena.join` from the
-  world room for the same fight.
-- A **duel pauses** both sides, and both players and the watchers see "waiting". After 30 s it ends
-  with no result.
+  world room for the same fight: at once while still in the world, else on reconnecting to it.
+  A fight does not start moving until its players are in.
+- A **duel pauses** both sides (`waiting` in the state), and both players and the watchers see
+  "waiting". After 30 s it ends with no result. A watcher's seat is not held: a dropped watcher
+  is gone from the stands and can watch again from the world.
 - A server restart loses the fight, which lives only in memory: the world comes back, and the fight
   ends as `ran` (#160's restart check).
 
@@ -472,9 +552,12 @@ and snaps, also in the test hook.
 
 The protocol was 10 before the arena work. Each wire change bumps it once, in the order the tickets
 merge: #148 to 11 (`loadout.set`, `settings.turtle`, `loadout` and `learned` in `progress`;
-done), then #149 (the arena
-room, its input and `arena.join`, `arena.started`, `arena.events`, `arena.result`; it shares #148's
-bump if it merges first), #155 (`arena.pick`), #157 (`duel.*`) and #160. So the switch-over's
+done), then #149 to 12 (the arena room, its input and `arena.join`, `arena.started`,
+`arena.events`, `arena.result`; done), #157 to 13 (`duel.*`, `arena` in `welcome`; done), #155 to
+14 (`arena.pick`, the arena room's `refused`, and `countdown`, `picked` and `rounds` in its state;
+done), #158 to 15 (`duel.watch`, `duelling`, `watching` and `trophy` on players, `duel`, `waiting`
+and `watchers` in the arena state, `watching` in `arena.started`, `leave` as giving up in a
+duel; done) and #160. So the switch-over's
 number is whatever comes next then, not fixed here. Tickets merged at the same time conflict on the
 one line in `scripts/lib/protocol-contract.test.mjs`; the later one takes the next number.
 
@@ -506,7 +589,7 @@ there.
 | Type | Payload | When | Effect |
 | --- | --- | --- | --- |
 | `talk.start` | `{ npc }` | Standing next to the character (core `npcInReach`: on a tile beside theirs, not diagonally), not in a battle, not talking, no `move.offer` waiting | Opens the talk at the first entry of `dialogue/<npc>.json` whose `if` holds (core `openConversation`), does that node's effects, sets `talking` and sends `talk.node` |
-| `talk.next` | `{ conversation, choice }`: `choice` 0 to 2, or null | Talking, `conversation` the id of the current talk | With a number, picks that choice, which must be one of `talk.node`'s `choices`; with null, goes on to the node's `next`, or ends the talk when the node has neither `next` nor a choice to show (core `advanceConversation`) |
+| `talk.next` | `{ conversation, choice }`: `choice` 0 to 2, or null | Talking, `conversation` the id of the current talk | With a number, picks that choice, which must be one of `talk.node`'s `choices`; with null, goes on to the node's `next`, or ends the talk when the node has neither `next` nor a choice to show (core `advanceConversation`). At a node with a trainer's `fight`, null ends the talk and starts the fight (below) |
 | `talk.end` | `{ conversation }` | Talking | Ends the talk at once. Nothing is undone: effects happen on entering a node |
 | `starter.choose` | `{ species }` | See "The starter" below | As in protocol 5 |
 
@@ -536,6 +619,25 @@ that changed, then `progress` (items and experience), then `story`, and then the
 step leads to, if any. A `quest.changed` with experience brings the same learning of moves as after
 a battle: a move offered on a level up comes as `move.offer` just before that `progress`, and
 `talk.start` is refused with `notNow` until it is answered.
+
+### A trainer's fight
+
+A dialogue node with `fight: <trainerId>` (#156, `docs/arena.md`, "Trainers") has no `next` and no
+choices. `talk.next` with null there (any choice is refused with `invalid`) ends the talk with
+`talk.ended` and starts a best of 3 against the trainer (core `trainerPicks` and `trainerMind`),
+with `arena.join` as for any fight; the player picks three in the arena room. A node with a fight is
+reached only through a `{ "canFight": trainerId }` check, which fails while the player has no
+creature that can fight, after the first win of a trainer whose `rematch` is `once`, and always
+while `ARENA_BATTLES` is off, since the server then loads the story without its trainers. Should the
+fight still not start (the trainer's character asked after a team fainted, say), the talk ends.
+
+When the fight is settled the server sends `arena.result` (with the trainer's experience share in
+`rewards`), then the fight's quest events as for any fight, then the trainer's: a win counts for
+`beatTrainer` steps and, the first time, gives the trainer's item and sets their flag (core
+`endTrainerFight`), with any `quest.changed`, `progress` and `story`. Then, for a player still in
+the world with no `move.offer` waiting, the talk opens again at the fight node's `won` node (a
+loss or draw: `lost`) with a new `conversation`, `talking` and `talk.node`. The client keeps that
+`talk.node` until the fight's result is put away, then shows it.
 
 ### The starter
 

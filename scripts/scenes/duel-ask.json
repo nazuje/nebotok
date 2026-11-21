@@ -1,0 +1,39 @@
+{
+  "name": "duel-ask",
+  "about": "Two pairs of couriers ask each other for friendly duels (needs `ARENA_BATTLES=on npm run dev`): each asked player sees the answer card once, on a phone and a tablet in both languages. The first ask is declined, an ask straight after is refused, and after the 30 s wait the other one asks and it is accepted.",
+  "players": [
+    { "id": "lan", "name": "Scena Lan", "avatar": "green", "browser": "chromium", "device": "iphone-portrait", "language": "en", "prepared": { "at": { "x": 14, "y": 16 }, "team": [{ "species": "glowbun", "level": 8 }, { "species": "puddlepip", "level": 7 }, { "species": "pinwhirl", "level": 6 }] } },
+    { "id": "zarja", "name": "Scena Zarja", "avatar": "purple", "browser": "webkit", "device": "ipad-landscape", "language": "sl", "prepared": { "at": { "x": 16, "y": 16 }, "team": [{ "species": "dawnshell", "level": 12 }, { "species": "snowsnoot", "level": 10 }, { "species": "boltkit", "level": 9 }] } },
+    { "id": "mira", "name": "Scena Mira", "avatar": "orange", "browser": "webkit", "device": "ipad-landscape", "language": "en", "prepared": { "at": { "x": 22, "y": 16 }, "team": [{ "species": "bloomlet", "level": 5 }, { "species": "gustowl", "level": 5 }, { "species": "rimemoth", "level": 5 }] } },
+    { "id": "tine", "name": "Scena Tine", "avatar": "red", "browser": "chromium", "device": "iphone-portrait", "language": "sl", "prepared": { "at": { "x": 24, "y": 16 }, "team": [{ "species": "sparkhog", "level": 9 }, { "species": "pourpoise", "level": 8 }, { "species": "breezeray", "level": 7 }] } }
+  ],
+  "steps": [
+    { "do": "join", "player": "lan" },
+    { "do": "join", "player": "zarja" },
+    { "do": "join", "player": "mira" },
+    { "do": "join", "player": "tine" },
+    { "do": "waitFor", "player": "lan", "until": { "seesAt": { "zarja": { "x": 16, "y": 16 } } } },
+    { "do": "waitFor", "player": "tine", "until": { "seesAt": { "mira": { "x": 22, "y": 16 } } } },
+    { "do": "ask", "player": "lan", "to": "zarja", "even": true },
+    { "do": "waitFor", "player": "zarja", "until": { "duel": "asked" }, "shot": "asked-tablet-sl" },
+    { "do": "answer", "player": "zarja", "yes": false },
+    { "do": "waitFor", "player": "lan", "until": { "duel": "none", "toast": "duel.no" }, "shot": "declined" },
+    { "do": "ask", "player": "lan", "to": "zarja", "even": false },
+    { "do": "waitFor", "player": "lan", "until": { "duel": "none", "toast": "refused.notNow" }, "shot": "too-soon" },
+    { "do": "ask", "player": "tine", "to": "mira", "even": false },
+    { "do": "waitFor", "player": "mira", "until": { "duel": "asked" }, "shot": "asked-tablet-en" },
+    { "do": "answer", "player": "mira", "yes": false },
+    { "do": "waitFor", "player": "tine", "until": { "duel": "none" } },
+    { "do": "wait", "ms": 30000 },
+    { "do": "ask", "player": "zarja", "to": "lan", "even": true },
+    { "do": "waitFor", "player": "lan", "until": { "duel": "asked" }, "shot": "asked-phone-en" },
+    { "do": "answer", "player": "lan", "yes": true },
+    { "do": "waitFor", "player": "lan", "until": { "arena": "rounds" } },
+    { "do": "waitFor", "player": "zarja", "until": { "arena": "rounds" }, "shot": "duel-started" },
+    { "do": "ask", "player": "mira", "to": "tine", "even": true },
+    { "do": "waitFor", "player": "tine", "until": { "duel": "asked" }, "shot": "asked-phone-sl" },
+    { "do": "answer", "player": "tine", "yes": true },
+    { "do": "waitFor", "player": "tine", "until": { "arena": "rounds" } },
+    { "do": "waitFor", "player": "mira", "until": { "arena": "rounds" }, "shot": "second-duel" }
+  ]
+}

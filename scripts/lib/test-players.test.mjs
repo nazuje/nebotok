@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ProfileName } from '../../packages/core/src/profile.ts';
-import { battlerName, boardName, botName, deviceName, isTestPlayer, learnerName, lockedName, pinlessName, runTag, storyName, voiceName } from './test-players.mjs';
+import { arenaName, battlerName, boardName, botName, deviceName, isTestPlayer, learnerName, loadoutName, lockedName, pinlessName, runTag, storyName, trainerName, voiceName } from './test-players.mjs';
 
 const BROWSER_NAMES = ['chromium', 'webkit'];
 const DEVICE_NAMES = ['iphone-portrait', 'ipad-landscape'];
@@ -11,9 +11,12 @@ const namesFor = (tag) => [
   ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => battlerName(browser, device, language, tag)))),
   ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => storyName(browser, device, language, tag)))),
   ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => boardName(browser, device, language, tag)))),
+  ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => loadoutName(browser, device, language, tag)))),
+  ...BROWSER_NAMES.flatMap((browser) => DEVICE_NAMES.flatMap((device) => ['en', 'sl'].map((language) => trainerName(browser, device, language, tag)))),
   ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => pinlessName(browser, language, tag))),
   ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => learnerName(browser, language, tag))),
   ...BROWSER_NAMES.flatMap((browser) => ['en', 'sl'].map((language) => voiceName(browser, language, tag))),
+  ...BROWSER_NAMES.flatMap((browser) => [...DEVICE_NAMES, '360px'].flatMap((where) => ['en', 'sl'].map((language) => arenaName(browser, where, language, tag)))),
 ];
 
 describe('test players', () => {

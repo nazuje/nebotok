@@ -18,7 +18,7 @@ import {
 } from './content.ts';
 import { playabilityProblems, readTiledMap } from './map.ts';
 import { JobsFile, RecipesFile, SkillsFile, SpotsFile, StationsFile } from './skill-content.ts';
-import { DIALOGUE_FILE, InventoryFile, NpcsFile, QuestsFile, StoryFile, dialogueFile } from './story-content.ts';
+import { DIALOGUE_FILE, InventoryFile, NpcsFile, QuestsFile, StoryFile, TrainersFile, dialogueFile } from './story-content.ts';
 
 /** Each file in `content/` and the schema it must match. A file not listed here is an error. */
 export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
@@ -33,6 +33,7 @@ export const CONTENT_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   'npcs.json': NpcsFile,
   'quests.json': QuestsFile,
   'story.json': StoryFile,
+  'trainers.json': TrainersFile,
   'skills.json': SkillsFile,
   'spots.json': SpotsFile,
   'recipes.json': RecipesFile,

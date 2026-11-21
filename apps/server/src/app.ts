@@ -1,17 +1,27 @@
 import { defineRoom, defineServer } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
+import { arenaRoom } from './arena-room.ts';
 import type { Config } from './config.ts';
+import { ARENA_ROOM, createFightBook, type FightBook } from './fights.ts';
 import { mountHttp } from './http.ts';
 import { colyseusLogger, type Log } from './log.ts';
 import { closeMatchmakeCors, matchmakeRoutes } from './matchmake.ts';
 import type { Services } from './services.ts';
 import { worldRoom } from './world-room.ts';
 
-export function createGameServer(config: Config, log: Log, services: Services) {
+/**
+ * For tests and scripts: the fight book to share, whether arena rooms keep their inputs for a
+ * replay, and the arena's fake lag for each fight as it is joined (else `ARENA_FAKE_LAG_MS`).
+ */
+export type GameServerOptions = { readonly fights?: FightBook; readonly recordFights?: boolean; readonly fakeLagMs?: () => number };
+
+export function createGameServer(config: Config, log: Log, services: Services, { fights = createFightBook(), recordFights = false, fakeLagMs = () => config.arenaFakeLagMs }: GameServerOptions = {}) {
   closeMatchmakeCors();
+  const { world, profiles, progress, now } = services;
   return defineServer({
     rooms: {
-      world: defineRoom(worldRoom({ log, world: services.world, profiles: services.profiles, progress: services.progress, now: services.now })),
+      world: defineRoom(worldRoom({ log, world, profiles, progress, now, fights, arenaBattles: config.arenaBattles })),
+      [ARENA_ROOM]: defineRoom(arenaRoom({ log, world, profiles, fights, now, record: recordFights, fakeLagMs })),
     },
     routes: matchmakeRoutes(),
     transport: new WebSocketTransport(),

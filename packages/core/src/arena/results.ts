@@ -5,9 +5,9 @@ import { gainXp, xpForWin } from '../growth.ts';
 import type { CreatureReward } from '../messages.ts';
 import type { CreatureInstance, SaveData } from '../save.ts';
 import { div, percentOf } from './fixed.ts';
-import type { ArenaFight, FightCreature, RoundsFight, WildFight, WildFightSetup, WildResult } from './fight-state.ts';
+import type { ArenaFight, FightCreature, RoundPick, RoundsFight, WildFight, WildFightSetup, WildResult } from './fight-state.ts';
 import type { ArenaContent } from './rules.ts';
-import { otherSide, type ArenaLoadout, type Side } from './state.ts';
+import { otherSide, type ArenaFighter, type ArenaLoadout, type Side } from './state.ts';
 
 /**
  * What a fight gives back to the team: health, experience, a new friend and the treats left. The
@@ -32,19 +32,35 @@ export type WildSetupOptions = {
   readonly turtle: boolean;
   readonly inventory: Inventory;
   readonly content: Pick<BattleContent, 'items'>;
+  /** The encounter zone's weather, or null for clear skies. */
+  readonly weather?: string | null;
 };
+
+/** A team creature as a fighter on the island: `a<place + 1>`, with its loadout and the player's turtle setting. */
+const teamFighter = (creature: CreatureInstance, place: number, turtle: boolean): ArenaFighter => ({
+  id: `a${place + 1}`,
+  species: creature.species,
+  level: creature.level,
+  loadout: [...creature.loadout] as ArenaLoadout,
+  turtle,
+  computer: false,
+});
 
 /**
  * The wild fight an encounter starts: every team creature that can fight, in team order, each
- * with its loadout and the player's turtle setting; the wild creature as the computer's; and the
- * treats in the bag.
+ * with its loadout and the player's turtle setting; the wild creature as the computer's; the
+ * treats in the bag; and the zone's weather.
  */
-export function arenaWildSetup({ seed, team, wild, wildLoadout, turtle, inventory, content }: WildSetupOptions): WildFightSetup {
-  const standing = team.flatMap((creature, place) =>
-    creature.hp > 0 ? [{ place, hp: creature.hp, fighter: { id: `a${place + 1}`, species: creature.species, level: creature.level, loadout: [...creature.loadout] as ArenaLoadout, turtle, computer: false } }] : [],
-  );
+export function arenaWildSetup({ seed, team, wild, wildLoadout, turtle, inventory, content, weather = null }: WildSetupOptions): WildFightSetup {
+  const standing = team.flatMap((creature, place) => (creature.hp > 0 ? [{ place, hp: creature.hp, fighter: teamFighter(creature, place, turtle) }] : []));
   const treats = inventory.filter(({ item, count }) => count > 0 && content.items.get(item)?.kind === 'treat').map(({ item, count }) => ({ item, count }));
-  return { mode: 'wild', seed, team: standing, wild: { id: 'b1', species: wild.species, level: wild.level, loadout: wildLoadout, turtle: false, computer: true }, treats };
+  const fighter = { id: 'b1', species: wild.species, level: wild.level, loadout: wildLoadout, turtle: false, computer: true };
+  return { mode: 'wild', seed, team: standing, wild: fighter, treats, ...(weather === null ? {} : { weather }) };
+}
+
+/** The creatures a player can pick for a best of 3: every team creature that can fight, in team order, as fighters. */
+export function roundsTeam(team: readonly CreatureInstance[], turtle: boolean): RoundPick[] {
+  return team.flatMap((creature, place) => (creature.hp > 0 ? [{ place, fighter: teamFighter(creature, place, turtle) }] : []));
 }
 
 /** Real health from arena health, rounded up, so a creature with any health left keeps at least 1. */
@@ -108,13 +124,26 @@ export function arenaRewards(team: readonly CreatureInstance[], fight: WildFight
  * `DUEL_XP_PERCENT` of `xpForWin` of the level of the creature it faced. Nothing is lost.
  */
 export function duelRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, content: BattleContent): Rewarded {
+  return roundsRewards(team, fight, side, DUEL_XP_PERCENT, content);
+}
+
+/**
+ * Experience after a trainer's best of 3, win or lose: each of `side`'s creatures that fought gets
+ * the trainer's `xpPercent` of `xpForWin` of the level of the creature it faced.
+ */
+export function trainerRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, xpPercent: number, content: BattleContent): Rewarded {
+  return roundsRewards(team, fight, side, xpPercent, content);
+}
+
+/** `percent` of `xpForWin` of the level of the creature each of `side`'s creatures that fought faced. */
+function roundsRewards(team: readonly CreatureInstance[], fight: RoundsFight, side: Side, percent: number, content: BattleContent): Rewarded {
   const mine = fight.picks[side];
   const theirs = fight.picks[otherSide(side)];
   const xpByPlace = new Map<number, number>();
   mine.forEach((creature, round) => {
     const faced = theirs[round];
     if (!creature.fought || creature.place === null || !faced) return;
-    xpByPlace.set(creature.place, percentOf(xpForWin(faced.fighter.level), DUEL_XP_PERCENT));
+    xpByPlace.set(creature.place, percentOf(xpForWin(faced.fighter.level), percent));
   });
   return rewarded(team, (place) => xpByPlace.get(place) ?? 0, content);
 }

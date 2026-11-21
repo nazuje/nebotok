@@ -13,6 +13,9 @@ const factsOf = (player: Player): PlayerFacts => ({
   moving: player.moving,
   connected: player.connected,
   inBattle: player.inBattle,
+  duelling: player.duelling,
+  watching: player.watching,
+  trophy: player.trophy,
   talking: player.talking,
   skill: player.skill,
 });

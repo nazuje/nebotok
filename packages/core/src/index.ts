@@ -5,6 +5,7 @@ export {
   WELCOME_MESSAGE_KEYS,
   CLIENT_MESSAGES,
   SERVER_MESSAGES,
+  ARENA_MESSAGES,
   CLOSE_CODES,
   WalkToMessage,
   WalkHoldMessage,
@@ -213,6 +214,10 @@ export {
   ArenaDashRules,
   ArenaStormRules,
   ArenaRules,
+  ARENA_MINDS,
+  ArenaMindName,
+  ArenaMindSkill,
+  ArenaMindRules,
   arenaReach,
 } from './content.ts';
 export { arenaLinkProblems } from './arena-links.ts';
@@ -358,6 +363,11 @@ export {
   StoryFlag,
   StoryFile,
   InventoryFile,
+  TRAINER_CREATURES,
+  TRAINER_REMATCHES,
+  Trainer,
+  TrainerCreature,
+  TrainersFile,
   nodeTargets,
   reachableNodes,
   CHOICE_PICTURES,
@@ -409,6 +419,9 @@ export {
   conversationView,
   openConversation,
   advanceConversation,
+  trainerFightAt,
+  endTrainerFight,
+  type TrainerFightAt,
   type Conversation,
   type TalkCue,
   type TalkView,
@@ -435,6 +448,7 @@ export {
   type StoryRecord,
   type StoryWorldRules,
 } from './story-bot.ts';
+export { beatenBefore, canFightTrainer, trainerMind, trainerPicks, trainerWon, type TrainerWin } from './trainers.ts';
 export { StoryGoldenFile, storyReplay, storyReplayHash, type StoryReplay } from './story-golden.ts';
 export {
   GAMES,
@@ -544,6 +558,7 @@ export {
 } from './arena/fixed.ts';
 export {
   arenaContentOf,
+  arenaDamageContent,
   loadArenaContent,
   fightContentOf,
   loadFightContent,
@@ -591,6 +606,7 @@ export { knockFor, healthPermille, SLOW_HOLD_TICKS } from './arena/hits.ts';
 export { abilityOf, aimOf, fanOf, inCone, isBusy, type Ability, type AbilityOf } from './arena/abilities.ts';
 export type { Aim } from './arena/working.ts';
 export { ArenaInputRun, ArenaGoldenFile, arenaReplay, arenaReplayHash, type ArenaReplay } from './arena/golden.ts';
+export { createBrain, directionOf, mindFight, wildInput, wildLoadout, wildMindFor, type Brain, type MindStep } from './arena/mind.ts';
 export {
   TreatStack,
   WildTeamEntry,
@@ -615,7 +631,8 @@ export {
 } from './arena/fight-state.ts';
 export { fightStart, fightStep } from './arena/fight.ts';
 export { ENTRY_GRACE_TICKS } from './arena/wild-fight.ts';
-export { ROUNDS, ROUND_WINS } from './arena/rounds.ts';
+export { ROUNDS, ROUND_WINS, roundsGiveUp } from './arena/rounds.ts';
+export { defaultPickOrder, isPickOrder, pickCount, togglePick } from './arena/picks.ts';
 export {
   TREAT_WINDOW_CAP_PERCENT,
   TREAT_HEAL_PERCENT,
@@ -628,11 +645,57 @@ export {
 export {
   DUEL_XP_PERCENT,
   arenaWildSetup,
+  roundsTeam,
   teamAfterFight,
   befriendedFromFight,
   arenaRewards,
   duelRewards,
+  trainerRewards,
   inventoryAfterFight,
   type WildSetupOptions,
 } from './arena/results.ts';
+export {
+  DUEL_TEAM,
+  DUEL_REACH,
+  DUEL_ANSWER_MS,
+  DUEL_PAUSE_MS,
+  DUEL_WATCHERS,
+  DUEL_GIVE_UP_MS,
+  DUEL_TROPHY_MS,
+  duelLineup,
+  canDuel,
+  inDuelReach,
+  evenLevel,
+  duelTeams,
+  duelSetup,
+  type DuelSetupOptions,
+} from './arena/duels.ts';
+export {
+  DuelAskMessage,
+  DuelAnswerMessage,
+  DuelCancelMessage,
+  DuelWatchMessage,
+  type DuelCreature,
+  type DuelAskedMessage,
+  type DuelAnsweredMessage,
+} from './duel-messages.ts';
 export { FightGoldenFile, fightReplay, fightReplayHash, type FightReplay } from './arena/fight-golden.ts';
+export {
+  ARENA_INPUT_FIELDS,
+  ARENA_NONE,
+  ARENA_CLIENT_MESSAGES,
+  ARENA_PICK_MS,
+  ARENA_BETWEEN_MS,
+  ROUND_DRAW,
+  ArenaPickMessage,
+  cleanArenaInput,
+  arenaInputOf,
+  type ArenaWireInput,
+  type ArenaSeatReservation,
+  type ArenaJoinMessage,
+  type ArenaLineupCreature,
+  type ArenaStartedMessage,
+  type ArenaEventsMessage,
+  type ArenaBefriended,
+  type ArenaResultMessage,
+} from './arena-messages.ts';

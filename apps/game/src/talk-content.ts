@@ -8,6 +8,7 @@ import skills from '../../../content/skills.json';
 import spots from '../../../content/spots.json';
 import stations from '../../../content/stations.json';
 import story from '../../../content/story.json';
+import trainers from '../../../content/trainers.json';
 import { CONTENT } from './battle-content.ts';
 
 const CONTENT_DIR = '../../../content/';
@@ -20,4 +21,4 @@ const dialogue = Object.fromEntries(
 );
 
 /** The characters, their dialogue and the quests, by id, for showing what `talk.node` and `story` name. */
-export const STORY: StoryContent = loadStoryContent({ npcs, dialogue, quests, story, inventory, skills: { skills, spots, recipes, stations, jobs } }, CONTENT);
+export const STORY: StoryContent = loadStoryContent({ npcs, dialogue, quests, story, inventory, trainers, skills: { skills, spots, recipes, stations, jobs } }, CONTENT);

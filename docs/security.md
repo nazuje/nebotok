@@ -150,11 +150,12 @@ else, guesses a PIN, or a web page elsewhere tricks a browser into using the gam
 | Each client address may make 120 API calls, 10 logins, 5 new profiles and 5 tries at adding a PIN a minute. Behind Tailscale Serve the address is the device's own tailnet address, which Serve puts in `X-Forwarded-For` (replacing any the device sent). The server believes that header, and `X-Forwarded-Host`, only from the one peer named in `TRUST_PROXY`, never from anyone (`true`, `*` and `/0` are refused): loopback in sidecar mode, where Serve shares the game's network namespace, and in host mode the gateway of the stack's Docker network, `10.231.67.1` unless `NEBOTOK_NETWORK` moves it, which is where Docker's port forwarding from the Mac's `127.0.0.1:8567` arrives. From any other peer the header is ignored and the peer's own address counts. | `apps/server/src/config.ts`, `api.ts`, `rate-limit.ts`, `http.ts`, compose files |
 | Session tokens are 32 random bytes; the database keeps only their SHA-256. A login replaces the profile's previous session; sessions end after 180 days, at logout, or when a PIN is reset. A signed-in player may add a PIN only while the profile has none, and that ends every other session of the profile, closing a seat held with one at once. | `apps/server/src/profiles.ts` |
 | The world room refuses a join without a valid session, before any seat is reserved. One profile has one character; a second join takes it over and closes the first. The server has one world room, with room for twice `MAX_PROFILES`, and seats are held across rooms, so a profile can never sit twice. A reconnection and the 30-second save round look the session up again, so a PIN reset or deletion with `scripts/admin.sh`, a separate process, ends the seat too. | `apps/server/src/world-room.ts` |
+| Arena rooms (one per fight) are private and refuse every matchmaking join. A player gets in only with a seat reservation the world room sends to that player alone, whose one-time ticket stays on the server and is spent by the first try, which must come with the session of the profile it was made for. The room's state goes only to its own players and, in a duel, to up to 6 watchers, who get in the same way with a watcher's ticket. A watcher's input is thrown away unread, and their seat ends when they walk, leave the world or their world seat is closed (a sign-out, a PIN reset, a take-over). Inputs are a fixed schema whose out-of-range values become none; 45 messages a second disconnects, and presses beyond 10 a second are dropped. An error in a step ends only that fight, as a run. | `apps/server/src/arena-room.ts`, `fights.ts`, `packages/core/src/arena-messages.ts` |
 | One player cannot stop the game for everyone. An error in the room is caught (`onUncaughtException`, and per seat in each tick and check), logged with ids and the error's name and message, and ends only that seat or battle. Every save is checked against content as it loads (`sanitizeProgress`), so a save naming a removed creature, move or item cannot trip a rule. | `apps/server/src/world-room.ts`, `renamed.ts`, `packages/core/src/save-repair.ts` |
 | API calls that change anything must name this same host in `Origin` and send JSON. Neither the API nor Colyseus's join endpoint (`/matchmake`) sends CORS headers, so other pages cannot read their answers or send them JSON with a token. | `apps/server/src/api.ts`, `matchmake.ts` |
 | API and join request bodies are at most 1 KB and checked by strict zod schemas; errors never include stack traces. Room messages are checked the same way and rate-limited: 30 a second disconnects, and `walk.to` beyond 5 a second is dropped. | `api.ts`, `world-room.ts`, `packages/core/src/profile.ts`, `protocol.ts` |
 | Logs carry profile ids and counts, never names, PINs or tokens. | `apps/server/src/log.ts` callers |
-| The room state other players receive holds only a name, an avatar and a position. | `apps/server/src/world-state.ts` |
+| The room state other players receive holds only a name, an avatar, a position and marks for what the player is doing (a battle, a talk, a skill, a duel, watching one, a duel's trophy). A duel's stands show watchers' avatars, never names. A duel ask (`duel.asked`) also sends the player asked the asker's first three standing creatures, species and level only. | `apps/server/src/world-state.ts`, `world-room.ts` |
 
 Profiles are for telling children apart, not a security boundary against the family: a four-digit
 PIN is easy to guess for someone who watches, and a profile without one is open to anyone on the
@@ -296,22 +297,25 @@ What these measures do not stop, in rough order of importance:
 
 ## Known advisories
 
-`npm audit` reports nothing in production dependencies. It reports 10 advisories (2 low, 8 moderate)
-in development dependencies, all pulled in by `vite-plugin-pwa` through `workbox-build`, which
+`npm audit` reports nothing in production dependencies. It reports 3 moderate advisories in
+development dependencies, all pulled in by `vite-plugin-pwa` through `workbox-build`, which
 generates the service worker at build time:
 
 | Package (version) | Advisory | Why it stays for now |
 | --- | --- | --- |
 | `glob` 11.1.0 | GHSA-3g3m-2fjr-6pw4, moderate: AbortSignal cancellation bypass | Fixed only in 14.0.2+. `workbox-build` 7.4.1 (latest) asks for `^11`. |
-| `minimatch` 10.2.6, 5.1.9 | GHSA-g3hv-75wg-m249, moderate: slow matching on crafted patterns | Fixed only in 11.0.1+; `glob` 11 and `filelist` 1 ask for older majors. |
-| `deepmerge` 4.3.1 | GHSA-gcqx-w48m-w2h4, low: prototype poisoning | No fixed version exists. |
-| `ejs` 3.1.10, `jake` 10.9.4, `filelist` 1.0.6 | moderate, through `minimatch` | Fixed releases are new majors that `@trickfilm400/rollup-plugin-off-main-thread` 3.0.0-pre1 does not accept. |
-| `@rollup/plugin-node-resolve` 16.0.3, `@trickfilm400/rollup-plugin-off-main-thread` 3.0.0-pre1, `workbox-build` 7.4.1, `vite-plugin-pwa` 2.0.0 | low/moderate, only because they depend on the above | Already the latest releases. |
+| `workbox-build` 7.4.1, `vite-plugin-pwa` 2.0.0 | moderate, only because they depend on `glob` | Already the latest releases. |
 
 npm's only offered fix (`npm audit fix --force`) downgrades to `workbox-build` 7.3.0 and
-`vite-plugin-pwa` 1.1.0, a breaking change that brings back older code. Forcing newer majors with
-`overrides` would run these libraries against versions they were not written for. Neither is worth
+`vite-plugin-pwa` 1.1.0, a breaking change that brings back older code. Forcing `glob` 14 with
+`overrides` would run `workbox-build` against a major it was not written for. Neither is worth
 it: these tools only run during `npm run build`, on our own files, and none of them is in the image.
+
+One override is in place: `package.json` `overrides` gives `glob` 11 `minimatch` 11.0.8 instead
+of 10.2.6, which fixes GHSA-g3hv-75wg-m249 (slow matching on crafted patterns, fixed in 11.0.1).
+`glob` 11.1.0 asks for `minimatch` `^10` and no newer `glob` 11 exists, but it uses only
+`Minimatch`, `GLOBSTAR`, `escape` and `unescape`, which 11 keeps, and the build proves it. Drop
+the override when `workbox-build` moves to a `glob` that asks for `minimatch` 11 itself.
 Recheck when `workbox-build` or `vite-plugin-pwa` releases a new version; Dependabot will propose it.
 
 ## Checklist: adding a dependency

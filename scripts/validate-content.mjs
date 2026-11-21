@@ -111,7 +111,7 @@ const BATTLE_FILES = {
   arena: 'creatures/arena.json',
 };
 const WORLD_FILES = ['encounters.json', 'shrines.json', 'starters.json', 'creatures/renamed.json'];
-const STORY_FILES = ['npcs.json', 'quests.json', 'story.json', 'inventory.json'];
+const STORY_FILES = ['npcs.json', 'quests.json', 'story.json', 'inventory.json', 'trainers.json'];
 const SKILL_FILES = { skills: 'skills.json', spots: 'spots.json', recipes: 'recipes.json', stations: 'stations.json', jobs: 'jobs.json' };
 const missing = [...Object.values(BATTLE_FILES), ...WORLD_FILES].filter((file) => !all.includes(file));
 if (missing.length) fail('creatures/', missing.map((file) => `content/${file} is missing; the game needs it`));
@@ -141,7 +141,7 @@ else if ([...Object.values(BATTLE_FILES), ...WORLD_FILES].every((file) => parsed
   }
 }
 
-// The story: npcs.json, dialogue/, quests.json, story.json, inventory.json and the skill files,
+// The story: npcs.json, dialogue/, quests.json, story.json, inventory.json, trainers.json and the skill files,
 // linked to each other, to the battle content and to the maps.
 function checkStory(battle, maps, encounters, shrines) {
   const needed = [...STORY_FILES, ...Object.values(SKILL_FILES)];
@@ -154,6 +154,7 @@ function checkStory(battle, maps, encounters, shrines) {
     quests: parsed.get('quests.json'),
     story: parsed.get('story.json'),
     inventory: parsed.get('inventory.json'),
+    trainers: parsed.get('trainers.json'),
     dialogue: Object.fromEntries(dialogueFiles.map((file) => [DIALOGUE_FILE.exec(file)[1], parsed.get(file)])),
     skills: Object.fromEntries(Object.entries(SKILL_FILES).map(([key, file]) => [key, parsed.get(file)])),
   };
@@ -162,7 +163,7 @@ function checkStory(battle, maps, encounters, shrines) {
   const storyWorld = { maps, zones: encounters.zones.map((zone) => zone.id), shrines: shrines.shrines.map((shrine) => shrine.id) };
   const mapProblems = storyMapProblems(loadStoryContent(storyFiles, battle), storyWorld);
   if (mapProblems.length) fail('story', mapProblems);
-  checkVoice(storyFiles);
+  checkVoice({ ...storyFiles, moves: parsed.get(BATTLE_FILES.moves), strings: parsed.get('strings.json') });
 }
 
 function checkVoice(storyFiles) {

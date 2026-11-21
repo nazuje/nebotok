@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildManifest } from './lib.mjs';
 import { checkClips, clipProblems, plannedClips } from './clips.mjs';
-import { voiceLines } from './lines.mjs';
+import { SPOKEN_STRINGS, voiceLines } from './lines.mjs';
 
 const say = (en, sl) => ({ en, sl });
 const STORY = {
@@ -37,6 +37,23 @@ describe('voiceLines', () => {
       { language: 'en', voice: { pitch: 4, pace: 1 }, text: 'Bye, {name}.', from: 'dialogue/oli.json bye' },
       { language: 'sl', voice: { pitch: 4, pace: 1 }, text: 'Adijo, {name}.', from: 'dialogue/oli.json bye' },
     ]);
+  });
+
+  it('voices each move name as the narrator, for the loadout picker', () => {
+    const moves = { moves: [{ id: 'sun-tap', name: say('Sun Tap', 'Sončni dotik') }] };
+    expect(voiceLines({ ...STORY, moves }).lines.filter(({ from }) => from.startsWith('creatures/'))).toEqual([
+      { language: 'en', voice: null, text: 'Sun Tap', from: 'creatures/moves.json sun-tap name' },
+      { language: 'sl', voice: null, text: 'Sončni dotik', from: 'creatures/moves.json sun-tap name' },
+    ]);
+  });
+
+  it('voices the spoken strings.json lines as the narrator, and refuses a missing one', () => {
+    const strings = Object.fromEntries(SPOKEN_STRINGS.map((id) => [id, say(`${id} en`, `${id} sl`)]));
+    const spoken = voiceLines({ ...STORY, strings }).lines.filter(({ from }) => from.startsWith('strings.json'));
+    expect(spoken).toContainEqual({ language: 'sl', voice: null, text: 'duel.asked sl', from: 'strings.json duel.asked' });
+    expect(spoken).toHaveLength(SPOKEN_STRINGS.length * 2);
+    const { 'duel.asked': _gone, ...without } = strings;
+    expect(() => voiceLines({ ...STORY, strings: without })).toThrow(/duel\.asked/);
   });
 
   it('voices each form of a Slovenian line written for boys and girls apart', () => {

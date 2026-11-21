@@ -2,13 +2,14 @@ import { battleCreature, damageOf } from '../battle/damage.ts';
 import type { BattleCreature, Effectiveness } from '../battle/state.ts';
 import type { ArenaIslandRules } from '../content.ts';
 import { ONE, div, lengthOf, percentOf, speedPerTick, toSubunits, unitOf } from './fixed.ts';
-import type { ArenaContent } from './rules.ts';
+import { arenaDamageContent, type ArenaContent } from './rules.ts';
 import { inGrace, otherSide, type Body, type Side } from './state.ts';
 import { rollOf, type Working } from './working.ts';
 
 /**
  * Hits, knocks, status effects and heals: what abilities do to bodies. A hit's damage is core
- * `damageOf`, the same maths as turn battles with the island's weather, times the shape's share.
+ * `damageOf`, the same maths as turn battles with the island's weather and the arena's own type
+ * chart (`arenaDamageContent`), times the shape's share.
  */
 
 /** A slowed body stays slowed this long after it leaves a puddle or a slowing zone. */
@@ -103,7 +104,7 @@ export function strike(work: Working, hit: Hit): boolean {
   if (!move) throw new RangeError(`arena: no move "${hit.move}"`);
   const field = work.weather ? { type: work.weather.type, turnsLeft: null } : null;
   const roll = move.power > 0 ? rollOf(work) : 100;
-  const full = damageOf(content, creatureOf(work.bodies[hit.by], content), creatureOf(target, content), move, field, roll);
+  const full = damageOf(arenaDamageContent(content), creatureOf(work.bodies[hit.by], content), creatureOf(target, content), move, field, roll);
   const damage = move.power > 0 ? Math.max(1, percentOf(full.damage, hit.sharePercent)) : 0;
   if (target.status.shieldTicks > 0) {
     block(work, side, damage);

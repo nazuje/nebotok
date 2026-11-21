@@ -47,6 +47,8 @@ export type InputDeps = {
   standsOn(tile: Point): boolean;
   /** Uses `target` (talks, gathers, opens), or what your courier faces when null. */
   use(target: Target | null): void;
+  /** A tap on `tile` the page answers itself instead of walking, as another courier to ask for a duel; true when it did. */
+  tapped(tile: Point): boolean;
 };
 
 export type Input = {
@@ -94,6 +96,11 @@ export function createInput(deps: InputDeps): Input {
   function walkToward(x: number, y: number, first: boolean) {
     const tile = deps.screenToTile(x, y);
     if (!tile || (tapTarget && samePoint(tile, tapTarget))) return;
+    if (first && deps.tapped(tile)) {
+      tapTarget = tile;
+      approach = null;
+      return;
+    }
     const target = deps.targetAt(tile);
     if (target !== null) {
       // A finger held on a character or spot does not keep asking; one dragged off it walks on.

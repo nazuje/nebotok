@@ -49,6 +49,10 @@
     {
       "id": "chapter-1-done",
       "about": "Bavko found the grey letter is addressed to the new courier. Closes the Quiet Clouds chapter."
+    },
+    {
+      "id": "vetrinka-test-won",
+      "about": "The player first won Vetrinka's friendly best of 3 test (trainers.json), which gave its item."
     }
   ]
 }

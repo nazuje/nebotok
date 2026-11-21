@@ -96,6 +96,18 @@
         {
           "flag": "chapter-1-done",
           "set": true
+        },
+        {
+          "canFight": "vetrinka"
+        }
+      ],
+      "node": "test-ask"
+    },
+    {
+      "if": [
+        {
+          "flag": "chapter-1-done",
+          "set": true
         }
       ],
       "node": "after"
@@ -261,6 +273,65 @@
         "en": "A job from the board for me? Bring it all at once. The wind won't wait, but I will.",
         "sl": "Delo z deske zame? Prinesi vse skupaj. Veter ne čaka, jaz pa počakam."
       }
+    },
+    "test-ask": {
+      "say": {
+        "en": "I watch the far clouds every day now. Want a break? Let's test your creatures: three of mine against three of yours.",
+        "sl": "Zdaj vsak dan opazujem daljne oblake. Si za premor? Preizkusiva tvoja bitja: tri moja proti trem tvojim."
+      },
+      "mood": "calm",
+      "choices": [
+        {
+          "say": {
+            "en": "Let's test them!",
+            "sl": "Preizkusiva jih!"
+          },
+          "next": "test-go",
+          "if": [
+            {
+              "canFight": "vetrinka"
+            }
+          ]
+        },
+        {
+          "say": {
+            "en": "Not now.",
+            "sl": "Ne zdaj."
+          },
+          "next": "test-later"
+        }
+      ]
+    },
+    "test-go": {
+      "say": {
+        "en": "A friendly test: the first to win two rounds wins. Pick your three well!",
+        "sl": "Prijateljski preizkus: zmaga, kdor prvi dobi dve rundi. Dobro izberi svoje tri!"
+      },
+      "mood": "happy",
+      "fight": "vetrinka",
+      "won": "test-won",
+      "lost": "test-lost"
+    },
+    "test-won": {
+      "say": {
+        "en": "Well fought! Your creatures trust you. Come back for a rematch any time.",
+        "sl": "Odlično! Tvoja bitja ti zaupajo. Vrni se na nov dvoboj, kadar želiš."
+      },
+      "mood": "happy"
+    },
+    "test-lost": {
+      "say": {
+        "en": "Good try! Maybe pick a different three and come back. I'll be here, watching the clouds.",
+        "sl": "Dober poskus! Morda izberi druge tri in se vrni. Jaz bom tu, pri oblakih."
+      },
+      "mood": "calm"
+    },
+    "test-later": {
+      "say": {
+        "en": "Another time, then. The clouds aren't going anywhere.",
+        "sl": "Pa drugič. Oblaki ne gredo nikamor."
+      },
+      "mood": "calm"
     }
   }
 }

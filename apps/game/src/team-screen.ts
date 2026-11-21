@@ -1,10 +1,11 @@
-import { MAX_TEAM, maxHpOf, type CreatureInstance, type Language, type ProgressMessage, type StorageMessage, type StringId } from '@nebotok/core';
+import { MAX_TEAM, maxHpOf, type CreatureInstance, type Language, type ProgressMessage, type StorageMessage, type StringId, type TeamCreature } from '@nebotok/core';
 import { CONTENT } from './battle-content.ts';
 import type { ClientMessage } from './battle-link.ts';
 import { creaturePortrait } from './creature-art.ts';
 import { creatureDetails, creatureSummary, type CardCreature } from './creature-card.ts';
 import { button, el, pictureButton, withPicture } from './dom.ts';
-import { closeButton, pictureIcon, shrineIcon, teamIcon } from './pictures.ts';
+import { buttonTiles } from './loadout-model.ts';
+import { abilityIcon, closeButton, pictureIcon, shrineIcon, teamIcon } from './pictures.ts';
 import { text } from './strings.ts';
 
 /** The team order after swapping places `a` and `b`, as `team.reorder` wants it. */
@@ -23,6 +24,8 @@ export type TeamScreenOptions = {
   send(message: ClientMessage): void;
   /** The player closed the screen. */
   closed(): void;
+  /** Opens the loadout picker on the team creature at `index`, over this screen. */
+  openLoadout(index: number): void;
 };
 
 export type TeamScreen = {
@@ -59,6 +62,12 @@ function rememberSwapped(): void {
   }
 }
 
+/** The button to a creature's loadout picker: its three arena buttons in small, a lock on each still locked. */
+function loadoutButton(creature: TeamCreature, label: string, onTap: () => void): HTMLButtonElement {
+  const icons = buttonTiles(creature, CONTENT).map((tile) => (tile.locked ? pictureIcon('lock', 32) : tile.move === null ? el('span', { className: 'team-loadout-empty' }) : abilityIcon(tile.move, 32)));
+  return withPicture(button('secondary team-loadout', label, onTap), ...icons);
+}
+
 const swapCard = (creature: CreatureInstance, side: 'a' | 'b') => el('span', { className: `swap-card swap-${side}` }, [creaturePortrait(creature.species)]);
 
 /** Two little cards of the first two creatures trading places, over arrows both ways: what tapping two cards does. */
@@ -68,7 +77,8 @@ function swapHint(first: CreatureInstance, second: CreatureInstance): HTMLElemen
 }
 
 /**
- * Your creatures, opened from the world: each one's health, level, weather type and moves. Tap one,
+ * Your creatures, opened from the world: each one's health, level, weather type and moves, and a
+ * button to its fight buttons (the loadout picker, opened over this screen). Tap one,
  * then another, and they swap places; the first that can battle goes out first. At a shrine a second
  * tab lists the creatures waiting there, to take along or to leave in their place. The title and
  * tabs stay at the top and Close at the bottom; only the cards between them scroll. Until the first
@@ -104,12 +114,12 @@ export function createTeamScreen(root: HTMLElement, options: TeamScreenOptions):
   }
 
   /** `alone`: the server never lets the team's only creature stay behind (core `swapStorage`). */
-  function teamCard(creature: CreatureInstance, index: number, atShrine: boolean, alone: boolean): HTMLElement {
+  function teamCard(creature: TeamCreature, index: number, atShrine: boolean, alone: boolean): HTMLElement {
     const language = options.language();
     const pick = button('team-pick', '', () => tap(index));
     pick.setAttribute('aria-pressed', String(selected === index));
     pick.append(...creatureSummary(cardOf(creature), language, { labelled: true }));
-    const parts: HTMLElement[] = [pick, creatureDetails(creature, language)];
+    const parts: HTMLElement[] = [pick, creatureDetails(creature, language), loadoutButton(creature, t('loadout.title'), () => options.openLoadout(index))];
     if (atShrine && alone) parts.push(el('p', { className: 'hint team-keep', text: t('storage.keepOne') }));
     else if (atShrine) parts.push(pictureButton('secondary team-store', pictureIcon('arrow', 32), t('storage.store'), () => send({ type: 'storage.swap', payload: { team: index, storage: null } })));
     return el('li', { className: 'team-card' }, parts);
@@ -137,7 +147,7 @@ export function createTeamScreen(root: HTMLElement, options: TeamScreenOptions):
 
   const hintShown = (team: readonly CreatureInstance[]) => !swapped && team.length >= 2;
 
-  function teamPart(team: readonly CreatureInstance[], atShrine: boolean): Node[] {
+  function teamPart(team: readonly TeamCreature[], atShrine: boolean): Node[] {
     const [first, second] = team;
     const hint: Node[] = hintShown(team) && first && second ? [swapHint(first, second)] : [];
     return [...hint, el('p', { className: 'hint centred', text: t('team.hint') }), el('ul', { className: 'team-list' }, team.map((creature, index) => teamCard(creature, index, atShrine, team.length <= 1)))];

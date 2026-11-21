@@ -64,6 +64,7 @@ const STEPS = [
   { level: 3, name: 'bot-run', run: [process.execPath, ['scripts/bot-run.mjs', '--out', proof]], timeoutMs: 60_000 },
   { level: 4, name: 'build', run: ['npm', ['run', 'build']] },
   ...BROWSER_CHECK_PARTS.map((part) => ({ level: 4, name: `browser-check-${part.name}`, run: [process.execPath, ['scripts/browser-check.mjs', '--part', part.name, '--out', proof]], needs: 'build', timeoutMs: 300_000 })),
+  ...['chromium', 'webkit'].map((browser) => ({ level: 4, name: `arena-check-${browser}`, run: [process.execPath, ['scripts/arena-check.mjs', '--browser', browser, '--out', proof]], needs: 'build', timeoutMs: 300_000 })),
   { level: 4, name: 'restart-check', run: [process.execPath, ['scripts/restart-check.mjs', '--out', proof]], needs: 'build', timeoutMs: 180_000 },
   { level: 4, name: 'update-check', run: [process.execPath, ['scripts/update-check.mjs', '--out', proof]], needs: 'build', timeoutMs: 300_000 },
   { level: 4, container: true, name: 'container-check', run: [process.execPath, ['scripts/container-check.mjs', '--out', proof]], timeoutMs: 1_500_000 },

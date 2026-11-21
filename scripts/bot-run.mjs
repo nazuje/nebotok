@@ -16,6 +16,10 @@
 //   9. meanwhile a courier bot, whose save was given a delivery job and its items while the
 //      server was stopped, gets its board on joining, opens the job board when the map places one
 //      (which draws the empty slots), and delivers the job to its character in a talk.
+//  10. meanwhile, on the gatherer's server with ARENA_BATTLES on, an arena bot steps in the tall grass
+//      until a wild creature starts an arena fight, plays it by script (scripts/lib/arena-bot.mjs)
+//      and checks its result and its save. The real server keeps the setting off, so its grass
+//      still starts the turn battles of 6 and 7.
 //   node scripts/bot-run.mjs [--out <dir>]
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -49,6 +53,7 @@ import {
   stepFrom,
   storyBotCommand,
 } from '../packages/core/src/index.ts';
+import { arenaRun } from './lib/arena-bot.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, freePort, startServer } from './lib/server-process.mjs';
 
@@ -434,7 +439,8 @@ async function courierRun(bot, map, tiles, job) {
 
 // The served map places no spots or stations yet, so the gatherer plays on a server started in this
 // process, on the same content, whose map puts every spot on one tile beside the spawn and every
-// station on another. Its messages still go over a real WebSocket.
+// station on another. Its messages still go over a real WebSocket. It has ARENA_BATTLES on, so the
+// arena bot plays there too.
 const SKILLS = WORLD.story.skills;
 const GATHERER = { name: 'Bot Nabiralka', avatar: 'green' };
 /** How long after its last tap the gatherer finishes, so no tap is ahead of the server's clock. */
@@ -445,10 +451,10 @@ const POT = [...SKILLS.stations.values()].find((station) => station.kind === 'co
 /** Every id in `ids` placed on `tile`, as a map's spots or stations layer. */
 const placedOn = (ids, tile) => Object.fromEntries([...ids].map((id) => [id, tile]));
 
-async function startGatherServer(dir) {
+async function startSideServer(dir) {
   const lines = [];
   const log = createLog('info', (line) => lines.push(JSON.parse(line)));
-  const config = readConfig({ NODE_ENV: 'test', DATA_DIR: dir });
+  const config = readConfig({ NODE_ENV: 'test', DATA_DIR: dir, ARENA_BATTLES: 'on' });
   const services = createServices(config, Date.now, log);
   const real = services.world;
   const stand = real.map.spawns[PLAYER_SPAWN];
@@ -492,44 +498,52 @@ async function playAttempt(bot, type, payload) {
 }
 
 /** Fishes, forages what the first recipe needs at every bush, is refused a resting spot, then cooks the recipe. */
-async function gatherRun(dir) {
-  const server = await startGatherServer(dir);
+async function gatherRun(server) {
+  const made = await server.services.profiles.create(GATHERER);
+  if (!made.ok) throw new Error(made.error);
+  const team = [newCreature(STARTERS[0], 5, WORLD.battle)];
+  const position = { map: WORLD.map.id, ...server.stand, facing: 'down' };
+  server.services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name: GATHERER.name, language: 'sl', createdAt: new Date().toISOString(), position, ...emptyProgress(), team }));
+  const session = await server.services.profiles.login({ profileId: made.value.id });
+  if (!session.ok) throw new Error(session.error);
+  const client = new Client(server.base);
+  client.auth.token = session.value.token;
+  const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION });
+  const bot = { profile: GATHERER, room, heard: [], outcomes: [] };
+  room.onMessage('*', (type, message) => bot.heard.push({ type, message }));
+  await heardAfter(bot, 'skills', 0);
+
+  await playAttempt(bot, 'gather.start', { spot: levelOne('dip')[0].id });
+  const bushes = levelOne('sparkle').filter((spot) => RECIPE.ingredients.some((ingredient) => ingredient.item === spot.item));
+  await inTurn(bushes, (bush) => playAttempt(bot, 'gather.start', { spot: bush.id }));
+  const from = bot.heard.length;
+  await request(bot, 'gather.start', { spot: bushes[0].id });
+  const refused = await heardAfter(bot, 'refused', from);
+  expect(refused.reason === 'resting', `${GATHERER.name} was not refused a resting spot: ${JSON.stringify(refused)}`);
+  const cooked = await playAttempt(bot, 'cook.start', { recipe: RECIPE.id, station: POT });
+  expect(JSON.stringify(cooked.used) === JSON.stringify(RECIPE.ingredients), `${GATHERER.name}'s cooking used ${JSON.stringify(cooked.used)}`);
+
+  const skills = bot.heard.findLast((entry) => entry.type === 'skills').message;
+  expect(skills.skills.every((entry) => entry.level > 1 || entry.xp > 0), `${GATHERER.name} gained no XP in some skill: ${JSON.stringify(skills.skills)}`);
+  expect(await poll(() => mine(bot)?.skill === '', { deadline: Date.now() + 2_000 }), `${GATHERER.name} still shows a skill`);
+  await room.leave();
+  const ended = server.lines.filter((line) => line.msg === 'skill attempt ended').length;
+  expect(ended === bot.outcomes.length, `the server logged ${ended} attempts, not ${bot.outcomes.length}`);
+  return { bot: GATHERER.name, outcomes: bot.outcomes, skills: skills.skills.map(({ skill, level, xp }) => `${skill} ${level}/${xp}`) };
+}
+
+/** The gatherer and the arena bot at the same time on one in-process server, which is then stopped and its log kept. */
+async function sideRun(dir) {
+  const server = await startSideServer(dir);
   try {
-    const made = await server.services.profiles.create(GATHERER);
-    if (!made.ok) throw new Error(made.error);
-    const team = [newCreature(STARTERS[0], 5, WORLD.battle)];
-    const position = { map: WORLD.map.id, ...server.stand, facing: 'down' };
-    server.services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name: GATHERER.name, language: 'sl', createdAt: new Date().toISOString(), position, ...emptyProgress(), team }));
-    const session = await server.services.profiles.login({ profileId: made.value.id });
-    if (!session.ok) throw new Error(session.error);
-    const client = new Client(server.base);
-    client.auth.token = session.value.token;
-    const room = await client.joinOrCreate('world', { protocol: PROTOCOL_VERSION });
-    const bot = { profile: GATHERER, room, heard: [], outcomes: [] };
-    room.onMessage('*', (type, message) => bot.heard.push({ type, message }));
-    await heardAfter(bot, 'skills', 0);
-
-    await playAttempt(bot, 'gather.start', { spot: levelOne('dip')[0].id });
-    const bushes = levelOne('sparkle').filter((spot) => RECIPE.ingredients.some((ingredient) => ingredient.item === spot.item));
-    await inTurn(bushes, (bush) => playAttempt(bot, 'gather.start', { spot: bush.id }));
-    const from = bot.heard.length;
-    await request(bot, 'gather.start', { spot: bushes[0].id });
-    const refused = await heardAfter(bot, 'refused', from);
-    expect(refused.reason === 'resting', `${GATHERER.name} was not refused a resting spot: ${JSON.stringify(refused)}`);
-    const cooked = await playAttempt(bot, 'cook.start', { recipe: RECIPE.id, station: POT });
-    expect(JSON.stringify(cooked.used) === JSON.stringify(RECIPE.ingredients), `${GATHERER.name}'s cooking used ${JSON.stringify(cooked.used)}`);
-
-    const skills = bot.heard.findLast((entry) => entry.type === 'skills').message;
-    expect(skills.skills.every((entry) => entry.level > 1 || entry.xp > 0), `${GATHERER.name} gained no XP in some skill: ${JSON.stringify(skills.skills)}`);
-    expect(await poll(() => mine(bot)?.skill === '', { deadline: Date.now() + 2_000 }), `${GATHERER.name} still shows a skill`);
-    await room.leave();
-    const ended = server.lines.filter((line) => line.msg === 'skill attempt ended').length;
-    expect(ended === bot.outcomes.length, `the server logged ${ended} attempts, not ${bot.outcomes.length}`);
-    return { bot: GATHERER.name, outcomes: bot.outcomes, skills: skills.skills.map(({ skill, level, xp }) => `${skill} ${level}/${xp}`) };
+    const [gathered, fought] = await Promise.allSettled([gatherRun(server), arenaRun(server, { starter: STARTERS[0], expect })]);
+    if (gathered.status === 'rejected') failures.push(`gatherer: ${gathered.reason.message}`);
+    if (fought.status === 'rejected') failures.push(`arena bot: ${fought.reason.message}`);
+    return { gatherer: gathered.value ?? null, arena: fought.value ?? null };
   } finally {
     await server.stop();
-    for (const line of server.lines.filter((each) => each.level === 'error')) failures.push(`gatherer server: error log: ${line.msg}`);
-    writeFileSync(join(out, 'logs', 'bot-run-gatherer.log'), `${server.lines.map((line) => JSON.stringify(line)).join('\n')}\n`);
+    for (const line of server.lines.filter((each) => each.level === 'error')) failures.push(`side server: error log: ${line.msg}`);
+    writeFileSync(join(out, 'logs', 'bot-run-side.log'), `${server.lines.map((line) => JSON.stringify(line)).join('\n')}\n`);
   }
 }
 async function dropMidWalk(bot, tiles) {
@@ -553,13 +567,13 @@ const battles = [];
 const stories = [];
 let courier = null;
 let tally = null;
-let gathering = Promise.resolve(null);
-let gatherer = null;
+let sideRunning = Promise.resolve({ gatherer: null, arena: null });
+let side = null;
 
 try {
-  gathering = gatherRun(gatherDir).catch((error) => {
-    failures.push(`gatherer: ${error.message}`);
-    return null;
+  sideRunning = sideRun(gatherDir).catch((error) => {
+    failures.push(`side server: ${error.message}`);
+    return { gatherer: null, arena: null };
   });
   const first = await startServer({ env: { NODE_ENV: 'test', DATA_DIR: dataDir }, logFile: join(out, 'logs', 'bot-run-server.log') });
   servers.push(first);
@@ -639,15 +653,17 @@ try {
   courier = delivered;
   for (const story of stories) step(`${story.bot} played the story through ${STORY_QUEST}: ${story.played.join(', ')}`);
   step(`${courier.bot} ${courier.opened}; delivered ${courier.delivered}, and ${courier.next} took its place`);
-  gatherer = await gathering;
+  side = await sideRunning;
+  const { gatherer, arena } = side;
   if (gatherer) step(`${gatherer.bot} gathered and cooked: ${gatherer.outcomes.join(', ')}; skills ${gatherer.skills.join(', ')}`);
+  if (arena) step(`${arena.bot} met a wild ${arena.wild} in the grass and fought it in an arena room: ${arena.outcome}${arena.ranOut ? ' (left after its time)' : ''}, ${arena.inputs} inputs, mean step ${arena.meanStepMs} ms`);
   const everyone = [...back, courierBot];
   await Promise.all(everyone.map((bot) => bot.room.leave()));
   await until(() => second.lines.filter((line) => line.msg === 'player left').length === everyone.length, 'the restarted server to log every leave');
 } catch (error) {
   failures.push(error.message);
 } finally {
-  gatherer ??= await gathering;
+  side ??= await sideRunning;
   await Promise.all(servers.map(async (server, index) => {
     if (index === servers.length - 1) {
       const stopped = await server.stop();
@@ -667,7 +683,8 @@ const summary = {
   battles,
   stories,
   courier,
-  gatherer,
+  gatherer: side?.gatherer ?? null,
+  arena: side?.arena ?? null,
   sampledPositions: tally?.samples ?? 0,
   blockedPositions: tally?.blocked ?? 0,
   positionsChecked: Object.keys(positions).length,

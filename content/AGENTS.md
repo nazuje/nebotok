@@ -15,8 +15,10 @@ content follows the `add-content` skill.
 
 ## Voice clips
 
-Every dialogue `say` and choice, and every quest `name`, `summary` and step `hint`, has a
-computer-voice clip in each language, named by a hash of its exact text. After changing any of them,
+Every dialogue `say` and choice, every quest `name`, `summary` and step `hint`, every
+move `name` in `creatures/moves.json`, and the few `strings.json` lines the game reads aloud
+(`SPOKEN_STRINGS` in `scripts/voice/lines.mjs`, such as `duel.asked`) has a computer-voice clip
+in each language, named by a hash of its exact text. After changing any of them,
 run `npm run voice` on a Mac (`scripts/voice/README.md`) and commit the clips with the manifest;
 `content:validate` fails until then. A line with a `{placeholder}` gets no clip. A character's
 `voice` in `npcs.json` sets the pitch and pace of their clips, so changing it remakes them.
@@ -86,8 +88,10 @@ Every move also has an `arena` block for real-time arena fights (`docs/arena.md`
 (`quick`, `special` or `ultimate`, the button it sits on) and its `shape` (what it does on the
 island), plus any of its shape's numbers it changes. `creatures/arena.json` holds every other arena
 number, in whole numbers: the island, dash, storm, treats, each kind's cooldowns, the levels the
-buttons unlock at (`buttons`) and each shape's default numbers (`shapes`). `content:validate`
-checks they fit together, and that every species learns a move of each kind by the level its button
+buttons unlock at (`buttons`), each shape's default numbers (`shapes`) and the computer's mind
+skills and ranges (`minds`). `node scripts/arena-sim.mjs` checks the arena's balance targets
+(`docs/arena.md`); tune them in `arena.json`, and run it after any change there.
+`content:validate` checks they fit together, and that every species learns a move of each kind by the level its button
 unlocks. Arena golden replays use their own frozen copy in
 `packages/core/fixtures/golden/arena/content/`.
 
@@ -212,6 +216,13 @@ real story later replaces it, resetting each player's quests (`docs/protocol.md`
   an optional closing flag `endsWith`, and every story `flags` id with what it means.
 - `inventory.json`: how many of one item fit in the bag, by kind (`stack`), and the order of the bag
   screen's sections. Items are never discarded.
+- `trainers.json`: characters who fight a best of 3 (`docs/arena.md`, "Trainers"): the `npc`,
+  three `creatures` (species, level and a `loadout` of moves learned by then), the `mind`
+  (`WILD` or `BOT`), the `reward` (`xpPercent` and an optional `item`, given on the first win), the
+  declared story `flag` the first win sets, and `rematch` (`again` or `once`). A node of the
+  character's dialogue with `fight`, `won` and `lost` (and no `next` or choices) starts it; every
+  entry or choice leading there checks `{ "canFight": trainerId }`, and such a choice shows the
+  challenge picture. The quest step `beatTrainer` (`{ trainer }`) counts a win.
 
 `content:validate` checks every link: each character has a dialogue file, every id a condition or
 effect names exists, every quest is started by its giver and every talk or deliver step is

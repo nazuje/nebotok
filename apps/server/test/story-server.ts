@@ -1,7 +1,8 @@
 import { ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from '@colyseus/sdk';
-import { DIRECTIONS, PROTOCOL_VERSION, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
+import { DIRECTIONS, PROTOCOL_VERSION, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, loadStoryContent, shrineAt, stepFrom, wildLoadout, type BattleContent, type Item, type Point, type Progress, type ProgressMessage, type StoryContent, type WorldMap } from '@nebotok/core';
 import { createGameServer } from '../src/app.ts';
+import { createFightBook } from '../src/fights.ts';
 import { REQUESTS_PER_SECOND } from '../src/world-room.ts';
 import type { WorldState } from '../src/world-state.ts';
 import type { WorldContent } from '../src/world.ts';
@@ -19,11 +20,13 @@ export const WILD = { species: 'drizzlesnail', level: 3 } as const;
  * A small frozen story for room tests, so editing content/ never moves them. It uses the four
  * characters the map places: Bavko offers the starter and a delivery to Tobolko, Mehurka a walk to
  * the lookout (and a node whose effect cannot happen once it is done), and Vetrinka a round of a
- * rest, a won battle and a befriending.
+ * rest, a won battle and a befriending. With arena fights on, Mehurka is a trainer first: a quest
+ * to beat her best of 3, and the best of 3 again after.
  */
 export function testStory(battle: BattleContent): StoryContent {
   const note: Item = { id: 'test-note', kind: 'quest', quest: 'test-delivery', name: text('Test note'), description: text('A note for tests.') };
   const items = [...[...battle.items.values()].filter((item) => item.kind === 'treat'), note];
+  const trainee = (level: number) => ({ species: WILD.species, level, loadout: wildLoadout(WILD.species, level, arenaContentOf(battle)) });
   const files = {
     npcs: { npcs: ['bavko', 'tobolko', 'mehurka', 'vetrinka'].map((id) => ({ id, name: text(id), role: text('Tester'), voice: { pitch: 3, pace: 2 } })) },
     dialogue: {
@@ -50,8 +53,20 @@ export function testStory(battle: BattleContent): StoryContent {
       },
       mehurka: {
         npc: 'mehurka',
-        entries: [offer('test-walk'), { if: [{ quest: 'test-walk', is: 'done' }], node: 'done' }, { node: 'idle' }],
+        entries: [
+          { if: [{ quest: 'test-trainer', is: 'available' }, { canFight: 'test-trainer' }], node: 'trainer' },
+          { if: [{ canFight: 'test-trainer' }], node: 'challenge' },
+          offer('test-walk'),
+          { if: [{ quest: 'test-walk', is: 'done' }], node: 'done' },
+          { node: 'idle' },
+        ],
         nodes: {
+          trainer: { ...say('Beat me.'), effects: [{ startQuest: 'test-trainer' }], next: 'challenge' },
+          challenge: { ...say('Best of three?'), choices: [{ ...say('Yes.'), if: [{ canFight: 'test-trainer' }], next: 'fight' }, { ...say('Later.'), next: 'later' }] },
+          fight: { ...say('Pick three.'), fight: 'test-trainer', won: 'won', lost: 'lost' },
+          won: say('You won.'),
+          lost: say('You lost.'),
+          later: say('Later, then.'),
           offer: { ...say('Walk to the lookout.'), effects: [{ startQuest: 'test-walk' }] },
           done: { ...say('Again?'), next: 'again' },
           again: { ...say('Again!'), effects: [{ startQuest: 'test-walk' }] },
@@ -78,9 +93,16 @@ export function testStory(battle: BattleContent): StoryContent {
           ],
           { items: [], xp: 0 },
         ),
+        quest('test-trainer', 'mehurka', [{ id: 'beat', kind: 'beatTrainer', trainer: 'test-trainer', hint: text('Beat Mehurka.') }], { items: [], xp: 0 }),
       ],
     },
-    story: { chapters: [{ id: 'test-chapter', name: text('Tests'), quests: ['test-delivery', 'test-walk', 'test-rounds'] }], flags: [] },
+    story: {
+      chapters: [{ id: 'test-chapter', name: text('Tests'), quests: ['test-delivery', 'test-walk', 'test-rounds', 'test-trainer'] }],
+      flags: [{ id: 'test-trainer-won', about: 'The player beat Mehurka the first time.' }],
+    },
+    trainers: {
+      trainers: [{ id: 'test-trainer', npc: 'mehurka', creatures: [trainee(1), trainee(2), trainee(3)], mind: 'WILD', reward: { xpPercent: 50, item: { item: 'plain-treat', count: 3 } }, flag: 'test-trainer-won', rematch: 'again' }],
+    },
     inventory: { kinds: { quest: { stack: 1 }, treat: { stack: 99 }, ingredient: { stack: 99 }, material: { stack: 99 } }, order: ['quest', 'treat', 'ingredient', 'material'] },
   };
   return loadStoryContent(files, { ...battle, items: new Map(items.map((item) => [item.id, item])) });
@@ -122,11 +144,18 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 
 export type Player = { id: number; room: Room<unknown, WorldState>; box: Inbox; progress: ProgressMessage };
 
+type StoryServerOptions = {
+  /** `ARENA_BATTLES`: the grass starts arena fights instead of turn battles. */
+  readonly arenaBattles?: boolean;
+  /** Every zone's weather instead of its own; null for clear skies. */
+  readonly zoneWeather?: string | null;
+};
+
 /**
  * A real server whose world has the test story, wild creatures that appear at every step in the
  * grass and always take their favourite treat, and a clock tests can move on with `clock.offset`.
  */
-export async function storyServer() {
+export async function storyServer({ arenaBattles = false, zoneWeather }: StoryServerOptions = {}) {
   const clock = { offset: 0 };
   const logged = capturedLog('info');
   const temp = tempServices(() => Date.now() + clock.offset);
@@ -135,19 +164,23 @@ export async function storyServer() {
     ...real,
     story: testStory(real.battle),
     encounters: new Map(
-      [...real.encounters].map(([id, zone]) => [id, { ...zone, encounterPercent: 100, creatures: [{ species: WILD.species, minLevel: WILD.level, maxLevel: WILD.level, weight: 1 }] }]),
+      [...real.encounters].map(([id, zone]) => [
+        id,
+        { ...zone, encounterPercent: 100, creatures: [{ species: WILD.species, minLevel: WILD.level, maxLevel: WILD.level, weight: 1 }], weather: zoneWeather === undefined ? zone.weather : zoneWeather },
+      ]),
     ),
     battle: {
       ...real.battle,
       befriending: { basePercent: 0, tiredPercent: 0, favouritePercent: 100, likedPercent: 0, levelPenaltyPer10Levels: 0, minPercent: 0, maxPercent: 100, windowPercent: 100 },
     },
   };
-  const server = createGameServer(temp.config, logged.log, { ...temp.services, world });
+  const fights = createFightBook();
+  const server = createGameServer({ ...temp.config, arenaBattles }, logged.log, { ...temp.services, world }, { fights });
   await server.listen(await freePort(), '127.0.0.1');
   const colyseus = new ColyseusTestServer(server);
 
   /** Joins a player saved at `at` with `progress`, after taking `welcome` and the first `progress`. */
-  async function player(name: string, at: Point, progress: Partial<Progress> = {}): Promise<Player> {
+  async function player(name: string, at: Point, progress: Partial<Progress> = {}): Promise<Player & { readonly token: string }> {
     const made = await temp.services.profiles.create({ name, avatar: 'green' });
     if (!made.ok) throw new Error(made.error);
     const { id } = made.value;
@@ -160,7 +193,7 @@ export async function storyServer() {
     room.reconnection.enabled = false;
     const box = inbox(room);
     await box.take('welcome');
-    return { id, room, box, progress: await box.take<ProgressMessage>('progress') };
+    return { id, token: login.value.token, room, box, progress: await box.take<ProgressMessage>('progress') };
   }
 
   /** The saved data as stored, before the load repair (which would drop the test story's ids). */
@@ -175,6 +208,7 @@ export async function storyServer() {
     temp,
     world,
     colyseus,
+    fights,
     player,
     stored,
     async reset() {

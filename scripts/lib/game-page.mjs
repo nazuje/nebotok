@@ -202,6 +202,26 @@ export async function servedMap(serverBase, id) {
   return { map: read.map, reach: reachableFrom(read.map, read.map.spawns[PLAYER_SPAWN]) };
 }
 
+/**
+ * A thumb on the page's touch screen, or WebKit's mouse, which Playwright cannot touch-and-hold
+ * with: `down` at a point in CSS pixels, `move` and `up`, so a test can hold a control or push the stick.
+ */
+export async function makeThumb(page, browserName) {
+  if (browserName === 'chromium') {
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [{ x: at.x, y: at.y, id: 1 }] : [] });
+    return { down: (at) => touch('touchStart', at), move: (at) => touch('touchMove', at), up: () => touch('touchEnd') };
+  }
+  return {
+    down: async (at) => {
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.down();
+    },
+    move: (at) => page.mouse.move(at.x, at.y, { steps: 2 }),
+    up: () => page.mouse.up(),
+  };
+}
+
 /** Two frames later: the hook answers from the model at once, and the page redraws its screens on the next frame. */
 export const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 

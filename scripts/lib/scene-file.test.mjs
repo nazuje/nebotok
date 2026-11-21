@@ -15,6 +15,7 @@ const base = {
   steps: [{ do: 'join', player: 'lan' }],
 };
 const read = (scene) => parseScene(JSON.stringify(scene));
+const prepared = (value) => read({ ...base, players: [{ ...base.players[0], prepared: value }] });
 
 describe('parseScene', () => {
   it.each(readdirSync(SCENES).filter((file) => file.endsWith('.json')))('reads the example scene %s', (file) => {
@@ -64,6 +65,21 @@ describe('parseScene', () => {
   it('refuses a talk to a character who is not in the story', () => {
     expect(read({ ...base, steps: [...base.steps, { do: 'talk', player: 'lan', npc: 'bavko', open: true }] }).ok).toBe(true);
     expect(read({ ...base, steps: [...base.steps, { do: 'talk', player: 'lan', npc: 'nobody' }] }).ok).toBe(false);
+  });
+
+  it('takes a prepared team, with or without a quest step, and refuses half a quest or nothing to prepare', () => {
+    const team = [{ species: 'glowbun', level: 8 }];
+    expect(prepared({ at: { x: 14, y: 16 }, team }).ok).toBe(true);
+    expect(prepared({ quest: 'the-grey-letter', step: 'lookout', at: { x: 33, y: 14 }, team }).ok).toBe(true);
+    expect(prepared({ quest: 'the-grey-letter', at: { x: 33, y: 14 }, team }).problems).toContain('a quest and its step go together');
+    expect(prepared({ at: { x: 14, y: 16 } }).problems).toContain('say a quest and step, a team, or both');
+    expect(prepared({ at: { x: 14, y: 16 }, team: [{ species: 'nobody', level: 8 }] }).ok).toBe(false);
+  });
+
+  it('refuses a duel ask, a watch or a duel mark of a player who is not in the scene', () => {
+    expect(read({ ...base, steps: [...base.steps, { do: 'ask', player: 'lan', to: 'mira' }] }).problems).toContain('no player "mira"');
+    expect(read({ ...base, steps: [...base.steps, { do: 'watch', player: 'lan', who: 'mira' }] }).problems).toContain('no player "mira"');
+    expect(read({ ...base, steps: [...base.steps, { do: 'waitFor', player: 'lan', until: { duelling: ['mira'] } }] }).problems).toContain('no player "mira"');
   });
 
   it('says when the file is not JSON', () => {
