@@ -36,7 +36,7 @@
     "voice:fix": "node scripts/voice/voice.mjs fix"
   },
   "volta": {
-    "node": "26.13.0"
+    "node": "26.13.1"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18.10",

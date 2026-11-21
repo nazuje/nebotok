@@ -10,7 +10,7 @@ in English and Slovenian, from a small server at home that only family devices c
 
 ## Quick start
 
-You need [Volta](https://volta.sh/), which picks the right Node version (26.13.0) by itself, and
+You need [Volta](https://volta.sh/), which picks the right Node version (26.13.1) by itself, and
 [gitleaks](https://github.com/gitleaks/gitleaks) for the secret scan (`brew install gitleaks`).
 
 ```sh
