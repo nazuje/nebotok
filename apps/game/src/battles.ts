@@ -7,10 +7,11 @@ import { createBattleScreen, lineText } from './battle-screen.ts';
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { TOAST_MS, type ToastKind } from './hud.ts';
+import { teamNeedsRest } from './health-level.ts';
 import { createLearnModel, createLearnPrompt } from './learn-prompt.ts';
 import { createLoadoutPicker, type LoadoutPickerState } from './loadout-picker.ts';
 import { createNewMoveToast, type NewMove } from './new-move-toast.ts';
-import { pictureIcon } from './pictures.ts';
+import { pictureIcon, shrineIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
 import { createStarterScreen } from './starter-screen.ts';
@@ -94,7 +95,7 @@ export function createBattles(options: BattlesOptions): Battles {
   };
 
   const teamButton = element<HTMLButtonElement>('.team-button');
-  teamButton.append(pictureIcon('star-burst', 32, { className: 'team-sparkle' }));
+  teamButton.append(pictureIcon('star-burst', 32, { className: 'team-sparkle' }), shrineIcon(24, { className: 'team-hurt' }));
   let restedTimer: ReturnType<typeof setTimeout> | undefined;
   const battleScreen = createBattleScreen(element<HTMLElement>('#battle'), {
     language: options.language,
@@ -226,6 +227,7 @@ export function createBattles(options: BattlesOptions): Battles {
     picker.render(now);
     teamButton.hidden = battle !== null || offer !== null || arena || (progress?.team.length ?? 0) === 0;
     teamButton.setAttribute('aria-label', text('team.title', options.language()));
+    teamButton.dataset.hurt = String(teamNeedsRest(progress?.team ?? []));
     const running = options.game().scene.isActive(BATTLE_SCENE);
     if (battle && !running) {
       options.game().scene.run(BATTLE_SCENE);

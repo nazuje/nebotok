@@ -344,6 +344,11 @@ body:not([data-screen='world']) .walk-hint {
   gap: 4px;
 }
 
+/* The turtle is in colour only while the setting is on, so the toggle reads without its words. */
+.turtle[aria-pressed='false'] .read-to-me-picture {
+  filter: grayscale(1) opacity(0.5);
+}
+
 .read-to-me-picture {
   flex: none;
   margin: 0 4px;
@@ -927,6 +932,13 @@ canvas.creature {
   font-size: 0.85rem;
 }
 
+/* A hurt creature's arrow to the shrine (creature-card.ts `restHint`). */
+.rest-hint {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
 .creature-details {
   display: flex;
   flex-wrap: wrap;
@@ -1084,6 +1096,19 @@ canvas.creature {
 
 .team-button[data-rested] {
   box-shadow: 0 0 0 4px var(--ok);
+}
+
+/* A creature of the team is hurt: the shrine shows on the button's corner until a rest heals it. */
+.team-hurt {
+  position: absolute;
+  bottom: -6px;
+  left: -6px;
+  display: none;
+  pointer-events: none;
+}
+
+.team-button[data-hurt='true'] .team-hurt {
+  display: block;
 }
 
 .team-button[data-rested] .team-sparkle {

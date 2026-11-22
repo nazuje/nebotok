@@ -2,8 +2,9 @@ import { MAX_TEAM, maxHpOf, type CreatureInstance, type Language, type ProgressM
 import { CONTENT } from './battle-content.ts';
 import type { ClientMessage } from './battle-link.ts';
 import { creaturePortrait } from './creature-art.ts';
-import { creatureDetails, creatureSummary, type CardCreature } from './creature-card.ts';
+import { creatureDetails, creatureSummary, restHint, type CardCreature } from './creature-card.ts';
 import { button, el, pictureButton, withPicture } from './dom.ts';
+import { needsRest } from './health-level.ts';
 import { buttonTiles } from './loadout-model.ts';
 import { abilityIcon, closeButton, pictureIcon, shrineIcon, teamIcon } from './pictures.ts';
 import { text } from './strings.ts';
@@ -77,8 +78,8 @@ function swapHint(first: CreatureInstance, second: CreatureInstance): HTMLElemen
 }
 
 /**
- * Your creatures, opened from the world: each one's health, level, weather type and moves, and a
- * button to its fight buttons (the loadout picker, opened over this screen). Tap one,
+ * Your creatures, opened from the world: each one's health, level, weather type and moves, an
+ * arrow to the shrine on each one hurt, and a button to its fight buttons (the loadout picker, opened over this screen). Tap one,
  * then another, and they swap places; the first that can battle goes out first. At a shrine a second
  * tab lists the creatures waiting there, to take along or to leave in their place. The title and
  * tabs stay at the top and Close at the bottom; only the cards between them scroll. Until the first
@@ -118,7 +119,8 @@ export function createTeamScreen(root: HTMLElement, options: TeamScreenOptions):
     const language = options.language();
     const pick = button('team-pick', '', () => tap(index));
     pick.setAttribute('aria-pressed', String(selected === index));
-    pick.append(...creatureSummary(cardOf(creature), language, { labelled: true }));
+    const card = cardOf(creature);
+    pick.append(...creatureSummary(card, language, { labelled: true }), ...(needsRest(card.hp, card.maxHp) ? [restHint(32)] : []));
     const parts: HTMLElement[] = [pick, creatureDetails(creature, language), loadoutButton(creature, t('loadout.title'), () => options.openLoadout(index))];
     if (atShrine && alone) parts.push(el('p', { className: 'hint team-keep', text: t('storage.keepOne') }));
     else if (atShrine) parts.push(pictureButton('secondary team-store', pictureIcon('arrow', 32), t('storage.store'), () => send({ type: 'storage.swap', payload: { team: index, storage: null } })));

@@ -1,7 +1,9 @@
 import { xpToNextLevel, type ArenaResultMessage, type Language, type PictureId, type StringId, type TeamCreature } from '@nebotok/core';
 import { speciesName, weatherName } from '../battle-content.ts';
 import { creaturePortrait } from '../creature-art.ts';
+import { restHint } from '../creature-card.ts';
 import { el, pictureButton } from '../dom.ts';
+import { healthLevel } from '../health-level.ts';
 import { pictureIcon, weatherIcon } from '../pictures.ts';
 import { format, text } from '../strings.ts';
 import { levelBadge } from './arena-buttons.ts';
@@ -12,12 +14,17 @@ import type { BadgeTone, Popup } from './arena-juice.ts';
  * level badge coloured by the level gap, and health with a trail of what was just lost), the
  * island's weather in the corner, the damage numbers over the creatures, the parts the controls
  * fill in, and the result once the server has settled the fight, with a picture for every ending
- * so it reads without words. A duel's watcher gets Stop watching, a one-tap button, instead of the
- * controls, and everyone sees when the fight waits for a player.
+ * so it reads without words. Your card has a yellow edge, and an arrow to the shrine under it when
+ * your creature came in hurt. A duel's watcher has no side of their own, so no yellow edge, and gets
+ * Stop watching, a one-tap button, instead of the controls; everyone sees when the fight waits for
+ * a player.
  */
 
-/** A creature on the island, as its card shows it; `tone` compares its level with the other creature's. */
-export type CardView = { readonly species: string; readonly level: number; readonly tone: BadgeTone; readonly health: number; readonly max: number; readonly turtle: boolean };
+/**
+ * A creature on the island, as its card shows it; `tone` compares its level with the other
+ * creature's, and `rest` is whether it is yours and came onto the island hurt (health-level.ts `cameInHurt`).
+ */
+export type CardView = { readonly species: string; readonly level: number; readonly tone: BadgeTone; readonly health: number; readonly max: number; readonly turtle: boolean; readonly rest: boolean };
 
 export type ArenaScreenView = {
   /** Your creature's card, then the other side's. */
@@ -73,7 +80,17 @@ export function endingOf(result: ArenaResultMessage, watching = false): Ending {
   }
 }
 
-type Card = { readonly root: HTMLElement; readonly portrait: HTMLElement; readonly level: HTMLElement; readonly health: HTMLElement; readonly fill: HTMLElement; readonly trail: HTMLElement; readonly turtle: HTMLElement; species: string };
+type Card = {
+  readonly root: HTMLElement;
+  readonly portrait: HTMLElement;
+  readonly level: HTMLElement;
+  readonly health: HTMLElement;
+  readonly fill: HTMLElement;
+  readonly trail: HTMLElement;
+  readonly turtle: HTMLElement;
+  readonly rest: HTMLElement;
+  species: string;
+};
 
 function makeCard(className: string): Card {
   const portrait = el('span', { className: 'arena-portrait' });
@@ -82,8 +99,9 @@ function makeCard(className: string): Card {
   const fill = el('span', { className: 'arena-health-fill' });
   const health = el('span', { className: 'arena-health', attrs: { role: 'img' } }, [trail, fill]);
   const turtle = el('span', { className: 'arena-turtle' });
-  const root = el('div', { className: `arena-card ${className}` }, [portrait, el('span', { className: 'arena-card-words' }, [level, health]), turtle]);
-  return { root, portrait, level, health, fill, trail, turtle, species: '' };
+  const rest = el('span', { className: 'arena-rest' }, [restHint(24)]);
+  const root = el('div', { className: `arena-card ${className}` }, [portrait, el('span', { className: 'arena-card-words' }, [level, health]), turtle, rest]);
+  return { root, portrait, level, health, fill, trail, turtle, rest, species: '' };
 }
 
 function renderCard(card: Card, view: CardView | null, language: Language): void {
@@ -100,7 +118,8 @@ function renderCard(card: Card, view: CardView | null, language: Language): void
   const width = `${(share * 100).toFixed(1)}%`;
   card.fill.style.width = width;
   card.trail.style.width = width;
-  card.fill.dataset.low = String(share < 0.3);
+  card.fill.dataset.level = healthLevel(view.health, view.max);
+  card.rest.hidden = !view.rest;
   card.health.setAttribute('aria-label', format('battle.health', language, { hp: view.health, max: view.max }));
   card.turtle.hidden = !view.turtle;
   if (view.turtle && card.turtle.childElementCount === 0) card.turtle.append(pictureIcon('turtle', 24));

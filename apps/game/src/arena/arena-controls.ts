@@ -142,7 +142,7 @@ function makeButton(action: ArenaAction, latch: ReturnType<typeof createLatch>, 
 /** The pictures on a button: its move, the lock with its level, or Dash, Treat or Swap. */
 function picturesOf(button: ButtonState): Element[] {
   if (button.action === 'dash' || button.action === 'treat' || button.action === 'swap') return [pictureIcon(ACTION_PICTURES[button.action], 32)];
-  if (button.locked) return [pictureIcon('lock', 32), digits(button.unlock ?? 0, 16)];
+  if (button.locked) return [pictureIcon('lock', 48, { className: 'arena-lock' }), digits(button.unlock ?? 0, 32)];
   return [button.move === null ? el('span', { className: 'arena-empty' }) : abilityIcon(button.move, button.action === 0 ? 48 : 40)];
 }
 
