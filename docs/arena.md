@@ -535,15 +535,18 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
 - **Stick:** floating, anywhere on the left half, a 60 px pad with a 30% dead zone, 8 directions
   sent. It never wakes the world's walking stick.
 - **Buttons** on the right, each at least 64 px with a cooldown ring: 1, 2, 3 (by unlock; a locked
-  one shows the lock picture with its level in digits), Dash, and Treat and Swap only while they can
-  be used. Leave sits in a top corner, held 1 s (wild fights only).
+  one shows the lock picture, 48 px, with its level in 32 px digits over it), Dash, and Treat and
+  Swap only while they can be used. Leave sits in a top corner, held 1 s (wild fights only).
 - **Keys:** WASD or arrows, 1, 2, 3, Space (dash), E (treat), Q (swap).
 - **Arena screen** (#151, built): the island fills the screen, drawn by Phaser
   (`apps/game/src/arena/arena-scene.ts`), with HTML over it: a card for each side at the top
-  (portrait, level badge, health bar, the turtle on yours when it is on), the stick's half, the
+  (portrait, level badge, health bar green, amber from half and red from a fifth, the turtle on
+  yours when it is on, and under yours an arrow to the shrine when it came onto the island at half
+  health or less; yours has a yellow edge, which a watcher sees on neither), the stick's half, the
   button cluster and Leave (`arena-controls.ts`, `arena-screen.ts`). Your creature is predicted
   and the other drawn 100 ms behind (#152, "Prediction" in protocol.md); both squash on a hit, bob
-  as they walk and fall off the edge after a ring-out. The result is a card with one picture for the ending (trophy,
+  as they walk and fall off the edge after a ring-out, each facing the way it goes, so at the
+  start they face each other. The result is a card with one picture for the ending (trophy,
   ring-out, heart, puff, leave, clock or cloud) and one line, each creature's XP bar, and Continue,
   which goes back to the world. Swap shows while a team-mate could still come in, as far as the
   fight's events tell (`fight-book.ts`); Treat while you hold a treat, none is out, and the wild

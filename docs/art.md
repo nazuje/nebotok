@@ -90,7 +90,9 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   show `down-stand`. Each avatar's courier is a recolour of `couriers/courier`, whose grey cap shows
   on any avatar without a sprite of its own.
 - **Creatures** and **backgrounds** are for the battle screen. A creature shows `front` facing the
-  player and `back` as the player's own; a background is drawn behind both. A creature's icon is
+  player and `back` as the player's own; a background is drawn behind both. A `front` drawn from
+  the side faces left, toward the player's creature; the arena mirrors it whenever the creature
+  faces right. A creature's icon is
   the same creature, simplified to read at 16 by 16. Give each creature a silhouette of its own
   and the colours of its weather, so it reads as that weather even in black and white.
 - **Weather icons** sit beside the weather's name on the battle field while that weather lasts,

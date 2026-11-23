@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadWorld } from '../apps/server/src/world.ts';
-import { DUEL_GIVE_UP_MS, PROTOCOL_VERSION, emptyProgress, inBounds, isWalkable, newCreature } from '../packages/core/src/index.ts';
+import { DUEL_GIVE_UP_MS, PROTOCOL_VERSION, emptyProgress, inBounds, isWalkable, maxHpOf, newCreature } from '../packages/core/src/index.ts';
 import {
   BROWSERS,
   DEVICES,
@@ -175,7 +175,11 @@ function preparedSave({ name, language, prepared: { quest, step, at, team } }) {
     quest && step
       ? storySaveAt({ name, language, quest, step, at, world: content })
       : { name, language, createdAt: new Date().toISOString(), position: { map: content.map.id, x: at.x, y: at.y, facing: 'down' }, ...emptyProgress() };
-  return team ? { ...story, team: team.map(({ species, level }) => newCreature(species, level, content.battle)) } : story;
+  const made = ({ species, level, healthPercent = 100 }) => {
+    const creature = newCreature(species, level, content.battle);
+    return { ...creature, hp: Math.round((maxHpOf(creature, content.battle) * healthPercent) / 100) };
+  };
+  return team ? { ...story, team: team.map(made) } : story;
 }
 
 async function joinWorld(player) {

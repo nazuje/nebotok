@@ -1,7 +1,7 @@
-import type { FightEvent } from '@nebotok/core';
+import { DIRECTION_VECTORS, type FightEvent } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import { CONTENT } from '../src/battle-content.ts';
-import { BUZZ, HIT_STOP_MS, badgeTone, buzzFor, hitStopMs, popupFor, shakeFor, shakeOf, shakeOffset, stopFor } from '../src/arena/arena-juice.ts';
+import { BUZZ, HIT_STOP_MS, badgeTone, buzzFor, hitStopMs, mirroredFor, popupFor, shakeFor, shakeOf, shakeOffset, stopFor } from '../src/arena/arena-juice.ts';
 
 const moveOfShape = (shape: string): string => [...CONTENT.moves.values()].find((move) => move.arena?.shape === shape)!.id;
 const hit = (shape: string, extra: Partial<Extract<FightEvent, { kind: 'hit' }>> = {}): FightEvent => ({ kind: 'hit', side: 0, by: 1, move: moveOfShape(shape), damage: 12, health: 50, effectiveness: 'normal', knock: 300, x: 0, y: 0, ...extra });
@@ -109,5 +109,21 @@ describe('damage numbers', () => {
     expect(popupFor(hit('bolt', { effectiveness: 'strong', damage: 30 }))).toEqual({ side: 0, amount: 30, tone: 'strong' });
     expect(popupFor({ kind: 'healed', side: 1, amount: 4, health: 40 })).toEqual({ side: 1, amount: 4, tone: 'heal' });
     expect(popupFor(hit('weather', { damage: 0 }))).toBeNull();
+  });
+});
+
+/** The x of a wire direction's facing. */
+const x = (direction: number): number => DIRECTION_VECTORS[direction]![0];
+
+describe('which way a creature faces', () => {
+
+  it('mirrors the left-facing front picture while the creature faces right, so the two face each other', () => {
+    expect(mirroredFor(x(0), false)).toBe(true);
+    expect(mirroredFor(x(8), true)).toBe(false);
+  });
+
+  it('keeps the way it was while the creature faces up or down', () => {
+    expect(mirroredFor(x(4), true)).toBe(true);
+    expect(mirroredFor(x(12), false)).toBe(false);
   });
 });

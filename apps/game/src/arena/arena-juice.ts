@@ -3,7 +3,8 @@ import { moveArena } from '../move-arena.ts';
 
 /**
  * How an arena fight's events are felt (docs/arena.md, "Screens and controls", Juice): which
- * hit-stop, shake, damage number and buzz each event gives, and the colour of a level badge. The
+ * hit-stop, shake, damage number and buzz each event gives, the colour of a level badge and which
+ * way a creature's picture faces. The
  * numbers come from the battle-feel prototype's `react()`. With reduced motion there is no
  * hit-stop, no shake and no buzz; numbers and bars stay. The scene and the link do the drawing
  * and the buzzing; this only decides.
@@ -13,6 +14,20 @@ import { moveArena } from '../move-arena.ts';
 export type BadgeTone = 'higher' | 'lower' | 'even';
 
 export const badgeTone = (level: number, other: number | null): BadgeTone => (other === null || level === other ? 'even' : level > other ? 'higher' : 'lower');
+
+/** A whole facing on the wire, as `DIRECTION_VECTORS` gives it. */
+const DIRECTION_SCALE = 4096;
+
+/**
+ * Whether a creature's picture is drawn mirrored, from the x of its facing (`DIRECTION_VECTORS`):
+ * its `front` picture faces left (docs/art.md), so it is mirrored while the creature faces right,
+ * and facing nearly straight up or down keeps the way it was (`was`).
+ */
+export function mirroredFor(facingX: number, was: boolean): boolean {
+  if (facingX > DIRECTION_SCALE * 0.15) return true;
+  if (facingX < -DIRECTION_SCALE * 0.15) return false;
+  return was;
+}
 
 /** Hit-stop by event, in ms: the drawing holds still this long, while the fight goes on. */
 export const HIT_STOP_MS = { hit: 60, bigHit: 110, blocked: 60, bumped: 70, rooted: 90, befriended: 120, fainted: 160 } as const;

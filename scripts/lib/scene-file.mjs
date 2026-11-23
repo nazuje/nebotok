@@ -36,7 +36,12 @@ const Player = z.strictObject({
       quest: z.string().min(1).optional(),
       step: z.string().min(1).optional(),
       at: Tile,
-      team: z.array(z.strictObject({ species: z.enum(SPECIES), level: z.number().int().min(1).max(100) })).min(1).max(6).optional(),
+      /** `healthPercent` starts a creature hurt, at that share of its health. */
+      team: z
+        .array(z.strictObject({ species: z.enum(SPECIES), level: z.number().int().min(1).max(100), healthPercent: z.number().int().min(0).max(100).optional() }))
+        .min(1)
+        .max(6)
+        .optional(),
     })
     .refine((prepared) => (prepared.quest === undefined) === (prepared.step === undefined), 'a quest and its step go together')
     .refine((prepared) => prepared.quest !== undefined || prepared.team !== undefined, 'say a quest and step, a team, or both')

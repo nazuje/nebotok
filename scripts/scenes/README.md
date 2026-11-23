@@ -25,7 +25,8 @@ or `ipad-landscape`, and `language` is `en` or `sl`; each defaults to the first.
 through the story: before they join, their save is replaced by one the story bot played until that
 quest's step (`scripts/lib/story-saves.mjs`), standing on that tile. A `"team": [{ "species":
 "glowbun", "level": 8 }]` there gives them that team instead, at the quest's step or, without
-`quest` and `step`, as a new player who already has it. It needs this worktree's
+`quest` and `step`, as a new player who already has it; `"healthPercent": 30` on a creature
+starts it hurt, at that share of its health. It needs this worktree's
 `npm run dev`, not `--url`, because the save is written into the dev server's database.
 
 **Steps** run in order, each finished before the next starts. A player's first step is their `join`.

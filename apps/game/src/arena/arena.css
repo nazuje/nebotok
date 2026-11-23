@@ -44,6 +44,7 @@
 }
 
 .arena-card {
+  position: relative;
   flex: 0 1 11rem;
   min-width: 0;
   display: flex;
@@ -58,6 +59,11 @@
 
 .arena-card.mine {
   border-color: #ffd43b;
+}
+
+/* A watcher has no side of their own: side 0's card is drawn like the other. */
+.arena[data-watching='true'] .arena-card.mine {
+  border-color: transparent;
 }
 
 .arena-card.theirs {
@@ -126,13 +132,29 @@
   transition: width 0.6s ease-in 0.25s;
 }
 
-.arena-health-fill[data-low='true'] {
+/* The same colours as a team card's health bar: amber from half down, red from a fifth. */
+.arena-health-fill[data-level='mid'] {
+  background: var(--wait);
+}
+
+.arena-health-fill[data-level='low'] {
   background: var(--bad);
 }
 
 .arena-turtle {
   flex: none;
   display: grid;
+}
+
+/* Your creature came in hurt: an arrow to the shrine hangs under its card. */
+.arena-rest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
 
 /* The island's weather, in the field's top left corner. */
@@ -333,7 +355,6 @@
 }
 
 .arena-button.locked {
-  opacity: 0.7;
   background: rgb(220 228 236 / 0.92);
 }
 
@@ -341,15 +362,21 @@
   cursor: default;
 }
 
+/* A locked button: a big lock, and the level that unlocks it in big digits over the lock's body. */
+.arena-button.locked .arena-lock {
+  translate: 0 -6px;
+}
+
 .arena-button.locked .loadout-digits {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
+  bottom: -4px;
+  left: 50%;
+  translate: -50% 0;
 }
 
 /* Each digit is drawn in the middle of its own square, so a two-digit level pulls them together to read as one number. */
 .arena-button.locked .loadout-digits .picture + .picture {
-  margin-left: -6px;
+  margin-left: -14px;
 }
 
 .arena-cooldown {
@@ -634,6 +661,12 @@
 
 .arena-choice .health-bar {
   width: 100%;
+}
+
+.arena-choice > .rest-hint {
+  position: absolute;
+  top: 4px;
+  right: 4px;
 }
 
 /* Go, with the time left to pick as a ring around it. */

@@ -6,7 +6,7 @@ import { courierTexture, frameName } from '../couriers.ts';
 import { creatureTexture } from '../creature-art.ts';
 import { ARENA } from './arena-content.ts';
 import { ArenaEffects, type JuiceCount, type Spot } from './arena-effects.ts';
-import { motionReduced, type Popup } from './arena-juice.ts';
+import { mirroredFor, motionReduced, type Popup } from './arena-juice.ts';
 import { colourOf } from './arena-pen.ts';
 import {
   drawAim,
@@ -433,8 +433,7 @@ export class ArenaScene extends Scene {
     const hop = walking ? Math.abs(Math.sin(look.phase)) * size * 0.12 : 0;
     const squash = still ? 0 : look.squash.value + (walking ? Math.sin(look.phase * 2) * 0.05 : 0);
     const facingX = DIRECTION_VECTORS[shown.facing]?.[0] ?? DIRECTION_SCALE;
-    if (facingX < -DIRECTION_SCALE * 0.15) look.flipped = true;
-    if (facingX > DIRECTION_SCALE * 0.15) look.flipped = false;
+    look.flipped = mirroredFor(facingX, look.flipped);
     this.drawGround(shown, look, side === yours, at, radius, size, now, still);
     const tumbling = (shown.status & STATUS_BITS.tumbling) !== 0 && !still;
     image
