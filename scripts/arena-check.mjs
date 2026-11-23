@@ -31,7 +31,7 @@ import { createGameServer } from '../apps/server/src/app.ts';
 import { readConfig } from '../apps/server/src/config.ts';
 import { createLog } from '../apps/server/src/log.ts';
 import { createServices } from '../apps/server/src/services.ts';
-import { PLAYER_SPAWN, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, maxHpOf, newCreature, wildLoadout } from '../packages/core/src/index.ts';
+import { PLAYER_SPAWN, arenaContentOf, createSave, defaultSettings, emptyProgress, encounterZoneAt, isWalkable, maxHpOf, newCreature, treatWindowPercent, wildLoadout } from '../packages/core/src/index.ts';
 import { BROWSERS, DEVICES, animationsSettled, makeThumb, nextFrames, openTalk, presetLanguage, readState, reportCspViolations, screenshot, servedMap, talkThrough, until, watch } from './lib/game-page.mjs';
 import { inTurn, poll, sleep } from './lib/in-turn.mjs';
 import { ROOT, freePort } from './lib/server-process.mjs';
@@ -58,6 +58,7 @@ const ARENA = JSON.parse(readFileSync(join(ROOT, 'content/creatures/arena.json')
 const SPECIES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/species.json'), 'utf8')).species;
 const TYPES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/weather.json'), 'utf8')).types;
 const MOVES = JSON.parse(readFileSync(join(ROOT, 'content/creatures/moves.json'), 'utf8')).moves;
+const ITEMS = JSON.parse(readFileSync(join(ROOT, 'content/items.json'), 'utf8')).items;
 const NARROW = { width: 360, height: 740 };
 const MIN_TARGET_PX = 48;
 const ARENA_BUTTON_PX = 64;
@@ -75,6 +76,8 @@ const NET_SNAPS = 2;
 /** The wild creature's level, and a stronger one to befriend, which a few hits weaken without beating. */
 const WILD_LEVEL = 3;
 const BEFRIEND_LEVEL = 8;
+/** Treats a befriend run carries: a throw can still miss a wild creature on the run, and each miss is tried again. */
+const BEFRIEND_TREATS = 8;
 /** The share of its health the 360px runs' lead starts with: hurt enough for the shrine's arrow. */
 const HURT_SHARE = 0.5;
 const TAG = runTag();
@@ -139,6 +142,9 @@ const wildSpecies = SPECIES.filter((species) => strongAgainst.includes(species.t
   .map((species) => species.id)
   .toSorted()[0];
 if (!wildSpecies) throw new Error(`arena-check: no species is weak to ${starterType}`);
+/** The wild creature's favourite treat, which befriend runs carry, opens the Treat button under this share of its health. */
+const favourite = ITEMS.find((item) => item.id === SPECIES.find((species) => species.id === wildSpecies).favouriteTreat);
+const TREAT_WINDOW_PERCENT = treatWindowPercent({ liking: 'favourite', strength: favourite.strength ?? 0 }, ARENA);
 const results = [];
 
 /** `services` with every trainer's creatures at EASY_TRAINER_LEVEL, each with a wild creature's buttons at that level. */
@@ -171,7 +177,7 @@ async function preparePlayer(run, team = [newCreature(STARTERS[0], run.level, wo
   const treat = run.plan === 'befriend' ? SPECIES.find((species) => species.id === wildSpecies).favouriteTreat : 'plain-treat';
   // A trainer run's player is past the whole story, so the trainer's challenge is the talk that opens.
   const story = trainer ? { active: [], done: QUESTS, flags: ['grey-letter-read', 'storm-seen', 'chapter-1-done'] } : emptyProgress().story;
-  const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: 3 }], story };
+  const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: run.plan === 'befriend' ? BEFRIEND_TREATS : 3 }], story };
   services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name, language: run.language, createdAt: new Date().toISOString(), position, ...progress }));
   return { id: made.value.id, name };
 }
@@ -264,8 +270,52 @@ const toneOf = (level, other) => (level > other ? 'higher' : level < other ? 'lo
 const attack = (state) => ({ push: towardWild(state), press: towardWild(state) ? 'one' : null });
 /** Keeps to the middle without hitting, and calls the weather with button 3. */
 const holdOff = (state) => ({ push: towardMiddle(state), press: buttonOf(state, 2)?.locked === false ? 'three' : null });
-/** Weakens the wild creature until a treat can be thrown, then throws treats at it. */
-const befriend = (state) => (treatShown(state) ? { push: towardWild(state), press: 'treat' } : attack(state));
+/** Whether the wild creature is under the treat's window, so a treat can befriend it. */
+const weakEnough = (state) => state.arena?.theirs != null && state.arena.theirs.health * 100 < TREAT_WINDOW_PERCENT * state.arena.theirs.max;
+/** Befriend runs throw from no farther than this, in 1/256 units, so the wild creature has little time to step out of the treat's way. */
+const THROW_WITHIN = 200 * 256;
+/** They throw only when the keys point within this angle of the wild creature, well inside the aim help's 30 degrees. */
+const THROW_COSINE = Math.cos((15 * Math.PI) / 180);
+/** How long after a state its throw reaches the server, beyond the round trip: a send, a state patch and a frame. */
+const THROW_LATE_MS = 100;
+const TICK_MS = 1000 / 60;
+
+/** The unit push the keys toward `push` steer. */
+function keysPush(push) {
+  const held = keysToward(push);
+  const x = (held.includes(KEYS.right) ? 1 : 0) - (held.includes(KEYS.left) ? 1 : 0);
+  const y = (held.includes(KEYS.down) ? 1 : 0) - (held.includes(KEYS.up) ? 1 : 0);
+  const length = Math.hypot(x, y);
+  return length === 0 ? null : { x: x / length, y: y / length };
+}
+
+/**
+ * A befriend run's plan: weakens the wild creature until it is under the treat's window, then never
+ * hits it there, since the Treat button hides while a thrown treat flies or a missed one lies on the
+ * ground and a few hits then would knock it out. It follows the wild creature and throws when near,
+ * aimed where the wild creature will be once the throw reaches the server: its states arrive a round
+ * trip late at 150 ms of lag, by when it has run a good way past where the page shows it.
+ */
+function befriender() {
+  let before = null;
+  return (state) => {
+    const { mine, theirs, tick, net } = state.arena ?? {};
+    const was = before;
+    before = mine && theirs ? { tick, x: theirs.x - mine.x, y: theirs.y - mine.y } : null;
+    if (!weakEnough(state)) return attack(state);
+    if (!before || !was || tick <= was.tick || !treatShown(state)) return { push: towardWild(state), press: null };
+    const ahead = ((net?.rttMs ?? 0) + THROW_LATE_MS) / TICK_MS / (tick - was.tick);
+    const lead = { x: before.x + (before.x - was.x) * ahead, y: before.y + (before.y - was.y) * ahead };
+    const distance = Math.hypot(lead.x, lead.y);
+    if (distance === 0) return { push: towardWild(state), press: null };
+    const push = { x: lead.x / distance, y: lead.y / distance };
+    const keyed = keysPush(push);
+    const aimed = keyed !== null && keyed.x * push.x + keyed.y * push.y > THROW_COSINE;
+    return { push, press: aimed && distance < THROW_WITHIN ? 'treat' : null };
+  };
+}
+/** Whether your creature on screen stands anywhere but `at`. */
+const movedFrom = (at) => (state) => state.arena?.mine != null && (state.arena.mine.x !== at.x || state.arena.mine.y !== at.y);
 
 /** Steers and presses until `stopWhen`, the way `run.steer` says: `plan` picks each step's push and button, and `seen` looks at each state first. */
 async function fightOn(page, run, { endsBy, stopWhen, plan = attack, seen = async () => {} }) {
@@ -476,9 +526,10 @@ async function checkRun(browser, run) {
       await page.evaluate(() => document.querySelectorAll('#arena .arena-pop').forEach((pop) => pop.getAnimations().forEach((each) => each.play())));
     };
     if (run.plan === 'leave') {
-      // Hits during the walk above count for the juice, but this waits for one of its own.
+      // Hits during the walk above count for the juice, but this waits for one of its own. A hit's
+      // number comes with the room's events, before the state patch that moves your creature.
       const popups = state.arena?.drawn?.juice.popups ?? 0;
-      const hit = (s) => ended(s) || (s.arena?.drawn?.juice.popups ?? 0) > popups;
+      const hit = (s) => ended(s) || ((s.arena?.drawn?.juice.popups ?? 0) > popups && movedFrom(startedAt)(s));
       const most = { shake: 0 };
       state = await fightOn(page, { ...run, steer: 'keys' }, { endsBy: Date.now() + 8_000, stopWhen: hit, seen: async (s) => void (most.shake = Math.max(most.shake, s.arena?.drawn?.juice.shake ?? 0)) });
       await shot('1-fight');
@@ -499,7 +550,7 @@ async function checkRun(browser, run) {
         const weather = await page.locator('#arena .arena-weather:visible').getAttribute('data-weather', { timeout: 2_000 }).catch(() => null);
         expect(called !== null && weather === called, `the weather corner shows ${weather} after button 3 called ${called}`);
       }
-      state = await fightOn(page, run, { endsBy: Date.now() + FIGHT_MS, stopWhen: ended, plan: run.plan === 'befriend' ? befriend : attack, seen });
+      state = await fightOn(page, run, { endsBy: Date.now() + FIGHT_MS, stopWhen: ended, plan: run.plan === 'befriend' ? befriender() : attack, seen });
       if (run.plan === 'befriend' && ended(state)) {
         // The hearts rise one after another for half a second, while the result waits.
         await sleep(500);
@@ -510,8 +561,7 @@ async function checkRun(browser, run) {
       notes.push(`juice: ${JSON.stringify(juice)}`);
       expect(juice?.shaken > 0 && juice?.stops > 0 && juice?.sparks > 0, `the hits shook the island ${juice?.shaken}px, held ${juice?.stops} hit-stops and threw ${juice?.sparks} sparks`);
     }
-    const moved = state.arena?.mine && (state.arena.mine.x !== startedAt.x || state.arena.mine.y !== startedAt.y);
-    expect(state.arena?.result != null || moved, `your creature never moved from ${JSON.stringify(startedAt)}`);
+    expect(state.arena?.result != null || movedFrom(startedAt)(state), `your creature never moved from ${JSON.stringify(startedAt)}`);
     expect((state.arena?.inputs ?? 0) > 20 && (run.plan === 'leave' || (state.arena?.presses ?? 0) > 0), `the page sent ${state.arena?.inputs} inputs with ${state.arena?.presses} presses`);
     state = await until(page, ended, 'the fight result', 10_000);
     const outcome = state.arena.result.outcome?.result ?? null;
