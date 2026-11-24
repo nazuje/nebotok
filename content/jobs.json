@@ -32,6 +32,18 @@
             "perItem": 3
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Gather {count} cloudberry.",
+          "other": "Gather {count} cloudberries."
+        },
+        "sl": {
+          "one": "Naberi eno oblačnico.",
+          "two": "Naberi dve oblačnici.",
+          "few": "Naberi {count} oblačnice.",
+          "other": "Naberi {count} oblačnic."
+        }
       }
     },
     {
@@ -60,6 +72,18 @@
             "perItem": 5
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Catch {count} hop minnow.",
+          "other": "Catch {count} hop minnows."
+        },
+        "sl": {
+          "one": "Ulovi eno kamenčico.",
+          "two": "Ulovi dve kamenčici.",
+          "few": "Ulovi {count} kamenčice.",
+          "other": "Ulovi {count} kamenčic."
+        }
       }
     },
     {
@@ -88,6 +112,18 @@
             "perItem": 5
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Bake {count} berry bun.",
+          "other": "Bake {count} berry buns."
+        },
+        "sl": {
+          "one": "Speci eno jagodno žemljico.",
+          "two": "Speci dve jagodni žemljici.",
+          "few": "Speci {count} jagodne žemljice.",
+          "other": "Speci {count} jagodnih žemljic."
+        }
       }
     },
     {
@@ -120,6 +156,32 @@
             "perItem": 4
           }
         ]
+      },
+      "say": {
+        "bavko": {
+          "en": {
+            "one": "Take {count} cloudberry to Postmaster Bavko.",
+            "other": "Take {count} cloudberries to Postmaster Bavko."
+          },
+          "sl": {
+            "one": "Odnesi eno oblačnico poštarju Bavku.",
+            "two": "Odnesi dve oblačnici poštarju Bavku.",
+            "few": "Odnesi {count} oblačnice poštarju Bavku.",
+            "other": "Odnesi {count} oblačnic poštarju Bavku."
+          }
+        },
+        "tobolko": {
+          "en": {
+            "one": "Take {count} cloudberry to Tobolko.",
+            "other": "Take {count} cloudberries to Tobolko."
+          },
+          "sl": {
+            "one": "Odnesi eno oblačnico Tobolku.",
+            "two": "Odnesi dve oblačnici Tobolku.",
+            "few": "Odnesi {count} oblačnice Tobolku.",
+            "other": "Odnesi {count} oblačnic Tobolku."
+          }
+        }
       }
     },
     {
@@ -152,6 +214,32 @@
             "perItem": 7
           }
         ]
+      },
+      "say": {
+        "mehurka": {
+          "en": {
+            "one": "Take {count} hop minnow to Mehurka.",
+            "other": "Take {count} hop minnows to Mehurka."
+          },
+          "sl": {
+            "one": "Odnesi eno kamenčico Mehurki.",
+            "two": "Odnesi dve kamenčici Mehurki.",
+            "few": "Odnesi {count} kamenčice Mehurki.",
+            "other": "Odnesi {count} kamenčic Mehurki."
+          }
+        },
+        "vetrinka": {
+          "en": {
+            "one": "Take {count} hop minnow to Vetrinka.",
+            "other": "Take {count} hop minnows to Vetrinka."
+          },
+          "sl": {
+            "one": "Odnesi eno kamenčico Vetrinki.",
+            "two": "Odnesi dve kamenčici Vetrinki.",
+            "few": "Odnesi {count} kamenčice Vetrinki.",
+            "other": "Odnesi {count} kamenčic Vetrinki."
+          }
+        }
       }
     },
     {
@@ -180,6 +268,18 @@
             "perItem": 7
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Bake {count} fish biscuit.",
+          "other": "Bake {count} fish biscuits."
+        },
+        "sl": {
+          "one": "Speci en ribji piškot.",
+          "two": "Speci dva ribja piškota.",
+          "few": "Speci {count} ribje piškote.",
+          "other": "Speci {count} ribjih piškotov."
+        }
       }
     },
     {
@@ -212,6 +312,32 @@
             "perItem": 9
           }
         ]
+      },
+      "say": {
+        "bavko": {
+          "en": {
+            "one": "Take {count} fish biscuit to Postmaster Bavko.",
+            "other": "Take {count} fish biscuits to Postmaster Bavko."
+          },
+          "sl": {
+            "one": "Odnesi en ribji piškot poštarju Bavku.",
+            "two": "Odnesi dva ribja piškota poštarju Bavku.",
+            "few": "Odnesi {count} ribje piškote poštarju Bavku.",
+            "other": "Odnesi {count} ribjih piškotov poštarju Bavku."
+          }
+        },
+        "tobolko": {
+          "en": {
+            "one": "Take {count} fish biscuit to Tobolko.",
+            "other": "Take {count} fish biscuits to Tobolko."
+          },
+          "sl": {
+            "one": "Odnesi en ribji piškot Tobolku.",
+            "two": "Odnesi dva ribja piškota Tobolku.",
+            "few": "Odnesi {count} ribje piškote Tobolku.",
+            "other": "Odnesi {count} ribjih piškotov Tobolku."
+          }
+        }
       }
     },
     {
@@ -244,6 +370,32 @@
             "perItem": 12
           }
         ]
+      },
+      "say": {
+        "mehurka": {
+          "en": {
+            "one": "Take {count} sprig of sky mint to Mehurka.",
+            "other": "Take {count} sprigs of sky mint to Mehurka."
+          },
+          "sl": {
+            "one": "Odnesi eno nebesno meto Mehurki.",
+            "two": "Odnesi dve nebesni meti Mehurki.",
+            "few": "Odnesi {count} nebesne mete Mehurki.",
+            "other": "Odnesi {count} nebesnih met Mehurki."
+          }
+        },
+        "tobolko": {
+          "en": {
+            "one": "Take {count} sprig of sky mint to Tobolko.",
+            "other": "Take {count} sprigs of sky mint to Tobolko."
+          },
+          "sl": {
+            "one": "Odnesi eno nebesno meto Tobolku.",
+            "two": "Odnesi dve nebesni meti Tobolku.",
+            "few": "Odnesi {count} nebesne mete Tobolku.",
+            "other": "Odnesi {count} nebesnih met Tobolku."
+          }
+        }
       }
     },
     {
@@ -272,6 +424,18 @@
             "perItem": 18
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Catch {count} sail minnow.",
+          "other": "Catch {count} sail minnows."
+        },
+        "sl": {
+          "one": "Ulovi eno pišoplavko.",
+          "two": "Ulovi dve pišoplavki.",
+          "few": "Ulovi {count} pišoplavke.",
+          "other": "Ulovi {count} pišoplavk."
+        }
       }
     },
     {
@@ -304,6 +468,32 @@
             "perItem": 18
           }
         ]
+      },
+      "say": {
+        "tobolko": {
+          "en": {
+            "one": "Take {count} mint dumpling to Tobolko.",
+            "other": "Take {count} mint dumplings to Tobolko."
+          },
+          "sl": {
+            "one": "Odnesi en metin cmoček Tobolku.",
+            "two": "Odnesi dva metina cmočka Tobolku.",
+            "few": "Odnesi {count} metine cmočke Tobolku.",
+            "other": "Odnesi {count} metinih cmočkov Tobolku."
+          }
+        },
+        "vetrinka": {
+          "en": {
+            "one": "Take {count} mint dumpling to Vetrinka.",
+            "other": "Take {count} mint dumplings to Vetrinka."
+          },
+          "sl": {
+            "one": "Odnesi en metin cmoček Vetrinki.",
+            "two": "Odnesi dva metina cmočka Vetrinki.",
+            "few": "Odnesi {count} metine cmočke Vetrinki.",
+            "other": "Odnesi {count} metinih cmočkov Vetrinki."
+          }
+        }
       }
     },
     {
@@ -335,6 +525,20 @@
             "perItem": 28
           }
         ]
+      },
+      "say": {
+        "vetrinka": {
+          "en": {
+            "one": "Take {count} bowl of cloud soup to Vetrinka.",
+            "other": "Take {count} bowls of cloud soup to Vetrinka."
+          },
+          "sl": {
+            "one": "Odnesi eno skledo oblačne juhe Vetrinki.",
+            "two": "Odnesi dve skledi oblačne juhe Vetrinki.",
+            "few": "Odnesi {count} sklede oblačne juhe Vetrinki.",
+            "other": "Odnesi {count} skled oblačne juhe Vetrinki."
+          }
+        }
       }
     },
     {
@@ -363,6 +567,18 @@
             "perItem": 30
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Dig up {count} sunroot.",
+          "other": "Dig up {count} sunroots."
+        },
+        "sl": {
+          "one": "Izkoplji en sončni koren.",
+          "two": "Izkoplji dva sončna korena.",
+          "few": "Izkoplji {count} sončne korene.",
+          "other": "Izkoplji {count} sončnih korenov."
+        }
       }
     },
     {
@@ -391,6 +607,18 @@
             "perItem": 42
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Catch {count} glimmer carp.",
+          "other": "Catch {count} glimmer carp."
+        },
+        "sl": {
+          "one": "Ulovi enega lesketavega krapa.",
+          "two": "Ulovi dva lesketava krapa.",
+          "few": "Ulovi {count} lesketave krape.",
+          "other": "Ulovi {count} lesketavih krapov."
+        }
       }
     },
     {
@@ -423,6 +651,32 @@
             "perItem": 40
           }
         ]
+      },
+      "say": {
+        "bavko": {
+          "en": {
+            "one": "Take {count} sunroot bake to Postmaster Bavko.",
+            "other": "Take {count} sunroot bakes to Postmaster Bavko."
+          },
+          "sl": {
+            "one": "Odnesi en zapečen koren poštarju Bavku.",
+            "two": "Odnesi dva zapečena korena poštarju Bavku.",
+            "few": "Odnesi {count} zapečene korene poštarju Bavku.",
+            "other": "Odnesi {count} zapečenih korenov poštarju Bavku."
+          }
+        },
+        "vetrinka": {
+          "en": {
+            "one": "Take {count} sunroot bake to Vetrinka.",
+            "other": "Take {count} sunroot bakes to Vetrinka."
+          },
+          "sl": {
+            "one": "Odnesi en zapečen koren Vetrinki.",
+            "two": "Odnesi dva zapečena korena Vetrinki.",
+            "few": "Odnesi {count} zapečene korene Vetrinki.",
+            "other": "Odnesi {count} zapečenih korenov Vetrinki."
+          }
+        }
       }
     },
     {
@@ -451,6 +705,18 @@
             "perItem": 42
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Gather {count} frost button.",
+          "other": "Gather {count} frost buttons."
+        },
+        "sl": {
+          "one": "Naberi eno ivnato gobico.",
+          "two": "Naberi dve ivnati gobici.",
+          "few": "Naberi {count} ivnate gobice.",
+          "other": "Naberi {count} ivnatih gobic."
+        }
       }
     },
     {
@@ -479,6 +745,18 @@
             "perItem": 50
           }
         ]
+      },
+      "say": {
+        "en": {
+          "one": "Cook {count} frost pudding.",
+          "other": "Cook {count} frost puddings."
+        },
+        "sl": {
+          "one": "Skuhaj en ledeni puding.",
+          "two": "Skuhaj dva ledena pudinga.",
+          "few": "Skuhaj {count} ledene pudinge.",
+          "other": "Skuhaj {count} ledenih pudingov."
+        }
       }
     }
   ]

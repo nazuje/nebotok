@@ -142,7 +142,7 @@
 }
 
 /* The job in pictures: the verb, the item, how many and who it goes to. The right end stays free
-   for a read-aloud button in the card's corner. */
+   for the speaker button in the card's corner. */
 .job-head {
   display: flex;
   flex-wrap: wrap;
@@ -180,6 +180,13 @@ canvas.job-portrait {
   border-radius: 10px;
   background: #e6eef6;
   image-rendering: pixelated;
+}
+
+/* Reads the job aloud, in the corner the head keeps free. */
+.job-speaker {
+  position: absolute;
+  top: 6px;
+  right: 6px;
 }
 
 /* The same in words, small, for readers. */

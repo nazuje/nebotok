@@ -51,6 +51,13 @@ describe('a job card', () => {
     expect(jobCard(delivery(7), [], null, 'sl').rewards.xp.map((reward) => reward.line)).toEqual([format('jobs.rewardXp', 'sl', { skill: STORY.skills!.skills.get('fishing')!.name.sl, xp })]);
   });
 
+  it('reads aloud its whole sentence, for its count and the character a delivery goes to', () => {
+    expect(jobCard(job(4), [], null, 'en').line).toBe('Gather 5 cloudberries.');
+    expect(jobCard(delivery(7), [], null, 'sl').line).toBe('Odnesi 3 kamenčice Mehurki.');
+    expect(jobCard(delivery(7, { count: 2, to: 'vetrinka' }), [], null, 'sl').line).toBe('Odnesi dve kamenčici Vetrinki.');
+    expect(jobCard(job(4, { template: 'gone' }), [], null, 'en').line).toBeNull();
+  });
+
   it('never leaves English XP in the Slovenian rewards', () => {
     expect(jobCard(delivery(7), [], null, 'sl').rewards.xp.map((reward) => reward.line).join(' ')).not.toMatch(/XP/);
   });

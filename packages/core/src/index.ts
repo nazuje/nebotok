@@ -470,6 +470,7 @@ export {
   Station,
   StationsFile,
   JOB_KINDS,
+  CountedText,
   JobTemplate,
   JobsFile,
   skillContentOf,
@@ -513,6 +514,8 @@ export {
 export { MAX_SKILL_XP, skillLevel, skillXpToNext, gainSkillXp, skillsView, pruneSkills, type SpotRest, type SkillGain } from './skills.ts';
 export { gatherRefusal, gatherResult, cookRefusal, cookResult, nothingGained, recipeBook, type StartCheck, type SkillRefusal, type SkillResult, type RecipeBook } from './gathering.ts';
 export { canGetNow, jobCount, jobFits } from './job-reach.ts';
+export { jobCounts, jobLine } from './job-lines.ts';
+export { pluralForm, type PluralForm } from './plural.ts';
 export {
   drawJob,
   openBoard,

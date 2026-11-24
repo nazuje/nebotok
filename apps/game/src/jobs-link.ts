@@ -3,6 +3,7 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { applyJobChange, createJobBoard, jobNewsPicture, jobToastLines, type JobBoardState } from './job-board.ts';
 import type { RequestPacer } from './request-pacer.ts';
+import type { Speech } from './speech.ts';
 
 /** A `board.open` with no answer is given up after this long, so a lost one never blocks the next. */
 const ASK_MS = 3_000;
@@ -26,6 +27,8 @@ export type JobsOptions = {
   changed(): void;
   /** Paces `board.open` with the page's other requests, under the server's limit. */
   requests: RequestPacer;
+  /** Reads a card aloud from its speaker button. */
+  speech: Pick<Speech, 'say' | 'has'>;
 };
 
 export type TestJobs = {
@@ -67,6 +70,7 @@ export function createJobs(options: JobsOptions): Jobs {
     station: () => opened?.station ?? null,
     hint: () => opened?.first ?? false,
     closed: () => show(null),
+    speech: options.speech,
   });
 
   function show(next: { station: string; first: boolean } | null) {

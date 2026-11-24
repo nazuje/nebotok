@@ -9,15 +9,19 @@
 // quest has its line read and then each choice in the narrator's voice, each choice showing its
 // picture, and all again from the talk box's speaker button; the quest is put off. With "Read to
 // me" turned off again, the character's next line asks for nothing until the talk box's speaker
-// button is tapped.
+// button is tapped. Then a player beside the job board (scripts/lib/skill-saves.mjs) opens it and
+// taps a card's speaker button, which asks for the card's sentence.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { jobLine } from '../../packages/core/src/index.ts';
+import { closeBoard, openBoard } from './board-check.mjs';
 import { inWorld, nextFrames, openTalk, readState, talkThrough, until } from './game-page.mjs';
 import { inTurn, poll } from './in-turn.mjs';
 import { ROOT } from './server-process.mjs';
 
 const CLIPS = JSON.parse(readFileSync(join(ROOT, 'apps/game/src/voice-clips.json'), 'utf8'));
 const NPCS = new Map(JSON.parse(readFileSync(join(ROOT, 'content/npcs.json'), 'utf8')).npcs.map((npc) => [npc.id, npc]));
+const TEMPLATES = new Map(JSON.parse(readFileSync(join(ROOT, 'content/jobs.json'), 'utf8')).templates.map((template) => [template.id, template]));
 
 /** The clip the game should ask for: as `voiceClip` in apps/game/src/voice-clips.ts, by the speaker's npcs.json voice, or null. */
 export function clipFor(language, speaker, text) {
@@ -237,4 +241,42 @@ export async function playVoice(page, world, plan, { language, asked, base, expe
     await response.arrayBuffer();
     expect(response.status === 200 && response.headers.get('content-type') === 'audio/mpeg', `the server answers ${path} with ${response.status} ${response.headers.get('content-type')}`);
   });
+}
+
+/**
+ * The job board's speaker buttons, as a player beside the board with "Read to me" off: opening the
+ * board asks for nothing, each card shows its speaker button exactly when its sentence has a clip
+ * (in the narrator's voice), and a tap on the delivery card's asks for its sentence's clip, which
+ * the game's own server serves, while the board stays open. `plan` is boardSave's.
+ */
+export async function playJobCard(page, plan, { language, asked, base, expect, check }) {
+  const start = await until(page, (s) => inWorld(s) && s.voice.readToMe !== null, "the world with the board player's settings");
+  expect(start.voice.readToMe === false, `the board player has "Read to me" ${start.voice.readToMe}, not off`);
+  const opened = await openBoard(page, plan, 'the job board');
+  const before = { hook: opened.voice.asked, requests: asked.length };
+  const clips = new Map(plan.jobs.map((job) => [job.job, clipFor(language, null, jobLine(TEMPLATES.get(job.template), job.count, job.to, language) ?? '')]));
+  const speakers = await page.locator('#job-board .job-card').evaluateAll((cards) =>
+    cards.filter((card) => (card.querySelector('.job-speaker')?.getBoundingClientRect().width ?? 0) > 0).map((card) => Number(card.dataset.job)),
+  );
+  for (const [job, clip] of clips) {
+    const shown = speakers.includes(job);
+    expect(shown === (clip !== null), `the job card ${job} ${shown ? 'shows' : 'hides'} its speaker button for a sentence ${clip === null ? 'without' : 'with'} a clip`);
+  }
+  const quiet = await readState(page);
+  expect(quiet.voice.asked === before.hook && asked.length === before.requests, `opening the job board asked for ${quiet.voice.clip}`);
+  const clip = clips.get(plan.deliver.job) ?? null;
+  expect(clip !== null, `the delivery of ${plan.deliver.count} "${plan.deliver.item}" to ${plan.deliver.to} has no clip in ${language}`);
+  if (clip !== null) {
+    await check('the job board with its speaker buttons', 'v6-job-speaker');
+    await page.locator(`#job-board .job-card[data-job="${plan.deliver.job}"] .job-speaker`).tap();
+    const after = await until(page, (s) => s.voice.asked === before.hook + 1, "the delivery card's speaker button to ask for its sentence", 5_000);
+    expect(after.voice.clip === clip, `the delivery card's speaker button asked for ${after.voice.clip}, not ${clip}`);
+    expect(after.screen === 'jobBoard', `the delivery card's speaker button left the board for ${after.screen}`);
+    await until(page, () => asked.length === before.requests + 1, 'the clip request', 5_000).catch(() => {});
+    expect(asked.at(-1) === clip, `the delivery card's speaker button requested ${JSON.stringify(asked.slice(before.requests))}, not ${clip}`);
+    const response = await fetch(`${base}${clip}`);
+    await response.arrayBuffer();
+    expect(response.status === 200 && response.headers.get('content-type') === 'audio/mpeg', `the server answers ${clip} with ${response.status} ${response.headers.get('content-type')}`);
+  }
+  await closeBoard(page);
 }

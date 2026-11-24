@@ -211,6 +211,7 @@ const jobs = createJobs({
     showScreen();
   },
   requests,
+  speech,
 });
 /** How long a spot rests after a success, in ms: its skill's `restSeconds`. */
 const restMs = (spot: string): number => {
