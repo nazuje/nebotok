@@ -4,7 +4,7 @@
  * one. content/AGENTS.md, "Sounds", explains the format.
  */
 import { z } from 'zod';
-import { noRepeatedIds } from './content.ts';
+import { noRepeatedIds } from './unique-ids.ts';
 
 /** The oscillator shapes Web Audio has built in. */
 export const SOUND_WAVES = ['sine', 'triangle', 'square', 'sawtooth'] as const;
@@ -50,17 +50,25 @@ export function soundMs(sound: { readonly layers: readonly SoundLayer[] }): numb
   return Math.max(...sound.layers.map((layer) => layer.startMs + layerMs(layer)));
 }
 
-/** One sound: its `id`, its `volume` and 1 to 4 `layers` that play together. */
-export const Sound = z
-  .strictObject({ id: SoundId, volume: Percent, layers: z.array(SoundLayer).min(1).max(4) })
-  .superRefine((sound, ctx) => {
-    const total = soundMs(sound);
-    if (total > MAX_SOUND_MS) ctx.addIssue({ code: 'custom', message: `"${sound.id}" lasts ${total} ms, more than ${MAX_SOUND_MS}`, path: ['layers'] });
-    sound.layers.forEach((layer, at) => {
-      const { attackMs, releaseMs } = layer.envelope;
-      if (attackMs + releaseMs > layerMs(layer)) ctx.addIssue({ code: 'custom', message: `the envelope (${attackMs + releaseMs} ms) is longer than its layer (${layerMs(layer)} ms)`, path: ['layers', at, 'envelope'] });
-    });
+/** What every recipe holds: its `volume` and 1 to 4 `layers` that play together. */
+const recipe = { volume: Percent, layers: z.array(SoundLayer).min(1).max(4) };
+
+/** A recipe lasts at most `MAX_SOUND_MS`, and each layer's envelope fits inside the layer. */
+function recipeIssues(sound: { readonly layers: readonly SoundLayer[] }, name: string, ctx: z.RefinementCtx): void {
+  const total = soundMs(sound);
+  if (total > MAX_SOUND_MS) ctx.addIssue({ code: 'custom', message: `${name} lasts ${total} ms, more than ${MAX_SOUND_MS}`, path: ['layers'] });
+  sound.layers.forEach((layer, at) => {
+    const { attackMs, releaseMs } = layer.envelope;
+    if (attackMs + releaseMs > layerMs(layer)) ctx.addIssue({ code: 'custom', message: `the envelope (${attackMs + releaseMs} ms) is longer than its layer (${layerMs(layer)} ms)`, path: ['layers', at, 'envelope'] });
   });
+}
+
+/** A recipe with no id of its own: a creature's `cry` in species.json, or one the page makes, such as a syllable of babble. */
+export const SoundRecipe = z.strictObject(recipe).superRefine((sound, ctx) => recipeIssues(sound, 'the sound', ctx));
+export type SoundRecipe = z.infer<typeof SoundRecipe>;
+
+/** One sound: its `id`, its `volume` and 1 to 4 `layers` that play together. */
+export const Sound = z.strictObject({ id: SoundId, ...recipe }).superRefine((sound, ctx) => recipeIssues(sound, `"${sound.id}"`, ctx));
 export type Sound = z.infer<typeof Sound>;
 
 /**

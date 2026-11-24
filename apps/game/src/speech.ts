@@ -30,6 +30,8 @@ export type Speech = {
   say(voice: Voice | null, text: string, choices?: readonly string[]): void;
   /** Whether `text` has a clip in `voice`, so a speaker button for it would play something. */
   has(voice: Voice | null, text: string): boolean;
+  /** Whether "Read to me" reads `text` by itself as it starts: the setting is on and it has a clip in `voice`. */
+  reads(voice: Voice | null, text: string): boolean;
   /** What is being read aloud now, or null between clips and once all are read. */
   speaking(): Spoken | null;
   /** The talk closed, a choice was tapped or the player left: whatever plays stops. */
@@ -90,6 +92,7 @@ export function createSpeech(options: SpeechOptions): Speech {
     },
     say: (voice, text, choices = []) => sayAll(lineAndChoices(voice, text, choices)),
     has: (voice, text) => clip(voice, text) !== null,
+    reads: (voice, text) => options.readToMe() && clip(voice, text) !== null,
     speaking: () => now,
     stop,
   };

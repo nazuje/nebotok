@@ -24,6 +24,7 @@ import { element } from '../dom.ts';
 import { cameInHurt } from '../health-level.ts';
 import { moveArena } from '../move-arena.ts';
 import type { SoundPlayer } from '../sound.ts';
+import type { Cries } from '../sounds-creatures.ts';
 import { buttonStates, treatUsable, type ButtonState } from './arena-buttons.ts';
 import { ARENA } from './arena-content.ts';
 import { createArenaControls, type Quit } from './arena-controls.ts';
@@ -58,6 +59,8 @@ export type ArenaOptions = {
   watcher(): boolean;
   /** The page's sounds and haptics, which the player's sounds setting turns off. */
   sound: Pick<SoundPlayer, 'play' | 'vibrate'>;
+  /** Each creature cries as it comes onto the island, and a befriended one as the fight ends. */
+  cries: Pick<Cries, 'cry' | 'entered'>;
 };
 
 /** The fight on screen, for the test hook. */
@@ -374,9 +377,21 @@ export function createArena(options: ArenaOptions): Arena {
     );
   }
 
+  /** A creature cries as it comes onto the island: the other side's first as a fight starts, then after a swap and each round. */
+  function entrances(target: Fight, now: number) {
+    const state = shown()?.state;
+    const side = target.started?.side;
+    if (state?.phase !== 'fighting' || side === undefined) return;
+    for (const at of [otherSide(side), side]) {
+      const body = state.bodies.at(at);
+      if (body) options.cries.entered(target.id, `${at}:${body.id}`, body.species, now);
+    }
+  }
+
   function ended(result: ArenaResultMessage) {
     options.learned(result.learned);
     if (fight?.id !== result.fightId) return;
+    if (result.befriended) options.cries.cry(result.befriended.species, performance.now());
     fight.result = result;
     fight.resultAt = performance.now() + RESULT_HOLD_MS;
     controls.reset();
@@ -447,9 +462,12 @@ export function createArena(options: ArenaOptions): Arena {
     },
     frame: (now) => {
       const language = options.language();
-      if (fight) track(fight);
-      const state = shown()?.state;
-      if (fight) hear(fight, fight.phases(state?.phase ?? null, state?.countdown ?? 0));
+      if (fight) {
+        track(fight);
+        entrances(fight, now);
+        const state = shown()?.state;
+        hear(fight, fight.phases(state?.phase ?? null, state?.countdown ?? 0));
+      }
       netPanel?.render(fight && fight.result === null ? meters(fight) : null, language);
       const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [], watching: watching(), waiting: waiting() };
       screen.render(view, language);

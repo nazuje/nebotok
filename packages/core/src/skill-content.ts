@@ -8,7 +8,8 @@
  */
 import { z } from 'zod';
 import { FADE_MS, MARKER_MARGIN, MARKER_TRACK, MAX_TAPS, SPARKLE_FIRST_MS, SPARKLE_PLACES } from './attempts.ts';
-import { ContentId, LocalizedText, noRepeatedIds } from './content.ts';
+import { ContentId, LocalizedText } from './content.ts';
+import { noRepeatedIds } from './unique-ids.ts';
 
 /** The tiny games, one per skill: tap when the float dips, tap the sparkles, stop the marker in its zone. */
 export const GAMES = ['dip', 'sparkle', 'marker'] as const;

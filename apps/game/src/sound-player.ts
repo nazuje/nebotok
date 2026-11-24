@@ -1,4 +1,4 @@
-import type { Sound, SoundsFile } from '@nebotok/core';
+import type { Sound, SoundRecipe, SoundsFile } from '@nebotok/core';
 import { createBurstCap, type SoundPriority } from './sound-burst.ts';
 import { masterGain, remember } from './sound-mix.ts';
 
@@ -13,7 +13,7 @@ export type Synth = {
   /** Whether a tap has let the page make sound yet. */
   ready(): boolean;
   /** Plays a recipe now, through the master gain; before a tap has unlocked the page, not at all. */
-  play(sound: Sound): void;
+  play(sound: SoundRecipe): void;
   /** Sets the gain of every effect, playing ones too. */
   master(gain: number): void;
 };
@@ -24,6 +24,13 @@ export type SoundPlayer = {
    * lets it start; `keep` for one a burst must not drop. An id not there is refused. Returns whether it was played.
    */
   play(id: string, priority?: SoundPriority): boolean;
+  /** The recipe sounds.json has for `id`, for code that makes its own sounds from it, such as babble. */
+  recipe(id: string): Sound | null;
+  /**
+   * Plays a recipe made from content outside sounds.json (a syllable of babble, a creature's cry), if
+   * sounds are on and the burst cap lets it start, as an ordinary sound, recorded as `label`. Returns whether it was played.
+   */
+  playRecipe(label: string, recipe: SoundRecipe): boolean;
   /** Buzzes the device with a vibration pattern in ms, if sounds are on and the device can. Returns whether it asked. */
   vibrate(pattern: readonly number[]): boolean;
   /** The player's sounds setting. */
@@ -53,16 +60,22 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
   const mix = () => synth.master(on ? masterGain(file, ducked) : 0);
   mix();
 
+  const playAs = (label: string, sound: SoundRecipe, priority: SoundPriority) => {
+    const now = options.now();
+    if (!burst(now, priority)) return false;
+    played = remember(played, { id: label, at: Math.round(now) });
+    synth.play(sound);
+    return true;
+  };
+
   return {
     play: (id, priority = 'normal') => {
       const sound = recipes.get(id);
       if (!sound || !on) return false;
-      const now = options.now();
-      if (!burst(now, priority)) return false;
-      played = remember(played, { id, at: Math.round(now) });
-      synth.play(sound);
-      return true;
+      return playAs(id, sound, priority);
     },
+    recipe: (id) => recipes.get(id) ?? null,
+    playRecipe: (label, recipe) => on && playAs(label, recipe, 'normal'),
     vibrate: (pattern) => {
       if (!on || !options.vibrate) return false;
       options.vibrate([...pattern]);

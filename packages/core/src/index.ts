@@ -483,7 +483,9 @@ export {
   type SkillContent,
   type SkillContentFiles,
 } from './skill-content.ts';
-export { SOUND_WAVES, MAX_SOUND_MS, MAX_DUCK_PERCENT, SoundId, SoundLayer, Sound, SoundsFile, layerMs, soundMs, type SoundWave } from './sound-content.ts';
+export { SOUND_WAVES, MAX_SOUND_MS, MAX_DUCK_PERCENT, SoundId, SoundLayer, SoundRecipe, Sound, SoundsFile, layerMs, soundMs, type SoundWave } from './sound-content.ts';
+export { BABBLE_SOUND, LETTERS_PER_SYLLABLE, babbleStarts, babbleSyllable, type BabbleVoice } from './babble.ts';
+export { speciesCry } from './cries.ts';
 export {
   MIN_ATTEMPT_MS,
   CLOCK_SLACK_MS,

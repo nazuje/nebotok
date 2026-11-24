@@ -1,7 +1,7 @@
 import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type LearnedMove, type Point, type ProgressMessage, type StorageMessage, type StringId, type WorldMap } from '@nebotok/core';
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
-import { createBattleModel } from './battle-model.ts';
+import { createBattleModel, type BattleScreenState } from './battle-model.ts';
 import { createBattleSounds } from './battle-sounds.ts';
 import { BATTLE_SCENE, BattleScene } from './battle-scene.ts';
 import { createBattleScreen, lineText } from './battle-screen.ts';
@@ -14,6 +14,7 @@ import { createLoadoutPicker, type LoadoutPickerState } from './loadout-picker.t
 import { createNewMoveToast, type NewMove } from './new-move-toast.ts';
 import { pictureIcon, shrineIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
+import type { Cries } from './sounds-creatures.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
 import type { SoundPlayer } from './sound.ts';
 import { createStarterScreen } from './starter-screen.ts';
@@ -51,6 +52,8 @@ export type BattlesOptions = {
   arenaUp(): boolean;
   /** Plays a battle's hits, faints and result. */
   sound: Pick<SoundPlayer, 'play'>;
+  /** A wild creature appearing, a starter picked and a creature befriended cry. */
+  cries: Pick<Cries, 'cry'>;
 };
 
 export type Battles = {
@@ -138,7 +141,9 @@ export function createBattles(options: BattlesOptions): Battles {
   });
   /** Offers already toasted, since the server sends an offer again after a reconnection. */
   const offersSeen = new Set<number>();
-  const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: request });
+  const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: request, picked: (species) => options.cries.cry(species, performance.now()) });
+  /** The battle whose wild creature has cried, and whether its befriending has. */
+  let cried: { battle: string; befriended: boolean } | null = null;
   // A move a level up offers is asked about once the battle screen is put away.
   const learn = createLearnModel();
   const learnPrompt = createLearnPrompt(element<HTMLElement>('#learn'), {
@@ -216,9 +221,24 @@ export function createBattles(options: BattlesOptions): Battles {
     if (message.type === SERVER_MESSAGES.storage && message.payload.shrine !== restedAt) rested();
   }
 
+  /** The wild creature cries as its battle starts, and again as the result says it joined. */
+  function cry(battle: BattleScreenState | null, now: number) {
+    if (!battle) return;
+    if (cried?.battle !== battle.view.id) {
+      cried = { battle: battle.view.id, befriended: false };
+      const wild = battle.view.opponent.creatures[battle.view.opponent.active];
+      if (wild) options.cries.cry(wild.species, now);
+    }
+    const { line } = battle;
+    if (cried.befriended || line?.species === undefined || (line.id !== 'battle.befriended' && line.id !== 'battle.befriendedStored')) return;
+    cried.befriended = true;
+    options.cries.cry(line.species, now);
+  }
+
   function update(now = performance.now()) {
     const battle = model.battle(now);
     sounds(battle);
+    cry(battle, now);
     const progress = model.progress();
     const arena = options.arenaUp();
     const offer = battle || arena ? null : learn.current();

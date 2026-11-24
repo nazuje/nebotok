@@ -83,6 +83,16 @@ describe('the sound player', () => {
     expect(sound.state().played.map((each) => each.id)).toEqual([...Array.from({ length: 4 }, () => 'arena.hit'), 'quest.done']);
   });
 
+  it('counts cries and babble in the same burst, as ordinary sounds', () => {
+    const { sound } = player(true, 1);
+    const cry = FILE.sounds.find((each) => each.id === 'arena.hit')!;
+    const cries = Array.from({ length: 3 }, () => sound.playRecipe('cry:glowbun', cry));
+    expect(cries.every(Boolean)).toBe(true);
+    expect(sound.play('arena.hit')).toBe(true);
+    expect(sound.playRecipe('talk.babble:bavko', cry)).toBe(false);
+    expect(sound.play('arena.fight.won', 'keep')).toBe(true);
+  });
+
   it('says nothing can buzz on a device without vibration', () => {
     const sound = createSoundPlayer({ file: FILE, synth: fakeSynth().synth, now: () => 0, vibrate: null });
     expect(sound.vibrate([20])).toBe(false);

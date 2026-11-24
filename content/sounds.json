@@ -251,6 +251,13 @@
       "layers": [
         { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 320 }, "wave": "triangle", "steps": [{ "hz": 494, "ms": 170 }, { "hz": 415, "ms": 170 }, { "hz": 330, "ms": 460 }], "glide": false }
       ]
+    },
+    {
+      "id": "talk.babble",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 6, "releaseMs": 35 }, "wave": "triangle", "steps": [{ "hz": 360, "ms": 35 }, { "hz": 400, "ms": 30 }], "glide": true }
+      ]
     }
   ]
 }
