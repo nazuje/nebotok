@@ -7,6 +7,7 @@ import { createJournalScreen } from './journal-screen.ts';
 import { createQuestToast, questHint, type NewsLines, type NewsPicture, type NewsTone, type QuestToastState } from './quest-toast.ts';
 import { speakerButton } from './speaker-button.ts';
 import type { SoundPlayer } from './sound.ts';
+import { questSound } from './sounds-world.ts';
 import type { Speech } from './speech.ts';
 import { STORY, storyProgress } from './story-content.ts';
 import { text } from './strings.ts';
@@ -28,7 +29,7 @@ export type StoryOptions = {
   changed(): void;
   /** Reads a new quest banner's hint aloud, and again from its speaker button. */
   speech: Speech;
-  /** Plays the fanfare of a quest done. */
+  /** Plays each toast's sound as it shows: a new quest, a step done, a quest's fanfare, and the news' own. */
   sound: Pick<SoundPlayer, 'play'>;
 };
 
@@ -52,8 +53,8 @@ export type Story = {
   overlay(): StoryOverlay | null;
   /** Forgets the player's story, as when they leave the world. */
   reset(): void;
-  /** Shows other news in the quest toast's queue, led by a picture when it has one. */
-  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
+  /** Shows other news in the quest toast's queue, led by a picture when it has one, with the sound it plays as it shows. */
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture, sound?: string): void;
   snapshot(): TestStory;
 };
 
@@ -79,6 +80,7 @@ export function createStory(options: StoryOptions): Story {
       const hint = questHint(change, language);
       if (hint !== null) speech.onHint(hint);
     },
+    play: (sound) => options.sound.play(sound),
   });
   const close = () => open(null);
   const bag = createBagScreen(element<HTMLElement>('#bag'), { language: options.language, progress: current, closed: close });
@@ -136,8 +138,7 @@ export function createStory(options: StoryOptions): Story {
   }
 
   function changedQuest(change: QuestChanged) {
-    if (change.change === 'done') options.sound.play('quest.done');
-    toast.show(change);
+    toast.show(change, questSound(change));
     if (overlay !== 'journal') news = true;
   }
 
@@ -172,7 +173,7 @@ export function createStory(options: StoryOptions): Story {
       toast.clear();
       close();
     },
-    news: (lines, tone, picture) => toast.news(lines, tone, picture),
+    news: (lines, tone, picture, sound) => toast.news(lines, tone, picture, sound),
     snapshot: () => ({
       story: saved,
       journalNews: news,

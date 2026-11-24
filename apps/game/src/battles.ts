@@ -50,7 +50,7 @@ export type BattlesOptions = {
   bottomTaken(): boolean;
   /** An arena fight is on screen: the team, picker, starter and move prompts wait for it. */
   arenaUp(): boolean;
-  /** Plays a battle's hits, faints and result. */
+  /** Plays a battle's hits, faints and result (battle-sounds.ts), and a new move's toast. */
   sound: Pick<SoundPlayer, 'play'>;
   /** A wild creature appearing, a starter picked and a creature befriended cry. */
   cries: Pick<Cries, 'cry'>;
@@ -138,6 +138,7 @@ export function createBattles(options: BattlesOptions): Battles {
       picker.open(index, move);
       update();
     },
+    shown: () => options.sound.play('world.move-learned'),
   });
   /** Offers already toasted, since the server sends an offer again after a reconnection. */
   const offersSeen = new Set<number>();

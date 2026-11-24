@@ -2,6 +2,7 @@ import { BABBLE_SOUND, SoundsFile, babbleStarts, type SoundRecipe, type Species 
 import { describe, expect, it } from 'vitest';
 import sounds from '../../../content/sounds.json' with { type: 'json' };
 import species from '../../../content/creatures/species.json' with { type: 'json' };
+import { STARTS_PER_SECOND } from '../src/sound-limit.ts';
 import { createSoundPlayer } from '../src/sound-player.ts';
 import { CRY_GAP_MS, createCries } from '../src/sounds-creatures.ts';
 import { createBabble, type BabbleLine } from '../src/sounds-talk.ts';
@@ -81,6 +82,21 @@ describe('babble', () => {
     babble.frame(line(0));
     babble.frame(line(30));
     expect(heard).toHaveLength(1);
+  });
+
+  it('is not held to one id\'s starts a second: a quick talker babbles every syllable, while a mashed id is still cut', () => {
+    const { sound, heard } = player();
+    const quick = { voice: { pitch: 3, pace: 3 }, pace: 3 };
+    const syllables = babbleStarts(SAY, 3).length;
+    expect(syllables).toBeGreaterThan(STARTS_PER_SECOND);
+    typeOut(createBabble(sound), SAY.length, quick);
+    expect(heard).toHaveLength(syllables);
+    // 30 ms apart, so the burst cap lets each tap through and only one id's limit can cut them.
+    const taps = Array.from({ length: STARTS_PER_SECOND + 2 }, () => {
+      clockMs += 30;
+      return sound.play('ui.tap');
+    });
+    expect(taps.filter(Boolean)).toHaveLength(STARTS_PER_SECOND);
   });
 
   it('plays and records nothing while sounds are off', () => {

@@ -280,6 +280,20 @@ const weakEnough = (state) => state.arena?.theirs != null && state.arena.theirs.
 const THROW_WITHIN = 200 * 256;
 /** They throw only when the keys point within this angle of the wild creature, well inside the aim help's 30 degrees. */
 const THROW_COSINE = Math.cos((15 * Math.PI) / 180);
+/** Below half its health a creature can be knocked off the island (docs/arena.md), so a befriend run must not knock it out. */
+const fallsNow = (state) => state.arena?.theirs != null && state.arena.theirs.health * 2 < state.arena.theirs.max;
+/** A befriend run hits or walks into a creature that can fall only inside this share of the island's radius, where a knock or bump cannot carry it past the edge. */
+const SAFE_SHARE = 0.55;
+const nearEdge = (state) => Math.hypot(state.arena.theirs.x, state.arena.theirs.y) > SAFE_SHARE * (state.arena.radius || ARENA.island.radius * 256);
+/** Bodies touch at two bodies (92 units) and a bump knocks; a befriend run keeps farther off than this from a creature that can fall. */
+const STANDOFF = 140 * 256;
+const tooClose = (state) => Math.hypot(state.arena.theirs.x - state.arena.mine.x, state.arena.theirs.y - state.arena.mine.y) < STANDOFF;
+/** Waits for a creature that can fall to come back from the edge, as the wild mind does: steps back when near it, else keeps to the middle. */
+function waitInside(state) {
+  const toward = towardWild(state);
+  if (toward && tooClose(state)) return { push: { x: -toward.x, y: -toward.y }, press: null };
+  return { push: towardMiddle(state), press: null };
+}
 /** How long after a state its throw reaches the server, beyond the round trip: a send, a state patch and a frame. */
 const THROW_LATE_MS = 100;
 const TICK_MS = 1000 / 60;
@@ -298,7 +312,9 @@ function keysPush(push) {
  * hits it there, since the Treat button hides while a thrown treat flies or a missed one lies on the
  * ground and a few hits then would knock it out. It follows the wild creature and throws when near,
  * aimed where the wild creature will be once the throw reaches the server: its states arrive a round
- * trip late at 150 ms of lag, by when it has run a good way past where the page shows it.
+ * trip late at 150 ms of lag, by when it has run a good way past where the page shows it. Once the
+ * wild creature can fall, the plan neither hits nor walks into it near the edge, so it cannot ring
+ * it out instead of befriending it.
  */
 function befriender() {
   let before = null;
@@ -306,6 +322,7 @@ function befriender() {
     const { mine, theirs, tick, net } = state.arena ?? {};
     const was = before;
     before = mine && theirs ? { tick, x: theirs.x - mine.x, y: theirs.y - mine.y } : null;
+    if (fallsNow(state) && nearEdge(state)) return waitInside(state);
     if (!weakEnough(state)) return attack(state);
     if (!before || !was || tick <= was.tick || !treatShown(state)) return { push: towardWild(state), press: null };
     const ahead = ((net?.rttMs ?? 0) + THROW_LATE_MS) / TICK_MS / (tick - was.tick);

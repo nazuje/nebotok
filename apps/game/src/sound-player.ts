@@ -1,5 +1,6 @@
 import type { Sound, SoundRecipe, SoundsFile } from '@nebotok/core';
 import { createBurstCap, type SoundPriority } from './sound-burst.ts';
+import { startWithinRate } from './sound-limit.ts';
 import { masterGain, remember } from './sound-mix.ts';
 
 /** A sound the page asked for while sounds were on, and when, in page ms. */
@@ -20,15 +21,19 @@ export type Synth = {
 
 export type SoundPlayer = {
   /**
-   * Plays the sound `id` names in sounds.json, if sounds are on and the burst cap (sound-burst.ts)
-   * lets it start; `keep` for one a burst must not drop. An id not there is refused. Returns whether it was played.
+   * Plays the sound `id` names in sounds.json, if sounds are on. An id not there is refused, and so
+   * is one already started STARTS_PER_SECOND times in the last second (sound-limit.ts), then one the
+   * burst cap (sound-burst.ts) drops; `keep` for one a burst must not drop. A dropped sound is not
+   * recorded and uses up neither limit. Returns whether it was played.
    */
   play(id: string, priority?: SoundPriority): boolean;
   /** The recipe sounds.json has for `id`, for code that makes its own sounds from it, such as babble. */
   recipe(id: string): Sound | null;
   /**
    * Plays a recipe made from content outside sounds.json (a syllable of babble, a creature's cry), if
-   * sounds are on and the burst cap lets it start, as an ordinary sound, recorded as `label`. Returns whether it was played.
+   * sounds are on and the burst cap lets it start, as an ordinary sound, recorded as `label`. Returns
+   * whether it was played. Not held to STARTS_PER_SECOND: its maker paces it, babble by the typing
+   * (up to about 15 syllables a second, stopped by a tap) and cries CRY_GAP_MS apart.
    */
   playRecipe(label: string, recipe: SoundRecipe): boolean;
   /** Buzzes the device with a vibration pattern in ms, if sounds are on and the device can. Returns whether it asked. */
@@ -56,26 +61,35 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
   let on = true;
   let ducked = false;
   let played: PlayedSound[] = [];
+  const starts = new Map<string, number[]>();
   const burst = createBurstCap();
   const mix = () => synth.master(on ? masterGain(file, ducked) : 0);
   mix();
 
-  const playAs = (label: string, sound: SoundRecipe, priority: SoundPriority) => {
-    const now = options.now();
-    if (!burst(now, priority)) return false;
+  const playAs = (label: string, sound: SoundRecipe, now: number) => {
     played = remember(played, { id: label, at: Math.round(now) });
     synth.play(sound);
-    return true;
   };
 
   return {
     play: (id, priority = 'normal') => {
       const sound = recipes.get(id);
       if (!sound || !on) return false;
-      return playAs(id, sound, priority);
+      const now = options.now();
+      const kept = startWithinRate(starts.get(id) ?? [], now);
+      if (!kept || !burst(now, priority)) return false;
+      starts.set(id, kept);
+      playAs(id, sound, now);
+      return true;
     },
     recipe: (id) => recipes.get(id) ?? null,
-    playRecipe: (label, recipe) => on && playAs(label, recipe, 'normal'),
+    playRecipe: (label, recipe) => {
+      if (!on) return false;
+      const now = options.now();
+      if (!burst(now, 'normal')) return false;
+      playAs(label, recipe, now);
+      return true;
+    },
     vibrate: (pattern) => {
       if (!on || !options.vibrate) return false;
       options.vibrate([...pattern]);

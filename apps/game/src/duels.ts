@@ -8,6 +8,7 @@ import { el, pictureButton } from './dom.ts';
 import { pictureIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { speakerButton } from './speaker-button.ts';
+import type { SoundPlayer } from './sound.ts';
 import type { Speech } from './speech.ts';
 import { text } from './strings.ts';
 import type { ShownPlayer } from './world-view.ts';
@@ -28,6 +29,8 @@ export type DuelsOptions = {
   toast(id: StringId): void;
   /** The duel card went up or away, so the page shows another screen and input may change. */
   changed(): void;
+  /** Plays the call of another courier asking you to duel. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type Duels = {
@@ -191,6 +194,7 @@ export function createDuels(root: HTMLElement, options: DuelsOptions): Duels {
   function onAsked(message: DuelAskedMessage) {
     set({ kind: 'asked', with: message.from, even: message.even, creatures: message.creatures, until: performance.now() + DUEL_ANSWER_MS });
     options.speech.onHint(text('duel.asked', options.language()));
+    options.sound.play('world.duel.asked');
   }
 
   function onAnswered(message: DuelAnsweredMessage) {

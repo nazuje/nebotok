@@ -68,8 +68,14 @@ export type NewsLines = (language: Language) => string[];
 /** A picture leading a toast's lines, so a player who cannot read gets the news too. */
 export type NewsPicture = (language: Language) => HTMLElement | null;
 
-/** `heard`: the banner has come into view once, so coming back after a screen covered it is not news again. */
-type Entry = { readonly kind: 'quest'; readonly change: QuestChanged; heard: boolean } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines; readonly picture: NewsPicture | null };
+/**
+ * `heard`: the toast has come into view once, so coming back after a screen covered it is not news
+ * again. `sound`: the sound it plays as it first comes into view, if any.
+ */
+type Entry = ({ readonly kind: 'quest'; readonly change: QuestChanged } | { readonly kind: 'news'; readonly tone: NewsTone; readonly lines: NewsLines; readonly picture: NewsPicture | null }) & {
+  readonly sound: string | null;
+  heard: boolean;
+};
 
 /**
  * The toast showing: a quest change (with its quest and banner), or other news (`quest` and
@@ -91,13 +97,15 @@ export type QuestToastOptions = {
   readonly speaker?: (change: QuestChanged, language: Language) => HTMLElement | null;
   /** A quest banner came into view for the first time, such as to read its hint aloud. */
   readonly shown?: (change: QuestChanged, language: Language) => void;
+  /** Plays the sound a toast came with, as it first comes into view. */
+  readonly play?: (sound: string) => void;
 };
 
 export type QuestToast = {
-  /** Shows a quest change for QUEST_TOAST_MS of the world being in view, after any shown or waiting before it. */
-  show(change: QuestChanged): void;
+  /** Shows a quest change for QUEST_TOAST_MS of the world being in view, after any shown or waiting before it, with the sound it plays as it shows. */
+  show(change: QuestChanged, sound?: string): void;
   /** Shows other news the same way, in the same queue: what a skill gave, a level up, a refused start, a job's progress. */
-  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture, sound?: string): void;
   clear(): void;
   /** Redraws in the current language when it changed. While `inView` is false (a screen covers the world) the toast waits. */
   render(inView: boolean): void;
@@ -162,9 +170,10 @@ export function createQuestToast(root: HTMLElement, language: () => Language, op
     const visible = current !== null && inView;
     if (visible && !showing) {
       timer = setTimeout(next, QUEST_TOAST_MS);
-      if (current?.kind === 'quest' && !current.heard) {
+      if (current && !current.heard) {
         current.heard = true;
-        options.shown?.(current.change, language());
+        if (current.sound !== null) options.play?.(current.sound);
+        if (current.kind === 'quest') options.shown?.(current.change, language());
       }
     }
     if (!visible && showing) {
@@ -193,11 +202,11 @@ export function createQuestToast(root: HTMLElement, language: () => Language, op
   }
 
   return {
-    show: (change) => {
-      waiting.push({ kind: 'quest', change, heard: false });
+    show: (change, sound) => {
+      waiting.push({ kind: 'quest', change, sound: sound ?? null, heard: false });
     },
-    news: (lines, tone, picture) => {
-      waiting.push({ kind: 'news', tone, lines, picture: picture ?? null });
+    news: (lines, tone, picture, sound) => {
+      waiting.push({ kind: 'news', tone, lines, picture: picture ?? null, sound: sound ?? null, heard: false });
     },
     clear: () => {
       waiting.length = 0;

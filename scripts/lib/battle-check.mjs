@@ -11,6 +11,7 @@ import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
 import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
 import { CONTROL_PICTURES, animationsSettled, battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, pictureProblems, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
+import { heardProblem } from './sound-check.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
 const CONTENT = loadBattleContent({
@@ -257,8 +258,8 @@ async function offerTreat(page, species, { language, expect, check, seen }) {
   await ((await wanted.count()) > 0 ? wanted : page.locator('#battle .treat-choice')).first().tap();
 }
 
-/** The sound each result the check reaches plays as it goes up (apps/game/src/battle-sounds.ts). */
-const RESULT_SOUNDS = { fainted: 'battle.lose', befriended: 'battle.win', stored: 'battle.win' };
+/** The sound a result plays as it goes up (apps/game/src/battle-sounds.ts), where no other check looks for it: a befriending's hearts are checked after its result. */
+const RESULT_SOUNDS = { fainted: 'battle.lose' };
 
 async function resultSays(page, wanted, kind, { expect, check }, step) {
   await nextFrames(page);
@@ -266,8 +267,8 @@ async function resultSays(page, wanted, kind, { expect, check }, step) {
   expect(said === wanted, `the result says "${said}", not "${wanted}"`);
   const shown = await page.locator('#battle .result-hero').getAttribute('data-kind');
   expect(shown === kind, `the result leads with the ${shown} picture, not ${kind}`);
-  const played = (await readState(page)).sounds?.played.map((each) => each.id) ?? [];
-  expect(played.includes(RESULT_SOUNDS[kind]), `the ${kind} result played none of ${RESULT_SOUNDS[kind]}: ${JSON.stringify(played)}`);
+  const sound = RESULT_SOUNDS[kind] ? await heardProblem(page, RESULT_SOUNDS[kind], `the ${kind} result`) : null;
+  if (sound) expect(false, sound);
   await animationsSettled(page);
   await check('the battle result', step);
 }
@@ -319,6 +320,8 @@ async function befriend(page, world, options, tries = 1) {
   if (outcome?.reason === 'befriended') {
     const wanted = say(befriended?.placedIn === 'storage' ? 'battle.befriendedStored' : 'battle.befriended').replace('{creature}', nameOf(befriended?.species, language));
     await resultSays(page, wanted, befriended?.placedIn === 'storage' ? 'stored' : 'befriended', { expect, check }, 'b4-result');
+    const sound = await heardProblem(page, 'world.befriend', 'the creature befriended');
+    if (sound) expect(false, sound);
     await continueToWorld(page);
     return befriended;
   }

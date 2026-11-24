@@ -2,8 +2,9 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type BoardJob, type Direction, type L
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { ANSWER_MS, type RequestPacer } from './request-pacer.ts';
-import type { SoundPlayer } from './sound-player.ts';
+import type { SoundPlayer } from './sound.ts';
 import { createBabble } from './sounds-talk.ts';
+import { talkSound } from './sounds-world.ts';
 import type { Speech, Spoken, Voice } from './speech.ts';
 import { talkCueKey } from './storm-plan.ts';
 import { text } from './strings.ts';
@@ -56,8 +57,6 @@ export type TalksOptions = {
   changed(): void;
   /** Says each line and its choices as it starts, and again from the talk box's speaker button. */
   speech: Speech;
-  /** Plays the babble of each line as it types. */
-  sound: Pick<SoundPlayer, 'recipe' | 'playRecipe'>;
   /** A node with a cue opened (`talkCueKey` is its key): the starter screen, or a story cue to play. */
   cue(cue: TalkCue, key: string): void;
   /** Paces every talk request with the page's other requests, under the server's limit. */
@@ -67,6 +66,8 @@ export type TalksOptions = {
    * now waits and opens once it is gone: the talk box is hidden under it and would take its keys.
    */
   held(): boolean;
+  /** Plays a line's sound as it opens (a trainer's challenge, or a character giving you something) and its babble as it types. */
+  sound: Pick<SoundPlayer, 'play' | 'recipe' | 'playRecipe'>;
 };
 
 export type Talks = {
@@ -142,6 +143,8 @@ export function createTalks(options: TalksOptions): Talks {
       skipped = false;
       const shown = line();
       if (shown) speech.onLine(voiceOf(shown), shown.say, shown.mood, choiceWords(shown));
+      const heard = talkSound(next, STORY);
+      if (heard) options.sound.play(heard);
       if (next.cue !== null) options.cue(next.cue, talkCueKey(next));
     }
     if (opened) options.changed();

@@ -95,13 +95,13 @@ describe('a best of 3\'s countdown and "Go!"', () => {
 });
 
 describe('a turn battle\'s sounds', () => {
-  it('plays a hit and a faint, and a win or a loss, and nothing else', () => {
+  it('plays a hit and a faint, and a win or a loss, and nothing else; a befriending is heard as its hearts (battleEndSound)', () => {
     expect(battleStepSound({ kind: 'hit', creature: 'b1' })).toBe('battle.hit');
     expect(battleStepSound({ kind: 'faint', creature: 'b1' })).toBe('battle.faint');
     expect(battleStepSound({ kind: 'attack', creature: 'a1' })).toBeNull();
     expect(battleStepSound(null)).toBeNull();
     expect(battleResultSound('won')).toBe('battle.win');
-    expect(battleResultSound('befriended')).toBe('battle.win');
+    expect(battleResultSound('befriended')).toBeNull();
     expect(battleResultSound('fainted')).toBe('battle.lose');
     expect(battleResultSound('ran')).toBeNull();
   });

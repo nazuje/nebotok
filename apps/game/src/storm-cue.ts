@@ -2,6 +2,7 @@ import { SERVER_MESSAGES, spriteFor, type Language, type QuestChanged, type Stor
 import type { GameObjects, Geom } from 'phaser';
 import type { WorldRoom } from './connection.ts';
 import { button, el, element } from './dom.ts';
+import type { SoundPlayer } from './sound.ts';
 import type { Speech } from './speech.ts';
 import { animationKey, spriteTexture } from './sprites.ts';
 import { beatAt, createCueGate, flagsSetWith, MOVING_BEATS, outward, questCueKey, STILL_BEATS, type Beats, type StormBeat } from './storm-plan.ts';
@@ -47,6 +48,8 @@ export type StoryCuesOptions = {
   free(): boolean;
   /** A cue started or ended, so walking pauses or goes on. */
   changed(): void;
+  /** Plays the storm's rumble as a cue starts. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type StoryCues = {
@@ -132,6 +135,7 @@ export function createStoryCues(options: StoryCuesOptions): StoryCues {
     caption.textContent = reduced ? text('storm.caption', options.language()) : '';
     caption.hidden = !reduced;
     played += 1;
+    options.sound.play('world.storm');
     options.changed();
   }
 
