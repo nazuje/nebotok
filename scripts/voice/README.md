@@ -1,7 +1,7 @@
 # Voice tool
 
-Makes the computer-voice clips the game plays for talk lines, choices, quest text, move names and a
-few interface lines, in English
+Makes the computer-voice clips the game plays for talk lines, choices, quest text, move names, job
+card sentences and a few interface lines, in English
 and Slovenian, ahead of time with [Piper](https://github.com/OHF-Voice/piper1-gpl). Ported from the
 owner's Playroom project. The clips are committed and served by the game's own server, so the
 game, CI and the image need none of this: it runs only on a developer's Mac.
@@ -37,7 +37,9 @@ the clips with the manifest. `npm run content:validate` fails until you do.
 
 In: every dialogue node's `say` and every choice in `content/dialogue/*.json`, every quest's
 `name`, `summary` and step `hint` in `content/quests.json`, and every move's `name` in
-`content/creatures/moves.json` (read by the loadout picker's speaker buttons), and the
+`content/creatures/moves.json` (read by the loadout picker's speaker buttons), every job template's
+`say` in `content/jobs.json` (read by the job cards' speaker buttons), filled in for each count the
+board can ask for (core `jobCounts`) and each character a delivery goes to, and the
 `content/strings.json` ids in `SPOKEN_STRINGS` (the duel card's line, the turtle setting and the
 loadout picker's "new move"), in both languages (`lines.mjs`). A string the game reads aloud goes
 on that list; `npm run voice` and `content:validate` stop if one of its ids is missing. A
@@ -60,7 +62,7 @@ stale clip. CI only checks; it never makes clips.
 ## Voices
 
 `config.mjs` holds every setting. English is Piper's British `cori` voice, Slovenian its `artur`
-voice. The narrator, choices, quest text, move names and interface lines use the voice as it is. Each character's
+voice. The narrator, choices, quest text, move names, job sentences and interface lines use the voice as it is. Each character's
 `voice.pitch` (1 to 5) in `content/npcs.json` moves the pitch by 1.5 semitones a step from the
 middle, without changing speed, and `voice.pace` (1 to 3) makes it slower or quicker. Characters
 with the same pitch and pace share clips.

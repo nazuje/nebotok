@@ -2,7 +2,7 @@
  * Schemas of the skill content: the skills, their level curve and their tiny games
  * (`skills.json`), the spots players gather at (`spots.json`), the recipes cooked at a pot
  * (`recipes.json`), the stations a map places (`stations.json`) and the job board's templates
- * (`jobs.json`). The links between these files, and to items, characters and dialogue, are checked
+ * (`jobs.json`), with the sentences job cards read aloud. The links between these files, and to items, characters and dialogue, are checked
  * by `skillProblems` in skill-links.ts; docs/protocol.md, "Skills and the job board", explains how
  * they play.
  */
@@ -148,6 +148,19 @@ export const JobRewardsSchema = z.strictObject({
   xp: z.array(z.strictObject({ skill: ContentId, perItem: z.number().int().min(0).max(1_000) })).max(3),
 });
 
+const Sentence = z.string().trim().min(1).max(200);
+
+/**
+ * A whole sentence with a count in it, written out in every form the count takes in each language
+ * (English `one` and `other`; Slovenian `one`, `two`, `few` and `other`), so no sentence is ever
+ * built from parts. `{count}` stands for the number.
+ */
+export const CountedText = z.strictObject({
+  en: z.strictObject({ one: Sentence, other: Sentence }),
+  sl: z.strictObject({ one: Sentence, two: Sentence, few: Sentence, other: Sentence }),
+});
+export type CountedText = z.infer<typeof CountedText>;
+
 const templateBase = {
   id: ContentId,
   item: ContentId,
@@ -160,11 +173,17 @@ const templateBase = {
 /**
  * A kind of job the board draws: gather or cook `count` of `item` (drawn from the range), or bring
  * them to one of the characters `to`. Drawn only for a player whose `needs` skill is at that level.
+ * `say` is the sentence its card reads aloud: for a delivery, one for each character it goes to.
  */
 export const JobTemplate = z.discriminatedUnion('kind', [
-  z.strictObject({ ...templateBase, kind: z.literal('gather') }),
-  z.strictObject({ ...templateBase, kind: z.literal('cook') }),
-  z.strictObject({ ...templateBase, kind: z.literal('deliver'), to: z.array(ContentId).min(1).max(5).refine((ids) => new Set(ids).size === ids.length, 'each character appears once') }),
+  z.strictObject({ ...templateBase, kind: z.literal('gather'), say: CountedText.optional() }),
+  z.strictObject({ ...templateBase, kind: z.literal('cook'), say: CountedText.optional() }),
+  z.strictObject({
+    ...templateBase,
+    kind: z.literal('deliver'),
+    to: z.array(ContentId).min(1).max(5).refine((ids) => new Set(ids).size === ids.length, 'each character appears once'),
+    say: z.record(ContentId, CountedText).optional(),
+  }),
 ]);
 export type JobTemplate = z.infer<typeof JobTemplate>;
 

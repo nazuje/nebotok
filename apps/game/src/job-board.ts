@@ -1,9 +1,11 @@
-import { frameNames, jobRewards, spriteFor, type ItemCount, type JobChanged, type JobView, type Language, type SkillsMessage, type StringId } from '@nebotok/core';
+import { frameNames, jobLine, jobRewards, spriteFor, type ItemCount, type JobChanged, type JobView, type Language, type SkillsMessage, type StringId } from '@nebotok/core';
 import { itemIcon } from './bag-screen.ts';
 import { itemName } from './battle-content.ts';
 import { el } from './dom.ts';
 import { closeButton, pictureIcon, spriteIcon } from './pictures.ts';
 import { showFrame } from './skill-games/mini-game.ts';
+import { speakerButton } from './speaker-button.ts';
+import type { Speech } from './speech.ts';
 import { paintFrame, sprite } from './sprites.ts';
 import { STORY } from './story-content.ts';
 import { format, text } from './strings.ts';
@@ -81,6 +83,8 @@ export type JobCardView = {
   /** A delivery whose items are all in the bag, so only the walk to the character is left. */
   readonly ready: boolean;
   readonly rewards: { readonly items: readonly { readonly item: string; readonly count: string }[]; readonly xp: readonly JobXpReward[] };
+  /** The whole sentence the card reads aloud (its template's `say`), or null when it has none. */
+  readonly line: string | null;
 };
 
 /** What a job's card shows in `language`; a delivery's progress counts what the bag holds now. */
@@ -88,6 +92,7 @@ export function jobCard(job: JobView, inventory: readonly ItemCount[], skills: S
   const have = Math.min(carried(inventory, job.item), job.count);
   const deliver = job.kind === 'deliver' && job.to !== null;
   const rewards = STORY.skills ? jobRewards(job, STORY.skills) : { items: [], xp: [] };
+  const template = STORY.skills?.templates.get(job.template);
   return {
     job: job.job,
     kind: job.kind,
@@ -104,6 +109,7 @@ export function jobCard(job: JobView, inventory: readonly ItemCount[], skills: S
       items: rewards.items.map(({ item, count }) => ({ item, count: format('bag.count', language, { count }) })),
       xp: rewards.xp.map(({ skill, xp }) => ({ skill, xp, line: format('jobs.rewardXp', language, { skill: skillName(skill, language), xp }), bar: xpBar(skill, xp, skills) })),
     },
+    line: template ? jobLine(template, job.count, job.to, language) : null,
   };
 }
 
@@ -206,6 +212,8 @@ export type JobBoardOptions = {
   hint(): boolean;
   /** The player closed the screen. */
   closed(): void;
+  /** Reads a card's sentence aloud when its speaker button is tapped. */
+  speech: Pick<Speech, 'say' | 'has'>;
 };
 
 export type JobBoardState = { readonly cards: readonly number[]; readonly flipped: readonly number[]; readonly hint: boolean; readonly more: boolean };
@@ -262,9 +270,9 @@ function xpReward(reward: JobXpReward, language: Language): HTMLElement {
 /**
  * A card: the verb's picture, the item and how many in a row of pictures along the top, then the
  * same in small words for readers, who a delivery is for, the pips filling as the job goes, and the
- * rewards as pictures. The top right corner stays free for a read-aloud button.
+ * rewards as pictures. A speaker button in the top right corner reads the job aloud, when it has a clip.
  */
-function cardElement(card: JobCardView, language: Language, flipped: boolean, playing: Playing[]): HTMLElement {
+function cardElement(card: JobCardView, language: Language, flipped: boolean, playing: Playing[], speech: JobBoardOptions['speech']): HTMLElement {
   const head: HTMLElement[] = [];
   if (card.art) head.push(verbPicture(card.art, playing));
   head.push(itemIcon(card.item), el('span', { className: 'job-count', text: card.count }));
@@ -280,6 +288,8 @@ function cardElement(card: JobCardView, language: Language, flipped: boolean, pl
     ...card.rewards.xp.map((reward) => xpReward(reward, language)),
   ];
   if (rewards.length > 0) parts.push(el('div', { className: 'job-rewards' }, [pictureIcon('trophy', 32, { label: text('jobs.rewards', language), className: 'job-rewards-title' }), el('ul', { className: 'job-reward-list' }, rewards)]));
+  const line = card.line;
+  if (line !== null && speech.has(null, line)) parts.push(speakerButton('job-speaker', text('speech.play', language), () => speech.say(null, line)));
   const attrs: Record<string, string> = { 'data-job': String(card.job), 'data-kind': card.kind };
   if (card.ready) attrs['data-ready'] = '';
   if (flipped) attrs['data-flipped'] = '';
@@ -319,7 +329,7 @@ export function createJobBoard(root: HTMLElement, options: JobBoardOptions): Job
     const cards = el(
       'ol',
       { className: 'job-cards' },
-      jobs.map((job) => cardElement(jobCard(job, inventory, skills, language), language, flipped.includes(job.job), playing)),
+      jobs.map((job) => cardElement(jobCard(job, inventory, skills, language), language, flipped.includes(job.job), playing, options.speech)),
     );
     const scrolled = el('div', { className: 'team-scroll job-board-scroll', attrs: { role: 'group' } }, [cards]);
     const down = el('button', { className: 'job-more', attrs: { type: 'button', 'aria-label': text('jobs.more', language) } }, [pictureIcon('arrow', 32, { className: 'job-more-arrow' })]);

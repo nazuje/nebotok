@@ -15,7 +15,7 @@ const fill = (line, values) => line.replaceAll(/\{([a-zA-Z]+)\}/g, (blank, name)
 const textOf = async (page, selector) => (await page.locator(selector).first().textContent())?.trim();
 
 /** Taps the board in the world and waits for its screen with `cards` cards. */
-async function openBoard(page, plan, what) {
+export async function openBoard(page, plan, what) {
   await until(page, (s) => settledOn(s) && s.screen === 'world', `the courier to stand still before ${what}`);
   const [spot] = await tilesToScreen(page, [plan.board.tile]);
   if (!spot) throw new Error(`the board at ${plan.board.tile.x},${plan.board.tile.y} is not on screen to tap`);
@@ -25,7 +25,7 @@ async function openBoard(page, plan, what) {
   return state;
 }
 
-async function closeBoard(page) {
+export async function closeBoard(page) {
   await page.locator('#job-board .job-board-close').tap();
   await until(page, (s) => s.screen === 'world', 'the world after the board');
 }

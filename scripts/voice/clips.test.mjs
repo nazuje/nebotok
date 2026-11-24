@@ -4,6 +4,8 @@ import { checkClips, clipProblems, plannedClips } from './clips.mjs';
 import { SPOKEN_STRINGS, voiceLines } from './lines.mjs';
 
 const say = (en, sl) => ({ en, sl });
+/** A job sentence in every form a count takes, starting with `verb` in English. */
+const sentences = (verb) => ({ en: { one: `${verb} {count} fish.`, other: `${verb} {count} fish.` }, sl: { one: 'Ena.', two: 'Dve.', few: '{count} ribe.', other: '{count} rib.' } });
 const STORY = {
   npcs: { npcs: [{ id: 'oli', voice: { pitch: 4, pace: 1 } }] },
   dialogue: {
@@ -54,6 +56,28 @@ describe('voiceLines', () => {
     expect(spoken).toHaveLength(SPOKEN_STRINGS.length * 2);
     const { 'duel.asked': _gone, ...without } = strings;
     expect(() => voiceLines({ ...STORY, strings: without })).toThrow(/duel\.asked/);
+  });
+
+  it('voices each job sentence as the narrator, at every count the board can ask for and for every character', () => {
+    const jobs = {
+      countGrowth: { afterLevel: 1, percentPerLevel: 50 },
+      outgrownAfter: 2,
+      templates: [
+        { id: 'fish', kind: 'gather', count: [1, 2], needs: { skill: 'fishing', level: 1 }, say: sentences('Catch') },
+        { id: 'post', kind: 'deliver', count: [3, 3], to: ['oli'], needs: { skill: 'fishing', level: 1 }, say: { oli: sentences('Take') } },
+        { id: 'quiet', kind: 'cook', count: [1, 1], needs: { skill: 'cooking', level: 1 } },
+      ],
+    };
+    const spoken = voiceLines({ ...STORY, skills: { skills: { maxLevel: 20 }, jobs } }).lines.filter(({ from }) => from.startsWith('jobs.json'));
+    expect(spoken.filter(({ language }) => language === 'sl').map(({ text, from }) => [from, text])).toEqual([
+      ['jobs.json fish × 1', 'Ena.'],
+      ['jobs.json fish × 2', 'Dve.'],
+      ['jobs.json fish × 3', '3 ribe.'],
+      ['jobs.json post to oli × 3', '3 ribe.'],
+      ['jobs.json post to oli × 4', '4 ribe.'],
+    ]);
+    expect(spoken.every(({ voice }) => voice === null)).toBe(true);
+    expect(spoken.filter(({ language }) => language === 'en').map(({ text }) => text)).toContain('Take 4 fish.');
   });
 
   it('voices each form of a Slovenian line written for boys and girls apart', () => {

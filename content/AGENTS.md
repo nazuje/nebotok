@@ -16,7 +16,8 @@ content follows the `add-content` skill.
 ## Voice clips
 
 Every dialogue `say` and choice, every quest `name`, `summary` and step `hint`, every
-move `name` in `creatures/moves.json`, and the few `strings.json` lines the game reads aloud
+move `name` in `creatures/moves.json`, every job template's `say` in `jobs.json` (at each count
+the board can ask for), and the few `strings.json` lines the game reads aloud
 (`SPOKEN_STRINGS` in `scripts/voice/lines.mjs`, such as `duel.asked`) has a computer-voice clip
 in each language, named by a hash of its exact text. After changing any of them,
 run `npm run voice` on a Mac (`scripts/voice/README.md`) and commit the clips with the manifest;
@@ -172,7 +173,12 @@ kids to change.
   `outgrownAfter` (how many levels past its `needs` a template stops being drawn) and the job
   `templates`: `gather` (an item gathered), `cook` (a dish cooked) or `deliver` (items handed to
   one of the characters `to`), a `count` range, what the player `needs` (a skill level), a draw
-  `weight` and `rewards`: items, and skill XP `perItem`. The board draws a job only when the
+  `weight`, `rewards`: items, and skill XP `perItem`, and `say`, the sentence its card reads
+  aloud. `say` is written whole in every form a count takes (`en`: `one`, `other`; `sl`: `one`,
+  `two`, `few`, `other`), with `{count}` for the number; write Slovenian one and two as words
+  (`eno oblačnico`, `dva ribja piškota`), since the number agrees with the noun. A delivery's
+  `say` has one such sentence per character in `to`, the name in the case the sentence needs
+  (`Odnesi … Mehurki`). The board draws a job only when the
   player can get its item now, so a dish job also waits for the levels its ingredients need, and
   never draws the template just finished again while another fits. A job is done the moment its
   count is reached; its rewards go in at once.

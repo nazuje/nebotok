@@ -72,6 +72,16 @@ function readyNpcs(content: StoryContent): Set<string> {
   return new Set([...content.dialogue].filter(([, dialogue]) => dialogue.entries.some((entry) => (entry.if ?? []).some((condition) => 'jobReady' in condition))).map(([npc]) => npc));
 }
 
+/** A delivery's `say` has a sentence for each character it goes to, and for no other. */
+function sayProblems(template: Extract<JobTemplate, { kind: 'deliver' }>, label: string): string[] {
+  if (!template.say) return [];
+  const said = Object.keys(template.say);
+  return [
+    ...template.to.filter((npc) => !said.includes(npc)).map((npc) => `${label} say: no sentence for "${npc}", whom it goes to`),
+    ...said.filter((npc) => !template.to.includes(npc)).map((npc) => `${label} say: "${npc}" is not in its \`to\``),
+  ];
+}
+
 function templateProblems(template: JobTemplate, skills: SkillContent, content: StoryContent, ready: ReadonlySet<string>): string[] {
   const label = `jobs.json "${template.id}"`;
   const problems = [...levelProblems(label, template.needs.skill, template.needs.level, skills)];
@@ -86,6 +96,7 @@ function templateProblems(template: JobTemplate, skills: SkillContent, content: 
       if (!content.npcs.has(npc)) problems.push(`${label}: "${npc}" is not in npcs.json`);
       else if (!ready.has(npc)) problems.push(`${label}: dialogue/${npc}.json has no entry with { "jobReady": true } to take the delivery`);
     }
+    problems.push(...sayProblems(template, label));
   }
   const stack = stackOf(template.item, content);
   const most = jobCount(template.count[1], skills.maxLevel, skills);
@@ -117,7 +128,7 @@ function jobProblems(skills: SkillContent, content: StoryContent): string[] {
  * The links of the skill files: spots give ingredients of a skill that uses spots; recipes make
  * treats from ingredients, within a stack; a cooking pot and a job board exist when recipes and jobs
  * do; every job's item exists, comes from a spot or recipe its \`needs\` reach, fits a stack, and goes
- * to characters whose dialogue takes deliveries; at least \`slots\` jobs fit a new player and one at
+ * to characters whose dialogue takes deliveries, with a sentence to read aloud for each when it has any; at least \`slots\` jobs fit a new player and one at
  * the top level of every skill (\`jobFits\`); every level is at most \`maxLevel\`; and the dialogue's job entries and skill conditions have skill content.
  */
 export function skillProblems(content: StoryContent): string[] {

@@ -1,5 +1,6 @@
-import { LANGUAGES, type Language } from '@nebotok/core';
+import { LANGUAGES, jobCounts, type JobView, type Language } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
+import { jobCard } from '../src/job-board.ts';
 import { STORY } from '../src/talk-content.ts';
 import type { Voice } from '../src/speech.ts';
 import { talkLine } from '../src/talk.ts';
@@ -60,6 +61,27 @@ describe('the committed clips', () => {
       }
     }
     expect(STORY.dialogue.size).toBeGreaterThan(0);
+    expect(problems).toEqual([]);
+  });
+
+  it('cover every sentence a job card can read, at every count and for every character', () => {
+    const skills = STORY.skills!;
+    const problems: string[] = [];
+    let sentences = 0;
+    for (const language of LANGUAGES) {
+      for (const template of skills.templates.values()) {
+        for (const to of template.kind === 'deliver' ? template.to : [null]) {
+          for (const count of jobCounts(template, skills)) {
+            const view: JobView = { job: 1, template: template.id, kind: template.kind, item: template.item, count, to, progress: 0 };
+            const { line } = jobCard(view, [], null, language);
+            const url = line === null ? null : voiceClip(language, null, line);
+            sentences += 1;
+            if (url === null || !CLIP_URL.test(url)) problems.push(`${language} ${template.id} to ${to} × ${count}: ${line} -> ${url}`);
+          }
+        }
+      }
+    }
+    expect(sentences).toBeGreaterThan(0);
     expect(problems).toEqual([]);
   });
 });

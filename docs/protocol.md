@@ -166,7 +166,8 @@ off; the page plays them from `content/sounds.json` and keeps it on until the se
 they turn it on, and nothing reads it until arena fights are built), and `readToMe` ("Read to me",
 off for every player until they turn it on): while it is on, the page reads each talk line aloud in its speaker's voice and the hint of each new
 quest banner in the narrator's, from the clips in `apps/game/public/voice/`. A speaker button on the
-talk box and the quest banner reads its words whatever the setting; a line without a clip is silent.
+talk box, the quest banner and each job card reads its words whatever the setting; a line without
+a clip has no button, or is silent.
 Language and controls stay settings of the device.
 
 The battle, team and starter messages are in the next section, the talk and quest messages in

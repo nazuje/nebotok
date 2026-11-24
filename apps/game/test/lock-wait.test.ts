@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lockedNotice, lockedTag, pluralForm, roundWait, waitPhrase } from '../src/lock-wait.ts';
+import { lockedNotice, lockedTag, roundWait, waitPhrase } from '../src/lock-wait.ts';
 
 describe('rounding a lock for a player', () => {
   it('rounds every lock the server gives (1, 2, 4, 8, 16, 32 and 60 minutes) up, never down', () => {
@@ -25,14 +25,6 @@ describe('rounding a lock for a player', () => {
 });
 
 describe('Slovenian number agreement', () => {
-  it('has four forms that follow the last two digits', () => {
-    expect([1, 2, 3, 4, 5, 11, 21, 101, 102, 103, 105].map((n) => pluralForm(n, 'sl'))).toEqual(['one', 'two', 'few', 'few', 'other', 'other', 'other', 'one', 'two', 'few', 'other']);
-  });
-
-  it('English has two', () => {
-    expect([1, 2, 5].map((n) => pluralForm(n, 'en'))).toEqual(['one', 'other', 'other']);
-  });
-
   it('puts minutes in the form a Slovenian sentence needs', () => {
     expect([60, 120, 180, 240, 300, 1800, 3600].map((s) => waitPhrase(s, 'sl'))).toEqual(['minuto', '2 minuti', '3 minute', '4 minute', '5 minut', 'približno 30 minut', 'eno uro']);
   });

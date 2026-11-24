@@ -21,7 +21,7 @@ export function canGetNow(progress: Pick<Progress, 'skills'>, item: string, cont
 }
 
 /** How many of its item a job asks for: `rolled` from its template's `count` range, grown by the player's `level` in the skill it needs (`countGrowth`). */
-export function jobCount(rolled: number, level: number, content: SkillContent): number {
+export function jobCount(rolled: number, level: number, content: Pick<SkillContent, 'countGrowth'>): number {
   const growth = content.countGrowth;
   if (!growth) return rolled;
   return Math.floor((rolled * (100 + growth.percentPerLevel * Math.max(0, level - growth.afterLevel))) / 100);

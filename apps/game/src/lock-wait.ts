@@ -1,4 +1,4 @@
-import type { Language, StringId } from '@nebotok/core';
+import { pluralForm, type Language, type PluralForm, type StringId } from '@nebotok/core';
 import { text } from './strings.ts';
 
 /**
@@ -18,23 +18,6 @@ export function roundWait(seconds: number): Wait {
   if (minutes <= EXACT_UP_TO_MINUTES) return { kind: 'minutes', minutes, about: false };
   const rounded = Math.ceil(minutes / ROUND_TO_MINUTES) * ROUND_TO_MINUTES;
   return rounded >= HOUR_MINUTES ? { kind: 'hour' } : { kind: 'minutes', minutes: rounded, about: true };
-}
-
-export type PluralForm = 'one' | 'two' | 'few' | 'other';
-
-/** Which form a counted word takes: Slovenian has four (1 minuto, 2 minuti, 3 minute, 5 minut). */
-const PLURAL_RULES: Readonly<Record<Language, (count: number) => PluralForm>> = {
-  en: (count) => (count === 1 ? 'one' : 'other'),
-  sl: (count) => {
-    const last = count % 100;
-    if (last === 1) return 'one';
-    if (last === 2) return 'two';
-    return last === 3 || last === 4 ? 'few' : 'other';
-  },
-};
-
-export function pluralForm(count: number, language: Language): PluralForm {
-  return PLURAL_RULES[language](count);
 }
 
 const MINUTES: Readonly<Record<PluralForm, StringId>> = {

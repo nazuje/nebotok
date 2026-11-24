@@ -37,7 +37,8 @@
 // it there after a reload, and the turtle setting. At 360px in muted
 // Chromium, against its own server, a player hears "Read to me" (scripts/lib/voice-check.mjs): the
 // right clip asked for each line and quest hint with it on, none with it off but from a speaker
-// button, every clip answered with silence by the check. Fails on any console
+// button, and a job card's sentence from its speaker button, every clip answered with silence by
+// the check. Fails on any console
 // error, page error, failed or outside request, a missing connection, a language toggle that does
 // not change the text, small touch targets, or sideways scrolling at 360px wide.
 //   node scripts/browser-check.mjs [--out <dir>] [--url <base>] [--part <name>]
@@ -98,7 +99,7 @@ import { deleteProfile, prepareSave } from './lib/prepared-saves.mjs';
 import { ROOT, startServer } from './lib/server-process.mjs';
 import { BROWSER_CHECK_PARTS } from './lib/browser-check-parts.mjs';
 import { battlerName, boardName, botName, deviceName, learnerName, loadoutName, lockedName, pinlessName, runTag, skillerName, storyName, voiceName } from './lib/test-players.mjs';
-import { playVoice, silenceClips } from './lib/voice-check.mjs';
+import { playJobCard, playVoice, silenceClips } from './lib/voice-check.mjs';
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, url: { type: 'string' }, part: { type: 'string' } } });
 const parts = values.part === undefined ? BROWSER_CHECK_PARTS : BROWSER_CHECK_PARTS.filter((part) => part.name === values.part);
@@ -1209,8 +1210,10 @@ async function checkBoardNarrow(browser, browserName, bot) {
  * "Read to me" at 360px, on our own server only (scripts/lib/voice-check.mjs): a player prepared
  * with the story check's save, carrying a delivery, hears nothing until a speaker button is tapped,
  * turns "Read to me" on, finds it still on after a reload, and hands the delivery over with each
- * line's clip and the banner's hint asked for. Every clip is answered with silence and service
- * workers are blocked, so each one asked for reaches the check. The player is deleted afterwards.
+ * line's clip and the banner's hint asked for. A player beside the job board then taps a card's
+ * speaker button and its sentence's clip is asked for. Every clip is answered with silence and
+ * service workers are blocked, so each one asked for reaches the check. Each player is deleted
+ * afterwards.
  */
 async function checkVoice(browser, browserName, language, bot) {
   const label = `${browserName}-360px-${language}`;
@@ -1249,8 +1252,26 @@ async function checkVoice(browser, browserName, language, bot) {
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   } finally {
-    await context.close();
     deleteProfile(dataDir, made.data.id);
+  }
+  // Made only now, under the name of the player before, who is gone: board parts running at the
+  // same time in other browser parts use the board players' names.
+  const boarder = await api('/profiles', { body: { name, avatar: 'orange' }, address: nextAddress() });
+  if (boarder.status !== 201) throw new Error(`browser-check: making ${name} for the job board answered ${boarder.status}`);
+  const board = boardSave(bot, { name, language });
+  prepareSave(dataDir, boarder.data.id, board.data);
+  try {
+    await page.goto(`${server.base}/?test=1`);
+    await until(page, (s) => s.screen === 'profiles', 'the profile list for the board player');
+    await page.locator(`.profile-card[data-profile-id="${boarder.data.id}"]`).tap();
+    await enterWorld(page, bot, inWorld, 'the world as the board player', { notes });
+    await playJobCard(page, board.plan, { language, asked, base: server.base, expect, check });
+    await signOut(page);
+  } catch (error) {
+    problems.push(error.message.split('\n')[0]);
+  } finally {
+    await context.close();
+    deleteProfile(dataDir, boarder.data.id);
   }
   results.push({ label: `${label} (read to me)`, ok: problems.length === 0, problems, screenshots, notes });
 }
