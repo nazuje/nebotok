@@ -25,6 +25,7 @@ import {
   SERVER_MESSAGES,
   SettingsSetMessage,
   SettingsTurtleMessage,
+  SettingsSoundsMessage,
   SkillCancelMessage,
   SkillFinishMessage,
   StarterChooseMessage,
@@ -70,6 +71,7 @@ import {
   rollEncounter,
   roundsTeam,
   setLoadout,
+  setSounds,
   setTurtle,
   shrineAt,
   stepWalker,
@@ -347,6 +349,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       [CLIENT_MESSAGES.boardOpen]: validate(BoardOpenMessage, (client: Client, { station }) => this.skillRequest(client, (room) => boardOpen(room, station))),
       [CLIENT_MESSAGES.settingsSet]: validate(SettingsSetMessage, (client: Client, { readToMe }) => this.setSettings(client, CLIENT_MESSAGES.settingsSet, (settings) => ({ ...settings, readToMe }))),
       [CLIENT_MESSAGES.settingsTurtle]: validate(SettingsTurtleMessage, (client: Client, { on }) => this.setSettings(client, CLIENT_MESSAGES.settingsTurtle, (settings) => setTurtle(settings, on))),
+      [CLIENT_MESSAGES.settingsSounds]: validate(SettingsSoundsMessage, (client: Client, { on }) => this.setSettings(client, CLIENT_MESSAGES.settingsSounds, (settings) => setSounds(settings, on))),
       [CLIENT_MESSAGES.loadoutSet]: validate(LoadoutSetMessage, (client: Client, { index, loadout }) => this.setLoadout(client, index, loadout)),
       [CLIENT_MESSAGES.duelAsk]: validate(DuelAskMessage, (client: Client, { to, even }) => this.duelAsk(client, to, even)),
       [CLIENT_MESSAGES.duelAnswer]: validate(DuelAnswerMessage, (client: Client, { yes }) => this.duelAnswer(client, yes)),
@@ -1151,7 +1154,7 @@ export function worldRoom({ log, world, profiles, progress, now, seed = cryptoSe
       seat.settings = change(seat.settings);
       this.changed(seat);
       client.send(SERVER_MESSAGES.settings, seat.settings satisfies SettingsMessage);
-      log.info('settings changed', { roomId: this.roomId, playerId: seat.playerId, readToMe: seat.settings.readToMe, turtle: seat.settings.turtle });
+      log.info('settings changed', { roomId: this.roomId, playerId: seat.playerId, readToMe: seat.settings.readToMe, turtle: seat.settings.turtle, sounds: seat.settings.sounds });
     }
 
     /** Puts a loadout on a team creature's arena buttons (core `setLoadout`), saved at once. Not during a fight, which reads it. */

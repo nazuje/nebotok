@@ -15,8 +15,14 @@ changing Phaser code, and use Phaser 4 APIs only.
   never a literal in code.
 - **Own origin only.** The game loads fonts, images and data from its own server. The
   Content-Security-Policy refuses anything else, and the browser check fails on any outside request.
-- **Sound** never plays unasked: Phaser starts with audio off until sound is designed in. The only
-  sound is "Read to me" (`src/speech.ts`), the voice clips through one audio element
+- **Sound.** Phaser's audio stays off. Effects are recipes in `content/sounds.json`, played by id
+  with `sound.play('ui.tap')` from the page's one `createSound()` (`src/sound.ts`); add a recipe
+  there rather than code a sound, and never load a sound file or URL. Web Audio starts on the first
+  tap or key; every effect and haptic (`sound.vibrate(pattern)`, never `navigator.vibrate` itself)
+  plays only while the player's sounds setting is on, and quieter under a voice clip. A button tap
+  plays `ui.tap` by itself (`tapSounds`). Under `?test=1` or in an automated browser sounds are
+  made but never reach the speakers; the test hook's `sounds.played` lists the last 30 asked for.
+  "Read to me" (`src/speech.ts`) plays the voice clips through one audio element
   (`src/clip-player.ts`), while the player has it on or taps a speaker button.
 - **Test hook.** With `?test=1` only, `window.__nebotok` exposes `ready` (true once the map is
   drawn and the connection settled, with your own courier on it when connected), `stateAsText()`

@@ -23,6 +23,7 @@ import { createRequestPacer } from './request-pacer.ts';
 import { forgetSession, saveSession, storedSession, type StoredSession } from './session.ts';
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
+import { createSound, tapSounds } from './sound.ts';
 import { createSpeech } from './speech.ts';
 import { createSkills } from './skills-link.ts';
 import { createStoryCues } from './storm-cue.ts';
@@ -93,6 +94,8 @@ const scene = new WorldScene({
   },
 });
 const hud = createHud(language);
+const sound = createSound();
+tapSounds(sound);
 /** A battle, an arena fight or a screen about creatures is up over the world. */
 const creaturesUp = (): boolean => arena.overlay() !== null || battles.overlay() !== null;
 const arena = createArena({
@@ -107,6 +110,7 @@ const arena = createArena({
   started: () => startClean(),
   learned: (moves) => battles.learned(moves),
   watcher: () => view.shown(performance.now()).some((player) => player.self && player.watching),
+  sound,
 });
 const battles = createBattles({
   game: () => game,
@@ -131,9 +135,12 @@ const playerSettings = createPlayerSettings({
   changed: () => {
     settings.setReadToMe(playerSettings.readToMe());
     settings.setTurtle(playerSettings.turtle());
+    settings.setSounds(playerSettings.sounds());
+    // Until a player's settings arrive, sounds are on, as they are for a new player.
+    sound.setOn(playerSettings.sounds() ?? true);
   },
 });
-const clips = createClipPlayer();
+const clips = createClipPlayer({ playing: (playing) => sound.setDucked(playing) });
 const speech = createSpeech({ language: () => language, readToMe: () => playerSettings.readToMe() === true, player: clips });
 const duels = createDuels(element<HTMLElement>('#duel'), {
   language: () => language,
@@ -183,6 +190,7 @@ const story = createStory({
     showScreen();
   },
   speech,
+  sound,
 });
 const skills = createSkills({
   language: () => language,
@@ -225,6 +233,7 @@ const settings = createSettings(language, controls, {
   onControls: () => setControls(otherControls(controls)),
   onReadToMe: () => playerSettings.toggleReadToMe(),
   onTurtle: () => playerSettings.toggleTurtle(),
+  onSounds: () => playerSettings.toggleSounds(),
   onAddPin: () => {
     pinSetup.open();
     showScreen();
@@ -537,7 +546,7 @@ const game = new Game({
   pixelArt: true,
   backgroundColor: '#8fd3ff',
   banner: false,
-  // Phaser plays nothing: the only sound is "Read to me", through one audio element of the page's own (clip-player.ts).
+  // Phaser plays nothing: sound effects are Web Audio recipes (sound.ts), and "Read to me" one audio element of the page's own (clip-player.ts).
   audio: { noAudio: true },
   scale: { mode: Scale.NONE, width: initialView.width, height: initialView.height, zoom: initialView.zoom },
   scene: [scene, battles.scene, arena.scene],
@@ -614,6 +623,7 @@ installTestHook({
       settingsOpen: settings.isOpen(),
       voice: { readToMe: playerSettings.readToMe(), ...clips.state() },
       turtle: playerSettings.turtle(),
+      sounds: sound.state(),
       ...battles.snapshot(performance.now()),
       ...arena.snapshot(),
       ...duels.snapshot(performance.now()),

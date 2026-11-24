@@ -1,0 +1,45 @@
+{
+  "volume": 70,
+  "duckPercent": 35,
+  "sounds": [
+    {
+      "id": "ui.tap",
+      "volume": 35,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 2, "releaseMs": 35 }, "wave": "triangle", "steps": [{ "hz": 740, "ms": 45 }], "glide": false }
+      ]
+    },
+    {
+      "id": "quest.done",
+      "volume": 60,
+      "layers": [
+        {
+          "kind": "tone",
+          "startMs": 0,
+          "volume": 70,
+          "envelope": { "attackMs": 5, "releaseMs": 260 },
+          "wave": "square",
+          "steps": [{ "hz": 523, "ms": 110 }, { "hz": 659, "ms": 110 }, { "hz": 784, "ms": 110 }, { "hz": 1047, "ms": 360 }],
+          "glide": false
+        },
+        {
+          "kind": "tone",
+          "startMs": 0,
+          "volume": 100,
+          "envelope": { "attackMs": 5, "releaseMs": 300 },
+          "wave": "triangle",
+          "steps": [{ "hz": 262, "ms": 330 }, { "hz": 523, "ms": 360 }],
+          "glide": false
+        }
+      ]
+    },
+    {
+      "id": "arena.hit",
+      "volume": 55,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 80, "envelope": { "attackMs": 1, "releaseMs": 70 }, "ms": 80, "filterHz": 1800 },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 1, "releaseMs": 90 }, "wave": "sine", "steps": [{ "hz": 190, "ms": 20 }, { "hz": 80, "ms": 90 }], "glide": true }
+      ]
+    }
+  ]
+}

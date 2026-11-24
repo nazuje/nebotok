@@ -3,7 +3,8 @@
 // languages, the way a player would: make a player with a PIN on the number pad, enter the world
 // and see the map and their courier, watch a bot walk past (named, smooth) and drop (away), tap a
 // far tile with a real touch and arrive, walk with arrows, WASD and the joystick, reload
-// and come straight back, switch player, get the PIN wrong, then right. A new player takes the
+// and come straight back, find sounds on in the settings with taps recorded as `ui.tap`, turn them
+// off (taps record nothing) and on again, switch player, get the PIN wrong, then right. A new player takes the
 // hint to the character who gives the starters, taps them and talks until they offer them, and
 // takes the first; walks keep out of the tall grass, and each device run also walks into the grass
 // until a wild creature appears on the real server, attacks once and runs. Once on each device in
@@ -657,6 +658,35 @@ async function meetBot(bot, page, self, { expect, shot }) {
   }
 }
 
+/**
+ * The sounds setting in the open settings panel: on for a new player, with the speaker in colour,
+ * and the taps so far recorded as `ui.tap`. Turned off, the speaker greys and a tap records
+ * nothing; turned on again, its own tap is heard. No sound reaches the speakers in a check.
+ */
+async function soundsSetting(page, { expect, shot, notes }) {
+  const button = page.locator('.sounds');
+  let state = await readState(page);
+  expect(state.sounds.on === true, `sounds are ${JSON.stringify(state.sounds)} for a new player, not on`);
+  expect(await button.isVisible(), 'the settings show no sounds switch');
+  expect((await button.getAttribute('aria-pressed')) === 'true', 'the sounds switch does not show on');
+  expect(state.sounds.played.some((played) => played.id === 'ui.tap'), `the taps so far recorded ${JSON.stringify(state.sounds.played)}, no ui.tap`);
+  notes.push(`sounds unlocked by a tap: ${state.sounds.unlocked}`);
+  await button.tap();
+  state = await until(page, (s) => s.sounds.on === false, 'sounds turned off');
+  expect((await button.getAttribute('aria-pressed')) === 'false', 'the sounds switch does not show off');
+  await shot('9b-sounds-off');
+  const before = state.sounds.played.length;
+  const first = state.language;
+  await page.locator('.language').tap();
+  await until(page, (s) => s.language === other(first), 'the other language with sounds off');
+  await page.locator('.language').tap();
+  state = await until(page, (s) => s.language === first, 'the first language again with sounds off');
+  expect(state.sounds.played.length === before, `with sounds off, taps recorded ${JSON.stringify(state.sounds.played.slice(before))}`);
+  await button.tap();
+  state = await until(page, (s) => s.sounds.on === true, 'sounds turned on again');
+  expect(state.sounds.played.length === before + 1 && state.sounds.played.at(-1)?.id === 'ui.tap', `turning sounds on recorded ${JSON.stringify(state.sounds.played.slice(before))}, not one ui.tap`);
+}
+
 async function checkDevice(browser, browserName, device, language, bot) {
   const label = `${browserName}-${device.name}-${language}`;
   const name = deviceName(browserName, device.name, language, TAG);
@@ -748,6 +778,7 @@ async function checkDevice(browser, browserName, device, language, bot) {
     expect((await page.evaluate(() => document.documentElement.lang)) === other(language), '<html lang> did not follow the toggle');
     await page.locator('.language').tap();
     await until(page, (s) => s.language === language, 'the first language again');
+    await soundsSetting(page, { expect, shot, notes });
 
     await page.locator('.switch-player').tap();
     state = await until(page, (s) => s.screen === 'profiles', 'the profile list after switching player');

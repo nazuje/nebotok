@@ -569,7 +569,8 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   about to go and rings the next edge for its 2 s, with lightning, a creature near the edge lights
   the rim red beside it, and the island's weather sits in the top left corner (`weatherIcon`). The island stays in view 1.5 s after the fight ends, so a fall or
   the hearts play out before the result. Haptics are `navigator.vibrate` only, so iPhones and
-  iPads, whose Safari has none, never buzz. `scripts/arena-check.mjs` takes a picture of a strong
+  iPads, whose Safari has none, never buzz, and only while the player's sounds setting is on, which
+  also plays `arena.hit` for each hit (`content/sounds.json`). `scripts/arena-check.mjs` takes a picture of a strong
   hit's number, the storm's warning and a befriending's hearts on phone and tablet, and checks a
   hit under reduced motion leaves the island unshaken, with no hit-stop and no sparks.
 - **Loadout picker** (#154, built): three button tiles (at least 64 px), then only the learned moves of

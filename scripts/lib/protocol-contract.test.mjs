@@ -31,6 +31,7 @@ const CLIENT_SCHEMAS = {
   BoardOpenMessage: core.BoardOpenMessage,
   SettingsSetMessage: core.SettingsSetMessage,
   SettingsTurtleMessage: core.SettingsTurtleMessage,
+  SettingsSoundsMessage: core.SettingsSoundsMessage,
   LoadoutSetMessage: core.LoadoutSetMessage,
   DuelAskMessage: core.DuelAskMessage,
   DuelAnswerMessage: core.DuelAnswerMessage,

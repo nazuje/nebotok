@@ -4,7 +4,7 @@ How the browser talks to the server: an HTTP API for profiles and sessions, then
 `world`, for the shared island, and one `arena` room per real-time fight (see "Arena fights"). The shapes live in `packages/core` (`src/protocol.ts`,
 `src/profile.ts`, `src/messages.ts` for battles and teams, `src/story-messages.ts` for talks and
 `src/skill-messages.ts` for skills and jobs, `src/duel-messages.ts` for duels), so client and server import the
-same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **15**),
+same zod schemas and constants. A change the client relies on bumps `PROTOCOL_VERSION` (now **16**),
 including a change to what the server accepts or requires with the same messages: protocol 7 is
 protocol 6 with the starter only through a talk, protocol 8 adds skills and the job board,
 protocol 9 judges the tiny games exactly as they are drawn, protocol 10 adds the player's
@@ -13,7 +13,8 @@ settings ("Read to me"), protocol 11 adds arena loadouts and the turtle setting
 and its messages, protocol 13 duels (`duel.*` and `arena` in `welcome`), protocol 14 picking
 three for a best of 3 (`arena.pick` and the arena room's `picking` and `between` phases), and
 protocol 15 the duel island and watching (`duel.watch`, giving up, the duel marks on players and
-`watching` in `arena.started`).
+`watching` in `arena.started`), and protocol 16 the sounds setting (`settings.sounds` and `sounds` in
+`settings`).
 `scripts/lib/protocol-contract.test.mjs` hashes the message names, the client message schemas, the
 attempt timing constants, server switches such as `STARTER_NEEDS_TALK` and `SKILLS_NEED_STARTER`,
 and the arena room's name, input fields, messages and limits, and fails until the hash is recorded for a new version in `PROTOCOL_CONTRACTS`.
@@ -134,6 +135,7 @@ Client to server:
 | `walk.stop` | `{ from? }` | Finish the current step and stand still |
 | `settings.set` | `{ readToMe: boolean }` | Change the player's own settings: saved with the player at once and sent back as `settings`. Counts against the request limit of talks, battles and skills. |
 | `settings.turtle` | `{ on: boolean }` | Turn the turtle setting on or off, like `settings.set`; refused `inBattle` during a fight (see "Arena fights") |
+| `settings.sounds` | `{ on: boolean }` | Turn the player's sounds (effects and haptics) on or off, like `settings.set`, also during a fight (protocol 16) |
 
 A new intent replaces the old one. A step that has started always finishes, so the player ends on a
 whole tile.
@@ -155,10 +157,12 @@ Server to client:
 | `welcome` | `Welcome`: `{ protocol, world, playerCount, messageKey, arena }`: `arena` whether arena fights are on (`ARENA_BATTLES`), so the page offers duels (protocol 13) | Right after joining |
 | `pong` | `{ sentAt }` | Answer to `ping` |
 | `walk.refused` | `{ x, y }` | A `walk.to` target on the map that cannot be reached; drop any predicted path |
-| `settings` | `{ readToMe, turtle }` | On joining, after `skills`, and after each `settings.set` and `settings.turtle`. Only this seat changes them, so a reconnection keeps what the page has. |
+| `settings` | `{ readToMe, turtle, sounds }` | On joining, after `skills`, and after each `settings.set`, `settings.turtle` and `settings.sounds`. Only this seat changes them, so a reconnection keeps what the page has. |
 
 **Settings.** The player's own settings live in their save, so they follow the player to any
-device: `turtle`, the player's easier arena setting (docs/arena.md, "The turtle setting"; off until
+device: `sounds`, the game's sound effects and haptics (on for every player until they turn it
+off; the page plays them from `content/sounds.json` and keeps it on until the server says, see
+`apps/game/AGENTS.md` "Sound"), `turtle`, the player's easier arena setting (docs/arena.md, "The turtle setting"; off until
 they turn it on, and nothing reads it until arena fights are built), and `readToMe` ("Read to me",
 off for every player until they turn it on): while it is on, the page reads each talk line aloud in its speaker's voice and the hint of each new
 quest banner in the narrator's, from the clips in `apps/game/public/voice/`. A speaker button on the
@@ -873,6 +877,10 @@ kind) and `turtle: false`; upgrading reads today's creature content, so `migrate
 button with that default, and counts the creatures as `repairedLoadouts` in the `save repaired`
 line. A level up puts the default on a button it unlocks and a newly learned move on its kind's
 empty button (core `gainXp`).
+
+Since v8 `settings` also hold `sounds`, the player's sound effects and haptics. A v7 save gets
+`sounds: true`, as a new player does: effects are part of the game, and the speaker in the
+settings turns them off. "Read to me" stays off until asked.
 
 **The Slice B story is a placeholder.** When the real story replaces it, a new save version resets
 every player's `story` to empty, so everyone starts it from the beginning, and keeps their

@@ -303,7 +303,8 @@ body:not([data-screen='world']) .walk-hint {
 .settings-language,
 .settings-controls,
 .settings-read,
-.settings-turtle {
+.settings-turtle,
+.settings-sounds {
   margin: 0;
   font-weight: 700;
 }
@@ -311,7 +312,8 @@ body:not([data-screen='world']) .walk-hint {
 .language,
 .controls,
 .read-to-me,
-.turtle {
+.turtle,
+.sounds {
   display: inline-flex;
   align-items: stretch;
   align-self: flex-start;
@@ -339,13 +341,15 @@ body:not([data-screen='world']) .walk-hint {
 }
 
 .read-to-me,
-.turtle {
+.turtle,
+.sounds {
   align-items: center;
   gap: 4px;
 }
 
-/* The turtle is in colour only while the setting is on, so the toggle reads without its words. */
-.turtle[aria-pressed='false'] .read-to-me-picture {
+/* The turtle and the speaker are in colour only while their setting is on, so the toggle reads without its words. */
+.turtle[aria-pressed='false'] .read-to-me-picture,
+.sounds[aria-pressed='false'] .read-to-me-picture {
   filter: grayscale(1) opacity(0.5);
 }
 

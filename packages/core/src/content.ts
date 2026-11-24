@@ -74,6 +74,7 @@ export const REQUIRED_STRING_IDS = [
   'settings.readToMe',
   'settings.readToMe.off',
   'settings.readToMe.on',
+  'settings.sounds',
   'speech.play',
   'profile.error.nameInvalid',
   'profile.error.nameTaken',

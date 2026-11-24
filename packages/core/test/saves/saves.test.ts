@@ -131,9 +131,9 @@ describe('save migrations', () => {
 
   it('gives a v5 player "Read to me" off, and keeps a v6 player\'s setting with the turtle setting off', () => {
     const old = migrate(fixture('v5', 'slovenian-name.json')).data;
-    expect(old.settings).toEqual({ readToMe: false, turtle: false });
+    expect(old.settings).toEqual({ readToMe: false, turtle: false, sounds: true });
     const v6 = fixture('v6', 'slovenian-name.json') as { v: 6; data: Record<string, unknown> };
-    expect(migrate(v6).data).toMatchObject({ name: 'Čmrljček Šumež', settings: { readToMe: true, turtle: false } });
+    expect(migrate(v6).data).toMatchObject({ name: 'Čmrljček Šumež', settings: { readToMe: true, turtle: false, sounds: true } });
     for (const settings of [{ readToMe: 'yes' }, { readToMe: true, loud: true }, {}]) {
       expect(() => migrate({ v: 6, data: { ...v6.data, settings } })).toThrow(SaveError);
     }
@@ -169,12 +169,21 @@ describe('save migrations', () => {
     expect(repairs.repairedLoadouts).toBe(0);
     expect(progress.team.map((creature) => creature.loadout)).toEqual([['rain-tap', null, 'rain-call'], ['static-zap', 'cloud-clap', null]]);
     const v7 = fixture('v7', 'slovenian-name.json') as { v: 7; data: { team: Record<string, unknown>[]; settings: unknown } };
-    expect(migrate(v7).data.settings).toEqual({ readToMe: true, turtle: true });
+    expect(migrate(v7).data.settings).toEqual({ readToMe: true, turtle: true, sounds: true });
     const [first] = v7.data.team;
     for (const loadout of [['rain-tap', null], ['rain-tap', null, null, null], ['Rain Tap', null, null], undefined]) {
       expect(() => migrate({ v: 7, data: { ...v7.data, team: [{ ...first, loadout }] } })).toThrow(SaveError);
     }
     expect(() => migrate({ v: 7, data: { ...v7.data, settings: { readToMe: true } } })).toThrow(SaveError);
+  });
+
+  it('turns sounds on for a v7 player, keeps a v8 player\'s choice, and refuses settings without it', () => {
+    for (const name of ['basic.json', 'slovenian-name.json']) expect(migrate(fixture('v7', name)).data.settings.sounds).toBe(true);
+    const v8 = fixture('v8', 'slovenian-name.json') as { v: 8; data: Record<string, unknown> };
+    expect(migrate(v8).data).toMatchObject({ name: 'Žvižgač Čopek', settings: { readToMe: true, turtle: false, sounds: false } });
+    for (const settings of [{ readToMe: true, turtle: false }, { readToMe: true, turtle: false, sounds: 'off' }, { readToMe: true, turtle: false, sounds: false, music: true }]) {
+      expect(() => migrate({ v: 8, data: { ...v8.data, settings } })).toThrow(SaveError);
+    }
   });
 
   it('replaces a loaded loadout move that is not learned, of the wrong kind or on a locked button with the default', () => {

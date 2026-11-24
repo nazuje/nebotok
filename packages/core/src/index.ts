@@ -12,6 +12,7 @@ export {
   WalkStopMessage,
   SettingsSetMessage,
   SettingsTurtleMessage,
+  SettingsSoundsMessage,
   walkMessage,
   welcome,
   isCompatibleProtocol,
@@ -302,6 +303,7 @@ export {
   renameSpecies,
   setLoadout,
   setTurtle,
+  setSounds,
   type Progress,
 } from './creatures.ts';
 export { isRepaired, knowableMoves, sanitizeProgress, type ProgressRepairs } from './save-repair.ts';
@@ -480,6 +482,7 @@ export {
   type SkillContent,
   type SkillContentFiles,
 } from './skill-content.ts';
+export { SOUND_WAVES, MAX_SOUND_MS, MAX_DUCK_PERCENT, SoundId, SoundLayer, Sound, SoundsFile, layerMs, soundMs, type SoundWave } from './sound-content.ts';
 export {
   MIN_ATTEMPT_MS,
   CLOCK_SLACK_MS,

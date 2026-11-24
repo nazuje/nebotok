@@ -24,8 +24,9 @@ import type { PlayerSettings } from './save.ts';
  * 15: the duel island: both duellists pick, `duel.watch` with watcher seats (`DUEL_WATCHERS`), `watching` in `arena.started`, `duel`, `waiting` and `watchers` in the arena
  * state, giving up a duel with `leave` (`DUEL_GIVE_UP_MS`), and `duelling`, `watching` and `trophy`
  * on each player.
+ * 16: the sounds setting: `settings.sounds` and `sounds` in `settings`.
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 /**
  * The client-server contract each protocol version stands for, as hashed by
@@ -42,6 +43,7 @@ export const PROTOCOL_CONTRACTS: Readonly<Record<number, string>> = {
   13: '0f0b76d24fb1b5',
   14: '1e9eadd51b162d',
   15: '0beb26a352577f',
+  16: '1a61c246104a08',
 };
 
 export type WorldInfo = {
@@ -103,6 +105,7 @@ export const CLIENT_MESSAGES = {
   boardOpen: 'board.open',
   settingsSet: 'settings.set',
   settingsTurtle: 'settings.turtle',
+  settingsSounds: 'settings.sounds',
   loadoutSet: 'loadout.set',
   duelAsk: 'duel.ask',
   duelAnswer: 'duel.answer',
@@ -179,7 +182,11 @@ export type SettingsSetMessage = z.infer<typeof SettingsSetMessage>;
 export const SettingsTurtleMessage = z.strictObject({ on: z.boolean() });
 export type SettingsTurtleMessage = z.infer<typeof SettingsTurtleMessage>;
 
-/** `settings`: the player's settings, sent on joining and after each `settings.set` and `settings.turtle`. */
+/** Turns the player's sounds (effects and haptics) on or off; saved with them like `settings.set`. */
+export const SettingsSoundsMessage = z.strictObject({ on: z.boolean() });
+export type SettingsSoundsMessage = z.infer<typeof SettingsSoundsMessage>;
+
+/** `settings`: the player's settings, sent on joining and after each `settings.set`, `settings.turtle` and `settings.sounds`. */
 export type SettingsMessage = PlayerSettings;
 
 /** Sent back when a walk-to target cannot be reached, so the client can drop its prediction. */

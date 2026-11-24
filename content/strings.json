@@ -51,6 +51,7 @@
   "settings.readToMe": { "en": "Read to me", "sl": "Beri mi" },
   "settings.readToMe.off": { "en": "Off", "sl": "Izklop" },
   "settings.readToMe.on": { "en": "On", "sl": "Vklop" },
+  "settings.sounds": { "en": "Sounds", "sl": "Zvoki" },
   "speech.play": { "en": "Read aloud", "sl": "Preberi na glas" },
   "profile.pinAgain": { "en": "Type the same PIN again", "sl": "Še enkrat vpiši isti PIN" },
   "profile.pinMismatch": { "en": "The two PINs are not the same. Try again.", "sl": "PIN-a nista enaka. Poskusi znova." },

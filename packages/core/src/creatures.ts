@@ -145,6 +145,11 @@ export function setTurtle(settings: PlayerSettings, on: boolean): PlayerSettings
   return { ...settings, turtle: on };
 }
 
+/** The player's settings with sounds (effects and haptics) on or off. "Read to me" is its own setting. */
+export function setSounds(settings: PlayerSettings, on: boolean): PlayerSettings {
+  return { ...settings, sounds: on };
+}
+
 /** Puts the team in a new order: `order[i]` is the old place of the creature that goes to place i. Null unless it names every place once. */
 export function reorderTeam(progress: Progress, order: readonly number[]): Progress | null {
   const { team } = progress;

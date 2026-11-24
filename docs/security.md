@@ -187,7 +187,7 @@ dependency of a different kind from npm's, so it has its own rules.
 | Python packages: exact versions with a SHA-256 hash for every file, installed by uv with `--require-hashes` (a file that changed on PyPI is refused) and `--only-binary :all:` (wheels only, so no package builds or runs setup code while installing). | `scripts/voice/requirements.txt`, `setup.sh` |
 | Voice models: one Hugging Face revision of `rhasspy/piper-voices`, downloaded over HTTPS only and refused unless each file's SHA-256 matches, at setup and again before every use. | `scripts/voice/setup.sh`, `models.sha256`, `voice.mjs` |
 | What ships is only MP3 files and a JSON manifest, served from the game's own origin like its other files. No outside request, and the Content-Security-Policy is unchanged (`default-src 'self'` covers audio). | `apps/game/public/voice/`, `apps/game/src/voice-clips.json` |
-| The game plays a clip only by a path the manifest gives (`/voice/<language>/<hash>.mp3`), through one audio element of its own that refuses anything outside `/voice/`; never a URL from the server, a message or another player. Phaser's audio stays off. Sound starts only when the player asks: "Read to me" is off until the player turns it on, and a speaker button plays only when tapped. | `apps/game/src/voice-clips.ts`, `clip-player.ts`, `speech.ts` |
+| The game plays a clip only by a path the manifest gives (`/voice/<language>/<hash>.mp3`), through one audio element of its own that refuses anything outside `/voice/`; never a URL from the server, a message or another player. Phaser's audio stays off. A clip plays only when the player asks: "Read to me" is off until the player turns it on, and a speaker button plays only when tapped. Sound effects are a separate, generated thing ("Sound effects" below). | `apps/game/src/voice-clips.ts`, `clip-player.ts`, `speech.ts` |
 | The service worker precaches only the app's code, styles and pictures, never the clips (5 MB and growing); the browser fetches a clip when it is first played and keeps it in its ordinary HTTP cache, revalidated (`no-cache`) like the game's other files outside `assets/`. | `apps/game/vite.config.ts` (`globPatterns`), `apps/server/src/http.ts` |
 
 What `npm run voice:setup` uses and downloads, as of its first install (November 2026):
@@ -219,6 +219,20 @@ What `npm run voice:setup` uses and downloads, as of its first install (November
   holds all four sums; `npm run voice` checks them again before every use, so a model changed in the
   cache after setup is refused. The Slovenian model and its hashes are the same ones the owner's
   Playroom project already uses.
+
+## Sound effects
+
+The game's sound effects are made in the page, not fetched: each is a recipe in
+`content/sounds.json` (oscillators and noise shaped by an envelope) that the page plays with the
+browser's Web Audio API. There are no sound files and no sound URLs.
+
+| Measure | Where |
+| --- | --- |
+| A recipe is numbers only, checked by a strict schema (`content:validate`): a wave name from a fixed list, pitches 20 to 12,000 Hz, at most 3 s, volumes in percent. A field such as a URL is refused, so content cannot point the page anywhere. The page bundles the file at build time. | `packages/core/src/sound-content.ts`, `content/sounds.json` |
+| Code plays a sound by its id only (`sound.play(id)`); an id not in `sounds.json` is refused. Nothing from the server, a message or another player picks a sound or its recipe. No request is made and the Content-Security-Policy is unchanged. | `apps/game/src/sound.ts`, `sound-player.ts` |
+| Sound starts only after the player's first tap or key, as browsers require, and only while the player's sounds setting is on (on by default, saved with the player). The same switch gates haptics (`navigator.vibrate`). On iPhone and iPad the page asks for an `ambient` audio session where Safari has one, so the ring/silent switch mutes the game. While a "Read to me" clip plays, effects drop to at most half their volume. Phaser's audio stays off. | `apps/game/src/sound-synth.ts`, `player-settings.ts`, `content/sounds.json` (`duckPercent`) |
+| What sound can do: make tones and noise through the speakers and buzz a phone that can. What it cannot do: load or send anything, read the microphone (the page never asks for it), or run while the tab is closed. | |
+| Checks never sound aloud: an automated browser (`navigator.webdriver`) or a page opened with `?test=1` makes each sound but never connects it to the speakers, since headless WebKit has no mute switch; Chromium also runs with `--mute-audio`. The test hook records which sounds were asked for instead. | `apps/game/src/sound.ts`, `scripts/lib/launch-options.mjs` |
 
 ## Residual risks
 

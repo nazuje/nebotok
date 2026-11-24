@@ -5,6 +5,7 @@ import type { BattleDrawn } from './battle-scene.ts';
 import type { BattleOverlay } from './battles.ts';
 import type { ConnectionStatus } from './connection.ts';
 import type { TestVoice } from './clip-player.ts';
+import type { TestSounds } from './sound.ts';
 import type { Controls } from './controls-choice.ts';
 import type { DuelOverlay, TestDuel } from './duels.ts';
 import type { Input } from './input.ts';
@@ -146,6 +147,8 @@ export type TestSnapshot = TestStory &
   voice: TestVoice & { readToMe: boolean | null };
   /** The player's turtle setting, null before the server has said. */
   turtle: boolean | null;
+  /** The sounds setting as the page applies it (on until the server says otherwise), whether a tap has let the page make sound, and the last 30 sounds asked for while on. */
+  sounds: TestSounds;
   /** The battle on screen, if any. */
   battle: TestBattle | null;
   /** The arena fight on screen, from `arena.join` until Continue on its result, if any. */
