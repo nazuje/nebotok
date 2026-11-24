@@ -729,8 +729,16 @@ async function checkDevice(browser, browserName, device, language, bot) {
 
     await page.locator('.new-profile').tap();
     await until(page, (s) => s.screen === 'newProfile', 'the new player form');
+    await page.locator('.create').tap();
+    state = await until(page, (s) => s.screen === 'newProfile' && s.nameWanted, 'the name box asking for a name after Create with none');
+    expect(state.notice === 'profile.error.nameInvalid', `Create without a name shows ${state.notice}`);
+    expect(await page.locator('.name-box.wanted .name-hint .walk-hint-hand').isVisible(), 'no hand points at the empty name box');
+    await targets('new player form without a name');
+    await shot('1b-name-wanted');
     await page.locator('.avatar-choice[data-avatar="green"]').tap();
     await page.locator('.name-input').fill(name);
+    state = await until(page, (s) => !s.nameWanted, 'the name box to stop asking once a name is typed');
+    expect((await page.locator('.name-hint').count()) === 0, 'the hand still points at the name box after typing');
     await page.locator('.pin-choose').tap();
     await until(page, (s) => s.screen === 'pin' && s.pinFor === 'choose', 'the PIN pad to choose a PIN');
     await targets('choose a PIN');
