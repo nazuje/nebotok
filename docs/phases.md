@@ -27,9 +27,11 @@ of them are fixed or decided.
 
 ## Phase 2: The whole game in placeholder slices
 
-Rather than wait for real art and real creatures, Phase 2 builds the game in seven thin slices,
-each playable on the live server. Everything a slice adds is data with a schema in `content/`:
-creatures, moves, treats, encounter zones, shrines, quests, dialogue, recipes, islands and sounds.
+Rather than wait for real art and real creatures, Phase 2 builds the game in thin slices, each
+playable on the live server: seven lettered slices, A to G, and two that grew between them,
+"Playable without reading" and "Arena battles". Everything a slice adds is data with a schema in
+`content/`: creatures, moves, treats, encounter zones, shrines, quests, dialogue, recipes, islands
+and sounds.
 The art test and the creature design day after Slice F then swap new data and images in, and no
 rule has to change. Until the art test, the art is pixel grids drawn in code.
 
@@ -126,6 +128,32 @@ trainers.
 
 Trading, preset phrases and emotes, and home islands that others can visit, with the building skill
 to shape them. Friendly duels moved to "Arena battles".
+
+### Slice G: Real world
+
+Optional quests done away from the screen and proved with a photo or a grown-up's "I saw it", and
+drawings that come into the game as pixel art. See "Real world" in the [design](design.md) and
+[decisions/0002-real-world-proof.md](decisions/0002-real-world-proof.md). Slice G comes after Slice
+D because most of its rewards live on home islands. Its fixed quest list is written with the kids
+at the island design session before Slice D.
+
+- **First version:** the Sky Post mailbox, with picture-card quests read aloud and taken quests in
+  the journal with their own picture. The fixed quest list, and custom quests a grown-up writes.
+  Proof by a photo (camera or photo library) or a grown-up's "I saw it", up to 3 waiting per
+  player. The grown-up PIN and grown-up screen, with the badge of waiting proofs and the three "not
+  yet" pictures. Tagging the players who helped, and quests that need two or more. Photo to pixel
+  art on the server, with two or three versions to pick from. Rewards: island decorations and
+  stickers, and a drawn badge or flag for the courier. The security requirements in the decision
+  record, checked by the `security-reviewer`.
+- **Second step:** your own drawn creature: a body kind, a weather type and moves picked by
+  picture, a fair stats template, a name a grown-up types and a cry instead of a spoken name. It
+  belongs to its artist until a grown-up releases it into the wild, and it can duel like any
+  creature.
+- **Later:** video proof, mounts (with gliding in Slice E), and whole courier outfits after the
+  courier designer (#96).
+
+Still open: the quest list, where decorations sit on a home island, and which pixel versions to
+offer.
 
 ### Slice E: Grow the sky
 
