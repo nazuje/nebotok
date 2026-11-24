@@ -609,6 +609,7 @@ installTestHook({
       profiles: shown.profiles,
       notice: inWorld ? adding.notice : shown.notice,
       pinFor: shown.pinFor,
+      nameWanted: shown.nameWanted,
       pinDigits: inWorld ? adding.pinDigits : shown.pinDigits,
       pinStep: adding.step,
       canAddPin,

@@ -106,6 +106,55 @@ cooking turns them into treats for befriending, and building will shape your hom
 - Talking with preset phrases and emotes in both languages. Free chat may come later.
 - Each player owns a home island that others can visit when invited.
 
+## Real world
+
+Some quests happen away from the screen, in the real world. They are optional bonus content: the
+main story never needs one, and there are no streaks, no daily pressure and no "you missed it".
+Their rewards are special, never raw power: unique looks, decorations and your own drawn creature.
+Why proof works this way, and what the build must do to keep photos safe, is in
+[decisions/0002-real-world-proof.md](decisions/0002-real-world-proof.md).
+
+- **The mailbox.** Real-world quests arrive as "letters from below" in a mailbox at the Sky Post.
+  Each one is a picture card, read aloud. A quest you take shows in the journal with its own
+  picture.
+- **Where quests come from.** A fixed list in the game's content, written with the kids at the
+  island design session before Slice D, plus custom quests a grown-up writes on the grown-up
+  screen. The screen gently reminds the grown-up to make them adventures, not chores.
+- **Proof.** When a quest is done, the player sends a photo, from the camera or the photo library,
+  or a grown-up approves it with "I saw it" and no photo. There is no video for now. Each player can
+  have up to 3 proofs waiting at once, and there is no daily limit.
+- **A grown-up approves every proof.** One family grown-up PIN, set with `scripts/admin.sh`, opens
+  a grown-up screen on any device. Nothing a player sends counts, or is seen by anyone else, until a
+  grown-up approves it. A badge on the grown-up button shows how many proofs are waiting; there are
+  no emails and no other outside notifications. While a proof waits, the quest card shows a clock
+  picture: "waiting for a grown-up".
+- **Not yet.** A grown-up who says "not yet" picks one of three pictures, which is read aloud: take
+  the photo again, not finished yet, or come and show me. The player can send again any time.
+- **Together.** The sender taps the faces of the players who helped, and everyone tagged gets the
+  reward. Some quests need two or more players.
+- **Making things.** When the photo is of a drawing, the server turns it into pixel art by itself:
+  it crops the picture, removes the paper, uses fewer colours and makes the game's sizes. The
+  player picks one of two or three versions before it goes to a grown-up.
+  - First: island decorations and stickers, and a drawn badge or flag for the courier.
+  - Next: your own drawn creature. It belongs to its artist first, with a "drawn by you" mark, and
+    a grown-up can release it into the wild so brothers and sisters can meet it. The artist picks
+    a body kind by picture (sturdy, quick or balanced), a weather type, and moves from that
+    weather's moves. A fair stats template makes it exactly as strong as any other creature at its
+    level. A grown-up types the name the artist says, and its cry plays instead of a spoken name.
+    It can fight and duel like any creature.
+  - Later: mounts, with gliding (Slice E), and whole courier outfits, after the courier designer
+    (#96).
+- **Decorations** on a home island are seen by family visitors, and a grown-up can remove any of
+  them.
+- **Photos stay at home.** Photos stay only on the family's own server, with the location and
+  camera details removed. Only family profiles see anything, and a grown-up can delete any picture.
+  Once a grown-up decides, the original photo is deleted and only the pixel item made from it stays.
+  Photos are never put in this repository or sent to an outside service. An AI polish of a picture
+  happens only with the owner's OK, picture by picture.
+
+Still open: the quest list (the kids write it), where decorations sit (the home island design), and
+which pixel versions to offer (a photo-to-pixel test on a home computer is running now).
+
 ## Identity
 
 Each player has a profile with an avatar, a display name and an optional 4-digit PIN. A parent can

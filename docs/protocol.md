@@ -899,6 +899,12 @@ rounded up by `apps/game/src/lock-wait.ts` ("a minute", "2 minutes", "about 10 m
 hour") and counting down while the list is open. A list of `MAX_PROFILES` hides "New player" and
 says it is full. Profiles without a PIN show an outline lock, and the list a short hint to use one.
 
+Every button of the list and the new-player form has a picture before its words, for players who
+cannot read: a courier with a plus on "New player", a lock on the PIN button, a back arrow on
+"Back" and a tick on "Create". A small grown-up beside the name box says a grown-up types the name.
+Create with no usable name shows the notice, pulses the name box and puts the walking hint's
+tapping finger on it until the player types.
+
 The browser check drives it like a player. Each run makes its own profile with a PIN and, against
 its own server, sends its own `X-Forwarded-For` address (believed from loopback) so the
 per-address limits stay out of the way; against a server given by `--url`, which may not believe

@@ -35,7 +35,7 @@ export const DEFAULT_COURIER = 'couriers/courier';
  * `digits`, one frame per digit.
  */
 export const PICTURES = [
-  'check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation', 'puff',
+  'check', 'cross', 'heart', 'lock', 'clock', 'trophy', 'arrow', 'again', 'envelope', 'compass', 'footprints', 'bag-full', 'stamp', 'star-burst', 'speaker', 'flag', 'cloud-off', 'exclamation', 'puff', 'plus', 'grown-up',
   'shape-bolt', 'shape-spray', 'shape-cone', 'shape-snare', 'shape-lunge', 'shape-burst', 'shape-puddle', 'shape-shield', 'shape-strike', 'shape-wall', 'shape-freeze', 'shape-zone', 'shape-weather',
   'kind-quick', 'kind-special', 'kind-ultimate',
   'dash', 'treat', 'swap', 'leave', 'turtle', 'digits', 'challenge', 'watch', 'even-match', 'level-badge', 'ring-out',
