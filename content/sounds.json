@@ -42,6 +42,207 @@
       ]
     },
     {
+      "id": "ui.back",
+      "volume": 32,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 2, "releaseMs": 40 }, "wave": "triangle", "steps": [{ "hz": 660, "ms": 40 }, { "hz": 494, "ms": 55 }], "glide": false }
+      ]
+    },
+    {
+      "id": "ui.open",
+      "volume": 28,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 15, "releaseMs": 70 }, "wave": "sine", "steps": [{ "hz": 440, "ms": 20 }, { "hz": 700, "ms": 120 }], "glide": true },
+        { "kind": "noise", "startMs": 0, "volume": 25, "envelope": { "attackMs": 20, "releaseMs": 80 }, "ms": 120, "filterHz": 1400 }
+      ]
+    },
+    {
+      "id": "ui.close",
+      "volume": 26,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 80 }, "wave": "sine", "steps": [{ "hz": 700, "ms": 20 }, { "hz": 420, "ms": 120 }], "glide": true },
+        { "kind": "noise", "startMs": 0, "volume": 20, "envelope": { "attackMs": 10, "releaseMs": 90 }, "ms": 110, "filterHz": 1100 }
+      ]
+    },
+    {
+      "id": "ui.toast",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 3, "releaseMs": 60 }, "wave": "sine", "steps": [{ "hz": 880, "ms": 70 }, { "hz": 1175, "ms": 130 }], "glide": false }
+      ]
+    },
+    {
+      "id": "ui.login",
+      "volume": 42,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 80, "envelope": { "attackMs": 5, "releaseMs": 240 }, "wave": "triangle", "steps": [{ "hz": 392, "ms": 90 }, { "hz": 523, "ms": 90 }, { "hz": 659, "ms": 90 }, { "hz": 784, "ms": 300 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 60, "envelope": { "attackMs": 20, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 196, "ms": 270 }, { "hz": 392, "ms": 300 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.quest.new",
+      "volume": 48,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 85, "envelope": { "attackMs": 5, "releaseMs": 260 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 110 }, { "hz": 784, "ms": 340 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 60, "envelope": { "attackMs": 20, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 262, "ms": 450 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.quest.step",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 3, "releaseMs": 140 }, "wave": "triangle", "steps": [{ "hz": 659, "ms": 70 }, { "hz": 880, "ms": 180 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.item",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 90, "envelope": { "attackMs": 2, "releaseMs": 150 }, "wave": "sine", "steps": [{ "hz": 1047, "ms": 60 }, { "hz": 1319, "ms": 60 }, { "hz": 1568, "ms": 180 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 55, "envelope": { "attackMs": 10, "releaseMs": 200 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 300 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.level-up",
+      "volume": 52,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 75, "envelope": { "attackMs": 5, "releaseMs": 380 }, "wave": "square", "steps": [{ "hz": 523, "ms": 100 }, { "hz": 659, "ms": 100 }, { "hz": 784, "ms": 100 }, { "hz": 1047, "ms": 500 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 420 }, "wave": "triangle", "steps": [{ "hz": 262, "ms": 300 }, { "hz": 523, "ms": 500 }], "glide": false },
+        { "kind": "tone", "startMs": 300, "volume": 40, "envelope": { "attackMs": 30, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 1568, "ms": 450 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.move-learned",
+      "volume": 45,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 90, "envelope": { "attackMs": 20, "releaseMs": 60 }, "wave": "sine", "steps": [{ "hz": 523, "ms": 20 }, { "hz": 1047, "ms": 280 }], "glide": true },
+        { "kind": "tone", "startMs": 150, "volume": 70, "envelope": { "attackMs": 5, "releaseMs": 220 }, "wave": "triangle", "steps": [{ "hz": 784, "ms": 120 }, { "hz": 1047, "ms": 280 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.befriend",
+      "volume": 50,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 90, "envelope": { "attackMs": 30, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 659, "ms": 140 }, { "hz": 784, "ms": 140 }, { "hz": 988, "ms": 480 }], "glide": false },
+        { "kind": "tone", "startMs": 140, "volume": 60, "envelope": { "attackMs": 40, "releaseMs": 300 }, "wave": "triangle", "steps": [{ "hz": 494, "ms": 140 }, { "hz": 587, "ms": 480 }], "glide": false },
+        { "kind": "tone", "startMs": 420, "volume": 30, "envelope": { "attackMs": 20, "releaseMs": 200 }, "wave": "sine", "steps": [{ "hz": 1319, "ms": 90 }, { "hz": 1568, "ms": 220 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.shrine-rest",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 90, "envelope": { "attackMs": 20, "releaseMs": 420 }, "wave": "sine", "steps": [{ "hz": 784, "ms": 550 }], "glide": false },
+        { "kind": "tone", "startMs": 160, "volume": 70, "envelope": { "attackMs": 20, "releaseMs": 420 }, "wave": "sine", "steps": [{ "hz": 1175, "ms": 550 }], "glide": false },
+        { "kind": "tone", "startMs": 320, "volume": 55, "envelope": { "attackMs": 20, "releaseMs": 440 }, "wave": "sine", "steps": [{ "hz": 1568, "ms": 560 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.storm",
+      "volume": 34,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 100, "envelope": { "attackMs": 300, "releaseMs": 550 }, "ms": 950, "filterHz": 320 },
+        { "kind": "tone", "startMs": 0, "volume": 60, "envelope": { "attackMs": 250, "releaseMs": 550 }, "wave": "sine", "steps": [{ "hz": 110, "ms": 100 }, { "hz": 82, "ms": 850 }], "glide": true }
+      ]
+    },
+    {
+      "id": "world.job-done",
+      "volume": 50,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 80, "envelope": { "attackMs": 3, "releaseMs": 240 }, "wave": "triangle", "steps": [{ "hz": 784, "ms": 90 }, { "hz": 988, "ms": 90 }, { "hz": 1175, "ms": 90 }, { "hz": 1568, "ms": 300 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 70, "envelope": { "attackMs": 15, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 392, "ms": 270 }, { "hz": 523, "ms": 300 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.duel.asked",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 150 }, "wave": "triangle", "steps": [{ "hz": 587, "ms": 120 }, { "hz": 880, "ms": 220 }], "glide": false }
+      ]
+    },
+    {
+      "id": "world.duel.declined",
+      "volume": 34,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 160 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 120 }, { "hz": 392, "ms": 240 }], "glide": true }
+      ]
+    },
+    {
+      "id": "world.trainer.challenge",
+      "volume": 46,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 80, "envelope": { "attackMs": 3, "releaseMs": 220 }, "wave": "triangle", "steps": [{ "hz": 392, "ms": 90 }, { "hz": 523, "ms": 90 }, { "hz": 784, "ms": 320 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 25, "envelope": { "attackMs": 3, "releaseMs": 220 }, "wave": "square", "steps": [{ "hz": 392, "ms": 90 }, { "hz": 523, "ms": 90 }, { "hz": 784, "ms": 320 }], "glide": false }
+      ]
+    },
+    {
+      "id": "skill.dip.hit",
+      "volume": 44,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 60 }, "wave": "sine", "steps": [{ "hz": 300, "ms": 20 }, { "hz": 700, "ms": 110 }], "glide": true },
+        { "kind": "noise", "startMs": 0, "volume": 30, "envelope": { "attackMs": 2, "releaseMs": 50 }, "ms": 70, "filterHz": 900 }
+      ]
+    },
+    {
+      "id": "skill.dip.perfect",
+      "volume": 48,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 50 }, "wave": "sine", "steps": [{ "hz": 300, "ms": 20 }, { "hz": 800, "ms": 100 }], "glide": true },
+        { "kind": "tone", "startMs": 100, "volume": 70, "envelope": { "attackMs": 3, "releaseMs": 160 }, "wave": "sine", "steps": [{ "hz": 1319, "ms": 80 }, { "hz": 1760, "ms": 200 }], "glide": false }
+      ]
+    },
+    {
+      "id": "skill.dip.miss",
+      "volume": 34,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 120 }, "wave": "sine", "steps": [{ "hz": 500, "ms": 20 }, { "hz": 220, "ms": 200 }], "glide": true }
+      ]
+    },
+    {
+      "id": "skill.sparkle.hit",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 2, "releaseMs": 120 }, "wave": "sine", "steps": [{ "hz": 1175, "ms": 60 }, { "hz": 1568, "ms": 150 }], "glide": false }
+      ]
+    },
+    {
+      "id": "skill.sparkle.perfect",
+      "volume": 44,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 2, "releaseMs": 200 }, "wave": "sine", "steps": [{ "hz": 1047, "ms": 60 }, { "hz": 1319, "ms": 60 }, { "hz": 1568, "ms": 60 }, { "hz": 2093, "ms": 260 }], "glide": false }
+      ]
+    },
+    {
+      "id": "skill.sparkle.miss",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 160 }, "wave": "triangle", "steps": [{ "hz": 494, "ms": 100 }, { "hz": 440, "ms": 220 }], "glide": false }
+      ]
+    },
+    {
+      "id": "skill.marker.hit",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 2, "releaseMs": 110 }, "wave": "triangle", "steps": [{ "hz": 880, "ms": 50 }, { "hz": 1175, "ms": 140 }], "glide": false },
+        { "kind": "noise", "startMs": 0, "volume": 25, "envelope": { "attackMs": 1, "releaseMs": 25 }, "ms": 30, "filterHz": 3000 }
+      ]
+    },
+    {
+      "id": "skill.marker.perfect",
+      "volume": 44,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 2, "releaseMs": 200 }, "wave": "triangle", "steps": [{ "hz": 880, "ms": 60 }, { "hz": 1175, "ms": 60 }, { "hz": 1760, "ms": 260 }], "glide": false },
+        { "kind": "noise", "startMs": 0, "volume": 25, "envelope": { "attackMs": 1, "releaseMs": 25 }, "ms": 30, "filterHz": 3000 }
+      ]
+    },
+    {
+      "id": "skill.marker.miss",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 150 }, "wave": "triangle", "steps": [{ "hz": 330, "ms": 90 }, { "hz": 294, "ms": 200 }], "glide": true }
+      ]
+    },
+    {
       "id": "talk.babble",
       "volume": 30,
       "layers": [

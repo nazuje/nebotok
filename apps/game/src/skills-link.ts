@@ -20,6 +20,8 @@ import type { NewsLines, NewsPicture, NewsTone } from './quest-toast.ts';
 import { createRecipeBook, type TestRecipeBook } from './recipe-book.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { createSkillCard, type TestAttempt } from './skill-game.ts';
+import type { SoundPlayer } from './sound.ts';
+import { skillSound } from './sounds-world.ts';
 import { unlockedAt, unlockedItems } from './skills-panel.ts';
 import { STORY, storyProgress } from './story-content.ts';
 import { format, text } from './strings.ts';
@@ -69,8 +71,8 @@ export function refusalPicture(reason: RefusalReason, started: Started | null, c
   return () => skillRefusalPicture(reason, needs);
 }
 
-/** One toast in the quest toast's queue, with the picture leading it, if any. */
-export type News = { readonly lines: NewsLines; readonly tone: NewsTone; readonly picture?: NewsPicture };
+/** One toast in the quest toast's queue, with the picture leading it and the sound it plays as it shows, if any. */
+export type News = { readonly lines: NewsLines; readonly tone: NewsTone; readonly picture?: NewsPicture; readonly sound?: string };
 
 /** The toasts a result brings: what went into the bag and what did not fit, then a level up with what it unlocks. */
 export function resultNews(result: SkillResultMessage, content: StoryContent): News[] {
@@ -79,6 +81,7 @@ export function resultNews(result: SkillResultMessage, content: StoryContent): N
   if (result.items.length > 0 || result.extra.length > 0) {
     news.push({
       tone: 'good',
+      ...(result.items.length > 0 ? { sound: 'world.item' } : {}),
       lines: (language) => {
         const lines = result.items.length > 0 ? [result.items.map(({ item, count }) => format('skill.gained', language, { item: itemName(item, language), count })).join(', ')] : [];
         for (const { item } of result.extra) lines.push(format('skill.bagFull', language, { item: itemName(item, language) }));
@@ -89,6 +92,7 @@ export function resultNews(result: SkillResultMessage, content: StoryContent): N
   if (result.levelUp) {
     news.push({
       tone: 'good',
+      sound: 'world.level-up',
       lines: (language) => {
         const unlocked = unlockedAt(result.skill, result.level, content, language);
         const head = format('skill.levelUp', language, { skill: skillName(result.skill, content, language), level: result.level });
@@ -108,14 +112,16 @@ export type SkillsOptions = {
   progress(): ProgressMessage | null;
   /** Something else is in front of the world (a battle, a talk, a story cue): the card and the book close. */
   blocked(): boolean;
-  /** Shows news in the quest toast's queue, led by its picture. */
-  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture): void;
+  /** Shows news in the quest toast's queue, led by its picture, with the sound it plays as it shows. */
+  news(lines: NewsLines, tone: NewsTone, picture?: NewsPicture, sound?: string): void;
   /** The job board was walked up to. */
   openBoard(station: string): void;
   /** Which overlay is up changed, so the page shows another screen and input may change. */
   changed(): void;
   /** Paces every gather, cook and game request with the page's other requests, under the server's limit. */
   requests: RequestPacer;
+  /** Plays a tiny game's result: a hit, a perfect or a miss. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type TestSkills = {
@@ -217,9 +223,12 @@ export function createSkills(options: SkillsOptions): Skills {
   function receiveResult(result: SkillResultMessage) {
     const now = performance.now();
     card.result(result, now);
-    const spot = lastAttempt?.attempt === result.attempt ? lastAttempt.spot : null;
+    const judged = lastAttempt?.attempt === result.attempt ? lastAttempt : null;
+    const heard = judged && skillSound(judged.game, result.outcome);
+    if (heard) options.sound.play(heard);
+    const spot = judged?.spot ?? null;
     if (result.restMs > 0 && spot !== null) rests.set(spot, now + result.restMs);
-    for (const { lines, tone, picture } of resultNews(result, STORY)) options.news(lines, tone, picture);
+    for (const { lines, tone, picture, sound } of resultNews(result, STORY)) options.news(lines, tone, picture, sound);
     update();
   }
 

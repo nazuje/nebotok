@@ -25,6 +25,7 @@ import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { createSound, tapSounds } from './sound.ts';
 import { createCries } from './sounds-creatures.ts';
+import { createPanelSounds } from './sounds-ui.ts';
 import { createSpeech } from './speech.ts';
 import { createSkills } from './skills-link.ts';
 import { createStoryCues } from './storm-cue.ts';
@@ -94,10 +95,11 @@ const scene = new WorldScene({
     return progress ? progress.lastShrine : undefined;
   },
 });
-const hud = createHud(language);
 const sound = createSound();
 tapSounds(sound);
 const cries = createCries(sound);
+const panelSounds = createPanelSounds((id) => sound.play(id));
+const hud = createHud(language, sound);
 /** A battle, an arena fight or a screen about creatures is up over the world. */
 const creaturesUp = (): boolean => arena.overlay() !== null || battles.overlay() !== null;
 const arena = createArena({
@@ -132,6 +134,7 @@ const battles = createBattles({
   canSay: (words) => speech.has(null, words),
   bottomTaken: () => hud.state().welcome !== null || hud.state().toast !== null,
   arenaUp: () => arena.overlay() !== null,
+  sound,
   cries,
 });
 const playerSettings = createPlayerSettings({
@@ -158,6 +161,7 @@ const duels = createDuels(element<HTMLElement>('#duel'), {
     if (scene.mapId !== null) scene.setMarker(null);
     showScreen();
   },
+  sound,
 });
 const storyCues = createStoryCues({
   scene,
@@ -168,6 +172,7 @@ const storyCues = createStoryCues({
     input.release();
     if (scene.mapId !== null) scene.setMarker(null);
   },
+  sound,
 });
 const talks = createTalks({
   language: () => language,
@@ -179,10 +184,10 @@ const talks = createTalks({
     showScreen();
   },
   speech,
-  sound,
   cue: (cue, key) => storyCues.fromTalk(cue, key),
   requests,
   held: () => creaturesUp(),
+  sound,
 });
 const story = createStory({
   language: () => language,
@@ -202,7 +207,7 @@ const skills = createSkills({
   player: () => session?.profile?.id ?? null,
   progress: () => battles.progress(),
   blocked: () => !inWorld || pinSetup.isOpen() || creaturesUp() || talks.isOpen() || storyCues.playing() || jobs.overlay() !== null,
-  news: (lines, tone, picture) => story.news(lines, tone, picture),
+  news: (lines, tone, picture, soundId) => story.news(lines, tone, picture, soundId),
   openBoard: (station) => jobs.open(station),
   changed: () => {
     input.release();
@@ -210,13 +215,14 @@ const skills = createSkills({
     showScreen();
   },
   requests,
+  sound,
 });
 const jobs = createJobs({
   language: () => language,
   progress: () => battles.progress(),
   skills: () => skills.message(),
   blocked: () => !inWorld || pinSetup.isOpen() || creaturesUp() || talks.isOpen() || storyCues.playing() || story.overlay() !== null || skills.overlay() !== null,
-  news: (lines, picture) => story.news(lines, 'good', picture),
+  news: (lines, picture, soundId) => story.news(lines, 'good', picture, soundId),
   refused: (id) => hud.toast(id),
   changed: () => {
     input.release();
@@ -245,6 +251,7 @@ const settings = createSettings(language, controls, {
     showScreen();
   },
   onSwitchPlayer: () => void switchPlayer(),
+  onOpen: (open) => sound.play(open ? 'ui.open' : 'ui.close'),
 });
 const pinSetup = createPinSetup(element<HTMLElement>('#pin-setup'), {
   language: () => language,
@@ -266,6 +273,7 @@ const pinSetup = createPinSetup(element<HTMLElement>('#pin-setup'), {
 const profiles = createProfileScreen(element<HTMLElement>('#profiles'), {
   language: () => language,
   signedIn: (login: LoginResponse) => {
+    sound.play('ui.login');
     saveSession(login);
     session = storedSession();
     enterWorld();
@@ -356,7 +364,9 @@ function screen(): Screen {
 }
 
 function showScreen() {
-  document.body.dataset.screen = screen();
+  const shown = screen();
+  document.body.dataset.screen = shown;
+  panelSounds(shown);
 }
 
 function setCanAddPin(next: boolean) {
