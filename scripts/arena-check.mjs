@@ -534,6 +534,11 @@ async function checkRun(browser, run) {
     let state = await until(page, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'fighting' && s.arena.drawn !== null && s.arena.mine !== null, 'the arena fight on screen', 15_000);
     expect(state.arena.fightId === fightId && state.arena.mode === 'wild' && state.arena.side === 0, `the page shows fight ${JSON.stringify(state.arena)}, not ${fightId}`);
     expect(state.players.find((each) => each.self)?.inBattle === true, 'your courier is not shown fighting');
+    if (run.sounds !== false) {
+      const cry = `cry:${wildSpecies}`;
+      const cried = await until(page, (s) => s.sounds.played.some((each) => each.id === cry), `the wild ${wildSpecies}'s cry`, 5_000).catch(() => readState(page));
+      expect(cried.sounds.played.some((each) => each.id === cry), `the wild ${wildSpecies} came onto the island and recorded ${JSON.stringify(cried.sounds.played.map((each) => each.id))}, no ${cry}`);
+    }
     await nextFrames(page);
     for (const problem of await fightProblems(page, state, run)) problems.push(problem);
     await fits('the arena fight');

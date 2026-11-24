@@ -40,6 +40,13 @@
         { "kind": "noise", "startMs": 0, "volume": 80, "envelope": { "attackMs": 1, "releaseMs": 70 }, "ms": 80, "filterHz": 1800 },
         { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 1, "releaseMs": 90 }, "wave": "sine", "steps": [{ "hz": 190, "ms": 20 }, { "hz": 80, "ms": 90 }], "glide": true }
       ]
+    },
+    {
+      "id": "talk.babble",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 6, "releaseMs": 35 }, "wave": "triangle", "steps": [{ "hz": 360, "ms": 35 }, { "hz": 400, "ms": 30 }], "glide": true }
+      ]
     }
   ]
 }

@@ -24,6 +24,7 @@ import { forgetSession, saveSession, storedSession, type StoredSession } from '.
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { createSound, tapSounds } from './sound.ts';
+import { createCries } from './sounds-creatures.ts';
 import { createSpeech } from './speech.ts';
 import { createSkills } from './skills-link.ts';
 import { createStoryCues } from './storm-cue.ts';
@@ -96,6 +97,7 @@ const scene = new WorldScene({
 const hud = createHud(language);
 const sound = createSound();
 tapSounds(sound);
+const cries = createCries(sound);
 /** A battle, an arena fight or a screen about creatures is up over the world. */
 const creaturesUp = (): boolean => arena.overlay() !== null || battles.overlay() !== null;
 const arena = createArena({
@@ -111,6 +113,7 @@ const arena = createArena({
   learned: (moves) => battles.learned(moves),
   watcher: () => view.shown(performance.now()).some((player) => player.self && player.watching),
   sound,
+  cries,
 });
 const battles = createBattles({
   game: () => game,
@@ -129,6 +132,7 @@ const battles = createBattles({
   canSay: (words) => speech.has(null, words),
   bottomTaken: () => hud.state().welcome !== null || hud.state().toast !== null,
   arenaUp: () => arena.overlay() !== null,
+  cries,
 });
 const playerSettings = createPlayerSettings({
   requests,
@@ -175,6 +179,7 @@ const talks = createTalks({
     showScreen();
   },
   speech,
+  sound,
   cue: (cue, key) => storyCues.fromTalk(cue, key),
   requests,
   held: () => creaturesUp(),
@@ -317,6 +322,7 @@ function frame(now: number) {
   skills.frame(now);
   jobs.frame();
   storyCues.frame(now);
+  cries.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   const pointing = talkHintSpot();
@@ -449,6 +455,7 @@ async function leaveWorld() {
   storyCues.reset();
   playerSettings.reset();
   speech.stop();
+  cries.reset();
   await leaving?.leave();
 }
 

@@ -15,8 +15,8 @@ export type StarterScreen = {
   chosen(): string | null;
 };
 
-/** A new player's first visit: one of three starters from content/starters.json, each a big button. */
-export function createStarterScreen(root: HTMLElement, options: { language(): Language; send(message: ClientMessage): void }): StarterScreen {
+/** A new player's first visit: one of three starters from content/starters.json, each a big button; the one picked cries. */
+export function createStarterScreen(root: HTMLElement, options: { language(): Language; send(message: ClientMessage): void; picked(species: string): void }): StarterScreen {
   const t = (id: StringId) => text(id, options.language());
   let open = false;
   let chosen: string | null = null;
@@ -33,6 +33,7 @@ export function createStarterScreen(root: HTMLElement, options: { language(): La
         chosenAt = performance.now();
         root.setAttribute('aria-busy', 'true');
         options.send({ type: 'starter.choose', payload: { species } });
+        options.picked(species);
       });
       choice.append(creaturePortrait(species), el('span', { className: 'creature-name', text: speciesName(species, language) }), typeChip(speciesType(species), language));
       return el('li', {}, [choice]);

@@ -10,7 +10,8 @@
 // picture, and all again from the talk box's speaker button; the quest is put off. With "Read to
 // me" turned off again, the character's next line asks for nothing until the talk box's speaker
 // button is tapped. Then a player beside the job board (scripts/lib/skill-saves.mjs) opens it and
-// taps a card's speaker button, which asks for the card's sentence.
+// taps a card's speaker button, which asks for the card's sentence. A line "Read to me" reads
+// babbles nothing; with it off, a line babbles in its speaker's voice as it types.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { jobLine } from '../../packages/core/src/index.ts';
@@ -44,6 +45,9 @@ export async function silenceClips(context) {
   });
   return asked;
 }
+
+/** What the test hook records a syllable of a line's babble as, as `babbleLabel` in apps/game/src/sounds-talk.ts. */
+const babbleLabel = (speaker) => `talk.babble:${speaker ?? 'narrator'}`;
 
 /** The talk's first line, shown whole, and the clip it has. */
 async function firstLine(page, npc, language) {
@@ -94,6 +98,7 @@ async function onTalk(page, world, plan, { language, asked, expect, check, notes
       return;
     }
     expect(s.voice.clip === clip, `with "Read to me" on, "${s.talk.line}" asked for ${s.voice.clip}, not ${clip}`);
+    expect(s.talk.babble === 0, `"${s.talk.line}" babbled ${s.talk.babble} syllables while "Read to me" read it`);
     await speakerShown(page, clip, `the line "${s.talk.line}"`, expect);
     if (lines === 1) await check('the talk box with its speaker button', 'v3-talk-speaker');
   };
@@ -197,6 +202,9 @@ async function choicesTalk(page, world, { language, asked, expect, check, notes 
 async function offTalk(page, world, plan, { language, asked, expect, notes }) {
   await openTalk(page, world, plan.handover, { notes });
   const { state, clip } = await firstLine(page, plan.handover, language);
+  const babble = babbleLabel(state.talk.speaker);
+  const heard = state.sounds.played.map((each) => each.id);
+  expect(state.talk.babble > 0 && heard.includes(babble), `with "Read to me" off, "${state.talk.line}" babbled ${state.talk.babble} syllables and recorded ${JSON.stringify(heard)}, no ${babble}`);
   const before = { hook: state.voice.asked, requests: asked.length };
   await page.waitForTimeout(300);
   const quiet = await readState(page);
