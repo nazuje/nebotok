@@ -5,7 +5,7 @@ import { defaultLoadout, type LoadoutContent } from './loadout.ts';
 import { MapId } from './map.ts';
 
 /** The version `createSave` writes. Raise it only together with a migration from the version before. */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 /** How many creatures a player's storage holds, besides the team of up to 6. */
 export const STORAGE_LIMIT = 200;
@@ -166,6 +166,12 @@ const SaveDataV7 = z.strictObject({
   settings: SettingsV7,
 });
 
+/** The player's settings since v8: `sounds` plays sound effects and haptics; "Read to me" stays apart. */
+const SettingsV8 = z.strictObject({ readToMe: z.boolean(), turtle: z.boolean(), sounds: z.boolean() });
+
+/** v8 adds the sounds setting. */
+const SaveDataV8 = z.strictObject({ ...SaveDataV7.shape, settings: SettingsV8 });
+
 export const CreatureInstance = CreatureV7;
 export type CreatureInstance = z.infer<typeof CreatureInstance>;
 export const Loadout = LoadoutV7;
@@ -179,9 +185,9 @@ export const BoardJob = BoardJobV5;
 export type BoardJob = z.infer<typeof BoardJob>;
 export const JobsProgress = JobsV5;
 export type JobsProgress = z.infer<typeof JobsProgress>;
-export const PlayerSettings = SettingsV7;
+export const PlayerSettings = SettingsV8;
 export type PlayerSettings = z.infer<typeof PlayerSettings>;
-export const SaveData = SaveDataV7;
+export const SaveData = SaveDataV8;
 export type SaveData = z.infer<typeof SaveData>;
 export type SaveFile = { readonly v: typeof SAVE_VERSION; readonly data: SaveData };
 
@@ -194,6 +200,7 @@ export const SAVE_SCHEMAS: Readonly<Record<number, z.ZodType>> = {
   5: SaveDataV5,
   6: SaveDataV6,
   7: SaveDataV7,
+  8: SaveDataV8,
 };
 
 /** A migration reads the content it needs, such as which moves suit which arena button, as an argument. */
@@ -218,11 +225,16 @@ export const migrations: Readonly<Record<number, Migration>> = {
     const equip = (creature: z.infer<typeof CreatureV3>) => ({ ...creature, loadout: defaultLoadout(creature, content) });
     return { ...old, team: old.team.map(equip), storage: old.storage.map(equip), settings: { ...old.settings, turtle: false } };
   },
+  // Game sounds are on for every player, as for a new one; the speaker in the settings turns them off.
+  7: (data) => {
+    const old = data as z.infer<typeof SaveDataV7>;
+    return { ...old, settings: { ...old.settings, sounds: true } };
+  },
 };
 
-/** A new player's settings: nothing is read aloud unless they ask, and fights are not made easier. */
+/** A new player's settings: nothing is read aloud unless they ask, fights are not made easier, and game sounds are on. */
 export function defaultSettings(): PlayerSettings {
-  return { readToMe: false, turtle: false };
+  return { readToMe: false, turtle: false, sounds: true };
 }
 
 const Envelope = z.object({ v: z.number().int().min(1), data: z.unknown() });

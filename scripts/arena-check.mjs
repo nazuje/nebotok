@@ -89,11 +89,13 @@ const TAG = runTag();
  * on the other, so both are seen on both. The 360px player's creature is too young for button 3,
  * asks for reduced motion and holds Leave.
  * The best of 3 runs (`rounds`) take the other language of their place, so each player's name is new.
+ * Chromium's tablet run has the player's sounds off: its hits and befriending record no sound and
+ * never call `navigator.vibrate`, which every other wild run's hits sound.
  */
 const RUNS = {
   chromium: [
     { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, plan: 'storm', lagMs: 0 },
-    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 150 },
+    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 150, sounds: false },
     { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], plan: 'leave', lagMs: 50 },
     { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'rounds', lagMs: 0 },
     { where: '360px', language: 'en', steer: 'keys', level: 20, plan: 'rounds', lagMs: 0 },
@@ -178,7 +180,7 @@ async function preparePlayer(run, team = [newCreature(STARTERS[0], run.level, wo
   // A trainer run's player is past the whole story, so the trainer's challenge is the talk that opens.
   const story = trainer ? { active: [], done: QUESTS, flags: ['grey-letter-read', 'storm-seen', 'chapter-1-done'] } : emptyProgress().story;
   const progress = { ...emptyProgress(), team, inventory: [{ item: treat, count: run.plan === 'befriend' ? BEFRIEND_TREATS : 3 }], story };
-  services.progress.save(made.value.id, createSave({ settings: defaultSettings(), name, language: run.language, createdAt: new Date().toISOString(), position, ...progress }));
+  services.progress.save(made.value.id, createSave({ settings: { ...defaultSettings(), sounds: run.sounds ?? true }, name, language: run.language, createdAt: new Date().toISOString(), position, ...progress }));
   return { id: made.value.id, name };
 }
 
@@ -456,6 +458,7 @@ async function openRun(browser, run, team) {
   const context = await browser.newContext(contextOptions);
   await context.addInitScript(presetLanguage, run.language);
   await context.addInitScript(reportCspViolations);
+  if (run.sounds === false) await context.addInitScript(countVibrations);
   const tab = await context.newPage();
   watch(context, tab, problems, { allowedHost });
   const shot = async (step) => {
@@ -479,6 +482,38 @@ async function openRun(browser, run, team) {
 }
 
 /**
+ * In the page: `navigator.vibrate` only counts its calls, in `window.vibrations`. It stays
+ * writable because Phaser's device check assigns `navigator.vibrate` to itself as it starts.
+ */
+function countVibrations() {
+  window.vibrations = 0;
+  Object.defineProperty(navigator, 'vibrate', {
+    configurable: true,
+    writable: true,
+    value: () => {
+      window.vibrations += 1;
+      return true;
+    },
+  });
+}
+
+/**
+ * What a wild fight's sounds and buzzes should have been: none with the player's sounds off,
+ * `arena.hit` for its hits with them on. `heardBefore` counts the sounds played before the player's
+ * settings arrived, such as the tap on their profile card, when no one's setting is known yet.
+ */
+async function soundProblems(page, state, run, heardBefore) {
+  const played = state.sounds.played.slice(heardBefore).map((each) => each.id);
+  if (run.sounds !== false) return played.includes('arena.hit') ? [] : [`the hits recorded the sounds ${JSON.stringify(played)}, no arena.hit`];
+  const vibrations = await page.evaluate(() => window.vibrations);
+  const problems = [];
+  if (state.sounds.on !== false) problems.push(`sounds are ${JSON.stringify(state.sounds)} for a player who turned them off`);
+  if (played.length > 0) problems.push(`with sounds off the page recorded ${JSON.stringify(played)}`);
+  if (vibrations !== 0 || state.arena.buzzes !== 0) problems.push(`with sounds off the page buzzed ${state.arena.buzzes} times and called navigator.vibrate ${vibrations} times`);
+  return problems;
+}
+
+/**
  * A wild run's team: the 360px runs' lead comes in at half health, as after an earlier fight, so
  * its card points to the shrine. Those runs only leave; a lead that lost health is knocked further,
  * so a hurt lead in a run that must win or befriend can be knocked off the island and swapped out.
@@ -494,6 +529,7 @@ async function checkRun(browser, run) {
   const { label, player, tab: page, problems, notes, screenshots, expect, shot, fits } = opened;
   try {
     await opened.signIn();
+    const heardBefore = run.sounds === false ? (await until(page, (s) => s.sounds?.on === false, 'the player\'s sounds turned off')).sounds.played.length : 0;
     const fightId = await startFight(player.id, wildOf(run));
     let state = await until(page, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'fighting' && s.arena.drawn !== null && s.arena.mine !== null, 'the arena fight on screen', 15_000);
     expect(state.arena.fightId === fightId && state.arena.mode === 'wild' && state.arena.side === 0, `the page shows fight ${JSON.stringify(state.arena)}, not ${fightId}`);
@@ -565,7 +601,8 @@ async function checkRun(browser, run) {
     expect((state.arena?.inputs ?? 0) > 20 && (run.plan === 'leave' || (state.arena?.presses ?? 0) > 0), `the page sent ${state.arena?.inputs} inputs with ${state.arena?.presses} presses`);
     state = await until(page, ended, 'the fight result', 10_000);
     const outcome = state.arena.result.outcome?.result ?? null;
-    notes.push(`${outcome} after ${state.arena.inputs} inputs and ${state.arena.presses} presses, ${state.arena.buzzes} buzzes`);
+    notes.push(`${outcome} after ${state.arena.inputs} inputs and ${state.arena.presses} presses, ${state.arena.buzzes} buzzes, sounds ${run.sounds === false ? 'off' : 'on'}`);
+    for (const problem of await soundProblems(page, state, run, heardBefore)) problems.push(problem);
     const wantedOutcome = { leave: ['ran'], befriend: ['befriended'], storm: [...WINS] }[run.plan];
     expect(wantedOutcome.includes(outcome), `the fight ended with ${outcome}, not ${wantedOutcome.join(' or ')}`);
     if (WINS.has(outcome)) expect(state.arena.result.rewards.length > 0, 'a won fight gave no experience');

@@ -15,6 +15,9 @@ rest, with no blood and no death, but spooky places and real villains are welcom
   keyboard and mouse works too.
 - Playable without reading. Every message that matters for progress has a picture or animation
   that carries its meaning with the sound off, and text is a bonus for readers.
+- Sound effects are on from the first tap and made in the game, with no sound files; a speaker
+  in the settings turns them and the phone's buzzes off for that player. They play quieter under a
+  "Read to me" voice. No music yet (chosen in Phase 3).
 - Text in English and Slovenian. Characters "talk" in short babble sounds while their words
   appear. Important lines can also be read aloud with "Read to me": a computer voice now, and the
   owner's recorded voice for the main characters later.

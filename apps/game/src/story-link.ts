@@ -6,6 +6,7 @@ import { createStoryButtons } from './hud.ts';
 import { createJournalScreen } from './journal-screen.ts';
 import { createQuestToast, questHint, type NewsLines, type NewsPicture, type NewsTone, type QuestToastState } from './quest-toast.ts';
 import { speakerButton } from './speaker-button.ts';
+import type { SoundPlayer } from './sound.ts';
 import type { Speech } from './speech.ts';
 import { STORY, storyProgress } from './story-content.ts';
 import { text } from './strings.ts';
@@ -27,6 +28,8 @@ export type StoryOptions = {
   changed(): void;
   /** Reads a new quest banner's hint aloud, and again from its speaker button. */
   speech: Speech;
+  /** Plays the fanfare of a quest done. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type TestStory = {
@@ -133,6 +136,7 @@ export function createStory(options: StoryOptions): Story {
   }
 
   function changedQuest(change: QuestChanged) {
+    if (change.change === 'done') options.sound.play('quest.done');
     toast.show(change);
     if (overlay !== 'journal') news = true;
   }

@@ -9,13 +9,18 @@ const VOICE_PATH = '/voice/';
 /** Taps and keys that count as the player asking, which is when a browser lets a page make sound. */
 const GESTURES = ['pointerup', 'touchend', 'click', 'keydown'] as const;
 
+export type ClipPlayerOptions = {
+  /** A clip started or stopped playing, so sound effects play quieter under it. */
+  playing?(playing: boolean): void;
+};
+
 /**
  * The page's one audio element, which plays every clip. Safari on an iPhone or iPad plays sound
  * from an element only once a tap has started it, so the first taps call `load()` on it, which
  * unlocks it without a sound; after that a clip can start when a line arrives from the server.
  * Clips come only from the game's own server (`/voice/`), and a missing or failed one is silent.
  */
-export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
+export function createClipPlayer(options: ClipPlayerOptions = {}): ClipPlayer & { state(): TestVoice } {
   const audio = new Audio();
   audio.preload = 'auto';
   let current: string | null = null;
@@ -24,6 +29,11 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
   let unlocked = false;
   /** The clip playing now and what runs when it ends; another clip or a stop replaces it unrun. */
   let playing: { readonly url: string; readonly ended: (() => void) | undefined } | null = null;
+  const setPlaying = (next: typeof playing) => {
+    const was = playing !== null;
+    playing = next;
+    if (was !== (next !== null)) options.playing?.(next !== null);
+  };
 
   const unlock = () => {
     if (unlocked) {
@@ -36,7 +46,7 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
   for (const type of GESTURES) document.addEventListener(type, unlock, { capture: true, passive: true });
 
   const stop = () => {
-    playing = null;
+    setPlaying(null);
     if (current === null && !audio.hasAttribute('src')) return;
     current = null;
     audio.pause();
@@ -47,7 +57,7 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
   /** The clip that `which` names played through or failed: its `ended` runs, once. */
   const finish = (which: typeof playing) => {
     if (which === null || which !== playing) return;
-    playing = null;
+    setPlaying(null);
     current = null;
     which.ended?.();
   };
@@ -73,7 +83,7 @@ export function createClipPlayer(): ClipPlayer & { state(): TestVoice } {
     play: (url, whenEnded) => {
       if (!url.startsWith(VOICE_PATH)) return;
       const which = { url, ended: whenEnded };
-      playing = which;
+      setPlaying(which);
       current = url;
       last = url;
       asked += 1;

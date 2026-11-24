@@ -23,6 +23,27 @@ run `npm run voice` on a Mac (`scripts/voice/README.md`) and commit the clips wi
 `content:validate` fails until then. A line with a `{placeholder}` gets no clip. A character's
 `voice` in `npcs.json` sets the pitch and pace of their clips, so changing it remakes them.
 
+## Sounds
+
+`sounds.json` holds every sound effect as a recipe the page plays with Web Audio; there are no
+sound files. Code plays a sound by its `id` (`sound.play('ui.tap')`, `apps/game/src/sound.ts`),
+so a new sound is a new entry here. Schema: `packages/core/src/sound-content.ts`.
+
+- `volume` (1 to 100) is the master volume of every effect, and `duckPercent` (0 to 50) the share
+  of it they keep while a "Read to me" clip plays, so the voice stays louder.
+- Each sound has an `id` of dotted lowercase words naming where it plays (`ui.tap`, `quest.done`,
+  `arena.hit`), its own `volume` (1 to 100) and 1 to 4 `layers` that play together. A whole sound
+  lasts at most 3 s.
+- Every layer has `startMs` (after the sound starts), `volume` and an `envelope`: `attackMs`
+  to rise from silence and `releaseMs` to fall back, both inside the layer's length.
+- A `tone` layer has a `wave` (`sine`, `triangle`, `square` or `sawtooth`) and 1 to 16 pitch
+  `steps` (`hz` 20 to 12,000 and `ms`), played one after another; with `glide: true` the pitch
+  slides into each step over the one before it instead of jumping.
+- A `noise` layer is white noise for `ms`, through a low-pass filter at `filterHz` (lower is duller).
+
+Keep effects short and soft: they repeat all through play. There is no way to hear a sound in a
+check; a person listens on a real device.
+
 ## Maps
 
 Maps are Tiled JSON files, `content/maps/<id>.tmj`, checked by `readTiledMap` and

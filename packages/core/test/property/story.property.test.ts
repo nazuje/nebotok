@@ -24,7 +24,7 @@ const stories: [string, StoryWorldRules][] = [
   ['the frozen golden story', goldenStory],
 ];
 
-const saveOf = (progress: Progress) => ({ name: 'Story Courier', language: 'en' as const, createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false, turtle: false }, ...progress });
+const saveOf = (progress: Progress) => ({ name: 'Story Courier', language: 'en' as const, createdAt: '2026-05-01T09:00:00.000Z', position: null, settings: { readToMe: false, turtle: false, sounds: true }, ...progress });
 
 describe.each(stories)('the story sim on %s', (_label, rules) => {
   it('plays nextGoal from a new player to the end of every chapter', () => {

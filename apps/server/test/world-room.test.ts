@@ -496,19 +496,19 @@ describe('messages', () => {
       return { room, settings };
     };
     const first = await joinSeeing();
-    expect(first.settings).toEqual([{ readToMe: false, turtle: false }]);
+    expect(first.settings).toEqual([{ readToMe: false, turtle: false, sounds: true }]);
     first.room.send('settings.set', { readToMe: true });
     await until(() => first.settings.length === 2, 'the settings sent back');
-    expect(first.settings[1]).toEqual({ readToMe: true, turtle: false });
-    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: false });
+    expect(first.settings[1]).toEqual({ readToMe: true, turtle: false, sounds: true });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: false, sounds: true });
     await first.room.leave();
 
     const again = await joinSeeing();
-    expect(again.settings).toEqual([{ readToMe: true, turtle: false }]);
+    expect(again.settings).toEqual([{ readToMe: true, turtle: false, sounds: true }]);
     const left = leftWith(again.room);
     again.room.send('settings.set', { readToMe: 'yes' });
     expect(await left).toBe(4002);
-    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: false });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: false, sounds: true });
   });
 
   it('disconnects a client that sends more taps than a game takes', async () => {
@@ -595,22 +595,50 @@ describe('loadouts and the turtle setting', () => {
   it('keeps the turtle setting with the player: off for a new one, saved at once, without touching "Read to me"', async () => {
     const { id, token } = await equipped('Turtle Courier');
     const first = await joinHearing(token);
-    expect(first.heard.settings).toEqual([{ readToMe: false, turtle: false }]);
+    expect(first.heard.settings).toEqual([{ readToMe: false, turtle: false, sounds: true }]);
     first.room.send('settings.turtle', { on: true });
     await until(() => first.heard.settings.length === 2, 'the settings sent back');
-    expect(first.heard.settings[1]).toEqual({ readToMe: false, turtle: true });
+    expect(first.heard.settings[1]).toEqual({ readToMe: false, turtle: true, sounds: true });
     await sleep(PACE_MS);
     first.room.send('settings.set', { readToMe: true });
     await until(() => first.heard.settings.length === 3, 'the settings sent back again');
-    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: true });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: true, sounds: true });
     await first.room.leave();
 
     const again = await joinHearing(token);
-    expect(again.heard.settings).toEqual([{ readToMe: true, turtle: true }]);
+    expect(again.heard.settings).toEqual([{ readToMe: true, turtle: true, sounds: true }]);
     const left = leftWith(again.room);
     again.room.send('settings.turtle', { on: 'yes' });
     expect(await left).toBe(4002);
-    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: true });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: true, turtle: true, sounds: true });
+  });
+});
+
+describe('the sounds setting', () => {
+  it('is on for a new player, turned off and on, saved at once without touching the others, and kept after a rejoin', async () => {
+    const { id, token } = await equipped('Quiet Courier');
+    const first = await joinHearing(token);
+    expect(first.heard.settings).toEqual([{ readToMe: false, turtle: false, sounds: true }]);
+    first.room.send('settings.sounds', { on: false });
+    await until(() => first.heard.settings.length === 2, 'the settings sent back');
+    expect(first.heard.settings[1]).toEqual({ readToMe: false, turtle: false, sounds: false });
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: false, turtle: false, sounds: false });
+    await sleep(PACE_MS);
+    first.room.send('settings.turtle', { on: true });
+    await until(() => first.heard.settings.length === 3, 'the turtle setting sent back');
+    expect(first.heard.settings[2]).toEqual({ readToMe: false, turtle: true, sounds: false });
+    await first.room.leave();
+
+    const again = await joinHearing(token);
+    expect(again.heard.settings).toEqual([{ readToMe: false, turtle: true, sounds: false }]);
+    again.room.send('settings.sounds', { on: true });
+    await until(() => again.heard.settings.length === 2, 'the settings sent back after the rejoin');
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: false, turtle: true, sounds: true });
+    await sleep(PACE_MS);
+    const left = leftWith(again.room);
+    again.room.send('settings.sounds', { on: 'quiet' });
+    expect(await left).toBe(4002);
+    expect(temp.services.progress.load(id)?.data.settings).toEqual({ readToMe: false, turtle: true, sounds: true });
   });
 });
 const elsewhere = 'https://elsewhere.example';

@@ -1,4 +1,4 @@
-import { CLIENT_MESSAGES, SERVER_MESSAGES, type Refused, type SettingsMessage, type SettingsSetMessage, type SettingsTurtleMessage } from '@nebotok/core';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, type Refused, type SettingsMessage, type SettingsSetMessage, type SettingsSoundsMessage, type SettingsTurtleMessage } from '@nebotok/core';
 import type { WorldRoom } from './connection.ts';
 import type { RequestPacer } from './request-pacer.ts';
 
@@ -20,6 +20,10 @@ export type PlayerSettings = {
   turtle(): boolean | null;
   /** Turns the turtle setting over and asks the server to save it. A refusal, as during a fight, turns it back. */
   toggleTurtle(): void;
+  /** The sounds setting, effects and haptics, as the server last sent it or as the player just set it; null before the server has said. */
+  sounds(): boolean | null;
+  /** Turns the sounds setting over and asks the server to save it. */
+  toggleSounds(): void;
   /** Forgets the player's settings, as when they leave the world. */
   reset(): void;
 };
@@ -74,6 +78,14 @@ export function createPlayerSettings(options: PlayerSettingsOptions): PlayerSett
       set({ ...settings, turtle: wanted.on });
       const to = room;
       options.requests.send(() => to.send(CLIENT_MESSAGES.settingsTurtle, wanted));
+    },
+    sounds: () => settings?.sounds ?? null,
+    toggleSounds: () => {
+      if (!settings || !room) return;
+      const wanted: SettingsSoundsMessage = { on: !settings.sounds };
+      set({ ...settings, sounds: wanted.on });
+      const to = room;
+      options.requests.send(() => to.send(CLIENT_MESSAGES.settingsSounds, wanted));
     },
     reset: () => {
       turtleBefore = null;

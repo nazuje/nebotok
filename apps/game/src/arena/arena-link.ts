@@ -23,6 +23,7 @@ import type { ArenaRoom, WorldConnection, WorldRoom } from '../connection.ts';
 import { element } from '../dom.ts';
 import { cameInHurt } from '../health-level.ts';
 import { moveArena } from '../move-arena.ts';
+import type { SoundPlayer } from '../sound.ts';
 import { buttonStates, treatUsable, type ButtonState } from './arena-buttons.ts';
 import { ARENA } from './arena-content.ts';
 import { createArenaControls, type Quit } from './arena-controls.ts';
@@ -54,6 +55,8 @@ export type ArenaOptions = {
   learned(moves: readonly LearnedMove[]): void;
   /** Whether your courier watches a duel, as the world's state says. */
   watcher(): boolean;
+  /** The page's sounds and haptics, which the player's sounds setting turns off. */
+  sound: Pick<SoundPlayer, 'play' | 'vibrate'>;
 };
 
 /** The fight on screen, for the test hook. */
@@ -78,7 +81,7 @@ export type TestArena = {
   /** Inputs sent, and how many asked for a move. */
   inputs: number;
   presses: number;
-  /** Buzzes asked of the device, where it can vibrate. */
+  /** Buzzes asked of the device, where it can vibrate and sounds are on. */
   buzzes: number;
   /** A best of 3's picks by team place, in round order: the ones on the pick screen while picking, then the server's. */
   picks: number[] | null;
@@ -152,13 +155,6 @@ export function pickTeam(team: readonly TeamCreature[], started: ArenaStartedMes
   return even ? team.map((creature) => ({ ...creature, level: even.level })) : team;
 }
 
-/** Buzzes the device where it can (`navigator.vibrate`; Safari on iPhone and iPad has none). Returns whether it asked. */
-function buzz(pattern: readonly number[]): boolean {
-  if (typeof navigator.vibrate !== 'function') return false;
-  navigator.vibrate([...pattern]);
-  return true;
-}
-
 /**
  * The arena fights of this page (docs/arena.md, "Screens and controls"; docs/protocol.md "Arena
  * fights"): `arena.join` from the world room seats the page in the fight's arena room, whose state
@@ -206,14 +202,19 @@ export function createArena(options: ArenaOptions): Arena {
     popup: (popup, x, y) => screen.popup(popup, x, y, options.language()),
   });
 
-  /** A hit to your creature, a ring-out or a befriending buzzes the device, unless motion is reduced. */
+  /**
+   * A hit that does damage sounds, once for a batch of events. A hit to your creature, a ring-out or
+   * a befriending also buzzes the device (`navigator.vibrate`, which Safari on iPhone and iPad lacks),
+   * unless motion is reduced. Both only while the player's sounds are on.
+   */
   function feel(target: Fight, events: readonly FightEvent[]) {
+    if (events.some((event) => event.kind === 'hit' && event.damage > 0)) options.sound.play('arena.hit');
     const side = target.started?.side;
     if (side === undefined || target.started?.watching) return;
     const motion = !motionReduced();
     for (const event of events) {
       const pattern = buzzFor(event, side, motion);
-      if (pattern && buzz(pattern)) target.buzzes += 1;
+      if (pattern && options.sound.vibrate(pattern)) target.buzzes += 1;
     }
   }
 

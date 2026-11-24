@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultLoadout, emptyProgress, gainXp, learnedMoves, loadoutFits, newCreature, setLoadout, setTurtle, defaultSettings, xpToNextLevel, type CreatureInstance, type Loadout } from '../../src/index.ts';
+import { defaultLoadout, emptyProgress, gainXp, learnedMoves, loadoutFits, newCreature, setLoadout, setSounds, setTurtle, defaultSettings, xpToNextLevel, type CreatureInstance, type Loadout } from '../../src/index.ts';
 import { battleContent, goldenBattleContent } from '../support/battle-content.ts';
 
 const species = (id: string) => battleContent.species.get(id)!;
@@ -75,7 +75,16 @@ describe('setting a loadout', () => {
 describe('the turtle setting', () => {
   it('turns on and off and keeps "Read to me"', () => {
     const on = setTurtle({ ...defaultSettings(), readToMe: true }, true);
-    expect(on).toEqual({ readToMe: true, turtle: true });
-    expect(setTurtle(on, false)).toEqual({ readToMe: true, turtle: false });
+    expect(on).toEqual({ readToMe: true, turtle: true, sounds: true });
+    expect(setTurtle(on, false)).toEqual({ readToMe: true, turtle: false, sounds: true });
+  });
+});
+
+describe('the sounds setting', () => {
+  it('is on for a new player, turns off and on, and keeps the other settings', () => {
+    expect(defaultSettings().sounds).toBe(true);
+    const off = setSounds({ ...defaultSettings(), turtle: true }, false);
+    expect(off).toEqual({ readToMe: false, turtle: true, sounds: false });
+    expect(setSounds(off, true)).toEqual({ readToMe: false, turtle: true, sounds: true });
   });
 });
