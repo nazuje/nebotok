@@ -481,11 +481,15 @@ async function openRun(browser, run, team) {
   return { label, player, tab, problems, notes, screenshots, expect, shot, fits, signIn, close: () => context.close() };
 }
 
-/** In the page: `navigator.vibrate` only counts its calls, in `window.vibrations`. */
+/**
+ * In the page: `navigator.vibrate` only counts its calls, in `window.vibrations`. It stays
+ * writable because Phaser's device check assigns `navigator.vibrate` to itself as it starts.
+ */
 function countVibrations() {
   window.vibrations = 0;
   Object.defineProperty(navigator, 'vibrate', {
     configurable: true,
+    writable: true,
     value: () => {
       window.vibrations += 1;
       return true;
@@ -493,9 +497,13 @@ function countVibrations() {
   });
 }
 
-/** What a wild fight's sounds and buzzes should have been: none with the player's sounds off, `arena.hit` for its hits with them on. */
-async function soundProblems(page, state, run) {
-  const played = state.sounds.played.map((each) => each.id);
+/**
+ * What a wild fight's sounds and buzzes should have been: none with the player's sounds off,
+ * `arena.hit` for its hits with them on. `heardBefore` counts the sounds played before the player's
+ * settings arrived, such as the tap on their profile card, when no one's setting is known yet.
+ */
+async function soundProblems(page, state, run, heardBefore) {
+  const played = state.sounds.played.slice(heardBefore).map((each) => each.id);
   if (run.sounds !== false) return played.includes('arena.hit') ? [] : [`the hits recorded the sounds ${JSON.stringify(played)}, no arena.hit`];
   const vibrations = await page.evaluate(() => window.vibrations);
   const problems = [];
@@ -521,6 +529,7 @@ async function checkRun(browser, run) {
   const { label, player, tab: page, problems, notes, screenshots, expect, shot, fits } = opened;
   try {
     await opened.signIn();
+    const heardBefore = run.sounds === false ? (await until(page, (s) => s.sounds?.on === false, 'the player\'s sounds turned off')).sounds.played.length : 0;
     const fightId = await startFight(player.id, wildOf(run));
     let state = await until(page, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'fighting' && s.arena.drawn !== null && s.arena.mine !== null, 'the arena fight on screen', 15_000);
     expect(state.arena.fightId === fightId && state.arena.mode === 'wild' && state.arena.side === 0, `the page shows fight ${JSON.stringify(state.arena)}, not ${fightId}`);
@@ -593,7 +602,7 @@ async function checkRun(browser, run) {
     state = await until(page, ended, 'the fight result', 10_000);
     const outcome = state.arena.result.outcome?.result ?? null;
     notes.push(`${outcome} after ${state.arena.inputs} inputs and ${state.arena.presses} presses, ${state.arena.buzzes} buzzes, sounds ${run.sounds === false ? 'off' : 'on'}`);
-    for (const problem of await soundProblems(page, state, run)) problems.push(problem);
+    for (const problem of await soundProblems(page, state, run, heardBefore)) problems.push(problem);
     const wantedOutcome = { leave: ['ran'], befriend: ['befriended'], storm: [...WINS] }[run.plan];
     expect(wantedOutcome.includes(outcome), `the fight ended with ${outcome}, not ${wantedOutcome.join(' or ')}`);
     if (WINS.has(outcome)) expect(state.arena.result.rewards.length > 0, 'a won fight gave no experience');
