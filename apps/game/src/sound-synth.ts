@@ -1,4 +1,4 @@
-import { layerMs, type Sound, type SoundLayer } from '@nebotok/core';
+import { layerMs, type SoundLayer, type SoundRecipe } from '@nebotok/core';
 import { envelopePoints, layerGain, pitchTimes } from './sound-mix.ts';
 import type { Synth } from './sound-player.ts';
 
@@ -45,7 +45,7 @@ export function createWebAudioSynth(silent: boolean): Synth & { unlock(): boolea
     return hiss;
   };
 
-  const playLayer = (audio: AudioContext, out: AudioNode, sound: Sound, layer: SoundLayer) => {
+  const playLayer = (audio: AudioContext, out: AudioNode, sound: SoundRecipe, layer: SoundLayer) => {
     const begin = audio.currentTime + layer.startMs / 1_000;
     const envelope = audio.createGain();
     envelope.gain.setValueAtTime(0, begin);

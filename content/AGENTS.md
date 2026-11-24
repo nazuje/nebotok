@@ -42,6 +42,17 @@ so a new sound is a new entry here. Schema: `packages/core/src/sound-content.ts`
   slides into each step over the one before it instead of jumping.
 - A `noise` layer is white noise for `ms`, through a low-pass filter at `filterHz` (lower is duller).
 
+Two kinds of sound are made by code from content rather than played as they are:
+
+- **Babble** (core `babbleSyllable`): while a talk line types, the `talk.babble` recipe plays as a
+  syllable at the start of each word and every few letters of a long one, moved up or down by
+  the speaker's `voice` `pitch` in `npcs.json`, shorter for a quick `pace`, and varied a little,
+  the same way every time for the same line. The narrator's is softer and level. Change how
+  babble sounds by changing that recipe.
+- **Cries** (core `speciesCry`): a species may have a `cry`, a recipe like these without an
+  `id`, in `creatures/species.json`. One without it gets a cry made from its weather type (the
+  wave and tune) and its id (the pitch and pace), so creatures of a type sound related.
+
 Keep effects short and soft: they repeat all through play. There is no way to hear a sound in a
 check; a person listens on a real device.
 
@@ -91,7 +102,8 @@ does as battlefield weather), `moves.json`, `species.json` and `battle-rules.jso
 that tune damage, weather length and the turn limit).
 
 A species has a name and a one-line `description` in both languages, a weather `type`, base
-`stats`, a `favouriteTreat`, and `placeholder: true` until a real design replaces it. It knows
+`stats`, a `favouriteTreat`, an optional `cry` (see "Sounds") and `placeholder: true` until a
+real design replaces it. It knows
 exactly four `moves`, and its `learnset` lists every move it learns as `{ level, move }` in rising
 level order, each move once: the four `moves` first, in order, at level 1, then the rest above
 level 1. A creature knows at most four moves; reaching a learnset level teaches that move at once

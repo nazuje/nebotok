@@ -3,6 +3,7 @@ import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { ANSWER_MS, type RequestPacer } from './request-pacer.ts';
 import type { SoundPlayer } from './sound.ts';
+import { createBabble } from './sounds-talk.ts';
 import { talkSound } from './sounds-world.ts';
 import type { Speech, Spoken, Voice } from './speech.ts';
 import { talkCueKey } from './storm-plan.ts';
@@ -42,6 +43,8 @@ export type TestTalk = {
   /** The choice being read aloud now, by its index, or null. */
   reading: number | null;
   waiting: boolean;
+  /** How many syllables of babble the line has played. */
+  babble: number;
 };
 
 export type TalksOptions = {
@@ -63,8 +66,8 @@ export type TalksOptions = {
    * now waits and opens once it is gone: the talk box is hidden under it and would take its keys.
    */
   held(): boolean;
-  /** Plays a line's sound as it opens: a trainer's challenge, or a character giving you something. */
-  sound: Pick<SoundPlayer, 'play'>;
+  /** Plays a line's sound as it opens (a trainer's challenge, or a character giving you something) and its babble as it types. */
+  sound: Pick<SoundPlayer, 'play' | 'recipe' | 'playRecipe'>;
 };
 
 export type Talks = {
@@ -89,6 +92,7 @@ export type Talks = {
 /** Talking to characters: the server's talk messages, the talk box, and the marks over heads. */
 export function createTalks(options: TalksOptions): Talks {
   const { speech } = options;
+  const babble = createBabble(options.sound);
   let link: TalkLink | null = null;
   let talk: TalkNode | null = null;
   /** A node that came while `held`, shown once it is not. */
@@ -236,6 +240,12 @@ export function createTalks(options: TalksOptions): Talks {
       if (waiting && now - sentAt >= ANSWER_MS) waiting = false;
       const shown = line();
       const language = options.language();
+      const voice = shown && voiceOf(shown);
+      babble.frame(
+        talk && shown
+          ? { key: `${talk.conversation}:${talk.node}:${language}`, speaker: shown.speaker, voice, say: shown.say, pace: shown.pace, typed: typed(shown, now), voiced: speech.reads(voice, shown.say) || speech.speaking()?.text === shown.say }
+          : null,
+      );
       box.render(
         talk && shown
           ? {
@@ -274,6 +284,7 @@ export function createTalks(options: TalksOptions): Talks {
         choices: shown.choices.map(({ index, say, picture, kind }) => ({ index, say, picture, kind })),
         reading: choiceRead(shown, speech.speaking()),
         waiting,
+        babble: babble.played(),
       };
     },
   };

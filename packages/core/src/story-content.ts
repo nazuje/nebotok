@@ -7,7 +7,8 @@
  */
 import { z } from 'zod';
 import { PICTURES, type PictureId } from './art.ts';
-import { ContentId, ITEM_KINDS, LocalizedText, noRepeatedIds } from './content.ts';
+import { ContentId, ITEM_KINDS, LocalizedText } from './content.ts';
+import { noRepeatedIds } from './unique-ids.ts';
 
 /** Moments the client plays as a little scene: `effects/<cue>` in content/art/ is its picture. */
 export const STORY_CUES = ['storm-glimpse'] as const;

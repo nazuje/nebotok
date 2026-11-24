@@ -22,7 +22,13 @@ changing Phaser code, and use Phaser 4 APIs only.
   plays only while the player's sounds setting is on, and quieter under a voice clip. One id starts
   at most 8 times a second (`src/sound-limit.ts`); extras are dropped. A button tap plays `ui.tap`
   by itself (`tapSounds`), or `ui.back` on a `…-close` or `…-back` button; which interface and
-  world event plays which id is in `src/sounds-ui.ts` and `src/sounds-world.ts`. Under `?test=1` or in an automated browser sounds are
+  world event plays which id is in `src/sounds-ui.ts` and `src/sounds-world.ts`. Sounds made from
+  content are played with `sound.playRecipe(label, recipe)`: babble while a talk line types
+  (`src/sounds-talk.ts`, recorded as `talk.babble:<speaker>`, silent while "Read to me" reads the
+  line) and creature cries (`src/sounds-creatures.ts`, recorded as `cry:<species>`) when a wild
+  creature appears, a starter is picked, a creature is befriended and a creature comes onto the
+  arena's island. Their makers pace them, so the 8 a second does not hold them: babble runs up to
+  about 15 syllables a second at a quick pace, and cries come `CRY_GAP_MS` apart. Under `?test=1` or in an automated browser sounds are
   made but never reach the speakers; the test hook's `sounds.played` lists the last 30 asked for.
   "Read to me" (`src/speech.ts`) plays the voice clips through one audio element
   (`src/clip-player.ts`), while the player has it on or taps a speaker button.

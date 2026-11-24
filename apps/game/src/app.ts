@@ -24,6 +24,7 @@ import { forgetSession, saveSession, storedSession, type StoredSession } from '.
 import type { Command } from './self-walker.ts';
 import { createSettings } from './settings.ts';
 import { createSound, tapSounds } from './sound.ts';
+import { createCries } from './sounds-creatures.ts';
 import { createPanelSounds } from './sounds-ui.ts';
 import { createSpeech } from './speech.ts';
 import { createSkills } from './skills-link.ts';
@@ -96,6 +97,7 @@ const scene = new WorldScene({
 });
 const sound = createSound();
 tapSounds(sound);
+const cries = createCries(sound);
 const panelSounds = createPanelSounds((id) => sound.play(id));
 const hud = createHud(language, sound);
 /** A battle, an arena fight or a screen about creatures is up over the world. */
@@ -113,6 +115,7 @@ const arena = createArena({
   learned: (moves) => battles.learned(moves),
   watcher: () => view.shown(performance.now()).some((player) => player.self && player.watching),
   sound,
+  cries,
 });
 const battles = createBattles({
   game: () => game,
@@ -132,6 +135,7 @@ const battles = createBattles({
   bottomTaken: () => hud.state().welcome !== null || hud.state().toast !== null,
   arenaUp: () => arena.overlay() !== null,
   sound,
+  cries,
 });
 const playerSettings = createPlayerSettings({
   requests,
@@ -326,6 +330,7 @@ function frame(now: number) {
   skills.frame(now);
   jobs.frame();
   storyCues.frame(now);
+  cries.frame(now);
   input.frame();
   if (inWorld && playerCount !== null) hud.setCompany(playerCount > 1 || view.others() > 0);
   const pointing = talkHintSpot();
@@ -460,6 +465,7 @@ async function leaveWorld() {
   storyCues.reset();
   playerSettings.reset();
   speech.stop();
+  cries.reset();
   await leaving?.leave();
 }
 

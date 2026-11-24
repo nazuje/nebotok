@@ -1,4 +1,4 @@
-import type { Sound, SoundsFile } from '@nebotok/core';
+import type { Sound, SoundRecipe, SoundsFile } from '@nebotok/core';
 import { startWithinRate } from './sound-limit.ts';
 import { masterGain, remember } from './sound-mix.ts';
 
@@ -13,7 +13,7 @@ export type Synth = {
   /** Whether a tap has let the page make sound yet. */
   ready(): boolean;
   /** Plays a recipe now, through the master gain; before a tap has unlocked the page, not at all. */
-  play(sound: Sound): void;
+  play(sound: SoundRecipe): void;
   /** Sets the gain of every effect, playing ones too. */
   master(gain: number): void;
 };
@@ -24,6 +24,15 @@ export type SoundPlayer = {
    * is one already started STARTS_PER_SECOND times in the last second. Returns whether it was played.
    */
   play(id: string): boolean;
+  /** The recipe sounds.json has for `id`, for code that makes its own sounds from it, such as babble. */
+  recipe(id: string): Sound | null;
+  /**
+   * Plays a recipe made from content outside sounds.json (a syllable of babble, a creature's cry), if
+   * sounds are on, recorded as `label`. Returns whether it was played. Not held to STARTS_PER_SECOND:
+   * its maker paces it, babble by the typing (up to about 15 syllables a second, stopped by a tap)
+   * and cries CRY_GAP_MS apart.
+   */
+  playRecipe(label: string, recipe: SoundRecipe): boolean;
   /** Buzzes the device with a vibration pattern in ms, if sounds are on and the device can. Returns whether it asked. */
   vibrate(pattern: readonly number[]): boolean;
   /** The player's sounds setting. */
@@ -53,6 +62,11 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
   const mix = () => synth.master(on ? masterGain(file, ducked) : 0);
   mix();
 
+  const playAs = (label: string, sound: SoundRecipe, now: number) => {
+    played = remember(played, { id: label, at: Math.round(now) });
+    synth.play(sound);
+  };
+
   return {
     play: (id) => {
       const sound = recipes.get(id);
@@ -61,8 +75,13 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
       const kept = startWithinRate(starts.get(id) ?? [], now);
       if (!kept) return false;
       starts.set(id, kept);
-      played = remember(played, { id, at: Math.round(now) });
-      synth.play(sound);
+      playAs(id, sound, now);
+      return true;
+    },
+    recipe: (id) => recipes.get(id) ?? null,
+    playRecipe: (label, recipe) => {
+      if (!on) return false;
+      playAs(label, recipe, options.now());
       return true;
     },
     vibrate: (pattern) => {

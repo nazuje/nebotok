@@ -3,6 +3,8 @@ import { ARENA_KINDS, ARENA_SHAPES } from './arena-shapes.ts';
 import { Tint } from './art.ts';
 import { MapId } from './map.ts';
 import { WELCOME_MESSAGE_KEYS } from './protocol.ts';
+import { SoundRecipe } from './sound-content.ts';
+import { noRepeatedIds } from './unique-ids.ts';
 
 export const LANGUAGES = ['en', 'sl'] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -335,12 +337,6 @@ export type AvatarsFile = z.infer<typeof AvatarsFile>;
 /** Ids of creatures, moves and weather types: short lowercase words joined by dashes. */
 export const ContentId = z.string().regex(/^[a-z][a-z0-9-]{0,23}$/, 'ids are short lowercase words, such as "sun-tap"');
 
-export function noRepeatedIds(entries: readonly { readonly id: string }[], key: string, ctx: z.RefinementCtx): void {
-  const ids = entries.map((entry) => entry.id);
-  ids.forEach((id, at) => {
-    if (ids.indexOf(id) !== at) ctx.addIssue({ code: 'custom', message: `"${id}" appears twice`, path: [key, at, 'id'] });
-  });
-}
 
 /**
  * One of the six weather types. A move of this type hits the types in `strongAgainst` harder and
@@ -518,6 +514,8 @@ export const Species = z
     learnset: z.array(LearnsetEntry).min(4).max(40).optional(),
     /** A treat in items.json this species loves most. See `treatLiking` in befriend.ts. */
     favouriteTreat: ContentId.optional(),
+    /** Its cry, a sound recipe as in sounds.json without an id; without one, `speciesCry` makes one from its type and id. */
+    cry: SoundRecipe.optional(),
   })
   .refine((species) => new Set(species.moves).size === species.moves.length, 'a creature knows each move once')
   .superRefine((species, ctx) => {
