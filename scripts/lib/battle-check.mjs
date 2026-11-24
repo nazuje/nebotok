@@ -11,6 +11,7 @@ import { LINE_MIN_MS } from '../../apps/game/src/battle-playback.ts';
 import { MAX_TEAM, emptyStory, loadBattleContent, newCreature, spriteFor } from '../../packages/core/src/index.ts';
 import { CONTROL_PICTURES, animationsSettled, battleIdle, inWorld, meetWildCreature, nextFrames, offersStarter, openTalk, readState, settledOn, talkThrough, until, pictureProblems, untilTappingThrough, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
+import { heardProblem } from './sound-check.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
 const CONTENT = loadBattleContent({
@@ -314,6 +315,8 @@ async function befriend(page, world, options, tries = 1) {
   if (outcome?.reason === 'befriended') {
     const wanted = say(befriended?.placedIn === 'storage' ? 'battle.befriendedStored' : 'battle.befriended').replace('{creature}', nameOf(befriended?.species, language));
     await resultSays(page, wanted, befriended?.placedIn === 'storage' ? 'stored' : 'befriended', { expect, check }, 'b4-result');
+    const sound = await heardProblem(page, 'world.befriend', 'the creature befriended');
+    if (sound) expect(false, sound);
     await continueToWorld(page);
     return befriended;
   }

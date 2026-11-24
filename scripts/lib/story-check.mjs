@@ -14,6 +14,7 @@ import { loadBattleContent, loadStoryContent, newCreature, PLAYER_SPAWN, stepPic
 import { inTurn } from './in-turn.mjs';
 import { CONTROL_PICTURES, hurryThrough, nextFrames, openTalk, pictureProblems, readState, tilesToScreen, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
+import { heardProblem } from './sound-check.mjs';
 
 const readContent = (path) => JSON.parse(readFileSync(join(ROOT, 'content', path), 'utf8'));
 const CONTENT = loadBattleContent({
@@ -229,6 +230,8 @@ async function seeBanner(page, plan, change, { language, say, expect, check }) {
     expect(JSON.stringify(shown) === JSON.stringify(rewards), `the banner shows the rewards ${JSON.stringify(shown)}, not ${JSON.stringify(rewards)}`);
   } else expect(await banner.locator('.quest-banner-check').isVisible(), 'the banner of a step done shows no tick');
   expect(toasted.journalNews && (await page.locator('.journal-dot').isVisible()), 'the journal button shows no news after the quest changed');
+  const sound = await heardProblem(page, change === 'done' ? 'quest.done' : 'world.quest.step', `the banner of the quest ${change === 'done' ? 'done' : 'moving on'}`);
+  if (sound) expect(false, sound);
   // The stamp lands and the dot pops in under a second; the banner stays 4.5 s.
   await page.waitForTimeout(800);
   await check(change === 'done' ? 'the banner of a quest done' : 'the banner of a step done', change === 'done' ? 's6-banner-done' : 's5-banner-step');

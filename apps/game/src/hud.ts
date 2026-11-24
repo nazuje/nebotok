@@ -3,6 +3,8 @@ import type { ConnectionStatus } from './connection.ts';
 import { el, element } from './dom.ts';
 import { toastPicture } from './message-pictures.ts';
 import { pictureIcon, spriteIcon } from './pictures.ts';
+import type { SoundPlayer } from './sound.ts';
+import { toastSound } from './sounds-ui.ts';
 import { text } from './strings.ts';
 
 const STATUS_TEXT: Readonly<Record<ConnectionStatus, StringId>> = {
@@ -38,14 +40,14 @@ export type Hud = {
   setWelcome(welcome: Welcome | undefined): void;
   /** Whether anyone else is in the world right now, away players included. */
   setCompany(company: boolean): void;
-  /** A short message at the bottom of the screen for TOAST_MS, with its picture: something refused, or good news. */
+  /** A short message at the bottom of the screen for TOAST_MS, with its picture and sound (`toastSound`): something refused, or good news. */
   toast(id: StringId, kind?: ToastKind): void;
   setLanguage(language: Language): void;
   state(): { welcome: WelcomeMessageKey | null; toast: StringId | null; toastPicture: string | null };
 };
 
 /** The interface is plain HTML over the canvas, so it stays sharp, readable and accessible. */
-export function createHud(language: Language): Hud {
+export function createHud(language: Language, sound: Pick<SoundPlayer, 'play'>): Hud {
   const title = element<HTMLElement>('.title');
   const badge = element<HTMLElement>('.badge');
   const badgeText = element<HTMLElement>('.badge-text');
@@ -119,6 +121,7 @@ export function createHud(language: Language): Hud {
         render();
       }, TOAST_MS);
       render();
+      sound.play(toastSound(id));
     },
     setLanguage: (next) => {
       current = next;

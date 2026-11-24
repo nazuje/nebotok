@@ -1,7 +1,8 @@
 import { SoundsFile } from '@nebotok/core';
 import sounds from '../../../content/sounds.json';
-import { createSoundPlayer, type SoundPlayer } from './sound-player.ts';
+import { createSoundPlayer, type PlayedSound, type SoundPlayer } from './sound-player.ts';
 import { createWebAudioSynth } from './sound-synth.ts';
+import { tapSoundOf } from './sounds-ui.ts';
 
 export type { SoundPlayer, TestSounds } from './sound-player.ts';
 
@@ -27,12 +28,23 @@ export function createSound(): SoundPlayer {
 }
 
 /**
- * A tap on a button plays `ui.tap`, after the button's own work, so turning sounds on taps and
- * turning them off does not. A fight's move, dash, treat and swap buttons are left to the fight's own sounds.
+ * A tap on a button plays `ui.tap` (`ui.back` on one that goes back or closes), after the button's
+ * own work, so turning sounds on taps and turning them off does not. A tap whose work made a sound
+ * of its own, such as a panel opening, plays only that one. A fight's move, dash, treat and swap
+ * buttons are left to the fight's own sounds.
  */
 export function tapSounds(sound: SoundPlayer): void {
+  let lastBefore: PlayedSound | undefined;
+  document.addEventListener(
+    'click',
+    () => {
+      lastBefore = sound.state().played.at(-1);
+    },
+    { capture: true },
+  );
   document.addEventListener('click', (event) => {
     const button = event.target instanceof Element ? event.target.closest('button') : null;
-    if (button && !button.classList.contains('arena-button')) sound.play('ui.tap');
+    if (!button || button.classList.contains('arena-button') || sound.state().played.at(-1) !== lastBefore) return;
+    sound.play(tapSoundOf(button.className));
   });
 }

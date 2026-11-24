@@ -2,6 +2,8 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type BoardJob, type Direction, type L
 import type { WorldRoom } from './connection.ts';
 import { element } from './dom.ts';
 import { ANSWER_MS, type RequestPacer } from './request-pacer.ts';
+import type { SoundPlayer } from './sound.ts';
+import { talkSound } from './sounds-world.ts';
 import type { Speech, Spoken, Voice } from './speech.ts';
 import { talkCueKey } from './storm-plan.ts';
 import { text } from './strings.ts';
@@ -61,6 +63,8 @@ export type TalksOptions = {
    * now waits and opens once it is gone: the talk box is hidden under it and would take its keys.
    */
   held(): boolean;
+  /** Plays a line's sound as it opens: a trainer's challenge, or a character giving you something. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type Talks = {
@@ -135,6 +139,8 @@ export function createTalks(options: TalksOptions): Talks {
       skipped = false;
       const shown = line();
       if (shown) speech.onLine(voiceOf(shown), shown.say, shown.mood, choiceWords(shown));
+      const heard = talkSound(next, STORY);
+      if (heard) options.sound.play(heard);
       if (next.cue !== null) options.cue(next.cue, talkCueKey(next));
     }
     if (opened) options.changed();

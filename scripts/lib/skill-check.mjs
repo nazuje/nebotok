@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONTROL_PICTURES, HOOK, animationsSettled, nextFrames, pictureProblems, readState, selfIn, tilesToScreen, until, walkByTaps } from './game-page.mjs';
 import { ROOT } from './server-process.mjs';
+import { heardProblem } from './sound-check.mjs';
 
 const ITEMS = new Map(JSON.parse(readFileSync(join(ROOT, 'content/items.json'), 'utf8')).items.map((item) => [item.id, item]));
 
@@ -57,6 +58,12 @@ async function demoShown(page, what) {
  * screenshot, before a won card closes by itself. Other animations on the page, such as a toast's,
  * are not waited for.
  */
+/** The page asked for the sound `id` of `what`. */
+async function soundOf(page, id, what, expect) {
+  const problem = await heardProblem(page, id, what);
+  if (problem) expect(false, problem);
+}
+
 async function resultPictures(page, state, kind, expect) {
   expect(state.attempt.pictures === kind, `the ${state.attempt.game} result shows the ${state.attempt.pictures} pictures, not ${kind}`);
   expect(!state.attempt.demo, `the demo hand stays over the ${state.attempt.game} result`);
@@ -86,6 +93,7 @@ async function fish(page, plan, { say, name, expect, check }) {
   expect(result.attempt.outcome === 'perfect', `pulling ${result.attempt.taps[0]?.at - dipAtMs} ms after the dip was ${result.attempt.outcome}, not perfect`);
   expect((await page.locator('#skill-game .skill-outcome .outcome-full').count()) === 1, 'the catch with no room for one fish shows no full bag');
   await resultPictures(page, result, 'perfect', expect);
+  await soundOf(page, 'skill.dip.perfect', 'the perfect catch', expect);
   await check('the fishing result', 'k2-fish-result');
   const toasted = await until(page, (s) => s.questToast?.change === 'good', 'the toast of the catch', 5_000);
   const noRoom = fill(say('skill.bagFull'), { item: name(plan.fish.item) });
@@ -103,6 +111,7 @@ async function levelUp(page, plan, { expect, check }) {
   expect(badge === String(level), `the level-up toast's badge says "${badge}", not ${level}`);
   const unlocked = await page.locator('.quest-toast .level-up [data-picture^="items/"]').count();
   expect(unlocked === items.length, `the level-up toast shows ${unlocked} unlocked items, not ${items.length}`);
+  await soundOf(page, 'world.level-up', `${skill} level ${level}`, expect);
   await animationsSettled(page);
   await check('the level-up toast', 'k2b-level-up');
 }
@@ -145,6 +154,7 @@ async function forage(page, plan, { say, expect, check }) {
   expect(missed.attempt.outcome === 'miss', `a foraging game with no taps was ${missed.attempt.outcome}`);
   expect((await textOf(page, '#skill-game .skill-result')) === say('skill.miss'), `the miss says "${await textOf(page, '#skill-game .skill-result')}"`);
   expect(await page.locator('#skill-game .skill-again').isVisible(), 'a miss offers no "Try again"');
+  await soundOf(page, 'skill.sparkle.miss', 'a missed foraging game', expect);
   await check('a missed foraging game', 'k3-miss');
   await page.locator('#skill-game .skill-again').tap();
   const second = await newGame(page, 'sparkle', first.attempt.attempt, 'another foraging game');
@@ -152,6 +162,7 @@ async function forage(page, plan, { say, expect, check }) {
   const won = await playGame(page, { sparkles: second.attempt.params.need });
   expect(won.attempt.outcome === 'success', `tapping ${second.attempt.params.need} sparkles of ${second.attempt.params.sparkles.length} was ${won.attempt.outcome} (taps ${JSON.stringify(won.attempt.taps)})`);
   await resultPictures(page, won, 'success', expect);
+  await soundOf(page, 'skill.sparkle.hit', 'a foraging game won', expect);
   await check('a foraging result', 'k4-forage');
   await until(page, (s) => s.screen === 'world', 'the card to close after foraging', 5_000);
 }
@@ -212,6 +223,7 @@ async function cook(page, plan, { name, expect, check, keys }) {
   const result = await playGame(page);
   expect(result.attempt.outcome === 'perfect' || result.attempt.outcome === 'success', `stopping the marker in the perfect band was ${result.attempt.outcome}`);
   await resultPictures(page, result, result.attempt.outcome, expect);
+  await soundOf(page, result.attempt.outcome === 'perfect' ? 'skill.marker.perfect' : 'skill.marker.hit', `a dish cooked (${result.attempt.outcome})`, expect);
   await check('the cooking result', 'k6-cooked');
   const back = await until(page, (s) => s.screen === 'recipeBook', 'the recipe book after cooking', 5_000);
   expect(back.progress.inventory.some((entry) => entry.item === plan.recipe.makes), `the bag has no ${plan.recipe.makes} after cooking`);
