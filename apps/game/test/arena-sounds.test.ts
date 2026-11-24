@@ -1,8 +1,9 @@
-import type { FightEvent } from '@nebotok/core';
+import { SoundsFile, type FightEvent } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import sounds from '../../../content/sounds.json' with { type: 'json' };
 import { ARENA_SOUND_IDS, COUNTDOWN_FROM_S, arenaSounds, createPhaseSounds } from '../src/arena/arena-sounds.ts';
 import { BATTLE_SOUND_IDS, battleResultSound, battleStepSound } from '../src/battle-sounds.ts';
+import { createSoundPlayer } from '../src/sound-player.ts';
 
 const PLAYER = { side: 0, watching: false } as const;
 const hit = (effectiveness: 'strong' | 'normal' | 'weak', damage = 5): FightEvent => ({ kind: 'hit', side: 1, by: 0, move: 'm', damage, health: 10, effectiveness, knock: 100, x: 0, y: 0 });
@@ -57,6 +58,26 @@ describe('the arena\'s sounds', () => {
     expect(ids([{ kind: 'befriended', species: 's', level: 3 }, { kind: 'fightEnded', result: 'befriended' }])).toEqual(['arena.befriend']);
     expect(ids([{ kind: 'swapped', from: 0, to: 1 }])).toEqual(['arena.swap']);
     expect(ids([{ kind: 'healed', side: 0, amount: 4, health: 9 }])).toEqual(['arena.heal']);
+  });
+
+  it('keeps a treat thrown point-blank, which is eaten on the tick it is thrown, after the hits and the cry just before', () => {
+    let now = 0;
+    const file = SoundsFile.parse(sounds);
+    const sound = createSoundPlayer({ file, synth: { ready: () => true, play: () => {}, master: () => {} }, now: () => now, vibrate: null });
+    const at = (ms: number, play: () => boolean) => {
+      now = ms;
+      return play();
+    };
+    // A befriend run's last 40 ms in WebKit: the result's cry, the frame before's cast and hit, then the frame with the treat.
+    expect(at(12_671, () => sound.playRecipe('cry:glaciyak', file.sounds[0]!))).toBe(true);
+    expect(at(12_676, () => sound.play('arena.cast.cone'))).toBe(true);
+    expect(at(12_677, () => sound.play('arena.hit.weak'))).toBe(true);
+    const frame: FightEvent[] = [{ kind: 'treatThrown', item: 't', liking: 'favourite' }, { kind: 'befriended', species: 's', level: 3 }, { kind: 'fightEnded', result: 'befriended' }];
+    const heard = arenaSounds(frame, PLAYER).filter(({ id, priority }) => at(12_709, () => sound.play(id, priority)));
+    expect(heard).toEqual([
+      { id: 'arena.treat.throw', priority: 'keep' },
+      { id: 'arena.befriend', priority: 'keep' },
+    ]);
   });
 
   it('turns a result round for side 1, cheers every decided end for a watcher, and leaves a run silent', () => {

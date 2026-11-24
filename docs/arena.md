@@ -578,7 +578,8 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   thrown, eaten or lost, a befriending, a swap, healing, the pick screen's last 3 s and "Go!", a
   round won or lost and the fight's won or lost stinger. Reduced motion does not silence them. A
   frame plays each sound once and only its strongest hit, and the page starts at most 6 sounds in
-  any 100 ms, dropping a result, a ring-out or "Go!" last. The fight's buttons play no tap.
+  any 100 ms, dropping a result, a ring-out, a befriending, "Go!" or a treat thrown last. The
+  fight's buttons play no tap.
   `scripts/arena-check.mjs` takes a picture of a strong hit's number, the storm's warning and a
   befriending's hearts on phone and tablet, checks a hit under reduced motion leaves the island
   unshaken, with no hit-stop and no sparks, and checks each run's sounds: a hit, the storm's
