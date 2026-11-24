@@ -1,4 +1,5 @@
 import type { Sound, SoundsFile } from '@nebotok/core';
+import { startWithinRate } from './sound-limit.ts';
 import { masterGain, remember } from './sound-mix.ts';
 
 /** A sound the page asked for while sounds were on, and when, in page ms. */
@@ -18,7 +19,10 @@ export type Synth = {
 };
 
 export type SoundPlayer = {
-  /** Plays the sound `id` names in sounds.json, if sounds are on. An id not there is refused. Returns whether it was played. */
+  /**
+   * Plays the sound `id` names in sounds.json, if sounds are on. An id not there is refused, and so
+   * is one already started STARTS_PER_SECOND times in the last second. Returns whether it was played.
+   */
   play(id: string): boolean;
   /** Buzzes the device with a vibration pattern in ms, if sounds are on and the device can. Returns whether it asked. */
   vibrate(pattern: readonly number[]): boolean;
@@ -45,6 +49,7 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
   let on = true;
   let ducked = false;
   let played: PlayedSound[] = [];
+  const starts = new Map<string, number[]>();
   const mix = () => synth.master(on ? masterGain(file, ducked) : 0);
   mix();
 
@@ -52,7 +57,11 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
     play: (id) => {
       const sound = recipes.get(id);
       if (!sound || !on) return false;
-      played = remember(played, { id, at: Math.round(options.now()) });
+      const now = options.now();
+      const kept = startWithinRate(starts.get(id) ?? [], now);
+      if (!kept) return false;
+      starts.set(id, kept);
+      played = remember(played, { id, at: Math.round(now) });
       synth.play(sound);
       return true;
     },

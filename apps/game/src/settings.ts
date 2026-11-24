@@ -25,7 +25,7 @@ export type Settings = {
 export function createSettings(
   language: Language,
   controls: Controls,
-  actions: { onLanguage(): void; onControls(): void; onReadToMe(): void; onTurtle(): void; onSounds(): void; onAddPin(): void; onSwitchPlayer(): void },
+  actions: { onLanguage(): void; onControls(): void; onReadToMe(): void; onTurtle(): void; onSounds(): void; onAddPin(): void; onSwitchPlayer(): void; onOpen(open: boolean): void },
 ): Settings {
   const toggle = element<HTMLButtonElement>('.settings-button');
   const panel = element<HTMLElement>('#settings');
@@ -107,8 +107,10 @@ export function createSettings(
   };
 
   const setOpen = (next: boolean) => {
+    if (next === open) return;
     open = next;
     render();
+    actions.onOpen(next);
   };
 
   toggle.addEventListener('click', (event) => {

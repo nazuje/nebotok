@@ -19,8 +19,10 @@ changing Phaser code, and use Phaser 4 APIs only.
   with `sound.play('ui.tap')` from the page's one `createSound()` (`src/sound.ts`); add a recipe
   there rather than code a sound, and never load a sound file or URL. Web Audio starts on the first
   tap or key; every effect and haptic (`sound.vibrate(pattern)`, never `navigator.vibrate` itself)
-  plays only while the player's sounds setting is on, and quieter under a voice clip. A button tap
-  plays `ui.tap` by itself (`tapSounds`). Under `?test=1` or in an automated browser sounds are
+  plays only while the player's sounds setting is on, and quieter under a voice clip. One id starts
+  at most 8 times a second (`src/sound-limit.ts`); extras are dropped. A button tap plays `ui.tap`
+  by itself (`tapSounds`), or `ui.back` on a `…-close` or `…-back` button; which interface and
+  world event plays which id is in `src/sounds-ui.ts` and `src/sounds-world.ts`. Under `?test=1` or in an automated browser sounds are
   made but never reach the speakers; the test hook's `sounds.played` lists the last 30 asked for.
   "Read to me" (`src/speech.ts`) plays the voice clips through one audio element
   (`src/clip-player.ts`), while the player has it on or taps a speaker button.

@@ -2,6 +2,7 @@ import { SoundsFile, type Sound } from '@nebotok/core';
 import { describe, expect, it } from 'vitest';
 import sounds from '../../../content/sounds.json' with { type: 'json' };
 import { envelopePoints, layerGain, masterGain, pitchTimes, PLAYED_KEPT } from '../src/sound-mix.ts';
+import { STARTS_PER_SECOND, startWithinRate } from '../src/sound-limit.ts';
 import { createSoundPlayer, type Synth } from '../src/sound-player.ts';
 
 const FILE = SoundsFile.parse(sounds);
@@ -18,11 +19,12 @@ function fakeSynth(ready = true) {
   return { synth, heard, masters };
 }
 
-function player(ready = true) {
+/** A player whose clock moves on `stepMs` each time it is read. */
+function player(ready = true, stepMs = 10) {
   const fake = fakeSynth(ready);
   const buzzes: number[][] = [];
   let now = 1_000;
-  const sound = createSoundPlayer({ file: FILE, synth: fake.synth, now: () => (now += 10), vibrate: (pattern) => buzzes.push(pattern) });
+  const sound = createSoundPlayer({ file: FILE, synth: fake.synth, now: () => (now += stepMs), vibrate: (pattern) => buzzes.push(pattern) });
   return { sound, buzzes, ...fake };
 }
 
@@ -66,16 +68,39 @@ describe('the sound player', () => {
   });
 
   it('keeps the last 30 sounds played', () => {
-    const { sound } = player();
+    const { sound } = player(true, 200);
     for (let at = 0; at < PLAYED_KEPT + 5; at += 1) sound.play(at % 2 === 0 ? 'ui.tap' : 'arena.hit');
     const { played } = sound.state();
     expect(played).toHaveLength(PLAYED_KEPT);
-    expect(played[0]!.at).toBe(1_060);
+    expect(played[0]!.at).toBe(2_200);
+  });
+
+  it('starts one id at most 8 times a second, dropping the rest, and leaves other ids alone', () => {
+    const { sound, heard } = player();
+    const tapped = Array.from({ length: 20 }, () => sound.play('ui.tap'));
+    expect(tapped.filter(Boolean)).toHaveLength(STARTS_PER_SECOND);
+    expect(tapped.slice(0, STARTS_PER_SECOND).every(Boolean)).toBe(true);
+    expect(sound.play('arena.hit')).toBe(true);
+    expect(heard.filter((id) => id === 'ui.tap')).toHaveLength(STARTS_PER_SECOND);
+    expect(sound.state().played.filter((played) => played.id === 'ui.tap')).toHaveLength(STARTS_PER_SECOND);
   });
 
   it('says nothing can buzz on a device without vibration', () => {
     const sound = createSoundPlayer({ file: FILE, synth: fakeSynth().synth, now: () => 0, vibrate: null });
     expect(sound.vibrate([20])).toBe(false);
+  });
+});
+
+describe('the rate limit of one sound', () => {
+  it('keeps the starts of the last second and adds this one, up to the limit', () => {
+    expect(startWithinRate([], 5_000)).toEqual([5_000]);
+    expect(startWithinRate([3_999, 4_000, 4_500], 5_000)).toEqual([4_500, 5_000]);
+  });
+
+  it('drops a start past the limit rather than queueing it, and takes one again once a second has passed', () => {
+    const full = Array.from({ length: STARTS_PER_SECOND }, (_, index) => 4_100 + index * 100);
+    expect(startWithinRate(full, 4_950)).toBeNull();
+    expect(startWithinRate(full, 5_100)).toEqual([...full.slice(1), 5_100]);
   });
 });
 

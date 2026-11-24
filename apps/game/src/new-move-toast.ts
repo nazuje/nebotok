@@ -15,6 +15,8 @@ export type NewMoveToastOptions = {
   language(): Language;
   /** The toast was tapped: open the loadout picker on that creature. */
   open(learned: NewMove): void;
+  /** A move's toast came into view for the first time, such as to play its sound. */
+  shown?(learned: NewMove): void;
 };
 
 export type NewMoveToast = {
@@ -38,6 +40,8 @@ export function createNewMoveToast(root: HTMLButtonElement, options: NewMoveToas
   let waiting: NewMove[] = [];
   let shown: { move: NewMove; until: number } | null = null;
   let key = '';
+  /** Moves whose toast has shown, so one shown again after an interruption is not news again. */
+  const heard = new WeakSet<NewMove>();
 
   function draw() {
     const language = options.language();
@@ -78,6 +82,10 @@ export function createNewMoveToast(root: HTMLButtonElement, options: NewMoveToas
       if (!shown && free && first) {
         waiting = waiting.slice(1);
         shown = { move: first, until: now + NEW_MOVE_MS };
+        if (!heard.has(first)) {
+          heard.add(first);
+          options.shown?.(first);
+        }
       }
       draw();
     },

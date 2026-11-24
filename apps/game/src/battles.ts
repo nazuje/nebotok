@@ -14,6 +14,8 @@ import { createNewMoveToast, type NewMove } from './new-move-toast.ts';
 import { pictureIcon, shrineIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
+import type { SoundPlayer } from './sound.ts';
+import { battleEndSound } from './sounds-world.ts';
 import { createStarterScreen } from './starter-screen.ts';
 import { text } from './strings.ts';
 import { createTeamScreen } from './team-screen.ts';
@@ -47,6 +49,8 @@ export type BattlesOptions = {
   bottomTaken(): boolean;
   /** An arena fight is on screen: the team, picker, starter and move prompts wait for it. */
   arenaUp(): boolean;
+  /** Plays a befriending's hearts or a level up as a battle's result shows, and a new move's toast. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type Battles = {
@@ -131,9 +135,12 @@ export function createBattles(options: BattlesOptions): Battles {
       picker.open(index, move);
       update();
     },
+    shown: () => options.sound.play('world.move-learned'),
   });
   /** Offers already toasted, since the server sends an offer again after a reconnection. */
   const offersSeen = new Set<number>();
+  /** The battle whose result was last heard, so its sound plays once as the result shows. */
+  let resultHeard: string | null = null;
   const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: request });
   // A move a level up offers is asked about once the battle screen is put away.
   const learn = createLearnModel();
@@ -219,6 +226,11 @@ export function createBattles(options: BattlesOptions): Battles {
     if (battle || offer || arena) {
       team.close();
       picker.close();
+    }
+    if (battle?.panel === 'result' && battle.result && resultHeard !== battle.view.id) {
+      resultHeard = battle.view.id;
+      const heard = battleEndSound(battle.result, battle.befriended, battle.view);
+      if (heard) options.sound.play(heard);
     }
     starter.render(battle || arena || !options.starterOffered() ? null : progress);
     battleScreen.render(battle);
