@@ -34,6 +34,7 @@ import { createNetPanel, netMetersAsked } from './arena-net.ts';
 import { createCastEcho, createPredictor, type CastEcho, type NetMeters, type Predictor } from './arena-predict.ts';
 import { badgeTone, buzzFor, motionReduced } from './arena-juice.ts';
 import { createRoundsScreen, pipsOf, tappedOrder, type RoundsView } from './arena-rounds.ts';
+import { arenaSounds, createPhaseSounds, type ArenaSound } from './arena-sounds.ts';
 import { ARENA_SCENE, ArenaScene, type ArenaDrawn, type ShownFight } from './arena-scene.ts';
 import { createArenaScreen, type CardView } from './arena-screen.ts';
 import { fightBook, type FightBook } from './fight-book.ts';
@@ -86,6 +87,8 @@ export type TestArena = {
   presses: number;
   /** Buzzes asked of the device, where it can vibrate and sounds are on. */
   buzzes: number;
+  /** Each sound this fight played, once, in the order first played (arena-sounds.ts). */
+  sounds: string[];
   /** A best of 3's picks by team place, in round order: the ones on the pick screen while picking, then the server's. */
   picks: number[] | null;
   /** The round now, from 0, and the round wins of your side and of the other's. */
@@ -146,6 +149,9 @@ type Fight = {
   pingMs: number | null;
   /** Whether the last send was skipped to drain the room's buffer: never two in a row. */
   skipped: boolean;
+  /** The countdown's ticks and "Go!" from the room's phase, and each sound played so far. */
+  phases: ReturnType<typeof createPhaseSounds>;
+  sounds: string[];
 };
 
 /** The team places of a side's line-up: your own creatures', for a best of 3's picks. */
@@ -199,19 +205,26 @@ export function createArena(options: ArenaOptions): Arena {
       if (!fight) return [];
       const events = fight.events;
       fight.events = [];
+      hear(fight, arenaSounds(events, { side: fight.started?.side ?? 0, watching: watching() }));
       return events;
     },
     field: () => screen.field.getBoundingClientRect(),
     popup: (popup, x, y) => screen.popup(popup, x, y, options.language()),
   });
 
+  /** Plays a fight's sounds, while the player's sounds are on and the burst cap lets them start. */
+  function hear(target: Fight, sounds: readonly ArenaSound[]) {
+    for (const { id, priority } of sounds) {
+      if (options.sound.play(id, priority) && !target.sounds.includes(id)) target.sounds.push(id);
+    }
+  }
+
   /**
-   * A hit that does damage sounds, once for a batch of events. A hit to your creature, a ring-out or
-   * a befriending also buzzes the device (`navigator.vibrate`, which Safari on iPhone and iPad lacks),
-   * unless motion is reduced. Both only while the player's sounds are on.
+   * A hit to your creature, a ring-out or a befriending buzzes the device (`navigator.vibrate`, which
+   * Safari on iPhone and iPad lacks), unless motion is reduced, and only while the player's sounds
+   * are on. The sounds come with the scene's frame (`hear`).
    */
   function feel(target: Fight, events: readonly FightEvent[]) {
-    if (events.some((event) => event.kind === 'hit' && event.damage > 0)) options.sound.play('arena.hit');
     const side = target.started?.side;
     if (side === undefined || target.started?.watching) return;
     const motion = !motionReduced();
@@ -348,7 +361,7 @@ export function createArena(options: ArenaOptions): Arena {
     if (!connection) return;
     if (fight?.id !== fightId) {
       if (fight) leaveRoom(fight);
-      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, order: null, sent: false, entered: new Map(), stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false };
+      fight = { id: fightId, room: null, last: null, started: null, result: null, resultAt: 0, book: fightBook(null, options.progress()), events: [], inputs: 0, presses: 0, buzzes: 0, order: null, sent: false, entered: new Map(), stop: () => {}, predictor: null, echo: null, follower: createFollower(), pingMs: null, skipped: false, phases: createPhaseSounds(), sounds: [] };
       controls.reset();
       options.started();
       options.changed();
@@ -452,6 +465,8 @@ export function createArena(options: ArenaOptions): Arena {
       if (fight) {
         track(fight);
         entrances(fight, now);
+        const state = shown()?.state;
+        hear(fight, fight.phases(state?.phase ?? null, state?.countdown ?? 0));
       }
       netPanel?.render(fight && fight.result === null ? meters(fight) : null, language);
       const view = fight && { cards: cards(), weather: shown()?.state.weather ?? '', result: now >= fight.resultAt ? fight.result : null, team: options.progress()?.team ?? [], watching: watching(), waiting: waiting() };
@@ -499,6 +514,7 @@ export function createArena(options: ArenaOptions): Arena {
           inputs: fight.inputs,
           presses: fight.presses,
           buzzes: fight.buzzes,
+          sounds: [...fight.sounds],
           picks: picking ? fight.order : fight.started?.mode === 'rounds' ? placesOf(fight.started) : null,
           round: now?.state.round ?? 0,
           score,

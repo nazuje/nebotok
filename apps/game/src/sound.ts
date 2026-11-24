@@ -4,6 +4,7 @@ import { createSoundPlayer, type PlayedSound, type SoundPlayer } from './sound-p
 import { createWebAudioSynth } from './sound-synth.ts';
 import { tapSoundOf } from './sounds-ui.ts';
 
+export type { SoundPriority } from './sound-burst.ts';
 export type { SoundPlayer, TestSounds } from './sound-player.ts';
 
 /** Taps and keys that count as the player asking, which is when a browser lets a page make sound. */

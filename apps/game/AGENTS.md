@@ -19,17 +19,22 @@ changing Phaser code, and use Phaser 4 APIs only.
   with `sound.play('ui.tap')` from the page's one `createSound()` (`src/sound.ts`); add a recipe
   there rather than code a sound, and never load a sound file or URL. Web Audio starts on the first
   tap or key; every effect and haptic (`sound.vibrate(pattern)`, never `navigator.vibrate` itself)
-  plays only while the player's sounds setting is on, and quieter under a voice clip. One id starts
-  at most 8 times a second (`src/sound-limit.ts`); extras are dropped. A button tap plays `ui.tap`
-  by itself (`tapSounds`), or `ui.back` on a `…-close` or `…-back` button; which interface and
-  world event plays which id is in `src/sounds-ui.ts` and `src/sounds-world.ts`. Sounds made from
-  content are played with `sound.playRecipe(label, recipe)`: babble while a talk line types
-  (`src/sounds-talk.ts`, recorded as `talk.babble:<speaker>`, silent while "Read to me" reads the
-  line) and creature cries (`src/sounds-creatures.ts`, recorded as `cry:<species>`) when a wild
-  creature appears, a starter is picked, a creature is befriended and a creature comes onto the
-  arena's island. Their makers pace them, so the 8 a second does not hold them: babble runs up to
-  about 15 syllables a second at a quick pace, and cries come `CRY_GAP_MS` apart. Under `?test=1` or in an automated browser sounds are
-  made but never reach the speakers; the test hook's `sounds.played` lists the last 30 asked for.
+  plays only while the player's sounds setting is on, and quieter under a voice clip. A button tap
+  plays `ui.tap` by itself (`tapSounds`), or `ui.back` on a `…-close` or `…-back` button; which
+  interface and world event plays which id is in `src/sounds-ui.ts` and `src/sounds-world.ts`.
+  Arena fights play their effects from the frame's events (`src/arena/arena-sounds.ts`), turn
+  battles from their steps and result (`src/battle-sounds.ts`). Sounds made from content are played
+  with `sound.playRecipe(label, recipe)`: babble while a talk line types (`src/sounds-talk.ts`,
+  recorded as `talk.babble:<speaker>`, silent while "Read to me" reads the line) and creature cries
+  (`src/sounds-creatures.ts`, recorded as `cry:<species>`) when a wild creature appears, a starter
+  is picked, a creature is befriended and a creature comes onto the arena's island. Two limits,
+  in turn: one id starts at most 8 times a second (`src/sound-limit.ts`), which babble and cries
+  skip because their makers pace them (babble runs up to about 15 syllables a second at a quick
+  pace, cries come `CRY_GAP_MS` apart); then no more than 6 sounds of any kind start in any 100 ms
+  (`src/sound-burst.ts`), where `sound.play(id, 'keep')` marks one a burst drops last, such as a
+  result. A sound either drops is not recorded and counts against neither. Under `?test=1` or in
+  an automated browser sounds are made but never reach the speakers; the test hook's
+  `sounds.played` lists the last 30 played, and `arena.sounds` every effect of the fight on screen.
   "Read to me" (`src/speech.ts`) plays the voice clips through one audio element
   (`src/clip-player.ts`), while the player has it on or taps a speaker button.
 - **Test hook.** With `?test=1` only, `window.__nebotok` exposes `ready` (true once the map is

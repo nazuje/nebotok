@@ -6,15 +6,19 @@ import { STARTS_PER_SECOND } from '../src/sound-limit.ts';
 import { createSoundPlayer } from '../src/sound-player.ts';
 import { CRY_GAP_MS, createCries } from '../src/sounds-creatures.ts';
 import { createBabble, type BabbleLine } from '../src/sounds-talk.ts';
+import { LETTERS_PER_SECOND } from '../src/talk.ts';
 
 const FILE = SoundsFile.parse(sounds);
 const SAY = 'Welcome to the Sky Post! Bring this letter to Mehurka.';
 const STARTS = babbleStarts(SAY, 2);
+/** A letter's time at pace 2, so syllables come as far apart as the talk box types them, under the burst cap. */
+const LETTER_MS = 1_000 / LETTERS_PER_SECOND[2]!;
+let clockMs = 0;
 
 /** A sound player whose synth keeps the recipes it was asked to play. */
 function player() {
   const heard: SoundRecipe[] = [];
-  const sound = createSoundPlayer({ file: FILE, synth: { ready: () => true, play: (recipe) => heard.push(recipe), master: () => {} }, now: () => 0, vibrate: null });
+  const sound = createSoundPlayer({ file: FILE, synth: { ready: () => true, play: (recipe) => heard.push(recipe), master: () => {} }, now: () => clockMs, vibrate: null });
   return { sound, heard, labels: () => sound.state().played.map((each) => each.id) };
 }
 
@@ -22,7 +26,10 @@ const line = (typed: number, more: Partial<BabbleLine> = {}): BabbleLine => ({ k
 
 /** Types the line letter by letter, a frame each, up to `upTo` letters. */
 function typeOut(babble: ReturnType<typeof createBabble>, upTo = SAY.length, more: Partial<BabbleLine> = {}) {
-  for (let typed = 0; typed <= upTo; typed += 1) babble.frame(line(typed, more));
+  for (let typed = 0; typed <= upTo; typed += 1) {
+    clockMs += LETTER_MS;
+    babble.frame(line(typed, more));
+  }
 }
 
 describe('babble', () => {
@@ -84,7 +91,11 @@ describe('babble', () => {
     expect(syllables).toBeGreaterThan(STARTS_PER_SECOND);
     typeOut(createBabble(sound), SAY.length, quick);
     expect(heard).toHaveLength(syllables);
-    const taps = Array.from({ length: STARTS_PER_SECOND + 2 }, () => sound.play('ui.tap'));
+    // 30 ms apart, so the burst cap lets each tap through and only one id's limit can cut them.
+    const taps = Array.from({ length: STARTS_PER_SECOND + 2 }, () => {
+      clockMs += 30;
+      return sound.play('ui.tap');
+    });
     expect(taps.filter(Boolean)).toHaveLength(STARTS_PER_SECOND);
   });
 

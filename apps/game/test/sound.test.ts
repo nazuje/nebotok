@@ -76,12 +76,48 @@ describe('the sound player', () => {
   });
 
   it('starts one id at most 8 times a second, dropping the rest, and leaves other ids alone', () => {
-    const { sound, heard } = player();
+    const { sound, heard } = player(true, 30);
     const tapped = Array.from({ length: 20 }, () => sound.play('ui.tap'));
     expect(tapped.filter(Boolean)).toHaveLength(STARTS_PER_SECOND);
     expect(tapped.slice(0, STARTS_PER_SECOND).every(Boolean)).toBe(true);
     expect(sound.play('arena.hit')).toBe(true);
     expect(heard.filter((id) => id === 'ui.tap')).toHaveLength(STARTS_PER_SECOND);
+    expect(sound.state().played.filter((played) => played.id === 'ui.tap')).toHaveLength(STARTS_PER_SECOND);
+  });
+
+  it('drops the sounds of a burst past the cap, keeping room for one that must be heard, and records only those played', () => {
+    const { sound, heard } = player(true, 1);
+    const hits = Array.from({ length: 8 }, () => sound.play('arena.hit'));
+    expect(hits.filter(Boolean)).toHaveLength(4);
+    expect(sound.play('quest.done', 'keep')).toBe(true);
+    expect(heard).toHaveLength(5);
+    expect(sound.state().played.map((each) => each.id)).toEqual([...Array.from({ length: 4 }, () => 'arena.hit'), 'quest.done']);
+  });
+
+  it('counts cries and babble in the same burst, as ordinary sounds', () => {
+    const { sound } = player(true, 1);
+    const cry = FILE.sounds.find((each) => each.id === 'arena.hit')!;
+    const cries = Array.from({ length: 3 }, () => sound.playRecipe('cry:glowbun', cry));
+    expect(cries.every(Boolean)).toBe(true);
+    expect(sound.play('arena.hit')).toBe(true);
+    expect(sound.playRecipe('talk.babble:bavko', cry)).toBe(false);
+    expect(sound.play('arena.fight.won', 'keep')).toBe(true);
+  });
+
+  it('checks one id\'s starts a second before the burst cap, and a sound either drops is not recorded and counts against neither', () => {
+    let now = 0;
+    const fake = fakeSynth();
+    const sound = createSoundPlayer({ file: FILE, synth: fake.synth, now: () => now, vibrate: null });
+    for (let at = 0; at < 4; at += 1) expect(sound.play('arena.hit')).toBe(true);
+    expect(sound.play('ui.tap')).toBe(false);
+    expect(sound.play('ui.tap')).toBe(false);
+    now = 200;
+    const tapped = Array.from({ length: STARTS_PER_SECOND + 1 }, () => {
+      now += 30;
+      return sound.play('ui.tap');
+    });
+    expect(tapped.slice(0, STARTS_PER_SECOND).every(Boolean)).toBe(true);
+    expect(tapped.at(-1)).toBe(false);
     expect(sound.state().played.filter((played) => played.id === 'ui.tap')).toHaveLength(STARTS_PER_SECOND);
   });
 

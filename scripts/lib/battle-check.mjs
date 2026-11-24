@@ -258,12 +258,17 @@ async function offerTreat(page, species, { language, expect, check, seen }) {
   await ((await wanted.count()) > 0 ? wanted : page.locator('#battle .treat-choice')).first().tap();
 }
 
+/** The sound a result plays as it goes up (apps/game/src/battle-sounds.ts), where no other check looks for it: a befriending's hearts are checked after its result. */
+const RESULT_SOUNDS = { fainted: 'battle.lose' };
+
 async function resultSays(page, wanted, kind, { expect, check }, step) {
   await nextFrames(page);
   const said = await textOf(page, '#battle .result-words');
   expect(said === wanted, `the result says "${said}", not "${wanted}"`);
   const shown = await page.locator('#battle .result-hero').getAttribute('data-kind');
   expect(shown === kind, `the result leads with the ${shown} picture, not ${kind}`);
+  const sound = RESULT_SOUNDS[kind] ? await heardProblem(page, RESULT_SOUNDS[kind], `the ${kind} result`) : null;
+  if (sound) expect(false, sound);
   await animationsSettled(page);
   await check('the battle result', step);
 }

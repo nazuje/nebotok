@@ -2,6 +2,7 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type LearnedMove, type
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
 import { createBattleModel, type BattleScreenState } from './battle-model.ts';
+import { createBattleSounds } from './battle-sounds.ts';
 import { BATTLE_SCENE, BattleScene } from './battle-scene.ts';
 import { createBattleScreen, lineText } from './battle-screen.ts';
 import type { WorldRoom } from './connection.ts';
@@ -16,7 +17,6 @@ import type { RequestPacer } from './request-pacer.ts';
 import type { Cries } from './sounds-creatures.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
 import type { SoundPlayer } from './sound.ts';
-import { battleEndSound } from './sounds-world.ts';
 import { createStarterScreen } from './starter-screen.ts';
 import { text } from './strings.ts';
 import { createTeamScreen } from './team-screen.ts';
@@ -50,7 +50,7 @@ export type BattlesOptions = {
   bottomTaken(): boolean;
   /** An arena fight is on screen: the team, picker, starter and move prompts wait for it. */
   arenaUp(): boolean;
-  /** Plays a befriending's hearts or a level up as a battle's result shows, and a new move's toast. */
+  /** Plays a battle's hits, faints and result (battle-sounds.ts), and a new move's toast. */
   sound: Pick<SoundPlayer, 'play'>;
   /** A wild creature appearing, a starter picked and a creature befriended cry. */
   cries: Pick<Cries, 'cry'>;
@@ -145,8 +145,6 @@ export function createBattles(options: BattlesOptions): Battles {
   const starter = createStarterScreen(element<HTMLElement>('#starter'), { language: options.language, send: request, picked: (species) => options.cries.cry(species, performance.now()) });
   /** The battle whose wild creature has cried, and whether its befriending has. */
   let cried: { battle: string; befriended: boolean } | null = null;
-  /** The battle whose result was last heard, so its sound plays once as the result shows. */
-  let resultHeard: string | null = null;
   // A move a level up offers is asked about once the battle screen is put away.
   const learn = createLearnModel();
   const learnPrompt = createLearnPrompt(element<HTMLElement>('#learn'), {
@@ -158,6 +156,7 @@ export function createBattles(options: BattlesOptions): Battles {
     },
   });
   const scene = new BattleScene({ state: (now) => model.battle(now), field: () => battleScreen.field() });
+  const sounds = createBattleSounds(options.sound);
 
   teamButton.addEventListener('click', () => {
     if (overlay !== null) return;
@@ -239,6 +238,7 @@ export function createBattles(options: BattlesOptions): Battles {
 
   function update(now = performance.now()) {
     const battle = model.battle(now);
+    sounds(battle);
     cry(battle, now);
     const progress = model.progress();
     const arena = options.arenaUp();
@@ -246,11 +246,6 @@ export function createBattles(options: BattlesOptions): Battles {
     if (battle || offer || arena) {
       team.close();
       picker.close();
-    }
-    if (battle?.panel === 'result' && battle.result && resultHeard !== battle.view.id) {
-      resultHeard = battle.view.id;
-      const heard = battleEndSound(battle.result, battle.befriended, battle.view);
-      if (heard) options.sound.play(heard);
     }
     starter.render(battle || arena || !options.starterOffered() ? null : progress);
     battleScreen.render(battle);

@@ -167,7 +167,8 @@ Placeholder sound effects, and the creatures' and characters' babble in place of
 Built as tickets: the sound engine (#202: protocol 16, save v8, the `sounds` setting, sound
 recipes in `content/sounds.json` played with Web Audio by `apps/game/src/sound.ts`, and a tap, a
 quest's fanfare and an arena hit to prove it), then placeholder sounds for the world and the
-interface (#203), for arena fights and turn battles (#204), and babble while characters talk with
+interface (#203), for arena fights and turn battles (#204, built: `docs/arena.md` "Sound"; a turn
+battle's hit, faint, win and loss from `apps/game/src/battle-sounds.ts`), and babble while characters talk with
 a cry for every creature (#205).
 
 ## Phase 3: Art test and creature design day
