@@ -1,9 +1,10 @@
-import { MAX_PROFILES, PIN_LOCK_MS, ProfileName, type Language, type LoginResponse, type ProfileSummary, type StringId } from '@nebotok/core';
+import { DEFAULT_COURIER, MAX_PROFILES, PIN_LOCK_MS, ProfileName, courierFrame, type Language, type LoginResponse, type ProfileSummary, type StringId } from '@nebotok/core';
 import { createProfile, listProfiles, login, type ApiProblem } from './api.ts';
 import { AVATARS, avatarPortrait } from './avatars.ts';
-import { button, el, icon } from './dom.ts';
+import { button, el, element, icon, pictureButton } from './dom.ts';
 import { lockedNotice, lockedTag } from './lock-wait.ts';
 import { noticePicture } from './message-pictures.ts';
+import { pictureIcon, spriteIcon } from './pictures.ts';
 import { createPinPad } from './pin-pad.ts';
 import { text } from './strings.ts';
 
@@ -21,6 +22,8 @@ export type ProfileScreenState = {
   readonly pinFor: 'enter' | 'choose' | null;
   readonly pinDigits: number;
   readonly draft: { readonly avatar: string; readonly hasPin: boolean };
+  /** Create was tapped without a usable name: the name box pulses and the hand points at it until the player types. */
+  readonly nameWanted: boolean;
 };
 
 export type ProfileScreen = {
@@ -44,6 +47,17 @@ type Draft = { avatar: string; name: string; pin: string | undefined };
 const freshDraft = (): Draft => ({ avatar: AVATARS[0]?.id ?? 'blue', name: '', pin: undefined });
 
 const secondsUntil = (at: number) => Math.max(0, (at - performance.now()) / 1_000);
+
+/** "New player" as a picture: a courier with a plus. */
+const newPlayerPicture = () =>
+  el('span', { className: 'new-player-picture' }, [spriteIcon(DEFAULT_COURIER, 40, { frame: courierFrame('down', 'stand') }), pictureIcon('plus', 24, { className: 'new-player-plus' })]);
+
+/** The first-visit hint's tapping finger, over the empty name box. */
+const nameHint = () => {
+  const hint = el('div', { className: 'name-hint', attrs: { 'aria-hidden': 'true' } }, [el('div', { className: 'walk-hint-ripple' })]);
+  hint.append(element<SVGSVGElement>('.walk-hint-hand').cloneNode(true));
+  return hint;
+};
 
 function setText(node: HTMLElement, value: string) {
   // Only a real change, so the alert line is not read out again every second.
@@ -70,6 +84,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   let lockTicker: ReturnType<typeof setInterval> | undefined;
   let lockTags: { readonly tag: HTMLElement; readonly profile: ProfileSummary }[] = [];
   let noticeShown: HTMLElement | null = null;
+  let nameWanted = false;
 
   const t = (id: StringId) => text(id, options.language());
   const unlocksAt = (profile: ProfileSummary) => listedAt + profile.lockedForSeconds * 1_000;
@@ -77,6 +92,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
   const pad = createPinPad({ label: t, active: () => visible && view === 'pin', busy: () => busy, entered: (pin) => void entered(pin), back: leavePad });
 
   const go = (next: ProfileView, nextNotice: StringId | null = null) => {
+    if (next !== 'newProfile') nameWanted = false;
     view = next;
     notice = nextNotice;
     render();
@@ -116,7 +132,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     else parts.push(el('ul', { className: 'profile-list' }, profiles.map((profile) => el('li', {}, [profileCard(profile)]))));
     if (profiles.some((profile) => !profile.hasPin)) parts.push(el('p', { className: 'hint pin-nudge' }, [icon(OPEN_LOCK_ICON), el('span', { text: t('profile.pinNudge') })]));
     if (profiles.length >= MAX_PROFILES) parts.push(el('p', { className: 'hint centred list-full', text: t('profile.error.full') }));
-    else parts.push(button('primary new-profile', t('profile.new'), () => go('newProfile')));
+    else parts.push(pictureButton('primary new-profile', newPlayerPicture(), t('profile.new'), () => go('newProfile')));
     return parts;
   }
 
@@ -138,8 +154,18 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
       attrs: { type: 'text', id: 'profile-name', autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false', enterkeyhint: 'done', maxlength: '16', 'aria-describedby': 'profile-name-hint' },
     });
     input.value = draft.name;
+    // A grown-up types the name: the small grown-up beside the box says so to a child who cannot read.
+    const nameBox = el('div', { className: 'name-box' }, [pictureIcon('grown-up', 40, { className: 'name-grown-up' }), input]);
+    if (nameWanted) {
+      nameBox.classList.add('wanted');
+      nameBox.append(nameHint());
+    }
     input.addEventListener('input', () => {
       draft.name = input.value;
+      if (!nameWanted) return;
+      nameWanted = false;
+      nameBox.classList.remove('wanted');
+      nameBox.querySelector('.name-hint')?.remove();
     });
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
@@ -149,7 +175,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     });
     const pinField =
       draft.pin === undefined
-        ? el('div', { className: 'field' }, [button('secondary pin-choose', t('profile.pin'), () => openPad({ kind: 'choose' })), el('p', { className: 'hint', text: t('profile.pinHint') })])
+        ? el('div', { className: 'field' }, [pictureButton('secondary pin-choose', pictureIcon('lock', 32), t('profile.pin'), () => openPad({ kind: 'choose' })), el('p', { className: 'hint', text: t('profile.pinHint') })])
         : el('div', { className: 'field pin-row' }, [
             el('p', { className: 'pin-set', text: t('profile.pinSet') }),
             button('secondary pin-remove', t('profile.pinRemove'), () => {
@@ -159,15 +185,15 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
           ]);
     const form = el('div', { className: 'card' }, [
       el('div', { className: 'field' }, [el('p', { className: 'label', text: t('profile.avatar') }), el('div', { className: 'avatar-choices', attrs: { role: 'group', 'aria-label': t('profile.avatar') } }, looks)]),
-      el('div', { className: 'field' }, [el('label', { className: 'label', text: t('profile.name'), attrs: { for: 'profile-name' } }), input, el('p', { className: 'hint', text: t('profile.nameHint'), attrs: { id: 'profile-name-hint' } })]),
+      el('div', { className: 'field' }, [el('label', { className: 'label', text: t('profile.name'), attrs: { for: 'profile-name' } }), nameBox, el('p', { className: 'hint', text: t('profile.nameHint'), attrs: { id: 'profile-name-hint' } })]),
       pinField,
     ]);
     const actions = el('div', { className: 'actions' }, [
-      button('secondary back', t('profile.back'), () => {
+      pictureButton('secondary back', pictureIcon('arrow', 32, { mirrored: true }), t('profile.back'), () => {
         draft = freshDraft();
         void refresh(null);
       }),
-      button('primary create', t('profile.create'), () => void create()),
+      pictureButton('primary create', pictureIcon('check', 32), t('profile.create'), () => void create()),
     ]);
     return [el('h2', { className: 'screen-title', text: t('profile.new') }), form, noticeLine(), actions];
   }
@@ -294,6 +320,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
     if (busy) return;
     const name = ProfileName.safeParse(draft.name);
     if (!name.success) {
+      nameWanted = true;
       go('newProfile', 'profile.error.nameInvalid');
       root.querySelector<HTMLInputElement>('.name-input')?.focus();
       return;
@@ -335,6 +362,7 @@ export function createProfileScreen(root: HTMLElement, options: { language: () =
       pinFor: pinFor?.kind ?? null,
       pinDigits: pad.digits(),
       draft: { avatar: draft.avatar, hasPin: draft.pin !== undefined },
+      nameWanted,
     }),
   };
 }

@@ -135,6 +135,7 @@ export type TestSnapshot = TestStory &
   /** The message the profile screens, or the screen adding a PIN, show (a string id), if any. */
   notice: StringId | null;
   pinFor: ProfileScreenState['pinFor'];
+  nameWanted: ProfileScreenState['nameWanted'];
   /** Digits typed on whichever number pad is up. */
   pinDigits: number;
   /** Where adding a PIN from the settings has got to, if it is open. */
