@@ -102,8 +102,9 @@ A **PNG sprite** is real art; see "How real art replaces a placeholder" below.
   cross, a heart, a lock, a clock, a trophy, an arrow (pointing right; the game mirrors it to point
   left), a try-again loop, an envelope, a compass, footprints (too far), a full bag, a stamp (done),
   a star burst, a speaker (read aloud), a flag (the shrine you wake at), an unplugged cloud
-  (connection lost), an exclamation mark (quests, like the mark over a character with a new one) and
-  a puff of smoke (a move to forget). Each is one outlined shape that reads on its own at 16
+  (connection lost), an exclamation mark (quests, like the mark over a character with a new one),
+  a puff of smoke (a move to forget), a plus (something new, such as a new player) and a grown-up
+  beside a child (a grown-up does this, such as typing a name). Each is one outlined shape that reads on its own at 16
   by 16. `pictureIcon(id, sizePx)` and `weatherIcon(type, sizePx)` in `apps/game/src/pictures.ts`
   paint them into HTML; a new picture is an id in `PICTURES` and its sprite.
 - **Arena pictures** (docs/arena.md): a `shape-<shape>` picture for each of the 13 shapes, a

@@ -624,6 +624,79 @@ button:active {
   font-size: 1.25rem;
 }
 
+.name-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name-box .name-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.name-grown-up {
+  flex: none;
+}
+
+/* Create without a name: the box pulses and the walking hint's finger taps it, until the player types. */
+.name-box.wanted .name-input {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(43 108 176 / 0.35);
+}
+
+.name-hint {
+  position: absolute;
+  z-index: 1;
+  /* The input's middle, past the grown-up and the gap. */
+  inset: 0 0 0 48px;
+  pointer-events: none;
+  --hint-x: 50%;
+  --hint-y: 50%;
+}
+
+.name-hint .walk-hint-ripple {
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .name-box.wanted .name-input {
+    animation: name-pulse 1.4s ease-out infinite;
+  }
+
+  .name-hint .walk-hint-hand {
+    animation: hint-tap 1.4s ease-in-out infinite;
+  }
+
+  .name-hint .walk-hint-ripple {
+    animation: hint-ripple 1.4s ease-out infinite;
+  }
+}
+
+@keyframes name-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(43 108 176 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgb(43 108 176 / 0);
+  }
+}
+
+/* "New player": a courier with a plus on its corner. */
+.new-player-picture {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+
+.new-player-plus {
+  position: absolute;
+  right: -10px;
+  bottom: -6px;
+}
+
 .pin-row {
   flex-direction: row;
   flex-wrap: wrap;
