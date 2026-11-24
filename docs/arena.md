@@ -569,10 +569,21 @@ The shapes' numbers are in "The 13 shapes". The network and screen numbers are i
   about to go and rings the next edge for its 2 s, with lightning, a creature near the edge lights
   the rim red beside it, and the island's weather sits in the top left corner (`weatherIcon`). The island stays in view 1.5 s after the fight ends, so a fall or
   the hearts play out before the result. Haptics are `navigator.vibrate` only, so iPhones and
-  iPads, whose Safari has none, never buzz, and only while the player's sounds setting is on, which
-  also plays `arena.hit` for each hit (`content/sounds.json`). `scripts/arena-check.mjs` takes a picture of a strong
-  hit's number, the storm's warning and a befriending's hearts on phone and tablet, and checks a
-  hit under reduced motion leaves the island unshaken, with no hit-stop and no sparks.
+  iPads, whose Safari has none, never buzz, and only while the player's sounds setting is on.
+- **Sound** (#204, built; placeholder recipes in `content/sounds.json`): the same setting plays a
+  sound for the frame's events, for players and watchers, from `apps/game/src/arena/arena-sounds.ts`:
+  a hit whose pitch tells strong (lower), normal and weak (higher) apart, one cast per shape family
+  (bolt and spray, cone and burst, lunge and strike, shield and wall, snare, freeze, puddle and
+  zone, weather), a dash, a bump, a ring-out's fall, the storm's warning and each step, a treat
+  thrown, eaten or lost, a befriending, a swap, healing, the pick screen's last 3 s and "Go!", a
+  round won or lost and the fight's won or lost stinger. Reduced motion does not silence them. A
+  frame plays each sound once and only its strongest hit, and the page starts at most 6 sounds in
+  any 100 ms, dropping a result, a ring-out or "Go!" last. The fight's buttons play no tap.
+  `scripts/arena-check.mjs` takes a picture of a strong hit's number, the storm's warning and a
+  befriending's hearts on phone and tablet, checks a hit under reduced motion leaves the island
+  unshaken, with no hit-stop and no sparks, and checks each run's sounds: a hit, the storm's
+  warning and step, a treat thrown, "Go!", a round's end and the result's stinger, none with the
+  player's sounds off.
 - **Loadout picker** (#154, built): three button tiles (at least 64 px), then only the learned moves of
   that kind, so no wrong choice is possible. A move tile shows 1 to 3 power pips (1 for 40 and 50,
   2 for 65 and 80, 3 for 100), not numbers. The new-move toast goes away by itself after 6 s.

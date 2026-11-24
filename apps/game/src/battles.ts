@@ -2,6 +2,7 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES, type Language, type LearnedMove, type
 import type { Game } from 'phaser';
 import { roomLink, type BattleLink, type ClientMessage, type ServerMessage } from './battle-link.ts';
 import { createBattleModel } from './battle-model.ts';
+import { createBattleSounds } from './battle-sounds.ts';
 import { BATTLE_SCENE, BattleScene } from './battle-scene.ts';
 import { createBattleScreen, lineText } from './battle-screen.ts';
 import type { WorldRoom } from './connection.ts';
@@ -14,6 +15,7 @@ import { createNewMoveToast, type NewMove } from './new-move-toast.ts';
 import { pictureIcon, shrineIcon } from './pictures.ts';
 import type { RequestPacer } from './request-pacer.ts';
 import { SKILL_REQUESTS } from './skills-link.ts';
+import type { SoundPlayer } from './sound.ts';
 import { createStarterScreen } from './starter-screen.ts';
 import { text } from './strings.ts';
 import { createTeamScreen } from './team-screen.ts';
@@ -47,6 +49,8 @@ export type BattlesOptions = {
   bottomTaken(): boolean;
   /** An arena fight is on screen: the team, picker, starter and move prompts wait for it. */
   arenaUp(): boolean;
+  /** Plays a battle's hits, faints and result. */
+  sound: Pick<SoundPlayer, 'play'>;
 };
 
 export type Battles = {
@@ -146,6 +150,7 @@ export function createBattles(options: BattlesOptions): Battles {
     },
   });
   const scene = new BattleScene({ state: (now) => model.battle(now), field: () => battleScreen.field() });
+  const sounds = createBattleSounds(options.sound);
 
   teamButton.addEventListener('click', () => {
     if (overlay !== null) return;
@@ -213,6 +218,7 @@ export function createBattles(options: BattlesOptions): Battles {
 
   function update(now = performance.now()) {
     const battle = model.battle(now);
+    sounds(battle);
     const progress = model.progress();
     const arena = options.arenaUp();
     const offer = battle || arena ? null : learn.current();

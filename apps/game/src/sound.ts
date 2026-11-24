@@ -3,6 +3,7 @@ import sounds from '../../../content/sounds.json';
 import { createSoundPlayer, type SoundPlayer } from './sound-player.ts';
 import { createWebAudioSynth } from './sound-synth.ts';
 
+export type { SoundPriority } from './sound-burst.ts';
 export type { SoundPlayer, TestSounds } from './sound-player.ts';
 
 /** Taps and keys that count as the player asking, which is when a browser lets a page make sound. */

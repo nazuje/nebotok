@@ -40,6 +40,217 @@
         { "kind": "noise", "startMs": 0, "volume": 80, "envelope": { "attackMs": 1, "releaseMs": 70 }, "ms": 80, "filterHz": 1800 },
         { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 1, "releaseMs": 90 }, "wave": "sine", "steps": [{ "hz": 190, "ms": 20 }, { "hz": 80, "ms": 90 }], "glide": true }
       ]
+    },
+    {
+      "id": "arena.hit.strong",
+      "volume": 60,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 90, "envelope": { "attackMs": 1, "releaseMs": 100 }, "ms": 110, "filterHz": 1300 },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 1, "releaseMs": 130 }, "wave": "sine", "steps": [{ "hz": 150, "ms": 25 }, { "hz": 55, "ms": 120 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.hit.weak",
+      "volume": 40,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 60, "envelope": { "attackMs": 1, "releaseMs": 45 }, "ms": 50, "filterHz": 2600 },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 1, "releaseMs": 55 }, "wave": "triangle", "steps": [{ "hz": 330, "ms": 15 }, { "hz": 200, "ms": 50 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.cast.bolt",
+      "volume": 28,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 3, "releaseMs": 60 }, "wave": "triangle", "steps": [{ "hz": 880, "ms": 20 }, { "hz": 1320, "ms": 60 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.cast.cone",
+      "volume": 30,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 100, "envelope": { "attackMs": 40, "releaseMs": 110 }, "ms": 160, "filterHz": 2200 }
+      ]
+    },
+    {
+      "id": "arena.cast.lunge",
+      "volume": 32,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 80, "envelope": { "attackMs": 10, "releaseMs": 100 }, "ms": 130, "filterHz": 1500 },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 100 }, "wave": "triangle", "steps": [{ "hz": 520, "ms": 20 }, { "hz": 260, "ms": 110 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.cast.shield",
+      "volume": 28,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 20, "releaseMs": 120 }, "wave": "sine", "steps": [{ "hz": 660, "ms": 40 }, { "hz": 990, "ms": 120 }], "glide": true },
+        { "kind": "tone", "startMs": 40, "volume": 50, "envelope": { "attackMs": 5, "releaseMs": 80 }, "wave": "triangle", "steps": [{ "hz": 1320, "ms": 100 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.cast.snare",
+      "volume": 28,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 80 }, "wave": "sine", "steps": [{ "hz": 440, "ms": 50 }, { "hz": 330, "ms": 50 }, { "hz": 440, "ms": 50 }, { "hz": 330, "ms": 60 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.cast.weather",
+      "volume": 38,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 120, "releaseMs": 200 }, "wave": "triangle", "steps": [{ "hz": 330, "ms": 50 }, { "hz": 660, "ms": 350 }], "glide": true },
+        { "kind": "noise", "startMs": 0, "volume": 50, "envelope": { "attackMs": 150, "releaseMs": 220 }, "ms": 420, "filterHz": 900 }
+      ]
+    },
+    {
+      "id": "arena.dash",
+      "volume": 24,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 70 }, "ms": 90, "filterHz": 3000 }
+      ]
+    },
+    {
+      "id": "arena.bump",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 3, "releaseMs": 110 }, "wave": "sine", "steps": [{ "hz": 220, "ms": 20 }, { "hz": 330, "ms": 60 }, { "hz": 200, "ms": 70 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.ringout",
+      "volume": 45,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 250 }, "wave": "sine", "steps": [{ "hz": 880, "ms": 30 }, { "hz": 220, "ms": 620 }], "glide": true },
+        { "kind": "noise", "startMs": 620, "volume": 60, "envelope": { "attackMs": 20, "releaseMs": 140 }, "ms": 180, "filterHz": 1200 }
+      ]
+    },
+    {
+      "id": "arena.storm.warn",
+      "volume": 35,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 100, "envelope": { "attackMs": 150, "releaseMs": 350 }, "ms": 700, "filterHz": 320 },
+        { "kind": "tone", "startMs": 0, "volume": 60, "envelope": { "attackMs": 150, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 70, "ms": 700 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.storm.step",
+      "volume": 42,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 320 }, "ms": 420, "filterHz": 420 },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 320 }, "wave": "sine", "steps": [{ "hz": 95, "ms": 30 }, { "hz": 55, "ms": 400 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.treat.throw",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 80 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 20 }, { "hz": 784, "ms": 110 }], "glide": true }
+      ]
+    },
+    {
+      "id": "arena.treat.miss",
+      "volume": 26,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 120 }, "wave": "triangle", "steps": [{ "hz": 494, "ms": 110 }, { "hz": 392, "ms": 160 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.befriend",
+      "volume": 50,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 250 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 100 }, { "hz": 659, "ms": 100 }, { "hz": 784, "ms": 100 }, { "hz": 1047, "ms": 350 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 70, "envelope": { "attackMs": 10, "releaseMs": 300 }, "wave": "sine", "steps": [{ "hz": 392, "ms": 300 }, { "hz": 523, "ms": 350 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.swap",
+      "volume": 30,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 3, "releaseMs": 50 }, "wave": "triangle", "steps": [{ "hz": 392, "ms": 60 }, { "hz": 587, "ms": 80 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.heal",
+      "volume": 28,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 150 }, "wave": "sine", "steps": [{ "hz": 784, "ms": 30 }, { "hz": 1175, "ms": 170 }], "glide": true },
+        { "kind": "tone", "startMs": 80, "volume": 50, "envelope": { "attackMs": 5, "releaseMs": 100 }, "wave": "triangle", "steps": [{ "hz": 1568, "ms": 120 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.countdown",
+      "volume": 32,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 3, "releaseMs": 50 }, "wave": "sine", "steps": [{ "hz": 880, "ms": 70 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.go",
+      "volume": 45,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 220 }, "wave": "triangle", "steps": [{ "hz": 784, "ms": 60 }, { "hz": 1047, "ms": 260 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 70, "envelope": { "attackMs": 5, "releaseMs": 220 }, "wave": "sine", "steps": [{ "hz": 523, "ms": 320 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.round.won",
+      "volume": 42,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 200 }, "wave": "triangle", "steps": [{ "hz": 659, "ms": 90 }, { "hz": 784, "ms": 90 }, { "hz": 1047, "ms": 260 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.round.lost",
+      "volume": 32,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 200 }, "wave": "triangle", "steps": [{ "hz": 440, "ms": 140 }, { "hz": 349, "ms": 260 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.fight.won",
+      "volume": 55,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 80, "envelope": { "attackMs": 5, "releaseMs": 300 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 110 }, { "hz": 659, "ms": 110 }, { "hz": 784, "ms": 110 }, { "hz": 1047, "ms": 140 }, { "hz": 784, "ms": 90 }, { "hz": 1047, "ms": 420 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 350 }, "wave": "sine", "steps": [{ "hz": 262, "ms": 330 }, { "hz": 392, "ms": 230 }, { "hz": 523, "ms": 420 }], "glide": false }
+      ]
+    },
+    {
+      "id": "arena.fight.lost",
+      "volume": 40,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 350 }, "wave": "triangle", "steps": [{ "hz": 523, "ms": 180 }, { "hz": 440, "ms": 180 }, { "hz": 392, "ms": 180 }, { "hz": 330, "ms": 420 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 70, "envelope": { "attackMs": 20, "releaseMs": 400 }, "wave": "sine", "steps": [{ "hz": 262, "ms": 540 }, { "hz": 196, "ms": 420 }], "glide": false }
+      ]
+    },
+    {
+      "id": "battle.hit",
+      "volume": 50,
+      "layers": [
+        { "kind": "noise", "startMs": 0, "volume": 80, "envelope": { "attackMs": 1, "releaseMs": 80 }, "ms": 90, "filterHz": 1600 },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 1, "releaseMs": 100 }, "wave": "sine", "steps": [{ "hz": 200, "ms": 25 }, { "hz": 85, "ms": 100 }], "glide": true }
+      ]
+    },
+    {
+      "id": "battle.faint",
+      "volume": 38,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 250 }, "wave": "sine", "steps": [{ "hz": 440, "ms": 40 }, { "hz": 150, "ms": 520 }], "glide": true }
+      ]
+    },
+    {
+      "id": "battle.win",
+      "volume": 52,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 5, "releaseMs": 300 }, "wave": "triangle", "steps": [{ "hz": 587, "ms": 110 }, { "hz": 740, "ms": 110 }, { "hz": 880, "ms": 110 }, { "hz": 1175, "ms": 400 }], "glide": false },
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 320 }, "wave": "sine", "steps": [{ "hz": 294, "ms": 330 }, { "hz": 587, "ms": 400 }], "glide": false }
+      ]
+    },
+    {
+      "id": "battle.lose",
+      "volume": 38,
+      "layers": [
+        { "kind": "tone", "startMs": 0, "volume": 100, "envelope": { "attackMs": 10, "releaseMs": 320 }, "wave": "triangle", "steps": [{ "hz": 494, "ms": 170 }, { "hz": 415, "ms": 170 }, { "hz": 330, "ms": 460 }], "glide": false }
+      ]
     }
   ]
 }

@@ -18,11 +18,12 @@ function fakeSynth(ready = true) {
   return { synth, heard, masters };
 }
 
-function player(ready = true) {
+/** A player on a clock that moves on `stepMs` each time it is read. */
+function player(ready = true, stepMs = 10) {
   const fake = fakeSynth(ready);
   const buzzes: number[][] = [];
   let now = 1_000;
-  const sound = createSoundPlayer({ file: FILE, synth: fake.synth, now: () => (now += 10), vibrate: (pattern) => buzzes.push(pattern) });
+  const sound = createSoundPlayer({ file: FILE, synth: fake.synth, now: () => (now += stepMs), vibrate: (pattern) => buzzes.push(pattern) });
   return { sound, buzzes, ...fake };
 }
 
@@ -66,11 +67,20 @@ describe('the sound player', () => {
   });
 
   it('keeps the last 30 sounds played', () => {
-    const { sound } = player();
+    const { sound } = player(true, 50);
     for (let at = 0; at < PLAYED_KEPT + 5; at += 1) sound.play(at % 2 === 0 ? 'ui.tap' : 'arena.hit');
     const { played } = sound.state();
     expect(played).toHaveLength(PLAYED_KEPT);
-    expect(played[0]!.at).toBe(1_060);
+    expect(played[0]!.at).toBe(1_300);
+  });
+
+  it('drops the sounds of a burst past the cap, keeping room for one that must be heard, and records only those played', () => {
+    const { sound, heard } = player(true, 1);
+    const hits = Array.from({ length: 8 }, () => sound.play('arena.hit'));
+    expect(hits.filter(Boolean)).toHaveLength(4);
+    expect(sound.play('quest.done', 'keep')).toBe(true);
+    expect(heard).toHaveLength(5);
+    expect(sound.state().played.map((each) => each.id)).toEqual([...Array.from({ length: 4 }, () => 'arena.hit'), 'quest.done']);
   });
 
   it('says nothing can buzz on a device without vibration', () => {

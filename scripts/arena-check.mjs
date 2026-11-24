@@ -63,8 +63,9 @@ const NARROW = { width: 360, height: 740 };
 const MIN_TARGET_PX = 48;
 const ARENA_BUTTON_PX = 64;
 const FIGHT_MS = 40_000;
-/** The storm's first warning comes 2 s before its first shrink, at 18 s. */
+/** The storm's first warning comes 2 s before its first shrink, at 18 s, which takes half a second more. */
 const STORM_WAIT_MS = 30_000;
+const STORM_STEP_MS = 6_000;
 const ROUNDS_MS = 120_000;
 const STEER_MS = 350;
 const WINS = new Set(['won', 'wonByRingOut']);
@@ -89,16 +90,17 @@ const TAG = runTag();
  * on the other, so both are seen on both. The 360px player's creature is too young for button 3,
  * asks for reduced motion and holds Leave.
  * The best of 3 runs (`rounds`) take the other language of their place, so each player's name is new.
- * Chromium's tablet run has the player's sounds off: its hits and befriending record no sound and
- * never call `navigator.vibrate`, which every other wild run's hits sound.
+ * Chromium's 360px best of 3 has the player's sounds off: its taps, countdown, hits and results
+ * record no sound and never call `navigator.vibrate`. Every other wild and best of 3 run checks the
+ * sounds its fight played (`WANTED_SOUNDS`).
  */
 const RUNS = {
   chromium: [
     { where: 'iphone-portrait', language: 'en', steer: 'touch', level: 20, plan: 'storm', lagMs: 0 },
-    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 150, sounds: false },
+    { where: 'ipad-landscape', language: 'sl', steer: 'keys', level: 20, plan: 'befriend', lagMs: 150 },
     { where: '360px', language: 'sl', steer: 'touch', level: ARENA.buttons[1], plan: 'leave', lagMs: 50 },
     { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'rounds', lagMs: 0 },
-    { where: '360px', language: 'en', steer: 'keys', level: 20, plan: 'rounds', lagMs: 0 },
+    { where: '360px', language: 'en', steer: 'keys', level: 20, plan: 'rounds', lagMs: 0, sounds: false },
     { where: 'iphone-portrait', language: 'sl', steer: 'touch', level: 20, plan: 'trainer', lagMs: 0 },
   ],
   webkit: [
@@ -497,14 +499,44 @@ function countVibrations() {
   });
 }
 
+const HIT_SOUNDS = ['arena.hit', 'arena.hit.strong', 'arena.hit.weak'];
 /**
- * What a wild fight's sounds and buzzes should have been: none with the player's sounds off,
- * `arena.hit` for its hits with them on. `heardBefore` counts the sounds played before the player's
- * settings arrived, such as the tap on their profile card, when no one's setting is known yet.
+ * The sounds a run's fight must play with the player's sounds on, one of each list: a hit (under
+ * reduced motion too), the storm's warning and a step of it or a ring-out, the treat thrown, "Go!",
+ * a round's end, and the result's stinger. A befriending's own sound is its stinger; a run has none.
  */
-async function soundProblems(page, state, run, heardBefore) {
+const WANTED_SOUNDS = {
+  leave: [HIT_SOUNDS],
+  storm: [HIT_SOUNDS, ['arena.storm.warn'], ['arena.storm.step', 'arena.ringout'], ['arena.fight.won']],
+  befriend: [HIT_SOUNDS, ['arena.treat.throw'], ['arena.befriend']],
+  rounds: [HIT_SOUNDS, ['arena.go'], ['arena.round.won', 'arena.round.lost'], ['arena.fight.won']],
+};
+/** No more than this many sounds start in any 100 ms (apps/game/src/sound-burst.ts). */
+const BURST_MOST = 6;
+
+/** The most of `played` (the page's last sounds, at whole ms) that started within 100 ms of each other. */
+const busiest = (played) => Math.max(0, ...played.map(({ at: from }) => played.filter(({ at }) => at >= from && at - from < 100).length));
+
+/**
+ * What a fight's sounds and buzzes should have been, at its result: none with the player's sounds
+ * off, and with them on one of each of `WANTED_SOUNDS`, never more than `BURST_MOST` started in
+ * 100 ms. `heardBefore` counts the sounds played before the player's settings arrived, such as the
+ * tap on their profile card, when no one's setting is known yet.
+ */
+async function soundProblems(page, run, heardBefore) {
+  if (run.sounds !== false) {
+    const wanted = WANTED_SOUNDS[run.plan];
+    const heard = (s) => wanted.every((any) => any.some((id) => s.arena?.sounds.includes(id)));
+    // The fight's last events come with its room's state, which can reach the page after the result.
+    const state = (await until(page, heard, 'the fight\'s sounds', 3_000).catch(() => null)) ?? (await readState(page));
+    const problems = [];
+    if (!heard(state)) problems.push(`the fight played ${JSON.stringify(state.arena?.sounds)}, not one of each of ${JSON.stringify(wanted)}`);
+    const most = busiest(state.sounds.played);
+    if (most > BURST_MOST) problems.push(`${most} sounds started within 100 ms: ${JSON.stringify(state.sounds.played)}`);
+    return problems;
+  }
+  const state = await readState(page);
   const played = state.sounds.played.slice(heardBefore).map((each) => each.id);
-  if (run.sounds !== false) return played.includes('arena.hit') ? [] : [`the hits recorded the sounds ${JSON.stringify(played)}, no arena.hit`];
   const vibrations = await page.evaluate(() => window.vibrations);
   const problems = [];
   if (state.sounds.on !== false) problems.push(`sounds are ${JSON.stringify(state.sounds)} for a player who turned them off`);
@@ -582,6 +614,7 @@ async function checkRun(browser, run) {
         expect(state.arena?.drawn?.warning === true, `the storm's warning never showed: ${JSON.stringify(state.arena?.drawn)}`);
         await nextFrames(page);
         await shot('3-storm-warning');
+        state = await fightOn(page, run, { endsBy: Date.now() + STORM_STEP_MS, stopWhen: (s) => ended(s) || s.arena?.sounds.includes('arena.storm.step'), plan: holdOff });
         const called = MOVES.find((move) => move.id === buttonOf(state, 2)?.move)?.setsWeather ?? null;
         const weather = await page.locator('#arena .arena-weather:visible').getAttribute('data-weather', { timeout: 2_000 }).catch(() => null);
         expect(called !== null && weather === called, `the weather corner shows ${weather} after button 3 called ${called}`);
@@ -602,7 +635,8 @@ async function checkRun(browser, run) {
     state = await until(page, ended, 'the fight result', 10_000);
     const outcome = state.arena.result.outcome?.result ?? null;
     notes.push(`${outcome} after ${state.arena.inputs} inputs and ${state.arena.presses} presses, ${state.arena.buzzes} buzzes, sounds ${run.sounds === false ? 'off' : 'on'}`);
-    for (const problem of await soundProblems(page, state, run, heardBefore)) problems.push(problem);
+    for (const problem of await soundProblems(page, run, heardBefore)) problems.push(problem);
+    notes.push(`sounds: ${JSON.stringify(state.arena.sounds)}`);
     const wantedOutcome = { leave: ['ran'], befriend: ['befriended'], storm: [...WINS] }[run.plan];
     expect(wantedOutcome.includes(outcome), `the fight ended with ${outcome}, not ${wantedOutcome.join(' or ')}`);
     if (WINS.has(outcome)) expect(state.arena.result.rewards.length > 0, 'a won fight gave no experience');
@@ -691,7 +725,8 @@ async function betweenProblems(page, state) {
  * Fights each round of the best of 3 on screen from `state` to the end, checking the score between
  * rounds (`2-score` the first time), then that it was won, its result (`3-result`), and continues.
  */
-async function winRounds({ tab, problems, notes, expect, shot, fits }, run, state) {
+async function winRounds(opened, run, state) {
+  const { tab, problems, notes, expect, shot, fits } = opened;
   const endsBy = Date.now() + ROUNDS_MS;
   let pauses = 0;
   const fightRounds = async (now) => {
@@ -714,6 +749,10 @@ async function winRounds({ tab, problems, notes, expect, shot, fits }, run, stat
   notes.push(`${outcome} ${last.arena.score.join(' to ')} in ${last.arena.result.rounds?.length ?? '?'} rounds after ${last.arena.inputs} inputs`);
   expect(outcome === 'won', `the best of 3 ended with ${outcome}, not a win`);
   expect(pauses >= 1, 'the score never showed between rounds');
+  if (run.plan === 'rounds') {
+    for (const problem of await soundProblems(tab, run, opened.heardBefore)) problems.push(problem);
+    notes.push(`sounds ${run.sounds === false ? 'off' : 'on'}: ${JSON.stringify((await readState(tab)).arena?.sounds)}`);
+  }
   await tab.locator('#arena .arena-continue').waitFor({ state: 'visible', timeout: 5_000 });
   const picture = await tab.locator('#arena .arena-result-picture').getAttribute('data-picture');
   expect(picture === 'pictures/trophy', `the result shows the picture ${picture}`);
@@ -732,6 +771,7 @@ async function checkRoundsRun(browser, run) {
   const { tab, problems, notes, expect, shot, fits } = opened;
   try {
     await opened.signIn();
+    opened.heardBefore = run.sounds === false ? (await until(tab, (s) => s.sounds?.on === false, 'the player\'s sounds turned off')).sounds.played.length : 0;
     const fightId = await startPractice(opened.player.id);
     let state = await until(tab, (s) => s.screen === 'arena' && s.arena?.joined && s.arena.phase === 'picking' && s.arena.picks?.length === 3, 'the pick screen', 15_000);
     expect(state.arena.fightId === fightId && state.arena.mode === 'rounds', `the page shows fight ${JSON.stringify(state.arena)}, not the best of 3 ${fightId}`);

@@ -129,6 +129,7 @@ const battles = createBattles({
   canSay: (words) => speech.has(null, words),
   bottomTaken: () => hud.state().welcome !== null || hud.state().toast !== null,
   arenaUp: () => arena.overlay() !== null,
+  sound,
 });
 const playerSettings = createPlayerSettings({
   requests,

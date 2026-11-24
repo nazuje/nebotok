@@ -1,4 +1,5 @@
 import type { Sound, SoundsFile } from '@nebotok/core';
+import { createBurstCap, type SoundPriority } from './sound-burst.ts';
 import { masterGain, remember } from './sound-mix.ts';
 
 /** A sound the page asked for while sounds were on, and when, in page ms. */
@@ -18,8 +19,11 @@ export type Synth = {
 };
 
 export type SoundPlayer = {
-  /** Plays the sound `id` names in sounds.json, if sounds are on. An id not there is refused. Returns whether it was played. */
-  play(id: string): boolean;
+  /**
+   * Plays the sound `id` names in sounds.json, if sounds are on and the burst cap (sound-burst.ts)
+   * lets it start; `keep` for one a burst must not drop. An id not there is refused. Returns whether it was played.
+   */
+  play(id: string, priority?: SoundPriority): boolean;
   /** Buzzes the device with a vibration pattern in ms, if sounds are on and the device can. Returns whether it asked. */
   vibrate(pattern: readonly number[]): boolean;
   /** The player's sounds setting. */
@@ -45,14 +49,17 @@ export function createSoundPlayer(options: SoundPlayerOptions): SoundPlayer {
   let on = true;
   let ducked = false;
   let played: PlayedSound[] = [];
+  const burst = createBurstCap();
   const mix = () => synth.master(on ? masterGain(file, ducked) : 0);
   mix();
 
   return {
-    play: (id) => {
+    play: (id, priority = 'normal') => {
       const sound = recipes.get(id);
       if (!sound || !on) return false;
-      played = remember(played, { id, at: Math.round(options.now()) });
+      const now = options.now();
+      if (!burst(now, priority)) return false;
+      played = remember(played, { id, at: Math.round(now) });
       synth.play(sound);
       return true;
     },

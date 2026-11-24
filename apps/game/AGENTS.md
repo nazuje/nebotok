@@ -20,8 +20,12 @@ changing Phaser code, and use Phaser 4 APIs only.
   there rather than code a sound, and never load a sound file or URL. Web Audio starts on the first
   tap or key; every effect and haptic (`sound.vibrate(pattern)`, never `navigator.vibrate` itself)
   plays only while the player's sounds setting is on, and quieter under a voice clip. A button tap
-  plays `ui.tap` by itself (`tapSounds`). Under `?test=1` or in an automated browser sounds are
-  made but never reach the speakers; the test hook's `sounds.played` lists the last 30 asked for.
+  plays `ui.tap` by itself (`tapSounds`). No more than 6 sounds start in any 100 ms
+  (`src/sound-burst.ts`); `sound.play(id, 'keep')` marks one a burst drops last, such as a result.
+  Arena fights play theirs from the frame's events (`src/arena/arena-sounds.ts`), turn battles
+  from their steps (`src/battle-sounds.ts`). Under `?test=1` or in an automated browser sounds are
+  made but never reach the speakers; the test hook's `sounds.played` lists the last 30 played, and
+  `arena.sounds` every sound of the fight on screen.
   "Read to me" (`src/speech.ts`) plays the voice clips through one audio element
   (`src/clip-player.ts`), while the player has it on or taps a speaker button.
 - **Test hook.** With `?test=1` only, `window.__nebotok` exposes `ready` (true once the map is
