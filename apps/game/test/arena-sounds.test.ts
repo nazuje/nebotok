@@ -80,6 +80,23 @@ describe('the arena\'s sounds', () => {
     ]);
   });
 
+  it('keeps a treat missed in a busy frame, eaten after the cast and hit of its own tick', () => {
+    let now = 0;
+    const file = SoundsFile.parse(sounds);
+    const sound = createSoundPlayer({ file, synth: { ready: () => true, play: () => {}, master: () => {} }, now: () => now, vibrate: null });
+    const at = (ms: number, play: () => boolean) => {
+      now = ms;
+      return play();
+    };
+    // A creature's cry as it comes onto the island, the frame before's cast and hit, then the wild creature casts, hits and eats the treat.
+    expect(at(8_000, () => sound.playRecipe('cry:glaciyak', file.sounds[0]!))).toBe(true);
+    expect(at(8_020, () => sound.play('arena.cast.bolt'))).toBe(true);
+    expect(at(8_021, () => sound.play('arena.hit'))).toBe(true);
+    const frame: FightEvent[] = [{ kind: 'cast', side: 1, button: 0, move: 'm', shape: 'cone' }, hit('weak'), { kind: 'treatEaten', item: 't', amount: 2, health: 4 }];
+    const heard = arenaSounds(frame, PLAYER).filter(({ id, priority }) => at(8_050, () => sound.play(id, priority)));
+    expect(heard).toEqual([{ id: 'arena.treat.miss', priority: 'keep' }]);
+  });
+
   it('turns a result round for side 1, cheers every decided end for a watcher, and leaves a run silent', () => {
     const lost: FightEvent = { kind: 'fightEnded', result: 'lost' };
     expect(ids([lost])).toEqual(['arena.fight.lost']);
