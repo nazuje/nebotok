@@ -6,7 +6,7 @@ import type { SoundPriority } from '../sound.ts';
  * and watchers alike, from the same events the scene's juice uses (arena-effects.ts). Sound is
  * separate from reduced motion, which never silences it. A frame's events play each sound once
  * and one hit, the strongest, so a flurry stays readable; the burst cap (sound-burst.ts) then drops
- * what is still too much, never before the results, ring-outs, "Go!" and a treat thrown (`keep`).
+ * what is still too much, never before the results, ring-outs, "Go!" and a treat thrown or missed (`keep`).
  */
 
 export type ArenaSound = { readonly id: string; readonly priority: SoundPriority };
@@ -55,11 +55,13 @@ const FIGHT_SOUNDS = { won: 'arena.fight.won', lost: 'arena.fight.lost' } as con
 export const COUNTDOWN_FROM_S = 3;
 
 /**
- * The sounds a burst must not drop. A treat thrown answers the player's own press, and only one is
- * ever out; thrown point-blank it is eaten on the same tick, so it shares its frame with the
- * befriending and comes just after the last hits and the befriended creature's cry.
+ * The sounds a burst must not drop. A treat thrown, and the miss when it is eaten or lost, answer
+ * the player's own press, and only one treat is ever out, so neither is part of a flurry. Thrown
+ * point-blank a treat is eaten on the same tick, so its throw shares its frame with the befriending
+ * and comes just after the last hits and the befriended creature's cry; a miss is eaten after the
+ * hits and casts of its own tick.
  */
-const KEPT: ReadonlySet<string> = new Set([...Object.values(ROUND_SOUNDS), ...Object.values(FIGHT_SOUNDS), 'arena.ringout', 'arena.befriend', 'arena.treat.throw', GO_SOUND]);
+const KEPT: ReadonlySet<string> = new Set([...Object.values(ROUND_SOUNDS), ...Object.values(FIGHT_SOUNDS), 'arena.ringout', 'arena.befriend', 'arena.treat.throw', 'arena.treat.miss', GO_SOUND]);
 
 /** Every sound an arena fight can play, for the test that each has its recipe. */
 export const ARENA_SOUND_IDS: readonly string[] = [...new Set([...Object.values(CAST_SOUNDS), ...Object.values(HIT_SOUNDS), ...Object.values(EVENT_SOUNDS), ...KEPT, COUNTDOWN_SOUND])];
