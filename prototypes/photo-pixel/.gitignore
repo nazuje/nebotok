@@ -1,0 +1,11 @@
+.venv/
+booklet/
+synthetic/
+out-synth/
+real/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.heif
+*.json
