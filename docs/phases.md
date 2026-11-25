@@ -153,7 +153,8 @@ at the island design session before Slice D.
   courier designer (#96).
 
 Still open: the quest list, where decorations sit on a home island, and which pixel versions to
-offer.
+offer. A photo-to-pixel-art prototype, tried so far only on invented stand-in photos, is on the
+branch `prototype/photo-pixel` (`prototypes/photo-pixel/README.md` lists what it showed).
 
 ### Slice E: Grow the sky
 
